@@ -17,8 +17,9 @@
 /**
  * Module instance settings form for mod_elang.
  *
- * Version 2.0 skeleton: general section only. Media, subtitle import, gap and
- * grading settings are added in phase 2 and phase 4.
+ * General section plus the standard grading elements (grade, grade
+ * category, grade to pass). Media, subtitle import and gap settings are
+ * added in phase 4 (authoring tool).
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -53,6 +54,8 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->addRule('name', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
         $this->standard_intro_elements();
+
+        $this->standard_grading_coursemodule_elements();
 
         $this->standard_coursemodule_elements();
         $this->add_action_buttons();

@@ -198,5 +198,22 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072301, 'elang');
     }
 
+    if ($oldversion < 2026072306) {
+        // Add the standard Moodle grade/gradetype field, needed for
+        // gradebook integration (elang_grade_item_update()/
+        // elang_update_grades() in lib.php). No key or index touches this
+        // field, so there is no risk of the KEY/INDEX collision fixed
+        // earlier in this file (see the elang_gapanswer/elang_attempt
+        // history above) — checked explicitly, not just assumed, given that
+        // history.
+        $table = new xmldb_table('elang');
+        $field = new xmldb_field('grade', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '100', 'currentversionid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026072306, 'elang');
+    }
+
     return true;
 }

@@ -11,6 +11,84 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.7] - 2026-07-23
+
+Phase 2, sixth content increment: gradebook integration — the last piece
+before Phase 2 is functionally complete (Completion is the remaining item).
+
+### Added
+- `db/install.xml`/`db/upgrade.php` (savepoint 2026072306): new
+  `elang.grade` field, the standard Moodle grade/gradetype column (positive
+  = maximum points, 0 = ungraded, negative = `-scaleid`). No key or index
+  touches it, checked explicitly against the same collision pattern that
+  broke the alpha.6 upgrade path — none introduced here.
+- `lib.php`: `FEATURE_GRADE_HAS_GRADE` now `true`.
+  `elang_grade_item_update()` creates/updates the activity's grade item via
+  `grade_update()`. `elang_update_grades()` computes each user's grade as
+  the highest score among their **finished** attempts
+  (`attempt_manager::get_best_score()`), scaled to `elang.grade`, and pushes
+  it through. No configurable grading method (best/average/first/last
+  across attempts) yet — always "highest finished attempt" — documented as
+  a known gap, not an oversight. `elang_add_instance()`/
+  `elang_update_instance()` now call `elang_grade_item_update()`;
+  `elang_delete_instance()` now calls `grade_update(..., ['deleted' =>
+  true])` to remove the grade item when the activity itself is deleted.
+- `classes/local/domain/attempt_manager.php`: new `get_best_score()`, a pure
+  query over `elang_attempt` kept in the domain layer (same responsibility
+  as everything else on this class) rather than in `lib.php`, so it stays
+  independently testable without a gradebook bootstrap. Caught and fixed a
+  real subtlety before it could become a bug: `SELECT MAX(score) ... WHERE
+  ...` always returns exactly one row in SQL, with the aggregate `NULL` when
+  nothing matched — never "no row" — a distinction that has bitten this
+  project's DB-layer assumptions before (see alpha.2/alpha.3's
+  int-vs-string findings) and was checked explicitly, not assumed. The
+  standalone domain smoke script's fake DB was extended to simulate this
+  faithfully, with four new checks (no attempts at all, an in-progress
+  attempt does not count, first finished attempt counts, highest of several
+  finished attempts wins over the latest) — all passing before this landed.
+- `classes/external/finish_attempt.php`: now calls `elang_update_grades()`
+  for the attempting user immediately after `finish_attempt()`, so the
+  gradebook reflects a result the moment an attempt is finished rather than
+  waiting for a separate regrade trigger. Explicitly `require_once`s
+  `lib.php` first — gradebook callbacks are plain global functions, not
+  guaranteed to already be loaded in an external-function context.
+- `mod_form.php`: `standard_grading_coursemodule_elements()` added (grade,
+  grade category, grade to pass — the standard Moodle grade section), right
+  below the intro, above the standard course-module elements, matching
+  `mod_assign`/`mod_quiz` convention.
+- PHPUnit coverage: `tests/lib_test.php` gained gradebook cases (creating an
+  instance creates a grade item with the configured max, `elang_update_
+  grades()` pushes the correct scaled grade for a finished attempt, a user
+  with no finished attempts gets no positive grade, deleting an instance
+  removes its grade item); the previously-passing assertion that
+  `FEATURE_GRADE_HAS_GRADE` is *not* declared was corrected to assert the
+  opposite, now that it is; `tests/local/domain/attempt_manager_test.php`
+  gained matching PHPUnit cases for `get_best_score()` alongside the smoke
+  script coverage.
+- `version.php`: 2026072305 -> 2026072306 (2.0.0-alpha.7) — required both
+  for the new `elang.grade` schema field and, as with every increment since
+  alpha.4, for `db/services.php` (unchanged this round, but the version
+  gate is schema-driven here, not services-driven).
+
+### Known gaps
+- No configurable grading method across multiple attempts (best/average/
+  first/last) — always the highest finished attempt. `mod_quiz`'s
+  `QUIZ_GRADEHIGHEST`/`QUIZ_GRADEAVERAGE`/etc. pattern would be the natural
+  model for a later refinement.
+- No maximum attempt count exists yet (unchanged from earlier increments),
+  so nothing currently limits how many finished attempts contribute to
+  "the highest".
+- Completion (`FEATURE_COMPLETION_HAS_RULES`,
+  `\mod_elang\completion\custom_completion`) is still not implemented; a
+  natural completion rule ("achieved the pass grade") now has real grade
+  data to read once it exists.
+- This increment has not been run against a real Moodle instance yet —
+  verified with `php -l`, `phpcs --standard=moodle` (0/0), `phpcpd` (no
+  clones), a KEY/INDEX collision re-check on the new field (none), and the
+  standalone smoke script only. Given alpha.6's upgrade-path lesson, the
+  new `db/upgrade.php` savepoint in particular has not been exercised
+  against a real admin-UI upgrade.
+
 ## [2.0.0-alpha.6] - 2026-07-23
 
 Phase 2, fifth content increment: hint requests — the last piece of the

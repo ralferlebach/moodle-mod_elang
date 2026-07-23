@@ -43,15 +43,18 @@ function elang_supports(string $feature) {
         // The following features belong to the 2.0 target scope but stay switched
         // off until their implementation lands. Declaring a feature without its
         // callbacks is not a harmless promise: FEATURE_BACKUP_MOODLE2 makes course
-        // backup look for backup_elang_activity_task, FEATURE_COMPLETION_HAS_RULES
-        // makes completion look for \mod_elang\completion\custom_completion, and
-        // FEATURE_GRADE_HAS_GRADE makes instance creation call
-        // elang_grade_item_update() and elang_update_grades().
+        // backup look for backup_elang_activity_task, and
+        // FEATURE_COMPLETION_HAS_RULES makes completion look for
+        // \mod_elang\completion\custom_completion.
         case FEATURE_BACKUP_MOODLE2:
         case FEATURE_COMPLETION_HAS_RULES:
-        case FEATURE_GRADE_HAS_GRADE:
         case FEATURE_GRADE_OUTCOMES:
             return false;
+        case FEATURE_GRADE_HAS_GRADE:
+            // See elang_grade_item_update()/elang_update_grades() below; the
+            // grade itself is always computed from elang_attempt.score
+            // (highest finished attempt), never entered manually.
+            return true;
         case FEATURE_MOD_PURPOSE:
             // Assessment purpose: renders the monochrome monologo on the pink
             // activity-icon background, consistent with quiz and assign.
@@ -91,11 +94,21 @@ function elang_add_instance(stdClass $elang, ?mod_elang_mod_form $mform = null):
     if (!isset($elang->language)) {
         $elang->language = '';
     }
+    if (!isset($elang->grade)) {
+        // The form always supplies this via standard_grading_coursemodule_
+        // elements(); this default only matters for callers that bypass the
+        // form (generators, external functions that create instances directly).
+        $elang->grade = 100;
+    }
 
     $elang->timecreated = time();
     $elang->timemodified = $elang->timecreated;
 
-    return (int) $DB->insert_record('elang', $elang);
+    $elang->id = (int) $DB->insert_record('elang', $elang);
+
+    elang_grade_item_update($elang);
+
+    return $elang->id;
 }
 
 /**
@@ -111,7 +124,11 @@ function elang_update_instance(stdClass $elang, ?mod_elang_mod_form $mform = nul
     $elang->id = $elang->instance;
     $elang->timemodified = time();
 
-    return $DB->update_record('elang', $elang);
+    $result = $DB->update_record('elang', $elang);
+
+    elang_grade_item_update($elang);
+
+    return $result;
 }
 
 /**
@@ -121,9 +138,10 @@ function elang_update_instance(stdClass $elang, ?mod_elang_mod_form $mform = nul
  * @return bool Success
  */
 function elang_delete_instance(int $id): bool {
-    global $DB;
+    global $DB, $CFG;
 
-    if (!$DB->record_exists('elang', ['id' => $id])) {
+    $elang = $DB->get_record('elang', ['id' => $id]);
+    if (!$elang) {
         return false;
     }
 
@@ -176,5 +194,124 @@ function elang_delete_instance(int $id): bool {
 
     $transaction->allow_commit();
 
+    require_once($CFG->libdir . '/gradelib.php');
+    grade_update('mod/elang', $elang->course, 'mod', 'elang', $elang->id, 0, null, ['deleted' => true]);
+
     return true;
+}
+
+/**
+ * Create or update the grade item for an elang instance.
+ *
+ * Standard Moodle gradebook callback (see elang_supports(
+ * FEATURE_GRADE_HAS_GRADE)), called from elang_add_instance(),
+ * elang_update_instance() and elang_update_grades(). The grade itself is
+ * never entered manually — elang_update_grades() always computes it from
+ * elang_attempt.score — so this function's own responsibility is limited to
+ * (re)configuring the grade item's type/bounds and, when $grades is given,
+ * pushing already-computed grades through it.
+ *
+ * @param stdClass $elang Row from the elang table, at least id, course, grade
+ * @param mixed $grades Null to only (re)configure the grade item, an array of
+ *        grade-like objects keyed by userid to push, or the string 'reset'
+ *        to remove all grades for this item
+ * @return int GRADE_UPDATE_OK, or one of gradelib's GRADE_UPDATE_* failure constants
+ */
+function elang_grade_item_update(stdClass $elang, $grades = null): int {
+    global $CFG;
+    require_once($CFG->libdir . '/gradelib.php');
+
+    $params = [
+        'itemname' => $elang->name ?? get_string('pluginname', 'mod_elang'),
+    ];
+
+    if ((int) $elang->grade > 0) {
+        $params['gradetype'] = GRADE_TYPE_VALUE;
+        $params['grademax'] = (int) $elang->grade;
+        $params['grademin'] = 0;
+    } else if ((int) $elang->grade < 0) {
+        $params['gradetype'] = GRADE_TYPE_SCALE;
+        $params['scaleid'] = -(int) $elang->grade;
+    } else {
+        $params['gradetype'] = GRADE_TYPE_NONE;
+    }
+
+    if ($grades === 'reset') {
+        $params['reset'] = true;
+        $grades = null;
+    }
+
+    return grade_update('mod/elang', $elang->course, 'mod', 'elang', $elang->id, 0, $grades, $params);
+}
+
+/**
+ * Recompute and push gradebook grades for one or all users of an elang instance.
+ *
+ * The grade is always the highest score among a user's FINISHED attempts
+ * (see attempt_manager::get_best_score()) — no configurable grading method
+ * (best/average/first/last across attempts) yet; that is a documented known
+ * gap, not an oversight (see CHANGELOG). A user with no finished attempts
+ * gets no grade pushed by default, or an explicit null grade (clearing any
+ * previous one) when $nullifnone is true and they already have some grade.
+ *
+ * @param stdClass $elang Row from the elang table
+ * @param int $userid 0 to recompute every user who has ever attempted this activity, or a specific user id
+ * @param bool $nullifnone Whether a user with no finished attempts should have their grade explicitly cleared
+ * @return void
+ */
+function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone = true): void {
+    global $DB;
+
+    if ((int) $elang->grade == 0) {
+        // Ungraded activity: only (re)configure the grade item, nothing to push.
+        elang_grade_item_update($elang);
+        return;
+    }
+
+    if ($userid) {
+        $userids = [$userid];
+    } else {
+        $userids = $DB->get_fieldset_select(
+            'elang_attempt',
+            'DISTINCT userid',
+            'elangid = ?',
+            [$elang->id]
+        );
+    }
+
+    if (empty($userids)) {
+        elang_grade_item_update($elang);
+        return;
+    }
+
+    $attemptmanager = new \mod_elang\local\domain\attempt_manager(
+        new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager())
+    );
+
+    $grades = [];
+    foreach ($userids as $uid) {
+        $uid = (int) $uid;
+        $bestscore = $attemptmanager->get_best_score((int) $elang->id, $uid);
+
+        if ($bestscore === null) {
+            if ($nullifnone) {
+                $grade = new stdClass();
+                $grade->userid = $uid;
+                $grade->rawgrade = null;
+                $grades[$uid] = $grade;
+            }
+            continue;
+        }
+
+        $grade = new stdClass();
+        $grade->userid = $uid;
+        $grade->rawgrade = $bestscore * (int) $elang->grade;
+        $grades[$uid] = $grade;
+    }
+
+    if (!empty($grades)) {
+        elang_grade_item_update($elang, $grades);
+    } else {
+        elang_grade_item_update($elang);
+    }
 }

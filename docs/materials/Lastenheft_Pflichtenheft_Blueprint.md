@@ -3,7 +3,7 @@
 **Plugin:** `mod_elang` — „Sprachübung" (Version 2.0)
 **Zielplattform:** Moodle **4.5 LTS** bis **5.3 LTS** · PHP **8.1 – 8.4**
 **Autor / Lizenz:** Ralf Erlebach · GNU GPL v3 or later
-**Dokumentversion:** 1.2 · Stand: 23. Juli 2026 (Session 002)
+**Dokumentversion:** 1.2 · Stand: 23. Juli 2026 (Schritt 2 der Session 001)
 
 ---
 
@@ -698,10 +698,22 @@ Was noch fehlt: die eigentliche Moodle-Completion-Anbindung (`elang_supports(
 FEATURE_COMPLETION_HAS_RULES)` liefert bislang `false`, siehe Kap. 5.1/CHANGELOG
 alpha.1) und eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht).
 
-### 10.6 Gradebook [offen]
+### 10.6 Gradebook [Grundfunktion implementiert seit 2.0.0-alpha.7, konfigurierbare Wertungsmethode offen]
 
-Ein Grade-Item, Wertung als bester / letzter / durchschnittlicher Versuch, Punkte
-oder Prozent.
+`elang.grade` (Standard-Moodle-Feld: positiv = Punktzahl, 0 = ungewertet,
+negativ = `-scaleid`), gesetzt über `standard_grading_coursemodule_elements()`
+im Formular. `lib.php::elang_grade_item_update()`/`elang_update_grades()`
+implementieren die drei erforderlichen Gradebook-Callbacks; Letztere liest
+`attempt_manager::get_best_score()` (höchste Punktzahl unter den
+ABGESCHLOSSENEN Versuchen einer Person) und schreibt sie skaliert auf
+`elang.grade` in die Bewertung. `classes/external/finish_attempt.php` stößt
+die Neuberechnung sofort nach Versuchsabschluss an, nicht erst bei einem
+späteren Regrade-Lauf. Was noch fehlt: eine konfigurierbare Wertungsmethode
+über mehrere Versuche hinweg (bester / letzter / durchschnittlicher Versuch —
+nach dem Vorbild von `mod_quiz`s `QUIZ_GRADEHIGHEST`/`QUIZ_GRADEAVERAGE`/etc.);
+aktuell gilt fest „höchster abgeschlossener Versuch". Da `elang` noch keine
+maximale Versuchsanzahl kennt (Kap. 6.1), begrenzt aktuell auch nichts, wie
+viele abgeschlossene Versuche in dieses „höchste" einfließen.
 
 ---
 

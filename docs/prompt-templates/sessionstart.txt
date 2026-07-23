@@ -51,11 +51,12 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.6 (2026072305) — Infrastruktur + versioniertes
+**Version:** 2.0.0-alpha.7 (2026072306) — Infrastruktur + versioniertes
 Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht + vollständige
 Schreib-API + Privacy-Provider + vollständige Lese-API + Transkript-
-Maskierung + Hilfestufen mit Score-Abzug (7 External Functions insgesamt).
-Player, Autorenwerkzeug, Completion/Gradebook, Reporting und Exporte fehlen
+Maskierung + Hilfestufen mit Score-Abzug + Gradebook-Grundfunktion
+(7 External Functions insgesamt). Player, Autorenwerkzeug, Completion,
+Migration, Reporting und Exporte fehlen
 noch vollständig.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
@@ -67,58 +68,69 @@ noch vollständig.
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 006):**
-  - classes/local/domain/attempt_manager.php: request_hint() -- Hilfestufen
-    werden STRIKT in Reihenfolge freigegeben (immer genau eine Stufe hoeher
-    als zuletzt für diese Luecke, kein Sprung auf eine gewaehlte Stufe),
-    schlägt fehl, wenn keine elang_gaphint-Zeile fuer die nächste Stufe
-    existiert. Anfrage vor jeder Antwortabgabe legt eine leere
-    elang_response-Zeile an (responsetext explizit '', da ohne
-    Schema-Default -- gleiche Lektion wie bei elang.language).
-  - recalculate_attempt_aggregates() komplett überarbeitet: pro Antwort wird
-    jetzt auch elang_response.score neu berechnet (nicht nur das
-    Attempt-Aggregat) -- elang_gaphint.penalty (0..1, NICHT additiv über
-    Stufen hinweg) der aktuellen hintlevel wird nachgeschlagen und von 1.0
-    abgezogen, wenn die Antwort akzeptiert ist. Ohne genutzte Hilfe reduziert
-    sich das exakt auf die alte correctgaps/totalgaps-Formel -- explizit
-    verifiziert. Eine NACHTRÄGLICH angeforderte Hilfe zu einer bereits
-    korrekten Antwort senkt die Wertung RÜCKWIRKEND (Neuberechnung bei
-    jeder Aktion, nichts wird bei Abgabe fixiert).
-  - classes/external/request_hint.php: Eigentümerschafts- UND
-    Versionszugehörigkeitsprüfung wie submit_response, freundlicher Fehler
-    VOR dem domänenseitigen coding_exception. hinttype='solution' als
-    Hilfeninhalt ist bewusst erlaubt (explizit angefordert, mit Abzug) --
-    kein Widerspruch zu get_exercise/get_cues, die NIE Lösungen zeigen.
-  - db/services.php: mod_elang_request_hint registriert (write, App-fähig,
-    mod/elang:attempt). Neuer Sprachstring error:nomorehints.
-  - Tests: attempt_manager_test.php um Hilfe-Faelle erweitert,
-    tests/external/request_hint_test.php neu. Eigenständiger
-    Domain-Smoke-Test um eigenen Hilfe-Abschnitt erweitert -- dabei SELBST
-    einen Setup-Fehler gefunden und behoben (wiederverwendete Version hatte
-    bereits eine Luecke, totalgaps stimmte nicht mit der Testerwartung
-    überein) -- jetzt 34/34 bestanden, unabhängig von einer
-    Moodle-Instanz.
-  - version.php: 2026072304 -> 2026072305 (2.0.0-alpha.6) -- notwendig,
-    damit db/services.php neu eingelesen wird.
-  - php -l/phpcs (0/0) und phpcpd (No clones found) real geprüft; Blueprint
-    Kap. 7/10.5, Blueprint_kompakt.md, CHANGELOG aktualisiert (7 von aktuell
-    geplanten External Functions jetzt implementiert).
-  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen.
+**Zuletzt abgeschlossen (Schritt 7 dieser Sitzung):**
+  - db/install.xml + db/upgrade.php (Savepoint 2026072306): neues Feld
+    elang.grade (Standard-Moodle-Konvention: positiv = Punktzahl, 0 =
+    ungewertet, negativ = -scaleid). Kein Key/Index auf diesem Feld --
+    explizit gegen dieselbe Kollisionsart geprüft, die den alpha.6-
+    Upgrade-Pfad zerschossen hatte. Keine gefunden.
+  - lib.php: FEATURE_GRADE_HAS_GRADE jetzt true.
+    elang_grade_item_update() (ruft grade_update() auf) und
+    elang_update_grades() (liest attempt_manager::get_best_score(),
+    schreibt skaliert auf elang.grade in die Bewertung) neu.
+    elang_add_instance()/elang_update_instance() rufen jetzt
+    elang_grade_item_update() auf; elang_delete_instance() räumt das
+    Grade-Item über grade_update(..., ['deleted' => true]) ab.
+  - classes/local/domain/attempt_manager.php::get_best_score(): höchste
+    Punktzahl unter den ABGESCHLOSSENEN Versuchen einer Person. Dabei
+    SELBST eine Falle gefunden und in der Fake-DB nachgebildet, bevor
+    sie zum Problem wurde: SELECT MAX(score) ... liefert bei null
+    Treffern in SQL immer GENAU EINE Zeile mit NULL, nie "keine Zeile"
+    -- dieselbe Art von DB-Rückgabewert-Falle wie schon bei den int-vs-
+    string-Funden in Schritt 2/3, jetzt explizit geprüft statt vermutet.
+  - classes/external/finish_attempt.php: ruft nach finish_attempt() sofort
+    elang_update_grades() für die betreffende Person auf (require_once
+    von lib.php explizit, da External-Function-Kontext das Laden nicht
+    garantiert).
+  - mod_form.php: standard_grading_coursemodule_elements() ergänzt.
+  - Tests: tests/lib_test.php um vier Gradebook-Fälle erweitert (Grade-
+    Item bei Instanzerstellung, korrekte skalierte Bewertung nach
+    finish_attempt, keine Bewertung ohne abgeschlossenen Versuch,
+    Grade-Item-Löschung), eine bestehende jetzt widersprüchliche
+    Assertion (FEATURE_GRADE_HAS_GRADE=false) korrigiert.
+    attempt_manager_test.php um get_best_score()-Fälle erweitert,
+    zusätzlich zur eigenständigen Smoke-Test-Abdeckung (4 neue Prüfungen).
+  - version.php: 2026072305 -> 2026072306 (2.0.0-alpha.7) -- Schema-
+    Änderung.
+  - php -l/phpcs (0/0), phpcpd (No clones found), erneute KEY/INDEX-
+    Kollisionsprüfung (keine) real geprüft. Blueprint Kap. 10.6,
+    Blueprint_kompakt.md, CHANGELOG aktualisiert.
+  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen -- der neue
+    upgrade.php-Savepoint im Besonderen ist nach der alpha.6-Lektion
+    noch ungetestet gegen ein echtes Admin-UI-Upgrade.
 
-Ältere Session-Details stehen vollständig in docs/sessions/session-00{2,3,4,5,6}.md.
+Details zu allen bisherigen Schritten dieser Sitzung stehen vollständig in
+docs/sessions/session-001.md.
 
-**Als nächstes geplant (Phase 2 — Completion/Gradebook, dann answermaxlength):**
-  - Completion auf den Aggregaten (exactgaps/correctgaps/...), Gradebook-
-    Anbindung (Domänenlogik liefert die Aggregate bereits, Anbindung fehlt).
-    Muss das jetzt hint-abzugsbewusste elang_attempt.score lesen, nicht
-    eigenständig neu berechnen
+**Als nächstes geplant (Phase 2 — Completion, damit wäre der aktiv
+entwickelbare Phase-2-Umfang vollständig; Migration bleibt separat
+blockiert):**
+  - Completion (FEATURE_COMPLETION_HAS_RULES,
+    \mod_elang\completion\custom_completion): liest jetzt sowohl die
+    Aggregate auf elang_attempt als auch — seit Schritt 7 — die echte,
+    hint-abzugsbewusste Bewertung über elang_grade_item_update()/
+    grade_items. Naheliegende Regel „bestandene Note erreicht" hat damit
+    jetzt echte Daten zum Lesen.
   - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
     existiert bereits als elang_gap.maxlength) — würde die aktuell harte
     500-Zeichen-Grenze in submit_response ablösen bzw. ergänzen
+  - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
+
+**Separat, weiterhin blockiert (nicht Teil von "Phase 2 abgeschlossen"):**
   - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task — BLOCKIERT auf
     einen V1-Datensimulator, da keine echten V1-Bestandsdaten mehr verfügbar
-    sind (siehe Migration_V1_V2.md, Kap. 1.1)
-  - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
+    sind (siehe Migration_V1_V2.md, Kap. 1.1). Braucht Eingabe vom Nutzer,
+    nicht durch weitere Entwicklung allein lösbar.
 
 **Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
   2.1-1 regelbasierte Lückenerzeugung
@@ -303,7 +315,7 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     werden muss — manchmal ist "existiert noch nicht" der korrekte,
     erwartete Zustand für die aktuelle Projektphase (Beispiel: templates/
     für Mustache, bevor der Renderer/Ausgabe-Layer überhaupt gebaut ist).
-    Unterschied zum script/-Fall (Session 003): DORT verlangte MOODLE SELBST
+    Unterschied zum script/-Fall (Schritt 3 dieser Sitzung): DORT verlangte MOODLE SELBST
     die Existenz einer im Schema deklarierten Subplugin-Verzeichnis-Struktur
     unabhängig vom Inhalt — HIER ist es nur unser eigenes Dev-Tool, das ein
     Verzeichnis für einen noch nicht gebauten Projektteil erwartet. Bei

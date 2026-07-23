@@ -346,4 +346,44 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->expectException(\coding_exception::class);
         $this->manager->finish_attempt($attempt->id);
     }
+
+    /**
+     * A user with no attempts at all has no best score.
+     *
+     * @return void
+     */
+    public function test_get_best_score_is_null_without_any_attempt(): void {
+        $this->assertNull($this->manager->get_best_score($this->elang->id, $this->student->id));
+    }
+
+    /**
+     * An in-progress attempt does not count towards the best score, even if
+     * it currently has a perfect response — only finished attempts count.
+     *
+     * @return void
+     */
+    public function test_get_best_score_ignores_in_progress_attempts(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+
+        $this->assertNull($this->manager->get_best_score($this->elang->id, $this->student->id));
+    }
+
+    /**
+     * The highest score among several finished attempts is returned, not
+     * the latest one.
+     *
+     * @return void
+     */
+    public function test_get_best_score_returns_the_highest_finished_attempt(): void {
+        $first = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($first->id, $this->gap->id, 'chat');
+        $this->manager->finish_attempt($first->id);
+
+        $second = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($second->id, $this->gap->id, 'chien');
+        $this->manager->finish_attempt($second->id);
+
+        $this->assertEqualsWithDelta(1.0, $this->manager->get_best_score($this->elang->id, $this->student->id), 0.00001);
+    }
 }

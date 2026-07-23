@@ -272,6 +272,30 @@ class attempt_manager {
     }
 
     /**
+     * Return the highest score among an activity's finished attempts for one user.
+     *
+     * Used by lib.php's elang_update_grades() to compute the gradebook grade;
+     * kept here rather than in lib.php because it is a pure query over
+     * elang_attempt, the same kind of responsibility as every other method
+     * on this class, and because it is independently testable without a
+     * Moodle gradebook bootstrap.
+     *
+     * @param int $elangid The activity id
+     * @param int $userid The user id
+     * @return float|null The highest score (0..1), or null if the user has no finished attempts
+     */
+    public function get_best_score(int $elangid, int $userid): ?float {
+        global $DB;
+
+        $best = $DB->get_field_sql(
+            'SELECT MAX(score) FROM {elang_attempt} WHERE elangid = ? AND userid = ? AND state = ?',
+            [$elangid, $userid, self::STATE_FINISHED]
+        );
+
+        return $best !== null ? (float) $best : null;
+    }
+
+    /**
      * Recompute an attempt's aggregate counters, and each response's own
      * score, from its responses and any hint penalties they have incurred.
      *

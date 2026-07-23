@@ -64,7 +64,18 @@ final class lib_test extends \advanced_testcase {
 
         $this->assertFalse(elang_supports(FEATURE_BACKUP_MOODLE2));
         $this->assertFalse(elang_supports(FEATURE_COMPLETION_HAS_RULES));
-        $this->assertFalse(elang_supports(FEATURE_GRADE_HAS_GRADE));
+    }
+
+    /**
+     * Gradebook support is declared now that elang_grade_item_update()/
+     * elang_update_grades() exist.
+     *
+     * @return void
+     */
+    public function test_gradebook_feature_is_declared(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(elang_supports(FEATURE_GRADE_HAS_GRADE));
     }
 
     /**
@@ -155,5 +166,130 @@ final class lib_test extends \advanced_testcase {
         $this->assertSame(0, $DB->count_records('elang_gaphint', ['gapid' => $gap->id]));
         $this->assertSame(0, $DB->count_records('elang_attempt', ['elangid' => $elang->id]));
         $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+    }
+
+    /**
+     * Creating an instance creates its gradebook grade item with the
+     * configured maximum grade.
+     *
+     * @return void
+     */
+    public function test_creating_an_instance_creates_a_grade_item(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', ['course' => $course->id, 'grade' => 50]);
+
+        $gradeitem = $DB->get_record('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ], '*', MUST_EXIST);
+
+        $this->assertEqualsWithDelta(50.0, (float) $gradeitem->grademax, 0.00001);
+        $this->assertEqualsWithDelta(0.0, (float) $gradeitem->grademin, 0.00001);
+    }
+
+    /**
+     * elang_update_grades() pushes the highest finished-attempt score into
+     * the gradebook, scaled to the activity's configured maximum grade.
+     *
+     * @return void
+     */
+    public function test_update_grades_pushes_the_best_finished_score(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr', 'grade' => 100]);
+
+        $versionmanager = new \mod_elang\local\domain\version_manager();
+        $draft = $versionmanager->create_draft($elang->id, $student->id);
+        $cue = $generator->create_cue(['versionid' => $draft->id]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $versionmanager->publish($draft->id, $student->id);
+
+        $attemptmanager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $attempt = $attemptmanager->start_attempt($elang->id, $student->id, $draft->id);
+        $attemptmanager->submit_response($attempt->id, $gap->id, 'chat');
+        $attemptmanager->finish_attempt($attempt->id);
+
+        elang_update_grades($elang, (int) $student->id);
+
+        $gradegrade = $DB->get_record_sql(
+            'SELECT gg.finalgrade
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gi.itemtype = ? AND gi.itemmodule = ? AND gi.iteminstance = ? AND gg.userid = ?',
+            ['mod', 'elang', $elang->id, $student->id]
+        );
+
+        $this->assertNotFalse($gradegrade);
+        $this->assertEqualsWithDelta(100.0, (float) $gradegrade->finalgrade, 0.00001);
+    }
+
+    /**
+     * A user with no finished attempts gets no positive grade pushed.
+     *
+     * @return void
+     */
+    public function test_update_grades_does_not_grade_a_user_with_no_finished_attempts(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'grade' => 100]);
+
+        elang_update_grades($elang, (int) $student->id);
+
+        $gradegrade = $DB->get_record_sql(
+            'SELECT gg.finalgrade
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gi.itemtype = ? AND gi.itemmodule = ? AND gi.iteminstance = ? AND gg.userid = ?',
+            ['mod', 'elang', $elang->id, $student->id]
+        );
+
+        $this->assertTrue($gradegrade === false || $gradegrade->finalgrade === null);
+    }
+
+    /**
+     * Deleting an instance removes its gradebook grade item along with everything else.
+     *
+     * @return void
+     */
+    public function test_delete_instance_removes_the_grade_item(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', ['course' => $course->id]);
+
+        $this->assertTrue($DB->record_exists('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ]));
+
+        elang_delete_instance($elang->id);
+
+        $this->assertFalse($DB->record_exists('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ]));
     }
 }

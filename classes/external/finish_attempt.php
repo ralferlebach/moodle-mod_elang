@@ -49,7 +49,7 @@ class finish_attempt extends external_api {
      * @return array The finished attempt's final state, see execute_returns()
      */
     public static function execute(int $attemptid): array {
-        global $DB;
+        global $DB, $CFG;
 
         ['attemptid' => $attemptid] = self::validate_parameters(self::execute_parameters(), [
             'attemptid' => $attemptid,
@@ -65,6 +65,14 @@ class finish_attempt extends external_api {
         }
 
         $finished = self::get_attempt_manager()->finish_attempt($attemptid);
+
+        // Gradebook callbacks in lib.php are plain global functions, not
+        // guaranteed to be autoloaded in an external-function context —
+        // require it explicitly rather than relying on it having been
+        // pulled in by something else already.
+        require_once($CFG->dirroot . '/mod/elang/lib.php');
+        $elang = $DB->get_record('elang', ['id' => $finished->elangid], '*', MUST_EXIST);
+        elang_update_grades($elang, (int) $finished->userid);
 
         return [
             'attemptid' => (int) $finished->id,

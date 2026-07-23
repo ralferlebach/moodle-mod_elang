@@ -130,7 +130,8 @@ Summe 2.1: **4,2–6,1 PW**.
    Domain (Attempt/Version-Manager erledigt: 2.0.0-alpha.3), Schreib-API +
    Privacy-Provider *(erledigt: 2.0.0-alpha.4)*, Lese-API + Transkript-
    Maskierung *(erledigt: 2.0.0-alpha.5)*, Hilfestufen inkl. Score-Abzug
-   *(erledigt: 2.0.0-alpha.6)*, Completion, Gradebook, Migration
+   *(erledigt: 2.0.0-alpha.6)*, Gradebook *(Grundfunktion erledigt:
+   2.0.0-alpha.7)*, Completion, Migration
 3. Lernendenoberfläche
 4. Autoreneditor, Reporting, Exporte
 5. Härtung, Privacy, Backup, Audits, Revalidierung gegen Moodle 5.3

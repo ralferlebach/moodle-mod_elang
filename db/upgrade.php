@@ -215,5 +215,23 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072306, 'elang');
     }
 
+    if ($oldversion < 2026072307) {
+        // Backing field for the completionfinishattempt custom completion
+        // rule (classes/completion/custom_completion.php). Without a real
+        // column here, elang_get_coursemodule_info() has nothing to read
+        // and core_completion\activity_custom_completion::validate_rule()
+        // always rejects the rule as "not used by this activity", no matter
+        // what get_state() itself does — confirmed against a real Moodle
+        // 4.5.12 PHPUnit failure, not assumed. No key or index touches this
+        // field.
+        $table = new xmldb_table('elang');
+        $field = new xmldb_field('completionfinishattempt', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'grade');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026072307, 'elang');
+    }
+
     return true;
 }

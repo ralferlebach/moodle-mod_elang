@@ -913,3 +913,179 @@ echtes Admin-UI-Upgrade gelaufen — nach der Schritt-6-Lektion ausdrücklich
 als offener Punkt vermerkt, nicht stillschweigend vorausgesetzt.
 
 ---
+
+## Schritt 8: Completion — letzter Baustein von Phase 2
+
+### Was wurde erledigt?
+
+- [x] `classes/completion/custom_completion.php`: implementiert
+      `\core_completion\activity_custom_completion` mit genau einer eigenen
+      Regel, `completionfinishattempt`. `completionview` und eine
+      Bestehensnote-Bedingung liefert Moodle-Core bereits automatisch, sobald
+      `FEATURE_COMPLETION_TRACKS_VIEWS` bzw. `FEATURE_GRADE_HAS_GRADE`
+      gesetzt sind — nicht selbst implementiert.
+- [x] `lib.php`: `FEATURE_COMPLETION_HAS_RULES` jetzt `true`.
+- [x] `mod_form.php`: `add_completion_rules()`/`completion_rule_enabled()` —
+      Feldname trägt `$this->get_suffix()` (seit Moodle 4.3/4.4, MDL-78516,
+      Pflicht für Mehrfach-Instanzen-Formulare).
+- [x] Zwei neue Sprachstrings (EN+DE): `completionfinishattempt`,
+      `completiondetail:completionfinishattempt`.
+- [x] Tests: `tests/completion/custom_completion_test.php` neu, `lib_test.php`
+      korrigiert.
+- [x] `version.php`: 2026072306 → 2026072307 (2.0.0-alpha.8).
+- [x] `php -l`/`phpcs`: 0/0. `phpcpd`: „No clones found".
+- [x] Blueprint Kap. 10.5, `Blueprint_kompakt.md`, `CHANGELOG.md`
+      aktualisiert.
+
+---
+
+### Entscheidungen getroffen
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Eigene Completion-Regel | genau eine: `completionfinishattempt` | `completionview` und eine Bestehensnote-Bedingung liefert Moodle-Core bereits automatisch für Aktivitäten mit `FEATURE_COMPLETION_TRACKS_VIEWS`/`FEATURE_GRADE_HAS_GRADE` — die einzige echte Lücke, die Core nicht kennt, ist „hat die Person tatsächlich einen Versuch abgeschlossen" |
+| Formularfeld mit Suffix | `$this->get_suffix()` immer angehängt, keine Versionsverzweigung | seit Moodle 4.3/4.4 (MDL-78516) Pflicht für Mehrfach-Instanzen-Formulare; unser gesamter Zielbereich (ab 4.5 LTS) liegt bereits jenseits dieser Grenze — anders als ein während der Recherche gefundenes Drittanbieter-Plugin, das noch ältere Moodle-Versionen unterstützen musste und deshalb eine Verzweigung brauchte, brauchen wir keine |
+| Kein `elang_get_completion_state()` | bewusst nicht implementiert | Moodle-Core hat diesen Legacy-Callback-Pfad zur Deprecation vorgesehen (MDL-71144) zugunsten des klassenbasierten Ansatzes; als Neuentwicklung ohne Altlast gibt es nichts fortzuführen |
+
+---
+
+### Entwurfsentscheidungen geändert / zurückgestellt
+
+Keine Änderung an bestehenden Festlegungen.
+
+---
+
+### Ein Rechercheergebnis, das einen echten Fehler verhindert hat
+
+Vor dem Schreiben von `mod_form.php::add_completion_rules()` gezielt nach dem
+AKTUELLEN, versionsabhängigen Muster gesucht statt aus dem Gedächtnis zu
+schreiben — und dabei einen echten Community-Bugreport gefunden: ein anderes
+Plugin brach auf Moodle 4.4 genau deshalb, weil sein Completion-Regel-
+Formularfeld KEIN `$this->get_suffix()` trug (Pflicht seit MDL-78516, für
+Mehrfach-Instanzen-Formulare wie Sammel-Abschluss-Bearbeitung). Ohne diese
+gezielte Recherche wäre genau dieser Fehler naheliegend gewesen, da ältere
+Tutorials und Beispielcode oft noch die unsuffixierte Variante zeigen.
+
+Zusätzlich am Moodle-Core-Quellcode direkt bestätigt statt vermutet: welchen
+exakten Exception-Typ `validate_rule()` bei einer undefinierten
+Completion-Regel wirft (`coding_exception`, nicht `moodle_exception` — auch
+wenn Letzteres über die Vererbungshierarchie technisch ebenfalls bestanden
+hätte).
+
+---
+
+### Offene Punkte nach diesem Schritt
+
+**Damit ist der aktiv entwickelbare Umfang von Phase 2 vollständig.**
+Migration V1 → V2 bleibt separat blockiert und zählt nicht dagegen.
+
+- [ ] `elang.answermaxlength`
+- [ ] `classes/courseformat/overview.php`
+- [ ] Migration V1 → V2 — weiterhin separat blockiert (V1-Datensimulator,
+      braucht Eingabe vom Nutzer)
+- [ ] Phase 3 (Lernendenoberfläche): Lese- und Schreib-API sind vollständig,
+      ein Player kann jetzt gebaut werden
+
+---
+
+### Testlauf-Ergebnis
+
+```
+PHPUnit: nicht gegen echte Moodle-Instanz ausgeführt. Completion-
+         Zustandsberechnung und die mod_form-Oberfläche brauchen Moodles
+         echte Completion-/Formular-Maschinerie und ließen sich nicht
+         eigenständig per Smoke-Test prüfen — anders als die Domänenschicht
+         in den vorherigen Schritten.
+PHPCS:   0 Fehler, 0 Warnungen
+PHPCPD:  No clones found
+PHP-Lint: fehlerfrei
+```
+
+---
+
+### Nachtrag (erster echter Testlauf): drei Testfehler, alle im eigenen neuen Testaufbau
+
+118 Tests, nur 3 Fehler — alle drei in `custom_completion_test`, alle
+dieselbe Ursache, **ohne Versionsbump** behoben.
+
+**Root Cause (kein Fehler in `custom_completion.php`):** `validate_rule()`
+(Moodle-Core, `core_completion\activity_custom_completion`) prüft zwei
+getrennte Dinge — ist die Regel überhaupt vom Plugin definiert (bestand)
+UND ist sie für GENAU DIESE Kursmodul-Instanz aktiviert (schlug fehl). Mein
+Test-Setup hatte das Modul ohne jede Completion-Konfiguration angelegt —
+`get_state()` schlägt dann unabhängig von der eigenen Logik immer fehl.
+Fix: Kurs mit `enablecompletion => 1`, Modul mit `completion =>
+COMPLETION_TRACKING_AUTOMATIC` und dem unsuffixierten Regelnamen
+`completionfinishattempt => 1` direkt an `create_module()` übergeben —
+passend zum Muster, das Moodle-Cores eigene Completion-Tests verwenden
+(gegen `completion/tests/bulk_update_test.php` bestätigt).
+
+Lektion in `sessionstart.txt` festgehalten für künftige Custom-Completion-
+Tests.
+
+---
+
+### Nachtrag 2 (zweiter echter Testlauf): erste Diagnose war unvollständig — echtes fehlendes Produktivteil gefunden
+
+Derselbe Fehler trat nach dem ersten Fix erneut auf, unverändert. Die
+Diagnose aus Nachtrag 1 war zwar RICHTIG, aber UNVOLLSTÄNDIG: Es fehlte
+nicht nur die Testkonfiguration, sondern ein ECHTES Produktivteil, das
+Schritt 8 von Anfang an gefehlt hatte.
+
+**Tatsächliche Root Cause:** Die zweite `validate_rule()`-Prüfung liest
+`cm_info->customdata['customcompletionrules']` — das wird AUSSCHLIESSLICH
+durch einen `{modname}_get_coursemodule_info($coursemodule)`-Callback in
+`lib.php` befüllt (Vorbild: `forum_get_coursemodule_info()`, liest
+`forum.completiondiscussions` etc. aus der EIGENEN Tabelle der Aktivität).
+Dieser Callback existierte in `mod_elang` gar nicht, und die dafür nötige
+Spalte (`elang.completionfinishattempt`) auch nicht. Ohne beides schlägt
+`get_state()` IMMER fehl, unabhängig von Testaufbau oder eigener Logik —
+der erste Fix (nur `create_module()`-Optionen) hatte also nichts, wohin er
+seinen Wert hätte schreiben oder woraus er ihn hätte zurücklesen können.
+
+**Fix (weiterhin ohne Versionsbump, 2.0.0-alpha.8 bleibt):**
+- Neue Spalte `elang.completionfinishattempt` in `db/install.xml`.
+- Neuer `db/upgrade.php`-Savepoint, der auf den BEREITS AKTUELLEN Wert
+  2026072307 zielt (kein weiterer Bump, aber real wirksam beim nächsten
+  Admin-UI-Upgrade einer echten Installation, deren gespeicherte Version
+  noch dahinter liegt).
+- `lib.php::elang_get_coursemodule_info()` neu — befüllt
+  `customdata['customcompletionrules']['completionfinishattempt']` NUR,
+  wenn `$coursemodule->completion == COMPLETION_TRACKING_AUTOMATIC`
+  (Core-eigene Konvention).
+- Zwei neue, eigenständige Tests in `tests/lib_test.php` direkt für den
+  Callback, unabhängig vom Completion-State-Test, der die Lücke ursprünglich
+  aufgedeckt hatte.
+
+Mit Spalte und Callback vorhanden griff die ursprüngliche
+`create_module()`-Konfiguration aus Nachtrag 1 tatsächlich korrekt — sie
+hatte nur bis jetzt nichts, worauf sie wirken konnte.
+
+Lektion in `sessionstart.txt` korrigiert und vervollständigt (nicht nur
+ergänzt), damit sie beim nächsten Mal von Anfang an vollständig ist.
+
+---
+
+### Nachtrag 3 (dritter echter Testlauf): Fix aus Nachtrag 2 bestätigt korrekt — nur zwei eigene Testfehler übrig
+
+`custom_completion_test` lief diesmal vollständig durch — der Schema-/
+Callback-Fix aus Nachtrag 2 war tatsächlich richtig. Die einzigen zwei
+verbleibenden Fehler steckten in den zwei NEUEN Tests für den Callback
+selbst, beide reine Testfehler:
+
+- Ein Test hatte gar kein `$this->resetAfterTest()` — löste Moodles
+  „unexpected database modification"-Schutz aus.
+- Der andere prüfte mit `assertArrayNotHasKey()` gegen `$info->customdata`,
+  das bei nicht-automatischer Completion `null` bleibt (nie ein Array),
+  da `elang_get_coursemodule_info()` es nur im automatischen Zweig anfasst
+  — `assertArrayNotHasKey()` verlangt zwingend ein Array und wirft sonst;
+  auf `assertTrue(empty(...))` umgestellt.
+
+Vor dem Fix zusätzlich projektweit auf dasselbe Muster geprüft (nicht nur
+die gemeldete Stelle) — mehrere vermeintliche Treffer waren Fehlalarme des
+eigenen, zu groben Prüfskripts (verwechselte `setUpBeforeClass()` mit
+`setUp()`) bzw. korrekt `resetAfterTest()`-freie `\basic_testcase`-Klassen
+ohne DB-Zugriff.
+
+Kein Versionsbump — reine Testkorrektur.
+

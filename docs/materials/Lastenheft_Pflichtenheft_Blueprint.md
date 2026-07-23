@@ -676,7 +676,7 @@ Strings werden nicht wiederholt mit `mb_substr()` durchlaufen; keine globale
 `setlocale()`-Umschaltung — Normalisierung läuft ausschließlich über
 `Normalizer`/eigene Tabellen innerhalb des jeweiligen `script_handler`.
 
-### 10.5 Abschluss [Aggregatpflege implementiert, Completion-Anbindung offen]
+### 10.5 Abschluss [Aggregatpflege und Completion-Anbindung implementiert seit 2.0.0-alpha.8]
 
 Abschluss liest ausschließlich die Aggregate auf `elang_attempt`
 (`totalgaps`, `answeredgaps`, `exactgaps`, `correctgaps`, `hintedgaps`, `score`)
@@ -694,9 +694,13 @@ was bis einschließlich dieser Stufe offengelegt wurde). Eine nachträglich
 angeforderte Hilfe zu einer bereits korrekt beantworteten Lücke senkt die Wertung
 rückwirkend, da bei jeder Antwortabgabe UND jeder Hilfeanfrage aus dem
 tatsächlichen Zustand neu berechnet wird, nie zum Zeitpunkt der Abgabe fixiert.
-Was noch fehlt: die eigentliche Moodle-Completion-Anbindung (`elang_supports(
-FEATURE_COMPLETION_HAS_RULES)` liefert bislang `false`, siehe Kap. 5.1/CHANGELOG
-alpha.1) und eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht).
+Seit 2.0.0-alpha.8: `classes/completion/custom_completion.php` implementiert
+`\core_completion\activity_custom_completion` mit genau einer eigenen Regel,
+`completionfinishattempt` (abgeschlossener Versuch vorhanden) — `completionview`
+und eine Bestehensnote-Bedingung liefert Moodle-Core bereits automatisch, sobald
+`FEATURE_COMPLETION_TRACKS_VIEWS` bzw. `FEATURE_GRADE_HAS_GRADE` gesetzt sind.
+Was noch fehlt: eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht,
+betrifft auch Kap. 10.6).
 
 ### 10.6 Gradebook [Grundfunktion implementiert seit 2.0.0-alpha.7, konfigurierbare Wertungsmethode offen]
 

@@ -43,13 +43,13 @@ function elang_supports(string $feature) {
         // The following features belong to the 2.0 target scope but stay switched
         // off until their implementation lands. Declaring a feature without its
         // callbacks is not a harmless promise: FEATURE_BACKUP_MOODLE2 makes course
-        // backup look for backup_elang_activity_task, and
-        // FEATURE_COMPLETION_HAS_RULES makes completion look for
-        // \mod_elang\completion\custom_completion.
+        // backup look for backup_elang_activity_task.
         case FEATURE_BACKUP_MOODLE2:
-        case FEATURE_COMPLETION_HAS_RULES:
         case FEATURE_GRADE_OUTCOMES:
             return false;
+        case FEATURE_COMPLETION_HAS_RULES:
+            // See classes/completion/custom_completion.php.
+            return true;
         case FEATURE_GRADE_HAS_GRADE:
             // See elang_grade_item_update()/elang_update_grades() below; the
             // grade itself is always computed from elang_attempt.score
@@ -127,6 +127,49 @@ function elang_update_instance(stdClass $elang, ?mod_elang_mod_form $mform = nul
     $result = $DB->update_record('elang', $elang);
 
     elang_grade_item_update($elang);
+
+    return $result;
+}
+
+/**
+ * Build the cached course-module info Moodle stores for this instance.
+ *
+ * The only reason this exists, currently, is to populate
+ * customdata['customcompletionrules'] — without it,
+ * \core_completion\activity_custom_completion::validate_rule() always
+ * rejects completionfinishattempt as "not used by this activity", no matter
+ * what custom_completion::get_state() itself returns, since that check
+ * reads customdata rather than querying elang.completionfinishattempt
+ * directly (confirmed against a real PHPUnit failure on Moodle 4.5.12, and
+ * against core's own documented pattern for this callback, e.g.
+ * forum_get_coursemodule_info()).
+ *
+ * @param stdClass $coursemodule The course_modules record, as passed by get_fast_modinfo()
+ * @return cached_cm_info|false
+ */
+function elang_get_coursemodule_info($coursemodule) {
+    global $DB;
+
+    $elang = $DB->get_record(
+        'elang',
+        ['id' => $coursemodule->instance],
+        'id, name, intro, introformat, completionfinishattempt'
+    );
+    if (!$elang) {
+        return false;
+    }
+
+    $result = new cached_cm_info();
+    $result->name = $elang->name;
+
+    if ($coursemodule->showdescription) {
+        // Convert intro to HTML; do not filter the cached version, filters run at display time.
+        $result->content = format_module_intro('elang', $elang, $coursemodule->id, false);
+    }
+
+    if ($coursemodule->completion == COMPLETION_TRACKING_AUTOMATIC) {
+        $result->customdata['customcompletionrules']['completionfinishattempt'] = (int) $elang->completionfinishattempt;
+    }
 
     return $result;
 }

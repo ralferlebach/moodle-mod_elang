@@ -51,13 +51,14 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.7 (2026072306) — Infrastruktur + versioniertes
+**Version:** 2.0.0-alpha.8 (2026072307) — Infrastruktur + versioniertes
 Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht + vollständige
 Schreib-API + Privacy-Provider + vollständige Lese-API + Transkript-
-Maskierung + Hilfestufen mit Score-Abzug + Gradebook-Grundfunktion
-(7 External Functions insgesamt). Player, Autorenwerkzeug, Completion,
-Migration, Reporting und Exporte fehlen
-noch vollständig.
+Maskierung + Hilfestufen mit Score-Abzug + Gradebook + Completion
+(7 External Functions insgesamt). **Aktiv entwickelbarer Umfang von Phase 2
+damit vollständig.** Player, Autorenwerkzeug, Migration, Reporting und
+Exporte fehlen noch vollständig (Phase 3/4). Migration V1→V2 bleibt separat
+blockiert (V1-Datensimulator).
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -68,66 +69,67 @@ noch vollständig.
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Schritt 7 dieser Sitzung):**
-  - db/install.xml + db/upgrade.php (Savepoint 2026072306): neues Feld
-    elang.grade (Standard-Moodle-Konvention: positiv = Punktzahl, 0 =
-    ungewertet, negativ = -scaleid). Kein Key/Index auf diesem Feld --
-    explizit gegen dieselbe Kollisionsart geprüft, die den alpha.6-
-    Upgrade-Pfad zerschossen hatte. Keine gefunden.
-  - lib.php: FEATURE_GRADE_HAS_GRADE jetzt true.
-    elang_grade_item_update() (ruft grade_update() auf) und
-    elang_update_grades() (liest attempt_manager::get_best_score(),
-    schreibt skaliert auf elang.grade in die Bewertung) neu.
-    elang_add_instance()/elang_update_instance() rufen jetzt
-    elang_grade_item_update() auf; elang_delete_instance() räumt das
-    Grade-Item über grade_update(..., ['deleted' => true]) ab.
-  - classes/local/domain/attempt_manager.php::get_best_score(): höchste
-    Punktzahl unter den ABGESCHLOSSENEN Versuchen einer Person. Dabei
-    SELBST eine Falle gefunden und in der Fake-DB nachgebildet, bevor
-    sie zum Problem wurde: SELECT MAX(score) ... liefert bei null
-    Treffern in SQL immer GENAU EINE Zeile mit NULL, nie "keine Zeile"
-    -- dieselbe Art von DB-Rückgabewert-Falle wie schon bei den int-vs-
-    string-Funden in Schritt 2/3, jetzt explizit geprüft statt vermutet.
-  - classes/external/finish_attempt.php: ruft nach finish_attempt() sofort
-    elang_update_grades() für die betreffende Person auf (require_once
-    von lib.php explizit, da External-Function-Kontext das Laden nicht
-    garantiert).
-  - mod_form.php: standard_grading_coursemodule_elements() ergänzt.
-  - Tests: tests/lib_test.php um vier Gradebook-Fälle erweitert (Grade-
-    Item bei Instanzerstellung, korrekte skalierte Bewertung nach
-    finish_attempt, keine Bewertung ohne abgeschlossenen Versuch,
-    Grade-Item-Löschung), eine bestehende jetzt widersprüchliche
-    Assertion (FEATURE_GRADE_HAS_GRADE=false) korrigiert.
-    attempt_manager_test.php um get_best_score()-Fälle erweitert,
-    zusätzlich zur eigenständigen Smoke-Test-Abdeckung (4 neue Prüfungen).
-  - version.php: 2026072305 -> 2026072306 (2.0.0-alpha.7) -- Schema-
-    Änderung.
-  - php -l/phpcs (0/0), phpcpd (No clones found), erneute KEY/INDEX-
-    Kollisionsprüfung (keine) real geprüft. Blueprint Kap. 10.6,
-    Blueprint_kompakt.md, CHANGELOG aktualisiert.
-  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen -- der neue
-    upgrade.php-Savepoint im Besonderen ist nach der alpha.6-Lektion
-    noch ungetestet gegen ein echtes Admin-UI-Upgrade.
+**Zuletzt abgeschlossen (Schritt 8 dieser Sitzung):**
+  - classes/completion/custom_completion.php: implementiert
+    \core_completion\activity_custom_completion mit GENAU EINER eigenen
+    Regel, completionfinishattempt. completionview (via
+    FEATURE_COMPLETION_TRACKS_VIEWS) und eine Bestehensnote-Bedingung (via
+    FEATURE_GRADE_HAS_GRADE/Standard-Bewertungsabschnitt) liefert Moodle-
+    Core dagegen automatisch -- nicht selbst implementiert. get_state()
+    prüft auf eine elang_attempt-Zeile im Zustand "finished".
+  - lib.php: FEATURE_COMPLETION_HAS_RULES jetzt true.
+  - mod_form.php: add_completion_rules()/completion_rule_enabled() --
+    Feldname trägt $this->get_suffix() (seit Moodle 4.3/4.4, MDL-78516,
+    Pflicht für Mehrfach-Instanzen-Formulare wie Sammel-Abschluss-
+    Bearbeitung). Explizit gegen einen realen Community-Plugin-Bugreport
+    geprüft, der genau wegen fehlendem Suffix auf Moodle 4.4 kaputt war --
+    nicht die ältere, unsuffixierte Variante aus manchen Tutorials
+    übernommen. Unser gesamter Zielbereich (ab 4.5 LTS) liegt bereits
+    jenseits der Suffix-Pflicht, es gibt also keinen Altfall abzufangen.
+  - Zwei neue Sprachstrings (EN+DE): completionfinishattempt (Checkbox-
+    Beschriftung im Formular) und completiondetail:completionfinishattempt
+    (kürzere Beschreibung in der Aktivitätsinformations-Oberfläche) --
+    bewusst zwei verschiedene Strings, passend zur eigenen Konvention von
+    Moodle-Core-Modulen mit Custom Completion.
+  - Tests: tests/completion/custom_completion_test.php neu (definierte
+    Regeln, unvollständig ohne jeden Versuch, unvollständig bei nur
+    LAUFENDEM Versuch -- muss ABGESCHLOSSEN sein, vollständig bei
+    abgeschlossenem Versuch, undefinierte Regel wird abgelehnt).
+    Genauen Exception-Typ, den validate_rule() bei einer undefinierten
+    Regel wirft, direkt gegen Moodle-Core-Quellcode bestätigt
+    (coding_exception, nicht moodle_exception, obwohl Letzteres über die
+    Vererbungshierarchie technisch auch bestanden hätte -- den genauen Typ
+    geprüft statt sich darauf zu verlassen). tests/lib_test.php: die
+    jetzt widersprüchliche Assertion (FEATURE_COMPLETION_HAS_RULES=false)
+    korrigiert.
+  - version.php: 2026072306 -> 2026072307 (2.0.0-alpha.8) -- notwendig,
+    damit Moodle die neu deklarierte Completion-Regel einliest (real
+    bestätigt über einen Forumsbeitrag mit demselben Symptom bei einem
+    anderen Plugin). Kein Schema-Wechsel diese Runde, daher kein neuer
+    upgrade.php-Savepoint.
+  - php -l/phpcs (0/0), phpcpd (No clones found) real geprüft. Blueprint
+    Kap. 10.5, Blueprint_kompakt.md, CHANGELOG aktualisiert.
+  - **Damit ist der aktiv entwickelbare Umfang von Phase 2 vollständig.**
+    Migration V1 -> V2 bleibt separat blockiert und zählt nicht dagegen.
+  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen -- Completion-
+    Zustandsberechnung und die mod_form-Oberfläche brauchen Moodles
+    echte Completion-/Formular-Maschinerie und ließen sich nicht
+    eigenständig per Smoke-Test prüfen.
 
 Details zu allen bisherigen Schritten dieser Sitzung stehen vollständig in
 docs/sessions/session-001.md.
 
-**Als nächstes geplant (Phase 2 — Completion, damit wäre der aktiv
-entwickelbare Phase-2-Umfang vollständig; Migration bleibt separat
-blockiert):**
-  - Completion (FEATURE_COMPLETION_HAS_RULES,
-    \mod_elang\completion\custom_completion): liest jetzt sowohl die
-    Aggregate auf elang_attempt als auch — seit Schritt 7 — die echte,
-    hint-abzugsbewusste Bewertung über elang_grade_item_update()/
-    grade_items. Naheliegende Regel „bestandene Note erreicht" hat damit
-    jetzt echte Daten zum Lesen.
+**Als nächstes geplant (Phase 3 — Lernendenoberfläche):**
+  - Die Lese-API (get_exercise/get_cues/get_attempt_state) und die
+    Schreib-API (start/submit/finish_attempt, request_hint) sind
+    vollständig -- ein Player kann jetzt tatsächlich gebaut werden.
   - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
-    existiert bereits als elang_gap.maxlength) — würde die aktuell harte
+    existiert bereits als elang_gap.maxlength) -- würde die aktuell harte
     500-Zeichen-Grenze in submit_response ablösen bzw. ergänzen
   - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
 
-**Separat, weiterhin blockiert (nicht Teil von "Phase 2 abgeschlossen"):**
-  - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task — BLOCKIERT auf
+**Separat, weiterhin blockiert (nicht Teil des aktiven Fahrplans):**
+  - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task -- BLOCKIERT auf
     einen V1-Datensimulator, da keine echten V1-Bestandsdaten mehr verfügbar
     sind (siehe Migration_V1_V2.md, Kap. 1.1). Braucht Eingabe vom Nutzer,
     nicht durch weitere Entwicklung allein lösbar.
@@ -366,7 +368,31 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     add_index() steht (bei uns der Fall — zahlt sich hier aus) — sonst
     schlägt der zweite Versuch mit "already exists" fehl, statt sauber dort
     weiterzumachen, wo der erste abgebrochen ist.
+  - Custom-Completion-Regeln BRAUCHEN eine eigene DB-Spalte UND
+    {modname}_get_coursemodule_info(): validate_rule() (core_completion\
+    activity_custom_completion) prüft ZWEI getrennte Dinge — (1) ist die
+    Regel überhaupt vom Plugin definiert (get_defined_custom_rules(),
+    wirft coding_exception wenn nicht) UND (2) ist sie für GENAU DIESE
+    Kursmodul-Instanz aktiviert/in Benutzung (wirft moodle_exception wenn
+    nicht). Prüfung (2) liest
+    cm_info->customdata['customcompletionrules'] -- das wird
+    AUSSCHLIESSLICH durch einen {modname}_get_coursemodule_info(
+    $coursemodule)-Callback in lib.php befüllt (Vorbild:
+    forum_get_coursemodule_info(), liest forum.completiondiscussions etc.
+    aus der EIGENEN Tabelle der Aktivität). OHNE diesen Callback UND eine
+    eigene Spalte für die Regel (z. B. elang.completionfinishattempt)
+    schlägt get_state() IMMER fehl, unabhängig von Testaufbau oder
+    eigener Logik -- ein Fix, der nur create_module()-Optionen anpasst
+    (Kurs mit enablecompletion => 1, Modul mit completion =>
+    COMPLETION_TRACKING_AUTOMATIC + unsuffixierter Regelname), OHNE
+    Spalte und Callback, bleibt wirkungslos (real erlebt: erster
+    Fixversuch schlug exakt so fehl). RICHTIG: BEIDES zusammen -- Spalte
+    + Callback, der customdata['customcompletionrules'][$regelname] NUR
+    setzt, wenn $coursemodule->completion == COMPLETION_TRACKING_
+    AUTOMATIC (Core-eigene Konvention). Erst DANACH wirkt die
+    create_module()-Konfiguration wie vorgesehen.
 
+---
 ---
 
 ### F) Modus zur Delivery

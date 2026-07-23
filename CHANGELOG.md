@@ -11,6 +11,151 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.8] - 2026-07-23
+
+Phase 2, seventh and final content increment: custom completion. With this,
+Phase 2's actively developable scope (schema, grading, domain, all seven
+External Functions, hints, gradebook, completion) is functionally complete.
+V1→V2 migration remains separately blocked on a data simulator, not part of
+this completion.
+
+### Added
+- `classes/completion/custom_completion.php`: implements
+  `\core_completion\activity_custom_completion`. Defines exactly one custom
+  rule, `completionfinishattempt` — core already provides `completionview`
+  (via `FEATURE_COMPLETION_TRACKS_VIEWS`) and a pass-grade condition (via
+  `FEATURE_GRADE_HAS_GRADE`/the standard grade section) for free; what core
+  has no way to know on its own is whether the learner actually *finished*
+  an attempt, as opposed to merely opening the page or reaching a grade some
+  other way. `get_state()` checks for an `elang_attempt` row in the
+  `finished` state for the user; `get_sort_order()` places it between
+  `completionview` and `completionusegrade`.
+- `lib.php`: `FEATURE_COMPLETION_HAS_RULES` now `true`.
+- `mod_form.php`: `add_completion_rules()`/`completion_rule_enabled()`
+  add the rule's checkbox to the completion section. The field name carries
+  `$this->get_suffix()` — required since Moodle 4.3/4.4 (MDL-78516) so that
+  multiple module instances editable on one page (e.g. bulk activity
+  completion) don't collide on field name. Checked this explicitly against
+  a real community-plugin bug report before writing it (a different plugin
+  broke exactly this way on Moodle 4.4 by omitting the suffix) rather than
+  assuming the older, unsuffixed pattern still shown in some tutorials still
+  applies — our whole supported range (4.5 LTS and up) is already past the
+  version where the suffix became mandatory, so there is no legacy branch to
+  fall back to here, unlike the third-party example that inspired this.
+- Two new language strings (EN+DE): `completionfinishattempt` (the
+  mod_form checkbox label) and `completiondetail:completionfinishattempt`
+  (the shorter description shown in the activity-information UI) — these
+  are deliberately two different strings, matching core's own convention
+  for its custom-completion modules.
+- PHPUnit coverage: `tests/completion/custom_completion_test.php` (defined
+  rules, incomplete without any attempt, incomplete with only an
+  in-progress attempt — it must be *finished*, complete with a finished
+  attempt, an undefined rule is rejected, a description and the sort-order
+  placement are both present). Confirmed the exact exception type
+  `validate_rule()` throws for an undefined rule directly against Moodle
+  core source (`coding_exception`, not `moodle_exception`, though the
+  latter would technically also have passed via the exception hierarchy —
+  asserted the precise one instead of relying on that).
+- `tests/lib_test.php`: the previously-passing assertion that
+  `FEATURE_COMPLETION_HAS_RULES` is *not* declared was corrected to assert
+  the opposite, now that it is.
+- `version.php`: 2026072306 -> 2026072307 (2.0.0-alpha.8) — required for
+  Moodle to pick up the newly-declared custom completion rule; confirmed via
+  a real-world report of the same "nothing happens until you bump the
+  version" symptom for a different plugin's custom completion rules. No
+  schema change this round, so no new `db/upgrade.php` savepoint.
+
+### Fixed
+
+Found running the real test suite against a Moodle 4.5.12 instance for the
+first time — corrected without a version bump (still 2.0.0-alpha.8).
+
+- **`custom_completion_test`: three `get_state()` tests threw
+  `core\exception\moodle_exception: Custom completion rule
+  'completionfinishattempt' is not used by this activity.`** Not a bug in
+  `custom_completion.php`: `validate_rule()` (Moodle core) checks two
+  separate things — that the rule is *defined* by the plugin at all
+  (`get_defined_custom_rules()`, which passed), and separately that it is
+  actually *enabled* for the specific course module instance under test
+  (which failed).
+  - **First attempted fix (incomplete):** assumed the test's `setUp()`
+    merely needed `enablecompletion => 1` on the course and `'completion' =>
+    COMPLETION_TRACKING_AUTOMATIC, 'completionfinishattempt' => 1` passed to
+    `create_module()`, matching the pattern in Moodle core's own
+    `completion/tests/bulk_update_test.php`. This did not fix the real run —
+    same three failures, same message, on the next test pass.
+  - **Actual root cause:** the second `validate_rule()` check reads
+    `cm_info->customdata['customcompletionrules']`, which is populated by a
+    `{modname}_get_coursemodule_info($coursemodule)` callback that this
+    plugin never implemented — confirmed against core's own documented
+    pattern for this callback (`forum_get_coursemodule_info()`) and its
+    reference to a dedicated column on the module's own table
+    (`forum.completiondiscussions` etc.). Without that callback,
+    `customdata['customcompletionrules']` is never populated at all, so
+    `validate_rule()` rejects the rule regardless of any generator/instance
+    data passed at creation time — the first fix addressed how the value
+    would have reached the database, but nothing existed yet to read it back
+    into `cm_info`.
+  - **Actual fix:** added a real `elang.completionfinishattempt` column
+    (`db/install.xml`, plus a `db/upgrade.php` savepoint targeting the
+    already-current 2026072307 — not a further version bump, but a real,
+    functional upgrade step for whenever a live site next runs an admin-UI
+    upgrade, since its recorded version is still behind that value) and
+    `lib.php::elang_get_coursemodule_info()`, which populates
+    `customdata['customcompletionrules']['completionfinishattempt']` from
+    that column, but only when `$coursemodule->completion ==
+    COMPLETION_TRACKING_AUTOMATIC` (matching core's own convention). With
+    the real storage and callback in place, the original test fix (the
+    `create_module()` options) turned out to be correct after all — it just
+    had nothing to write to or read from until now.
+  - New coverage added directly for the callback itself:
+    `tests/lib_test.php::test_get_coursemodule_info_populates_custom_
+    completion_rules` and `test_get_coursemodule_info_omits_rules_without_
+    automatic_completion`, so this specific mechanism has its own test
+    independent of the completion state test that surfaced the gap.
+- **Third real run: the schema/callback fix above was confirmed correct**
+  (`custom_completion_test` fully passed) — the only two remaining failures
+  were both in the two brand new tests just added for the callback itself,
+  both test-only mistakes, not further product bugs:
+  - `test_get_coursemodule_info_populates_custom_completion_rules` was
+    missing its own `$this->resetAfterTest()` call entirely (each test
+    method needs one; there is no shared `setUp()` in this class providing
+    it), triggering Moodle's "unexpected database modification" test-
+    isolation guard.
+  - `test_get_coursemodule_info_omits_rules_without_automatic_completion`
+    called `assertArrayNotHasKey('customcompletionrules', $info->customdata)`,
+    but `customdata` is `null` on a fresh `cached_cm_info` until something
+    is assigned to it — `elang_get_coursemodule_info()` only ever touches it
+    inside the automatic-completion branch, so in this test it was never an
+    array at all. `assertArrayNotHasKey()` requires an actual array/
+    ArrayAccess argument and throws otherwise; switched to
+    `assertTrue(empty(...))`, which handles `null` gracefully.
+  - Swept every other test file for the same missing-`resetAfterTest()`
+    pattern before concluding this was isolated to the two new tests; three
+    apparent hits turned out to be false positives from the sweep script
+    itself (matching `setUpBeforeClass()` as if it were `setUp()`), and four
+    more were correctly `resetAfterTest()`-free `\basic_testcase` subclasses
+    that don't touch the database at all — verified each individually
+    rather than trusting the first grep-level pass.
+
+### Known gaps
+- No `elang_get_completion_state()` legacy callback — deliberately not
+  implemented; Moodle core has flagged it for deprecation (MDL-71144) in
+  favour of the class-based approach used here, and this is a greenfield
+  2.0 codebase with no legacy callback to carry forward.
+- `elang.answermaxlength` still does not exist (unchanged).
+- `classes/courseformat/overview.php` still does not exist (unchanged).
+- Migration V1→V2 remains blocked on a data simulator (unchanged) — this is
+  explicitly not part of "Phase 2 complete" and needs input from the plugin
+  maintainer, not further development alone.
+- Now run against a real Moodle 4.5.12 instance (118 tests, 3 real failures,
+  all in this increment's own new test file — see "Fixed" above; every
+  other suite, including all prior increments, passed). The `mod_form.php`
+  completion-rule checkbox itself (the actual settings-page UI, as opposed
+  to `get_state()`'s logic) still has not been exercised through a real
+  browser/form submission — only through direct generator/instance data, as
+  `custom_completion_test` now does.
+
 ## [2.0.0-alpha.7] - 2026-07-23
 
 Phase 2, sixth content increment: gradebook integration — the last piece

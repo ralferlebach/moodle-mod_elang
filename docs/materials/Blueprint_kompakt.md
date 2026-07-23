@@ -131,7 +131,10 @@ Summe 2.1: **4,2–6,1 PW**.
    Privacy-Provider *(erledigt: 2.0.0-alpha.4)*, Lese-API + Transkript-
    Maskierung *(erledigt: 2.0.0-alpha.5)*, Hilfestufen inkl. Score-Abzug
    *(erledigt: 2.0.0-alpha.6)*, Gradebook *(Grundfunktion erledigt:
-   2.0.0-alpha.7)*, Completion, Migration
+   2.0.0-alpha.7)*, Completion *(erledigt: 2.0.0-alpha.8)* —
+   **aktiv entwickelbarer Umfang von Phase 2 damit vollständig.**
+   Migration V1→V2 bleibt separat blockiert (V1-Datensimulator, siehe
+   Migration_V1_V2.md) und zählt nicht dagegen.
 3. Lernendenoberfläche
 4. Autoreneditor, Reporting, Exporte
 5. Härtung, Privacy, Backup, Audits, Revalidierung gegen Moodle 5.3

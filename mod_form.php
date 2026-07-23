@@ -17,8 +17,9 @@
 /**
  * Module instance settings form for mod_elang.
  *
- * General section plus the standard grading elements (grade, grade
- * category, grade to pass). Media, subtitle import and gap settings are
+ * General section, the standard grading elements (grade, grade category,
+ * grade to pass) and the elang-specific completion rule (see
+ * add_completion_rules()). Media, subtitle import and gap settings are
  * added in phase 4 (authoring tool).
  *
  * @package    mod_elang
@@ -59,5 +60,42 @@ class mod_elang_mod_form extends moodleform_mod {
 
         $this->standard_coursemodule_elements();
         $this->add_action_buttons();
+    }
+
+    /**
+     * Add elang's own completion rule control to the form's completion section.
+     *
+     * The field name carries $this->get_suffix() — required since Moodle
+     * 4.3/4.4 (MDL-78516) so that multiple module instances editable on one
+     * page (e.g. bulk activity completion) do not collide on field name.
+     * Every version in our supported range (4.5 LTS and above) already
+     * requires this; there is no older-Moodle branch to fall back to here.
+     *
+     * @return array The names of the completion-rule form elements added
+     */
+    public function add_completion_rules() {
+        $mform = $this->_form;
+        $suffix = $this->get_suffix();
+
+        $mform->addElement(
+            'checkbox',
+            'completionfinishattempt' . $suffix,
+            '',
+            get_string('completionfinishattempt', 'mod_elang')
+        );
+
+        return ['completionfinishattempt' . $suffix];
+    }
+
+    /**
+     * Whether elang's own completion rule is enabled, based on submitted form data.
+     *
+     * @param array $data Input data (not yet validated)
+     * @return bool
+     */
+    public function completion_rule_enabled($data) {
+        $suffix = $this->get_suffix();
+
+        return !empty($data['completionfinishattempt' . $suffix]);
     }
 }

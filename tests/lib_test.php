@@ -63,7 +63,6 @@ final class lib_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $this->assertFalse(elang_supports(FEATURE_BACKUP_MOODLE2));
-        $this->assertFalse(elang_supports(FEATURE_COMPLETION_HAS_RULES));
     }
 
     /**
@@ -76,6 +75,18 @@ final class lib_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $this->assertTrue(elang_supports(FEATURE_GRADE_HAS_GRADE));
+    }
+
+    /**
+     * Custom completion support is declared now that
+     * classes/completion/custom_completion.php exists.
+     *
+     * @return void
+     */
+    public function test_completion_feature_is_declared(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(elang_supports(FEATURE_COMPLETION_HAS_RULES));
     }
 
     /**
@@ -291,5 +302,65 @@ final class lib_test extends \advanced_testcase {
             'itemmodule' => 'elang',
             'iteminstance' => $elang->id,
         ]));
+    }
+
+    /**
+     * elang_get_coursemodule_info() populates customdata['customcompletionrules']
+     * with the instance's own completionfinishattempt value, but only when
+     * completion tracking is automatic — this is what
+     * \core_completion\activity_custom_completion::validate_rule() reads to
+     * decide whether the rule is "in use" for a given course module, so
+     * getting this wrong silently breaks completion state checks regardless
+     * of custom_completion::get_state()'s own correctness.
+     *
+     * @return void
+     */
+    public function test_get_coursemodule_info_populates_custom_completion_rules(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionfinishattempt' => 1,
+        ]);
+
+        $coursemodule = get_coursemodule_from_instance('elang', $elang->id);
+        $info = elang_get_coursemodule_info($coursemodule);
+
+        $this->assertNotFalse($info);
+        $this->assertSame(1, $info->customdata['customcompletionrules']['completionfinishattempt']);
+    }
+
+    /**
+     * With completion tracking off, no custom completion rule data is
+     * populated at all — matching core's own documented convention (see
+     * forum_get_coursemodule_info()) of only doing so when completion is
+     * COMPLETION_TRACKING_AUTOMATIC.
+     *
+     * customdata itself is never initialised to an array by
+     * elang_get_coursemodule_info() unless the automatic-completion branch
+     * runs — a fresh cached_cm_info's customdata is null until something is
+     * assigned to it, so this asserts with empty() rather than
+     * assertArrayNotHasKey(), which requires an actual array/ArrayAccess
+     * argument and would otherwise throw on a null (confirmed against a
+     * real PHPUnit run, not assumed).
+     *
+     * @return void
+     */
+    public function test_get_coursemodule_info_omits_rules_without_automatic_completion(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'completion' => COMPLETION_TRACKING_NONE,
+        ]);
+
+        $coursemodule = get_coursemodule_from_instance('elang', $elang->id);
+        $info = elang_get_coursemodule_info($coursemodule);
+
+        $this->assertNotFalse($info);
+        $this->assertTrue(empty($info->customdata['customcompletionrules']));
     }
 }

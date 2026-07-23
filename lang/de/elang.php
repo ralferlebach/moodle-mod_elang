@@ -24,6 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['completiondetail:completionfinishattempt'] = 'Einen Versuch abschließen';
+$string['completionfinishattempt'] = 'Die Person muss einen Versuch abschließen';
 $string['elang:addinstance'] = 'Neue Sprachübung anlegen';
 $string['elang:attempt'] = 'Sprachübung bearbeiten';
 $string['elang:deleteattempts'] = 'Versuche von Lernenden löschen';

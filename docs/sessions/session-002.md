@@ -121,3 +121,36 @@ Behat:   nicht ausgeführt
 ```
 
 Erster vollständiger Lauf gegen eine echte Moodle-Instanz steht weiterhin aus.
+
+---
+
+### Nachtrag (später in derselben Sitzung): CI tatsächlich zum Laufen gebracht
+
+Der Nutzer meldete reale CI-Fehler ("Could not open input file:
+admin/tool/phpunit/cli/init.php" auf mehreren Jobs). Root-Cause-Analyse in
+zwei Schritten:
+
+1. `moodle-plugin-ci` lokal installiert und `MoodleProcess.php` im echten
+   Quellcode gelesen statt bei der Fehlermeldung zu raten. Ergebnis: der
+   `--no-init` + manuelle `cli/init.php`-Aufruf ist ein veralteter
+   v3-Workaround; `moodle-plugin-ci phpunit`/`behat` initialisieren seit v4
+   selbst. Entfernt aus beiden Workflows, `savepoints`-Check ergänzt.
+2. Zweite Fehlerrunde ("Moodle debugging message was detected" auf dem
+   main/5.3-dev-Job): über den echten Quellcode von `MoodleProcess.php`
+   verifiziert, dass der Regex `/\+\+ .* \+\+\n\* line/` exakt Moodles
+   eigenes `debugging()`-Ausgabeformat sucht — kein Fehlalarm des Tools,
+   sondern ein echter `debugging()`-Aufruf beim main-Install unter PHP 8.4.
+   Erwartete Instabilität eines unveröffentlichten Branches. Das eigentliche
+   Problem war aber, dass `continue-on-error` auf JOB-Ebene den Job-Result
+   zwar für `needs:`-Gates maskiert, den GESAMTEN Workflow-Lauf aber trotzdem
+   rot erscheinen lässt (bestätigt gegen mehrere unabhängige Quellen). Fix:
+   main/5.3-dev-Tests in eigene Jobs (`phpunit-experimental`,
+   `behat-experimental`, `ci-experimental`) ausgelagert, mit
+   `continue-on-error: true` auf JEDEM Step statt auf Job-Ebene.
+
+Zusätzlich: Delivery-Modus korrigiert (Patch-ZIPs bündeln Code UND Doku
+künftig gemeinsam, siehe `sessionstart.txt` Abschnitt F) und das
+Stub-Template (`plugin-stub.zip` / `local_instantcoursecompletion`) mit
+demselben CI-Fix und derselben Delivery-Korrektur synchronisiert, damit beide
+Fehler in künftigen, aus dem Stub gestarteten Projekten nicht wiederkehren.
+

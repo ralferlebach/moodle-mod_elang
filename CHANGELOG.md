@@ -11,6 +11,105 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.3] - 2026-07-23
+
+Phase 2, second content increment: the domain layer sitting on top of the
+schema and grading engine — version publishing and the attempt lifecycle.
+
+### Added
+- `classes/local/domain/version_manager.php`: draft/publish lifecycle for
+  exercise versions. `get_or_create_draft()`/`create_draft()` manage the
+  single in-progress draft per activity; `publish()` marks a version
+  published, archives whichever version was previously published (never
+  deletes it — existing attempts stay linked to the version they were
+  started on), and updates `elang.currentversionid`. `compute_content_hash()`
+  produces a deterministic SHA-1 over a version's cues, gaps, accepted
+  answers and grading algorithms, intended as the cache key for rendered
+  worksheets and player payloads (hints and timestamps are deliberately
+  excluded, since neither affects what a learner is shown to solve).
+- `classes/local/domain/attempt_manager.php`: the attempt lifecycle.
+  `start_attempt()` resumes an existing in-progress attempt or creates one,
+  recording `totalgaps` from the attempted version. `submit_response()`
+  evaluates a response through `answer_evaluator`, looking up the activity's
+  language itself so callers cannot pass a mismatched one, upserts
+  `elang_response` (resubmitting to the same gap replaces the row and
+  increments `tries` rather than creating a duplicate), and recomputes
+  `elang_attempt`'s aggregate counters (`answeredgaps`, `exactgaps`,
+  `correctgaps`, `hintedgaps`, `score`) from the full set of responses so
+  they never drift out of sync. `finish_attempt()` transitions the attempt
+  and rejects being called on an attempt that is not in progress, as does
+  `submit_response()`.
+- PHPUnit coverage: `tests/local/domain/{version_manager_test,
+  attempt_manager_test}.php` (draft/publish lifecycle, archiving, content
+  hash determinism and change-detection, attempt resumption, exact vs
+  incorrect responses, resubmission/upsert behaviour, aggregate recalculation,
+  state-guard exceptions). Additionally verified with a standalone PHP script
+  that loads the real class files against a minimal in-memory `$DB` stand-in,
+  independent of a Moodle bootstrap — 27 checks, all passing.
+
+### Fixed
+
+Found by running the actual test suite against a real Moodle 4.5.12 instance
+(PHP 8.2.30, MariaDB 10.11.14) for the first time — everything below was
+previously only verified with `php -l`, `phpcs` and standalone smoke scripts
+against fake stand-ins, which could not catch these.
+
+- **`Invalid subtype directory 'mod/elang/script' detected`**, logged on
+  every plugin scan: `db/subplugins.json` declares the `elangscript`
+  subplugin type at `script/`, but that directory only ever existed in
+  documentation, never as an actual tracked path (Git does not track empty
+  directories, so it silently never made it into a checkout). Added
+  `script/README.md`, documenting the subplugin contract, so the directory
+  exists on disk.
+- **XMLDB `debugging()` call on install**, for both `elang.language` and
+  `elang_version.contenthash`: a `NOTNULL CHAR` column with an empty-string
+  `DEFAULT` is rejected by Moodle's XMLDB validator ("must have one
+  meaningful DEFAULT declared or none"); Moodle auto-corrected it to `NULL`
+  at `debugging()` severity, which is exactly the kind of output
+  `moodle-plugin-ci`'s install step (correctly) treats as a failure. Removed
+  the `DEFAULT=""` from both fields in `db/install.xml` and the matching
+  `xmldb_field`/`add_field` calls in `db/upgrade.php`. Since `contenthash` is
+  already always supplied explicitly by `version_manager`, only `language`
+  needed a corresponding code-level fallback: `elang_add_instance()` now
+  defaults it to `''` when not set, so instance creation cannot fail with a
+  "no default value" constraint violation now that the schema itself has none.
+- **Four `assertSame()` test failures** of the shape
+  `Failed asserting that '237000' is identical to 237000`: Moodle's DB layer
+  does not guarantee integer PHP types for integer columns — `insert_record()`
+  reliably returns a genuine `int`, but `get_record()`/`get_field()` often
+  return raw driver values, which are strings on MariaDB/PDO. Added `(int)`
+  casts at the four call sites the real test run actually flagged
+  (`tests/exercise_schema_test.php`,
+  `tests/local/domain/{attempt_manager_test,version_manager_test}.php`);
+  left everywhere else untouched, since the same run confirmed those
+  comparisons were already fine as written.
+- **`Error: Class "...\fake_script_handler" not found`** in
+  `answer_evaluator_test.php` and `script_handler_manager_test.php`: Moodle's
+  PHPUnit test discovery only `require`s files matching the `*_test.php`
+  suffix, so the shared fixture class in its own, differently-named file was
+  simply never loaded. Moved it to `tests/fixtures/fake_script_handler.php`
+  and load it explicitly via `require_once()` from each consuming test's
+  `setUpBeforeClass()` — the same convention Moodle core itself uses (see
+  `lib/phpunit/tests/advanced_test.php`). An intermediate attempt to embed
+  the fixture directly inside the consuming test files was also tried and
+  reverted: Moodle's coding standard requires exactly one class per file
+  ("Each class must be in a file by itself"), so that approach traded one
+  real problem for a `phpcs` violation instead of fixing it.
+- phpcs (`moodle` standard) cleanup on the above: two inline comments not
+  starting with a capital letter, three missing docblocks on the relocated
+  fixture's interface method implementations.
+
+
+  `attempt_manager` yet, so `hintlevel`/`hintedgaps` stay at their defaults
+  and no score penalty for hint use is applied.
+- No enforcement of a maximum attempt count: `elang` does not have that field
+  yet (see the blueprint's data model, chapter 6.1, `[offen]` items).
+- No completion or gradebook integration reads these aggregates yet.
+- No External Functions call into this domain layer yet, so it remains
+  unreachable from any real learner-facing code path — exercised only by
+  tests. The null privacy provider is therefore still correct, but this is
+  now one layer closer to needing to change; see the alpha.2 entry below.
+
 ## [2.0.0-alpha.2] - 2026-07-23
 
 Phase 2, first content increment: the versioned exercise schema and the
@@ -82,6 +181,22 @@ two-algorithm answer evaluator, plus a CI pipeline fix.
   escape), an inline comment not starting with a capital letter. The plugin
   now passes `phpcs --standard=moodle --severity=1` with zero errors and zero
   warnings, verified locally against `moodlehq/moodle-cs` 3.7.0.
+- **CI, follow-up fix:** the first CI fix above marked the `main`/5.3-dev
+  matrix entries as non-blocking via a job-level
+  `continue-on-error: ${{ matrix.experimental }}`. That does not reliably keep
+  the overall workflow run green — job-level `continue-on-error` masks the
+  job's *result* for `needs:` gating, but the workflow run itself can still
+  show as failed, which is exactly as alarming as a real failure. Confirmed
+  against `moodlehq/moodle-plugin-ci`'s own `MoodleProcess.php`: Moodle
+  `main` under PHP 8.4 does trigger a genuine `debugging()` call during a
+  fresh install (matched by `hasDebuggingMessages()`'s regex for Moodle's own
+  `++ message ++` / `* line` trace format) — expected instability on an
+  unreleased development branch, not a bug in this plugin. `main`/5.3-dev
+  testing is now split into dedicated `phpunit-experimental`,
+  `behat-experimental` (moodle-ci.yml) and `ci-experimental`
+  (moodle-release.yml) jobs, with `continue-on-error: true` set on every
+  individual step rather than on the job. The `ci-complete` gate in both
+  workflows now depends only on the blocking jobs.
 
 ### Known gaps
 - No External Functions yet, so nothing outside PHPUnit tests can actually

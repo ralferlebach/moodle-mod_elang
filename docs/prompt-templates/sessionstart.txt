@@ -51,9 +51,10 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.2 (2026072301) — Infrastruktur + versioniertes
-Datenmodell + zwei-Algorithmen-Bewertung. Player, Autorenwerkzeug, External
-Functions, Reporting und Exporte fehlen noch vollständig.
+**Version:** 2.0.0-alpha.3 (2026072302) — Infrastruktur + versioniertes
+Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht (Versions- und
+Versuchslebenszyklus). Player, Autorenwerkzeug, External Functions,
+Completion/Gradebook, Reporting und Exporte fehlen noch vollständig.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -64,42 +65,60 @@ Functions, Reporting und Exporte fehlen noch vollständig.
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 002):**
-  - db/install.xml + db/upgrade.php (2026072300 -> 2026072301): elang_version,
-    elang_cue (cuekey), elang_gap (gapkey, gradingalgorithm), elang_gapanswer
-    (isregex), elang_gaphint, elang_attempt (exactgaps/correctgaps getrennt),
-    elang_response (resultstate/accepted getrennt); elang.language +
-    elang.currentversionid (bewusst OHNE FK, zirkulärer DDL-Verweis vermieden)
-  - classes/local/grading/: answer_evaluator (Algorithmen exact/wordrecognized),
-    grading_result, script_handler (Interface), latin_script_handler (Default
-    für lateinische Schriften), script_handler_manager (Discovery/Routing)
-  - Neuer Subplugin-Typ elangscript (db/subplugins.json MIT subplugintypes-
-    UND plugintypes-Schlüssel wegen MDL-83705, classes/plugininfo/elangscript.php)
-    für nicht-lateinische Schriften (Koreanisch, Chinesisch, Japanisch,
-    Sanskrit, Kyrillisch, ...) — Kern bleibt ohne jedes Subplugin voll
-    funktionsfähig (Fallback auf latin_script_handler)
-  - lib.php: elang_delete_instance() kaskadiert jetzt durch das volle Schema
-  - Testdatengenerator um create_version/cue/gap/gapanswer/gaphint erweitert;
-    PHPUnit-Tests inkl. Referenzfällen (café/cafe, Straße/strasse, œuf/oeuf,
-    kız/kiz, Apostrophvarianten, Regex, Handler-Routing/Fallback)
-  - CI-BUGFIX: --no-init + manuelles cli/init.php war ein veralteter
-    moodle-plugin-ci-v3-Workaround; entfernt, moodle-plugin-ci phpunit/behat
-    initialisieren seit v4 selbst (siehe aktuelles gha.dist.yml). savepoints-
-    Check ergänzt.
-  - phpcs (moodle-Standard, real gegen moodlehq/moodle-cs 3.7.0 geprüft):
-    0 Fehler, 0 Warnungen nach Korrektur von Mehrzeilen-if-Formatierung,
-    3 fehlenden Docblocks, einem Backtick-String-Warning, einem Kommentar-Case
-  - Blueprint Kap. 5/6.1/10 sowie Migration_V1_V2.md, README, CHANGELOG auf den
-    tatsächlichen Stand gebracht (vorheriger Zwischenstand hatte Doku-Updates
-    fälschlich als erledigt gemeldet — das ist jetzt nachgeholt und stimmt)
+**Zuletzt abgeschlossen (Session 003):**
+  - classes/local/domain/version_manager.php: Draft/Publish-Lebenszyklus für
+    Übungsversionen. get_or_create_draft()/create_draft() (genau ein Draft
+    je Aktivität), publish() (archiviert die vorherige veröffentlichte
+    Version statt sie zu löschen, setzt elang.currentversionid),
+    compute_content_hash() (deterministischer SHA-1 über Cues/Gaps/
+    Antwortvarianten/Algorithmen — Cache-Schlüssel für Kap. 12/16)
+  - classes/local/domain/attempt_manager.php: Versuchslebenszyklus.
+    start_attempt() (setzt totalgaps aus der Version, nimmt laufenden
+    Versuch wieder auf statt zu duplizieren), submit_response() (ruft
+    answer_evaluator auf, ermittelt elang.language selbst, Upsert statt
+    Duplikat bei erneuter Antwort, tries++, schreibt elang_attempt-Aggregate
+    NEU aus allen elang_response-Zeilen), finish_attempt(). Beide Methoden
+    verweigern sich korrekt bei falschem State (coding_exception).
+  - PHPUnit-Tests für beide Klassen (Draft/Publish/Archivierung, Content-
+    Hash-Determinismus, Versuchsfortsetzung, exakte/falsche Antworten,
+    Upsert-Verhalten, Aggregatneuberechnung, State-Guards). Zusätzlich
+    eigener Standalone-Smoke-Test mit einer minimalen In-Memory-$DB-
+    Attrappe (keine Moodle-Instanz nötig) — 27 Prüfungen, alle bestanden
+  - version.php: 2026072301 -> 2026072302 (2.0.0-alpha.3); KEIN Schema-
+    Wechsel diese Runde, daher kein neuer upgrade.php-Schritt nötig
+  - Blueprint Kap. 10.5 sowie Blueprint_kompakt.md, CHANGELOG auf den neuen
+    Stand gebracht (Domain-Schicht jetzt [implementiert], Completion/
+    Gradebook-ANBINDUNG bleibt offen — Aggregate existieren, werden aber
+    noch nirgends gelesen)
+  - NACHTRAG (erster echter Testlauf gegen reale Moodle-4.5.12-Instanz,
+    OHNE Versionsbump korrigiert): script/-Verzeichnis fehlte physisch
+    (Git trackt keine leeren Verzeichnisse) -> "Invalid subtype directory"
+    bei jedem Scan; DEFAULT="" auf NOTNULL-CHAR-Spalten (language,
+    contenthash) löste einen echten debugging()-Aufruf aus -> aus
+    install.xml UND upgrade.php entfernt, dafür elang_add_instance()
+    einen Code-Fallback für language spendiert; vier assertSame()-Fehler
+    durch fehlende (int)-Casts bei DB-Rückgabewerten (MariaDB liefert
+    Integer-Spalten oft als String); fake_script_handler wurde nie geladen,
+    da Moodles PHPUnit-Discovery nur *_test.php-Dateien requiret -> nach
+    tests/fixtures/ verschoben, explizites require_once() in
+    setUpBeforeClass() (Muster aus echtem Moodle-Core-Test übernommen).
+    Alle Fixes real gegen phpcs/php -l verifiziert, siehe CHANGELOG.
 
-**Als nächstes geplant (Phase 2 — Domänen- und API-Schicht):**
-  - attempt_manager, version_manager (classes/local/domain/)
+Session-002-Details (Schema, Grading-Engine, CI-Fixes, Doku-Korrektur) stehen
+vollständig in docs/sessions/session-002.md.
+
+**Als nächstes geplant (Phase 2 — API-Schicht, dann Completion/Gradebook):**
   - External Functions für Versuchsstart/-fortsetzung/Antwortabgabe/Hilfe
-    (schreibender Zugriff auf elang_attempt/elang_response entsteht dort)
-  - Ablösung des Null-Privacy-Providers (Freigabevoraussetzung, sobald der
-    Schreibpfad für Lerndaten existiert — Schema ist bereits bereit)
-  - Completion auf den Aggregaten (exactgaps/correctgaps/...), Gradebook-Anbindung
+    (classes/external/, db/services.php) — ruft attempt_manager/
+    version_manager auf; das ist der erste ECHTE Schreibpfad auf
+    elang_attempt/elang_response von außerhalb der Tests
+  - Hilfeanfragen in attempt_manager nachziehen (elang_gaphint wird bisher
+    nicht konsultiert; hintlevel/hintedgaps bleiben bis dahin auf 0)
+  - Ablösung des Null-Privacy-Providers — SPÄTESTENS sobald die External
+    Functions den Schreibpfad öffnen, das ist Freigabevoraussetzung
+    (Schema ist bereit, siehe elang_attempt/elang_response)
+  - Completion auf den Aggregaten (exactgaps/correctgaps/...), Gradebook-
+    Anbindung (Domänenlogik liefert die Aggregate bereits, Anbindung fehlt)
   - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
     existiert bereits als elang_gap.maxlength)
   - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task — BLOCKIERT auf
@@ -190,16 +209,63 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     {phpunit,behat}/cli/init.php" ist ein veralteter v3-Workaround und in v4
     fragil/nicht mehr nötig; moodle-plugin-ci phpunit/behat initialisieren
     selbst (siehe aktuelles gha.dist.yml als Referenz)
+  - GitHub Actions: continue-on-error auf JOB-Ebene (z. B.
+    "continue-on-error: ${{ matrix.experimental }}" direkt unter dem Job)
+    maskiert zwar den Job-RESULT für needs:-Gates, lässt aber den GESAMTEN
+    Workflow-Lauf trotzdem als fehlgeschlagen erscheinen — sieht für alle
+    Praktiker aus wie "CI ist kaputt", obwohl die eigentlich blockierenden
+    Kombinationen liefen. Nicht-blockierende/experimentelle Matrix-Einträge
+    (z. B. Moodle main/5.3-dev) deshalb IMMER in einen EIGENEN, dedizierten
+    Job auslagern und dort continue-on-error: true auf JEDEM EINZELNEN Step
+    setzen, nicht auf Job-Ebene. Der eigene Job wird dann NICHT in needs: der
+    ci-complete-Gate aufgenommen.
+  - Moodle main (5.3-dev, oder jeder unveröffentlichte Entwicklungszweig)
+    unter der neuesten PHP-Version kann echte debugging()-Aufrufe beim
+    frischen Install auslösen (moodle-plugin-ci prüft das über
+    MoodleProcess::hasDebuggingMessages(), Regex auf "++ Text ++\n* line" —
+    das reale Moodle-debugging()-Ausgabeformat, kein Fehlalarm des Tools).
+    Das ist erwartete Instabilität eines unveröffentlichten Branches, kein
+    Plugin-Fehler — gehört in einen experimentellen Job, nicht gefixt
   - Vor dem Ausliefern lokal prüfen, sofern ein PHP mit intl-Extension
     verfügbar ist: php -l auf jede Datei, phpcs --standard=moodle gegen den
     ganzen Baum (moodlehq/moodle-cs via Composer installierbar)
+  - Subplugin-Verzeichnisse (db/subplugins.json) MÜSSEN physisch existieren,
+    auch wenn leer — Git trackt keine leeren Verzeichnisse. Ohne Datei darin
+    (z. B. README.md) loggt Moodle bei jedem Plugin-Scan "Invalid subtype
+    directory '...' detected", auch ohne echten Fehlerfall
+  - XMLDB: NOTNULL-CHAR-Spalten dürfen KEIN DEFAULT="" haben — Moodles
+    XMLDB-Validator lehnt das mit einem debugging()-Aufruf ab ("must have
+    one meaningful DEFAULT declared or none"). Entweder ein echter Default
+    oder DEFAULT-Attribut ganz weglassen. Wenn weggelassen: Anwendungscode
+    MUSS das Feld beim Insert immer explizit setzen (Moodle-DB-Layer wirft
+    sonst wegen NOT NULL ohne Default)
+  - Moodles $DB-Layer garantiert KEINE Integer-PHP-Typen für Integer-Spalten:
+    insert_record() liefert echte int zurück, get_record()/get_field()
+    liefern auf MariaDB/PDO oft Strings. assertSame() ist typstrikt — bei
+    jedem Vergleich von frisch aus der DB geholten numerischen Werten
+    IMMER explizit (int) casten, auf BEIDEN Seiten
+  - PHPUnit-Testfixtures (Test-Doubles, die von mehreren *_test.php-Dateien
+    gebraucht werden): NIEMALS in eine eigene, nicht auf _test.php endende
+    Datei auslagern — Moodles PHPUnit-Discovery requiret NUR Dateien nach
+    dem Muster *_test.php, alles andere wird nie geladen ("Class ... not
+    found"). Korrekt (bestätigt gegen echten Moodle-Core-Test
+    lib/phpunit/tests/advanced_test.php): Datei unter tests/fixtures/,
+    Namespace passend zum Pfad (z. B. mod_elang\fixtures\...), UND
+    explizites require_once(__DIR__ . '/pfad/zu/fixtures/datei.php') in
+    setUpBeforeClass() jeder verbrauchenden Testklasse
+  - phpcs (moodle-Standard): GENAU eine Klasse pro Datei, keine Ausnahme —
+    auch nicht für kleine Test-Doubles, die neben der eigentlichen
+    Testklasse in derselben Datei "praktisch" wären
 
 ---
 
 ### F) Modus zur Delivery
 
-- Code-Changes immer ausliefern als Patch-ZIP: eine ZIP-Datei, die NUR
-  die geänderten Dateien enthält (kein .git-Ordner, keine docs/-Dateien)
+- Code- UND Doku-Änderungen immer gemeinsam ausliefern als EIN Patch-ZIP:
+  eine ZIP-Datei, die NUR die geänderten Dateien enthält (kein .git-Ordner),
+  mit korrekter Verzeichnisstruktur relativ zum Plugin-Root — also auch
+  geänderte docs/-Dateien MIT im selben ZIP, nicht separat oder als lose
+  Einzeldateien im Chat.
 - Patch-ZIPs erhalten einen durchnummerierten Namen (patch-2.0.YY.zip),
   die Version in version.php orientiert sich am aktuellen Datum und wird
   mit jeder Iteration hochgezählt (Format: YYYYMMDDNN, z.B. 2026072301)

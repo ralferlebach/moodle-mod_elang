@@ -12,10 +12,28 @@
 #   Moodle 5.2 → PHP 8.3 – 8.4   (minimum 8.3)
 #   Moodle 5.3 → PHP 8.3 – 8.4   (not released yet, built from `main`)
 #
-# The 5.3 jobs run against the integration branch and are allowed to fail, so a
-# moving upstream target never blocks the pipeline. Replace `main` with
-# MOODLE_503_STABLE and drop `experimental` once 5.3 has been released
-# (5 October 2026).
+# Moodle 5.3 is still under active development, and testing against `main`
+# genuinely can and does surface Moodle-side debugging()/deprecation output
+# that has nothing to do with this plugin — moodle-plugin-ci's own install
+# step treats any such output as a hard failure (see MoodleProcess.php in
+# moodlehq/moodle-plugin-ci). `main` is therefore tested in its OWN dedicated
+# jobs (phpunit-experimental, behat-experimental) rather than as an extra
+# matrix entry inside the blocking phpunit/behat jobs.
+#
+# IMPORTANT — do not "simplify" this by adding `main` back into the phpunit/
+# behat matrix with a job-level `continue-on-error: ${{ matrix.experimental }}`.
+# That was tried and does not work as it looks like it should: job-level
+# continue-on-error masks the job's *result* for `needs:` gating, but the
+# overall workflow RUN still shows as failed, which is exactly as confusing
+# to a human glancing at the checks list as a real failure. continue-on-error
+# only reliably keeps the whole run green when applied to every STEP that can
+# fail, which is why every step below in the *-experimental jobs sets it
+# individually instead of relying on a single job-level setting.
+#
+# After Moodle 5.3 is released (5 October 2026): replace `main` with
+# MOODLE_503_STABLE in the experimental jobs below, remove the per-step
+# continue-on-error, and fold them back into the regular phpunit/behat jobs'
+# matrices as ordinary blocking entries.
 #
 # The plugin has NO external plugin dependencies.
 ##############################################################################
@@ -149,22 +167,20 @@ jobs:
       - name: Check upgrade savepoints
         run: moodle-plugin-ci savepoints
 
-  # ── 2. PHPUnit ───────────────────────────────────────────────────────────
+  # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.2 only) ────────────────────
   phpunit:
     name: "PHPUnit (${{ matrix.moodle }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
     runs-on: ubuntu-24.04
     needs: [lint-php]
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { moodle: MOODLE_405_STABLE, php: '8.1', experimental: false, db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
-          - { moodle: MOODLE_405_STABLE, php: '8.3', experimental: false, db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
-          - { moodle: MOODLE_500_STABLE, php: '8.2', experimental: false, db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
-          - { moodle: MOODLE_502_STABLE, php: '8.3', experimental: false, db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
-          - { moodle: MOODLE_502_STABLE, php: '8.4', experimental: false, db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
-          - { moodle: main,              php: '8.4', experimental: true,  db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
+          - { moodle: MOODLE_405_STABLE, php: '8.1', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
+          - { moodle: MOODLE_405_STABLE, php: '8.3', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
+          - { moodle: MOODLE_500_STABLE, php: '8.2', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
+          - { moodle: MOODLE_502_STABLE, php: '8.3', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
+          - { moodle: MOODLE_502_STABLE, php: '8.4', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
 
     services:
       mariadb:
@@ -228,19 +244,17 @@ jobs:
       - name: PHPUnit – all tests
         run: moodle-plugin-ci phpunit --fail-on-warning
 
-  # ── 3. Behat ─────────────────────────────────────────────────────────────
+  # ── 3. Behat (blocking — Moodle 4.5, 5.2 only) ───────────────────────────
   behat:
     name: "Behat (${{ matrix.moodle }} / PHP ${{ matrix.php }} / Chrome)"
     runs-on: ubuntu-24.04
     needs: [lint-php, lint-js]
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { moodle: MOODLE_405_STABLE, php: '8.3', experimental: false }
-          - { moodle: MOODLE_502_STABLE, php: '8.3', experimental: false }
-          - { moodle: main,              php: '8.4', experimental: true  }
+          - { moodle: MOODLE_405_STABLE, php: '8.3' }
+          - { moodle: MOODLE_502_STABLE, php: '8.3' }
 
     services:
       mariadb:
@@ -282,6 +296,7 @@ jobs:
         run: |
           moodle-plugin-ci install \
             --plugin ./plugin \
+            --branch ${{ matrix.moodle }} \
             --db-type mariadb \
             --db-host 127.0.0.1 \
             --db-port 3306 \
@@ -307,19 +322,166 @@ jobs:
           path: ${{ github.workspace }}/moodle/behatfaildumps/
           retention-days: 7
 
-  # ── Gate ─────────────────────────────────────────────────────────────────
+  # ── 4. PHPUnit against Moodle main (non-blocking — see header note) ─────
+  phpunit-experimental:
+    name: "PHPUnit (main / PHP 8.4 / pgsql, experimental)"
+    runs-on: ubuntu-24.04
+    needs: [lint-php]
+
+    services:
+      pgsql:
+        image: postgres:16
+        env:
+          POSTGRES_USER:     moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB:       postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U moodle"
+          --health-interval=10s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          path: plugin
+
+      - uses: shivammathur/setup-php@v2
+        continue-on-error: true
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_mysql, pdo_pgsql, gd, xml, zip, intl, sodium
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Install en_AU.UTF-8 locale
+        continue-on-error: true
+        run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
+
+      - name: Set TRAVIS_BRANCH
+        continue-on-error: true
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
+          echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Install moodle-plugin-ci
+        continue-on-error: true
+        run: |
+          composer create-project -n --no-dev moodlehq/moodle-plugin-ci ci ${{ env.MOODLE_CI }}
+          echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
+
+      - name: Install Moodle and plugin
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci install \
+            --plugin ./plugin \
+            --db-host 127.0.0.1 \
+            --db-port 5432 \
+            --db-user moodle \
+            --db-pass moodle \
+            --db-name moodle
+        env:
+          DB: pgsql
+          MOODLE_BRANCH: main
+
+      - name: PHPUnit – all tests
+        continue-on-error: true
+        run: moodle-plugin-ci phpunit --fail-on-warning
+
+  # ── 5. Behat against Moodle main (non-blocking — see header note) ───────
+  behat-experimental:
+    name: "Behat (main / PHP 8.4 / Chrome, experimental)"
+    runs-on: ubuntu-24.04
+    needs: [lint-php, lint-js]
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          path: plugin
+
+      - uses: shivammathur/setup-php@v2
+        continue-on-error: true
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_mysql, gd, xml, zip, intl, sodium
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Install en_AU.UTF-8 locale
+        continue-on-error: true
+        run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
+
+      - name: Set TRAVIS_BRANCH
+        continue-on-error: true
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
+          echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Install moodle-plugin-ci
+        continue-on-error: true
+        run: |
+          composer create-project -n --no-dev moodlehq/moodle-plugin-ci ci ${{ env.MOODLE_CI }}
+          echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
+
+      - name: Install Moodle and plugin
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci install \
+            --plugin ./plugin \
+            --branch main \
+            --db-type mariadb \
+            --db-host 127.0.0.1 \
+            --db-port 3306 \
+            --db-user root \
+            --db-pass root \
+            --db-name moodle
+        env:
+          DB: mariadb
+          MOODLE_BRANCH: main
+
+      - name: Behat – plugin scenarios
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci behat \
+            --profile chrome \
+            --tags "@mod_elang&&~@broken" \
+            --start-servers
+
+      - name: Upload failure screenshots
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: behat-screenshots-main-experimental
+          path: ${{ github.workspace }}/moodle/behatfaildumps/
+          retention-days: 7
+
+  # ── Gate — only the blocking jobs decide the outcome ─────────────────────
   ci-complete:
     name: CI complete
     needs: [phpunit, behat]
     runs-on: ubuntu-24.04
     if: always()
     steps:
-      - name: All non-experimental matrix jobs must have succeeded
+      - name: All blocking matrix jobs must have succeeded
         run: |
           result="${{ needs.phpunit.result }}-${{ needs.behat.result }}"
           if [[ "$result" == "success-success" ]]; then
-            echo "All CI jobs passed."
+            echo "All blocking CI jobs passed. (main/5.3-dev results are informational only — see the phpunit-experimental / behat-experimental jobs.)"
           else
-            echo "CI result: $result – one or more jobs failed or were cancelled."
+            echo "CI result: $result – one or more blocking jobs failed or were cancelled."
             exit 1
           fi

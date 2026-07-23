@@ -16,6 +16,8 @@
 
 namespace mod_elang\local\grading;
 
+use mod_elang\fixtures\fake_script_handler;
+
 /**
  * Tests for answer_evaluator.
  *
@@ -27,6 +29,11 @@ namespace mod_elang\local\grading;
 final class answer_evaluator_test extends \basic_testcase {
     /** @var answer_evaluator */
     private $evaluator;
+
+    public static function setUpBeforeClass(): void {
+        require_once(__DIR__ . '/../../fixtures/fake_script_handler.php');
+        parent::setUpBeforeClass();
+    }
 
     protected function setUp(): void {
         parent::setUp();
@@ -204,7 +211,7 @@ final class answer_evaluator_test extends \basic_testcase {
      * @return void
      */
     public function test_delegates_to_the_handler_selected_for_the_language(): void {
-        $fake = new fake_script_handler(['xx']);
+        $fake = new fake_script_handler(['xx'], true);
         $evaluator = new answer_evaluator(new script_handler_manager([$fake]));
 
         $result = $evaluator->evaluate(
@@ -215,9 +222,10 @@ final class answer_evaluator_test extends \basic_testcase {
             'ANYTHING'
         );
 
-        // The fake_script_handler word-recognised reduction lower-cases and
-        // prefixes 'fake:', which only happens if the evaluator actually used
-        // the handler script_handler_manager returned for language 'xx'.
+        // The fake_script_handler word-recognised reduction (with the
+        // delegation marker enabled) lower-cases and prefixes 'fake:', which
+        // only happens if the evaluator actually used the handler
+        // script_handler_manager returned for language 'xx'.
         $this->assertSame(grading_result::RESULTSTATE_WORDRECOGNIZED, $result->resultstate);
         $this->assertTrue($result->accepted);
     }

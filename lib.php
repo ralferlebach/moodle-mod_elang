@@ -83,6 +83,15 @@ function elang_is_branded(): bool {
 function elang_add_instance(stdClass $elang, ?mod_elang_mod_form $mform = null): int {
     global $DB;
 
+    // The elang.language column has no schema-level default (a NOTNULL CHAR
+    // column with an empty-string DEFAULT is rejected by Moodle's XMLDB
+    // validator with a debugging() call), so it must always be supplied
+    // explicitly here until mod_form.php gains a language field of its own
+    // (phase 3/4).
+    if (!isset($elang->language)) {
+        $elang->language = '';
+    }
+
     $elang->timecreated = time();
     $elang->timemodified = $elang->timecreated;
 

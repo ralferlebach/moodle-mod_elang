@@ -67,7 +67,7 @@ mod/elang/
 ├── db/                          # install.xml, access.php, subplugins.json, install.php, upgrade.php
 ├── lang/{en,de}/elang.php       # language strings
 ├── pix/monologo.{svg,png}       # monochrome activity icon
-├── tests/                       # PHPUnit (incl. tests/local/grading/), generator, Behat
+├── tests/                       # PHPUnit (incl. tests/local/), fixtures/, generator, Behat
 ├── tools/                       # developer helpers (not shipped in releases)
 ├── docs/                        # blueprint, feasibility studies, prompts, sessions
 └── .github/workflows/           # moodle-plugin-ci pipelines

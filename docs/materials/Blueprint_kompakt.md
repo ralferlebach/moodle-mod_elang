@@ -76,7 +76,7 @@ Details, Beispiele und Referenzfälle: Blueprint Kap. 10.
 
 | Schicht | Umsetzung |
 | --- | --- |
-| Domain | `attempt_manager`, `version_manager` (offen) |
+| Domain | `attempt_manager`, `version_manager` — **implementiert seit alpha.3** |
 | Grading | `answer_evaluator`, `script_handler(_manager)`, `latin_script_handler` — **implementiert** |
 | Persistenz | kleine Repository-Klassen mit gezielten Queries |
 | API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` |
@@ -127,7 +127,8 @@ Summe 2.1: **4,2–6,1 PW**.
 
 1. Spezifikation, Skelett, CI, Dokumentation *(erledigt: 2.0.0-alpha.1)*
 2. Datenmodell, Bewertungsengine *(Schema + Grading erledigt: 2.0.0-alpha.2)*,
-   Domain (Attempt/Version-Manager, offen), Completion, Gradebook, Migration
+   Domain (Attempt/Version-Manager erledigt: 2.0.0-alpha.3; External
+   Functions, Completion, Gradebook noch offen), Migration
 3. Lernendenoberfläche
 4. Autoreneditor, Reporting, Exporte
 5. Härtung, Privacy, Backup, Audits, Revalidierung gegen Moodle 5.3

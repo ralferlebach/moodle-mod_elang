@@ -11,7 +11,7 @@
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Activity name"/>
         <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Activity description"/>
         <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Format of the intro field"/>
-        <FIELD NAME="language" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="BCP-47-ish language/script code of the exercise content, e.g. de, fr, ko, zh-Hans, ja, sa, ru. Drives script_handler_manager routing (see classes/local/grading)."/>
+        <FIELD NAME="language" TYPE="char" LENGTH="30" NOTNULL="true" SEQUENCE="false" COMMENT="BCP-47-ish language/script code of the exercise content, e.g. de, fr, ko, zh-Hans, ja, sa, ru. Drives script_handler_manager routing (see classes/local/grading). No schema-level DEFAULT: a CHAR NOT NULL column must have either a meaningful default or none — Moodle's XMLDB validator rejects an empty-string default and would auto-correct it to NULL at debugging() severity. Application code always supplies this value explicitly on insert."/>
         <FIELD NAME="currentversionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Points at the published elang_version currently shown to learners. Deliberately NOT a declared foreign key: elang_version.elangid already references elang.id, and a second, opposite-direction foreign key would create a circular DDL dependency. The relationship is enforced in application code (classes/local/domain/version_manager.php)."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -31,7 +31,7 @@
         <FIELD NAME="elangid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="versionnumber" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Sequential per elangid, starting at 1"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft" SEQUENCE="false" COMMENT="draft | published | archived"/>
-        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="SHA-1 over the normalised version content; cache key for rendered worksheets and player payloads"/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-1 over the normalised version content; cache key for rendered worksheets and player payloads. No schema-level DEFAULT, same rationale as elang.language above."/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

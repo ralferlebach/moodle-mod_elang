@@ -16,6 +16,8 @@
 
 namespace mod_elang\local\grading;
 
+use mod_elang\fixtures\fake_script_handler;
+
 /**
  * Tests for script_handler_manager routing and fallback.
  *
@@ -29,6 +31,11 @@ namespace mod_elang\local\grading;
  * @covers     \mod_elang\local\grading\script_handler_manager
  */
 final class script_handler_manager_test extends \basic_testcase {
+    public static function setUpBeforeClass(): void {
+        require_once(__DIR__ . '/../../fixtures/fake_script_handler.php');
+        parent::setUpBeforeClass();
+    }
+
     /**
      * With no handlers injected, every language falls back to the default
      * Latin-script handler.

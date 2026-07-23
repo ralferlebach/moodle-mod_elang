@@ -207,7 +207,7 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
 | **P1** (→L-F1/L-F15/L-Q5) | Aktivitätsseite `view.php` mit `$OUTPUT->header()/footer()`, Renderables, Renderer und Mustache-Templates; Player, synchronisiertes Transkript und Bearbeitungsbereich als native ES-Module unter `amd/src/`. Kein jQuery, kein Enyo, kein Bower. |
 | **P2** (→L-F2/L-F3) | Import über `classes/local/import/{vtt_parser,srt_parser,legacy_markup_parser}.php` mit Vorschau- und Validierungsschritt; visueller Editor als eigene Seite `edit.php` mit Timeline-, Segment- und Lückenkomponenten. |
 | **P3** (→L-F4/L-Q11) | Versionierte Übungsdefinition (`elang_version`, `elang_cue`, `elang_gap`, `elang_gapanswer`, `elang_gaphint`); Änderungen erzeugen eine neue Version; Versuche verweisen auf genau die bearbeitete Version. Sämtliche Schreibpfade in `$DB->start_delegated_transaction()`. |
-| **P4** (→L-F5/L-F8/L-F9/L-Q6) | `attempt_manager` führt aggregierte Zähler (`totalgaps`, `answeredgaps`, `correctgaps`, `hintedgaps`, `score`, `state`) auf `elang_attempt` mit; Completion und Gradebook lesen ausschließlich diese Aggregate. Completion-Einstellungen sind reguläre Spalten der Haupttabelle. |
+| **P4** (→L-F5/L-F8/L-F9/L-Q6) [implementiert] | `attempt_manager` führt aggregierte Zähler (`totalgaps`, `answeredgaps`, `exactgaps`, `correctgaps`, `hintedgaps`, `score`, `state`) auf `elang_attempt` mit; Completion und Gradebook lesen künftig ausschließlich diese Aggregate (Anbindung selbst noch offen, Kap. 10.5/10.6). Completion-Einstellungen sind reguläre Spalten der Haupttabelle. |
 | **P5** (→L-F6/L-Q8) [implementiert] | `answer_evaluator` mit genau zwei benannten Algorithmen (`exact`, `wordrecognized`), die Reduktion je Schriftsystem über austauschbare `script_handler`-Implementierungen (`latin_script_handler` im Kern, `elangscript`-Subplugins für nicht-lateinische Schriften); Unicode-Normalisierung über `Normalizer` statt `setlocale()`; harte serverseitige Längenobergrenze je Lücke plus Verteidigung in der Tiefe bei Regex-Antwortvarianten. Details in Kap. 10. |
 | **P6** (→L-F7) | `elang_gaphint` mit Stufe, Typ, Text und Abzug; Hilfeanforderung ausschließlich über External Function, Abzug serverseitig verbucht. |
 | **P7** (→L-F10/L-F11/L-F19/L-Q4) | Berichte über **Report Builder** (System Reports + Entities); Export über die **Dataformat API** (`\core\dataformat`) — CSV, XLSX, ODS, JSON ohne Eigencode; Gruppenfilter über `groups_get_activity_groupmode()` / `groups_get_activity_group()`; E-Mail-Adresse keine Standardspalte; Schutz vor Formel-Injektion in Tabellenformaten. |
@@ -641,7 +641,7 @@ Strings werden nicht wiederholt mit `mb_substr()` durchlaufen; keine globale
 `setlocale()`-Umschaltung — Normalisierung läuft ausschließlich über
 `Normalizer`/eigene Tabellen innerhalb des jeweiligen `script_handler`.
 
-### 10.5 Abschluss [offen — Schema vorbereitet]
+### 10.5 Abschluss [Aggregatpflege implementiert, Completion-Anbindung offen]
 
 Abschluss liest ausschließlich die Aggregate auf `elang_attempt`
 (`totalgaps`, `answeredgaps`, `exactgaps`, `correctgaps`, `hintedgaps`, `score`)
@@ -649,8 +649,12 @@ und ist damit nahezu konstant aufwendig. Abschlussregeln sind reguläre Spalten 
 Haupttabelle, nicht Teil eines JSON-Optionsfelds. Neubewertung nur, wenn sich ein
 relevanter Zustand tatsächlich geändert haben kann. Die Domänenlogik
 (`classes/local/domain/attempt_manager.php`), die diese Aggregate aus einzelnen
-`elang_response`-Zeilen fortschreibt, ist noch nicht implementiert — das Schema
-und der Evaluator, auf denen sie aufbaut, sind es.
+`elang_response`-Zeilen fortschreibt, ist seit 2.0.0-alpha.3 implementiert und
+getestet (`start_attempt()`, `submit_response()`, `finish_attempt()`). Was noch
+fehlt: die eigentliche Moodle-Completion-Anbindung (`elang_supports(
+FEATURE_COMPLETION_HAS_RULES)` liefert bislang `false`, siehe Kap. 5.1/CHANGELOG
+alpha.1), Hilfestufen (`elang_gaphint` wird von `attempt_manager` noch nicht
+konsultiert) und eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht).
 
 ### 10.6 Gradebook [offen]
 

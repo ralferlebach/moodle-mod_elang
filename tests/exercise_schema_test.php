@@ -62,7 +62,7 @@ final class exercise_schema_test extends \advanced_testcase {
         $hint = $generator->create_gaphint(['gapid' => $gap->id, 'hinttype' => 'firstletter', 'hinttext' => 'a']);
 
         $this->assertSame(1, $DB->count_records('elang_version', ['elangid' => $elang->id]));
-        $this->assertSame($version->id, $DB->get_field('elang', 'currentversionid', ['id' => $elang->id]));
+        $this->assertSame($version->id, (int) $DB->get_field('elang', 'currentversionid', ['id' => $elang->id]));
         $this->assertSame(1, $DB->count_records('elang_cue', ['versionid' => $version->id]));
         $this->assertSame(1, $DB->count_records('elang_gap', ['cueid' => $cue->id]));
         $this->assertSame(1, $DB->count_records('elang_gapanswer', ['gapid' => $gap->id]));

@@ -51,11 +51,11 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.4 (2026072303) — Infrastruktur + versioniertes
-Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht + erster echter
-Schreibpfad (3 External Functions) + vollständiger Privacy-Provider. Player,
-Autorenwerkzeug, Lese-External-Functions, Completion/Gradebook, Reporting
-und Exporte fehlen noch vollständig.
+**Version:** 2.0.0-alpha.5 (2026072304) — Infrastruktur + versioniertes
+Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht + vollständige
+Schreib-API + Privacy-Provider + vollständige Lese-API (6 External Functions
+insgesamt) + Transkript-Maskierung. Player, Autorenwerkzeug, Hilfestufen,
+Completion/Gradebook, Reporting und Exporte fehlen noch vollständig.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -66,83 +66,60 @@ und Exporte fehlen noch vollständig.
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 004):**
-  - classes/external/{start_attempt,submit_response,finish_attempt}.php +
-    attempt_helper.php (Trait): erster echter Schreibpfad auf
-    elang_attempt/elang_response von außerhalb der Tests. Jede Funktion
-    prüft Capability (mod/elang:attempt) UND Versuchs-EIGENTÜMERSCHAFT
-    (attempt_helper::require_attempt_ownership() — eine Capability allein
-    verhindert nicht, dass jemand einen fremden Versuch anhand einer
-    erratenen ID bearbeitet). submit_response prüft zusätzlich, dass die
-    Lücke zur Version des Versuchs gehört, und begrenzt die Antwortlänge
-    hart auf 500 Zeichen (Verteidigung in der Tiefe, ersetzt NICHT die noch
-    offene konfigurierbare Pro-Lücke-Grenze). db/services.php: alle drei
-    Funktionen core/ajax- UND Moodle-App-fähig.
-  - Namensabweichung von der Blueprint-Planung dokumentiert:
-    mod_elang_submit_response (Einzahl, eine Lücke je Aufruf) statt
-    mod_elang_submit_responses (Mehrzahl) — passt zur bestehenden
-    attempt_manager-Signatur, Bündeln ist eine spätere Optimierung
-  - classes/privacy/provider.php: vollständiger Provider ersetzt den
-    Null-Provider (jetzt FÄLLIG, siehe eigene Regel: Freigabevoraussetzung
-    sobald ein Schreibpfad existiert). metadata\provider,
-    request\plugin\provider, request\core_userlist_provider für
-    elang_attempt/elang_response. Löschung nutzt dieselbe Subquery-Kaskade
-    wie elang_delete_instance() in lib.php.
-  - Neue Lang-Strings: 4x error:* (alphabetisch bei elang:*/error:*
-    einsortiert), vollständiger Satz privacy:metadata:elang_attempt*/
-    elang_response* (ersetzt den alten Null-Provider-String
-    privacy:metadata ersatzlos)
-  - PHPUnit-Tests: tests/external/{start_attempt_test,submit_response_test,
-    finish_attempt_test}.php (Happy Path, Versuchsfortsetzung,
-    Capability-Verweigerung, fehlende veröffentlichte Version,
-    Eigentümerschaftsverletzung, versionsfremde Lücke, Antwort auf
-    abgeschlossenen Versuch, Längenüberschreitung), sowie
-    tests/privacy/provider_test.php (Kontext-Ermittlung, Export,
-    Nutzerliste, drei Löschpfade)
-  - version.php: 2026072302 -> 2026072303 (2.0.0-alpha.4) — diesmal
-    NOTWENDIG, nicht nur Konvention: ohne Versionsbump liest eine bereits
-    installierte Seite db/services.php nie neu ein, die neuen External
-    Functions würden nie registriert
-  - Blueprint Kap. 7 (API-Schicht, inkl. Korrektur der ursprünglich
-    angenommenen require_login()-Regel — validate_context() deckt das ab)
-    und Kap. 15 (Datenschutz), Blueprint_kompakt.md, CHANGELOG aktualisiert
-  - Bekannter, offen kommunizierter Vorbehalt: External Functions und
-    Privacy-Provider wurden NUR gegen php -l/phpcs geprüft (0/0), noch
-    NICHT gegen eine echte Moodle-Instanz — nach dem Muster der letzten
-    zwei Runden ist ein erster echter Testlauf wahrscheinlich nicht
-    fehlerfrei
+**Zuletzt abgeschlossen (Session 005):**
+  - classes/local/domain/transcript_masker.php: ersetzt jede Lücken-
+    Zeichenspanne im Transkript durch ein {{gap:<gapkey>}}-Token.
+    elang_cue.transcript enthält den VOLLEN Originaltext (Lösungswörter
+    wortwörtlich drin, da charstart/charlength Positionen INNERHALB dieses
+    Texts sind) -- JEDE Funktion, die ein Transkript zurückgibt, MUSS das
+    zuerst durchlaufen. Offsets als Unicode-Codepoints (mb_substr), nicht
+    Bytes; überlappende Lücken werfen coding_exception statt still ein
+    ggf. noch lösungshaltiges Transkript zu erzeugen. Mit PHPUnit-Tests
+    UND eigenständigem Smoke-Test (9/9, Codepoint- vs. Byte-Fall gegen
+    echtes mb_strpos() verifiziert, nicht von Hand gezählt).
+  - classes/external/get_exercise.php: statische Versionskennzahlen
+    (elangid, versionid, language, totalcues, totalgaps, contenthash) --
+    kein Inhalt, Player kann per contenthash Cache-Gültigkeit prüfen,
+    bevor überhaupt etwas geholt wird.
+  - classes/external/get_cues.php: paginierte Cues (offset/limit, Deckel
+    200) mit Gaps, Transkript IMMER transcript_masker-maskiert. Gaps geben
+    BEWUSST kein charstart/charlength zurück -- die Zeichenlänge der
+    Lösung wäre ein kostenloser, unangeforderter "Wortlänge"-Hinweis,
+    obwohl Hinweise laut elang_gaphint bewusst anfragbar/mit Abzug versehen
+    sein sollen. Solution/elang_gapanswer werden für diese Funktion gar
+    nicht erst abgefragt.
+  - classes/external/get_attempt_state.php: Aggregate + je beantworteter
+    Lücke resultstate/accepted/tries/hintlevel UND der eigene, vorher
+    eingegebene Antworttext (für Wiederaufnahme -- eigener Text der
+    lernenden Person, keine Lösung). Nutzt attempt_helper::
+    require_attempt_ownership() aus alpha.4 mit.
+  - db/services.php: alle drei als type=read, ajax=true, App-fähig
+    registriert (mod/elang:view bzw. mod/elang:attempt).
+  - Tests: tests/local/domain/transcript_masker_test.php,
+    tests/external/{get_exercise_test,get_cues_test,
+    get_attempt_state_test}.php (u. a. End-zu-Ende-Nachweis: Lösungswort
+    erscheint NIE im zurückgegebenen Transkript, Gaps tragen keine
+    Zeichenpositions-Felder).
+  - version.php: 2026072303 -> 2026072304 (2.0.0-alpha.5) -- notwendig,
+    damit db/services.php neu eingelesen wird.
+  - php -l/phpcs (0/0) und phpcpd (No clones found) real gegen den
+    gesamten Baum geprüft; Blueprint Kap. 6.1/7, Blueprint_kompakt.md,
+    CHANGELOG aktualisiert (6 von aktuell geplanten External Functions
+    jetzt implementiert: get_exercise, get_cues, get_attempt_state,
+    start/submit/finish_attempt).
+  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen -- nach dem Muster
+    der letzten Runden ist beim nächsten echten Testlauf mit mind. einem
+    kleineren Fund zu rechnen.
 
-  - NACHTRAG (erster echter Testlauf gegen reale Moodle-4.5.12-Instanz, OHNE
-    Versionsbump korrigiert): externallib_advanced_testcase brauchte wie
-    fake_script_handler zuvor ein explizites require_once, ist zudem ab
-    Moodle 4.6 zur Ablösung vorgesehen -> alle drei External-Function-Tests
-    erben jetzt direkt von \advanced_testcase (keine ihrer webservice-
-    spezifischen Zusatzmethoden wurde gebraucht). phpcpd fand 35 duplizierte
-    Zeilen zwischen zwei Testklassen -> zunächst als Trait in
-    tests/fixtures/attempt_test_fixture.php ausgelagert — DIESER ERSTE FIX
-    WAR SELBST KAPUTT ("Trait ... not found"): ein Trait wird per "use" INNERHALB
-    der Klasse beim Kompilieren aufgelöst, also vor jeder Methode, auch vor
-    setUpBeforeClass(); require_once() dort kommt für einen Trait immer zu
-    spät (anders als bei einer normalen, nur per new referenzierten Klasse
-    wie fake_script_handler). NACH-NACHTRAG (zweiter echter Testlauf, ebenso
-    ohne Versionsbump): Fixture zu einer normalen Klasse mit statischer
-    create()-Methode umgebaut (attempt_test_fixture_builder), nur aus
-    setUp() heraus aufgerufen — dann funktioniert das bewährte
-    require_once()-Muster. Diesmal vor dem Ausliefern zusätzlich mit einem
-    eigenen Skript verifiziert, das PHPUnits exakte Aufrufreihenfolge
-    nachstellt (siehe Stolperfalle unten) — php -l/phpcs allein hätten
-    diesen Reihenfolgefehler nicht gefunden.
+Ältere Session-Details stehen vollständig in docs/sessions/session-00{2,3,4,5}.md.
 
-Ältere Session-Details stehen vollständig in docs/sessions/session-00{2,3,4}.md.
-
-**Als nächstes geplant (Phase 2 — Lese-API, dann Completion/Gradebook):**
-  - Lese-External-Functions: mod_elang_get_exercise (statische
-    Übungsdefinition OHNE Lösungen), mod_elang_get_cues (paginiert),
-    mod_elang_get_attempt_state — ohne die kann ein Player nichts anzeigen,
-    nur gegen bereits bekannte Lücken-IDs schreiben
+**Als nächstes geplant (Phase 2 — Hilfestufen, dann Completion/Gradebook):**
   - Hilfeanfragen: mod_elang_request_hint + attempt_manager-Anbindung
     (elang_gaphint wird bisher nicht konsultiert; hintlevel/hintedgaps
-    bleiben bis dahin auf 0)
+    bleiben bis dahin auf 0). Muss dieselbe Eigentümerschaftsprüfung wie
+    submit_response/finish_attempt nutzen (attempt_helper). Antworttext
+    einer bereits mit Hilfe versehenen Lücke: Score-Abzug pro Hint-Level
+    berücksichtigen (bisher: score = correctgaps/totalgaps, ohne Abzug)
   - Completion auf den Aggregaten (exactgaps/correctgaps/...), Gradebook-
     Anbindung (Domänenlogik liefert die Aggregate bereits, Anbindung fehlt)
   - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
@@ -342,6 +319,21 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     Verzeichnis für einen noch nicht gebauten Projektteil erwartet. Bei
     eigenen Tools: die Meldung an den tatsächlichen Erwartungszustand
     anpassen (OK statt ERROR), statt das Verzeichnis vorzeitig anzulegen.
+  - External Functions: self::validate_context($context) ruft bei
+    CONTEXT_MODULE INTERN require_login($course, false, $cm, ...) auf —
+    DAS prüft bereits, ob die Aktivität für die aktuelle Person "sichtbar"
+    ist (u. a. über mod/MODNAME:view, die Capability, die Moodle per
+    Namenskonvention für Sichtbarkeit heranzieht). Wird GENAU DIESE
+    Capability (":view") prohibited, schlägt bereits validate_context()
+    mit \core\exception\require_login_exception ("Activity is hidden") fehl
+    — der EIGENE, nachfolgende require_capability(':view', ...)-Aufruf wird
+    nie erreicht. Tests, die ":view" prohibiten und
+    required_capability_exception erwarten, schlagen deshalb fehl (real
+    bestätigt gegen Moodle 4.5). RICHTIG: bei ":view"-Tests
+    require_login_exception erwarten. Bei ANDEREN Capabilities (z. B.
+    ":attempt", die nicht sichtbarkeitsrelevant sind) funktioniert die
+    ursprüngliche Erwartung (required_capability_exception) weiterhin normal,
+    da dort kein require_login()-Kurzschluss greift.
 
 ---
 

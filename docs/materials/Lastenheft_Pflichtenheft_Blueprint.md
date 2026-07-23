@@ -476,10 +476,10 @@ jeder Funktion.
 
 | Funktion | Zweck | Schreibend | App |
 | --- | --- | --- | --- |
-| `mod_elang_get_exercise` | statische Übungsdefinition der aktuellen Version (ohne Lösungen) | – | ja |
-| `mod_elang_get_cues` | paginierte Cues eines Zeitfensters | – | ja |
+| `mod_elang_get_exercise` [implementiert] | statische Übungsdefinition der aktuellen Version (ohne Lösungen) | – | ja |
+| `mod_elang_get_cues` [implementiert] | paginierte Cues (offset/limit, siehe Abweichung unten) | – | ja |
 | `mod_elang_start_attempt` [implementiert] | Versuch beginnen oder fortsetzen | ja | ja |
-| `mod_elang_get_attempt_state` | individueller Zustand als kompaktes Zustandsobjekt | – | ja |
+| `mod_elang_get_attempt_state` [implementiert] | individueller Zustand als kompaktes Zustandsobjekt | – | ja |
 | `mod_elang_submit_response` [implementiert] | Antwortprüfung für **eine** Lücke (serverseitig) | ja | ja |
 | `mod_elang_request_hint` | nächste Hilfestufe anfordern, Abzug verbuchen | ja | ja |
 | `mod_elang_finish_attempt` [implementiert] | Versuch abschließen, Bewertung verbuchen | ja | ja |
@@ -494,9 +494,26 @@ Abweichung von der ursprünglichen Planung: Statt eines gebündelten
 zur Signatur von `attempt_manager::submit_response()`. Ein Bündeln mehrerer
 Antworten in einem Aufruf ist eine spätere Optimierung (weniger Requests bei
 Segmentwechsel), keine Voraussetzung für Korrektheit, und kann ergänzt werden,
-ohne die Einzel-Funktion zu entfernen.
+ohne die Einzel-Funktion zu entfernen. Ebenso ist `mod_elang_get_cues` seit
+2.0.0-alpha.5 mit einfachem `offset`/`limit` (Obergrenze 200 je Seite) statt
+eines Zeitfensters umgesetzt — korrekt und für das Lasttest-Ziel (≥1500 Cues)
+ausreichend; ein positionsbezogenes Fenster-Fetching bleibt eine mögliche
+spätere Verfeinerung, keine Korrektheitslücke.
 
-**Regeln für alle implementierten Funktionen (Stand 2.0.0-alpha.4, verifiziert
+**Kritische Ergänzung zu `mod_elang_get_cues` (Kap. 6.1 unten präzisiert):**
+`elang_cue.transcript` speichert den VOLLSTÄNDIGEN Originaltext — die
+Lösungswörter stehen wörtlich darin, da `elang_gap.charstart`/`charlength`
+Positionen INNERHALB dieses Texts referenzieren. Jede Funktion, die einen
+Transkript-Text zurückgibt, MUSS ihn zuvor durch
+`classes/local/domain/transcript_masker.php` schicken (ersetzt jede
+Lücken-Zeichenspanne durch ein `{{gap:<gapkey>}}`-Token). Aus demselben Grund
+gibt `get_cues` `charstart`/`charlength` NICHT je Lücke zurück — die Zeichen
+LÄNGE der Lösung wäre ein kostenloser, unangeforderter „Wortlänge"-Hinweis,
+obwohl Hinweise laut `elang_gaphint` bewusst ein anfragbarer, potenziell mit
+Abzug versehener Mechanismus sein sollen. Das maskierte Token im Transkript
+reicht dem Player zur Positionierung.
+
+**Regeln für alle implementierten Funktionen (Stand 2.0.0-alpha.5, verifiziert
 gegen reale Moodle-Beispiele):** Kontext aus der Modul-ID bzw. — bei
 versuchsbezogenen Funktionen — aus dem Versuch selbst auflösen,
 `self::validate_context($context)` (deckt die Login-Prüfung ab; ein zusätzlicher

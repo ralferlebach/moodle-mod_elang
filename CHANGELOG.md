@@ -11,6 +11,103 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.5] - 2026-07-23
+
+Phase 2, fourth content increment: the read-side External Functions a player
+needs to actually display an exercise — completing the API surface alongside
+the write path from alpha.4.
+
+### Added
+- `classes/local/domain/transcript_masker.php`: redacts every gap's
+  character range out of a cue's transcript, replacing it with a
+  `{{gap:<gapkey>}}` token. `elang_cue.transcript` stores the full original
+  text — `elang_gap.charstart`/`charlength` are offsets *into that text*, so
+  the raw column literally contains the solution. Every external function
+  returning a transcript now goes through this first; nothing else in the
+  codebase is allowed to send a transcript to a client directly. Offsets are
+  interpreted as Unicode codepoints (`mb_substr`), not bytes, and overlapping
+  gaps raise a `coding_exception` rather than silently producing a transcript
+  that might still expose solution text.
+- `classes/external/get_exercise.php`: the published version's identifiers
+  and counts (`elangid`, `versionid`, `language`, `totalcues`, `totalgaps`,
+  `contenthash`) — no content, so a player can decide whether its cached
+  copy (keyed on `contenthash`) is still valid before fetching anything.
+- `classes/external/get_cues.php`: a page of cues with their gaps for the
+  published version, `offset`/`limit` paginated (capped at 200 per page).
+  Every transcript is `transcript_masker`-redacted. Gaps deliberately do
+  **not** include `charstart`/`charlength`: the masked transcript's token
+  already tells the player where to place an input, and returning the
+  original character length would hand out the solution's length as an
+  unrequested, unpenalised "wordlength" hint — exactly the kind of hint
+  `elang_gaphint` models as something a learner has to deliberately request
+  (not yet implemented, see "Known gaps"). Solutions and accepted answer
+  variants (`elang_gap.solution`, `elang_gapanswer`) are never queried for
+  this function at all, let alone returned.
+- `classes/external/get_attempt_state.php`: an attempt's aggregate counters
+  plus, per gap answered so far, its `resultstate`/`accepted`/`tries`/
+  `hintlevel` and the learner's own previously typed `responsetext` (so a
+  player resuming an in-progress attempt can restore what was typed —
+  this is the learner's own text, never derived from a solution). Reuses
+  `attempt_helper::require_attempt_ownership()` from alpha.4, so the same
+  "capability alone is not enough" ownership check applies here too.
+- `db/services.php`: all three registered as `type: read`, `ajax: true`,
+  Moodle-App-capable, gated by `mod/elang:view` (`get_exercise`/`get_cues`)
+  or `mod/elang:attempt` (`get_attempt_state`, matching the write functions'
+  capability since attempt data is inherently per-attempt).
+- PHPUnit coverage: `tests/local/domain/transcript_masker_test.php` (no
+  gaps, single/multiple gaps, gap at the very start/end, Unicode codepoint
+  vs byte offsets — verified against `mb_strpos()` output rather than
+  counted by hand, array vs object gap representations, overlapping-gap
+  rejection) plus a standalone smoke script (9 checks, all passing,
+  independent of a Moodle bootstrap); `tests/external/{get_exercise_test,
+  get_cues_test,get_attempt_state_test}.php` (published-version counts,
+  missing-published-version rejection, capability checks, end-to-end
+  confirmation that the solution word never appears in a returned
+  transcript and that gaps carry no character-position fields, pagination
+  correctness, out-of-range pagination rejection, response/aggregate
+  correctness, cross-user ownership rejection).
+- `version.php`: 2026072303 -> 2026072304 (2.0.0-alpha.5) — required for the
+  same reason as alpha.4's bump: an already-installed site only re-scans
+  `db/services.php` on a version change.
+
+### Fixed
+
+Found by running the real test suite against a Moodle 4.5.12 instance for
+the first time — corrected without a version bump (still 2.0.0-alpha.5).
+
+- **`get_exercise_test`/`get_cues_test`: `test_requires_capability`** expected
+  `required_capability_exception` but a real run threw
+  `\core\exception\require_login_exception` ("Course or activity not
+  accessible. (Activity is hidden)") instead. Root cause, not a bug in
+  `get_exercise.php`/`get_cues.php`: `mod/elang:view` is, by Moodle's own
+  naming convention, the capability its core "uservisible" machinery checks
+  when deciding whether an activity is visible to the current user.
+  Prohibiting it makes `require_login()` — called internally by
+  `self::validate_context($context)`, which both functions call *before*
+  their own explicit `require_capability('mod/elang:view', ...)` — consider
+  the activity hidden and deny access right there, so the explicit call is
+  never reached. Both exceptions correctly deny access; only the test's
+  expectation was wrong. Fixed by asserting the exception that actually
+  occurs. (`start_attempt_test`'s equivalent test was unaffected: it
+  prohibits `mod/elang:attempt`, which is not the visibility-gating
+  capability, so its own `require_capability()` call is reached as
+  expected.)
+
+### Known gaps
+- Hint requests still are not implemented (unchanged from alpha.3/alpha.4):
+  `mod_elang_request_hint` does not exist yet, and `elang_gaphint` is
+  consulted nowhere in the codebase.
+- No enforcement of a maximum attempt count (unchanged).
+- No completion or gradebook integration reads the aggregates yet (unchanged).
+- `get_cues`' pagination is plain offset/limit, not the "current and
+  neighbouring window" access pattern the blueprint describes (chapter 16)
+  for very long transcripts; correct and adequate for the load-test target
+  (≥1500 cues), but a smarter windowed fetch keyed on playback position is
+  a possible later refinement, not a correctness gap.
+- These external functions have not been run against a real Moodle instance
+  yet — verified with `php -l`, `phpcs --standard=moodle` (0/0) and the
+  standalone masker smoke script only.
+
 ## [2.0.0-alpha.4] - 2026-07-23
 
 Phase 2, third content increment: the first real, reachable write path —

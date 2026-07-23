@@ -17,7 +17,7 @@
 /**
  * External function declarations for mod_elang.
  *
- * All three functions are exposed to core/ajax and to the official mobile
+ * All functions are exposed to core/ajax and to the official mobile
  * service, so the same functions serve both a future web player and the
  * Moodle App without duplication (see Lastenheft P11, P18).
  *
@@ -29,6 +29,33 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
+    'mod_elang_get_exercise' => [
+        'classname' => 'mod_elang\external\get_exercise',
+        'methodname' => 'execute',
+        'description' => 'Return the published version shape: counts and identifiers, no content or solutions.',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:view',
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'mod_elang_get_cues' => [
+        'classname' => 'mod_elang\external\get_cues',
+        'methodname' => 'execute',
+        'description' => 'Return a page of cues and gaps for the published exercise version, transcript solution-masked.',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:view',
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'mod_elang_get_attempt_state' => [
+        'classname' => 'mod_elang\external\get_attempt_state',
+        'methodname' => 'execute',
+        'description' => "Return an attempt's aggregate counters and per-gap response state.",
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:attempt',
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'mod_elang_start_attempt' => [
         'classname' => 'mod_elang\external\start_attempt',
         'methodname' => 'execute',

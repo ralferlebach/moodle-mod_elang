@@ -79,7 +79,7 @@ Details, Beispiele und Referenzfälle: Blueprint Kap. 10.
 | Domain | `attempt_manager`, `version_manager` — **implementiert seit alpha.3** |
 | Grading | `answer_evaluator`, `script_handler(_manager)`, `latin_script_handler` — **implementiert** |
 | Persistenz | kleine Repository-Klassen mit gezielten Queries |
-| API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` — **start/submit/finish implementiert seit alpha.4**, Lese-Funktionen offen |
+| API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` — **6 implementiert seit alpha.5** (get_exercise, get_cues, get_attempt_state, start/submit/finish_attempt); request_hint, save/publish_draft_version, preview_import, queue_worksheet offen |
 | Ausgabe | Renderables, Renderer, Mustache |
 | JavaScript | native ES-Module unter `amd/src/` |
 | Reporting | Report Builder (Entities + System Reports) |
@@ -127,9 +127,10 @@ Summe 2.1: **4,2–6,1 PW**.
 
 1. Spezifikation, Skelett, CI, Dokumentation *(erledigt: 2.0.0-alpha.1)*
 2. Datenmodell, Bewertungsengine *(Schema + Grading erledigt: 2.0.0-alpha.2)*,
-   Domain (Attempt/Version-Manager erledigt: 2.0.0-alpha.3), erste
-   External Functions + vollständiger Privacy-Provider *(erledigt:
-   2.0.0-alpha.4)*, Completion, Gradebook, Migration
+   Domain (Attempt/Version-Manager erledigt: 2.0.0-alpha.3), Schreib-API +
+   Privacy-Provider *(erledigt: 2.0.0-alpha.4)*, Lese-API + Transkript-
+   Maskierung *(erledigt: 2.0.0-alpha.5)*, Hilfestufen, Completion,
+   Gradebook, Migration
 3. Lernendenoberfläche
 4. Autoreneditor, Reporting, Exporte
 5. Härtung, Privacy, Backup, Audits, Revalidierung gegen Moodle 5.3

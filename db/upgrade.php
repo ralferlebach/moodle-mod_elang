@@ -128,7 +128,6 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         $table->add_field('isregex', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('gapid', XMLDB_KEY_FOREIGN, ['gapid'], 'elang_gap', ['id']);
-        $table->add_index('gapid', XMLDB_INDEX_NOTUNIQUE, ['gapid']);
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
@@ -171,7 +170,6 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         $table->add_key('versionid', XMLDB_KEY_FOREIGN, ['versionid'], 'elang_version', ['id']);
         $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
         $table->add_index('elangid-userid-attemptnumber', XMLDB_INDEX_UNIQUE, ['elangid', 'userid', 'attemptnumber']);
-        $table->add_index('versionid', XMLDB_INDEX_NOTUNIQUE, ['versionid']);
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }

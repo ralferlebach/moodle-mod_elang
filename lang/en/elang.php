@@ -36,6 +36,7 @@ $string['elang:viewreports'] = 'View learner reports';
 $string['error:attemptnotinprogress'] = 'This attempt is no longer in progress.';
 $string['error:gapnotinattemptversion'] = 'This gap does not belong to the exercise version of this attempt.';
 $string['error:noaccesstoattempt'] = 'You do not have access to this attempt.';
+$string['error:nomorehints'] = 'No further hints are available for this gap.';
 $string['error:nopublishedversion'] = 'This exercise has no published content yet.';
 $string['modulename'] = 'Language exercise';
 $string['modulename_help'] = 'The language exercise activity lets learners fill in gaps in time-coded subtitles while watching or listening to a video.

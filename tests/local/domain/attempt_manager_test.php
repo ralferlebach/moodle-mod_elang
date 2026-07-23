@@ -63,6 +63,20 @@ final class attempt_manager_test extends \advanced_testcase {
             'solution' => 'chat',
             'gradingalgorithm' => answer_evaluator::ALGORITHM_EXACT,
         ]);
+        $generator->create_gaphint([
+            'gapid' => $this->gap->id,
+            'level' => 1,
+            'hinttype' => 'firstletter',
+            'hinttext' => 'c',
+            'penalty' => 0.1,
+        ]);
+        $generator->create_gaphint([
+            'gapid' => $this->gap->id,
+            'level' => 2,
+            'hinttype' => 'wordlength',
+            'hinttext' => '4',
+            'penalty' => 0.3,
+        ]);
     }
 
     /**
@@ -168,6 +182,142 @@ final class attempt_manager_test extends \advanced_testcase {
 
         $this->expectException(\coding_exception::class);
         $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+    }
+
+    /**
+     * The first hint request reveals level 1, and creates an empty response
+     * row to hold it when nothing has been submitted yet.
+     *
+     * @return void
+     */
+    public function test_first_hint_request_reveals_level_one(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $hint = $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $this->assertSame(1, (int) $hint->level);
+        $this->assertSame('firstletter', $hint->hinttype);
+        $this->assertSame('c', $hint->hinttext);
+
+        $response = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $this->gap->id], '*', MUST_EXIST);
+        $this->assertSame(1, (int) $response->hintlevel);
+        $this->assertSame(grading_result::RESULTSTATE_EMPTY, $response->resultstate);
+
+        $updated = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertSame(1, (int) $updated->hintedgaps);
+    }
+
+    /**
+     * Hint levels are revealed strictly in order: a second request reveals
+     * level 2, not level 1 again.
+     *
+     * @return void
+     */
+    public function test_second_hint_request_reveals_the_next_level(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+        $second = $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $this->assertSame(2, (int) $second->level);
+        $this->assertSame('wordlength', $second->hinttype);
+    }
+
+    /**
+     * Requesting a hint beyond the highest defined level fails rather than
+     * silently returning nothing.
+     *
+     * @return void
+     */
+    public function test_hint_request_beyond_the_last_level_throws(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+    }
+
+    /**
+     * A hint cannot be requested for an attempt that is not in progress.
+     *
+     * @return void
+     */
+    public function test_hint_request_rejects_a_finished_attempt(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->finish_attempt($attempt->id);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+    }
+
+    /**
+     * An accepted response after a hint was used contributes less than a
+     * full point, both on the response itself and the attempt total.
+     *
+     * @return void
+     */
+    public function test_accepted_response_after_hint_reflects_the_penalty(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+
+        $response = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $this->gap->id], '*', MUST_EXIST);
+        $this->assertEqualsWithDelta(0.9, (float) $response->score, 0.00001);
+
+        $updated = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertEqualsWithDelta(0.9, (float) $updated->score, 0.00001);
+        $this->assertSame(1, (int) $updated->correctgaps);
+        $this->assertSame(1, (int) $updated->hintedgaps);
+    }
+
+    /**
+     * An unaccepted response scores zero regardless of hint use — the
+     * penalty only reduces an otherwise-earned point, it never creates one.
+     *
+     * @return void
+     */
+    public function test_unaccepted_response_after_hint_still_scores_zero(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chien');
+
+        $updated = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertEqualsWithDelta(0.0, (float) $updated->score, 0.00001);
+        $this->assertSame(0, (int) $updated->correctgaps);
+        $this->assertSame(1, (int) $updated->hintedgaps);
+    }
+
+    /**
+     * Requesting a second, higher-penalty hint level after already
+     * submitting a correct response reduces the previously-earned score
+     * accordingly (the response's score is recalculated, not fixed at
+     * submission time).
+     *
+     * @return void
+     */
+    public function test_requesting_a_hint_after_a_correct_answer_still_applies_the_penalty(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $updatedbeforehint = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertEqualsWithDelta(1.0, (float) $updatedbeforehint->score, 0.00001);
+
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $updatedafterhint = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertEqualsWithDelta(0.9, (float) $updatedafterhint->score, 0.00001);
     }
 
     /**

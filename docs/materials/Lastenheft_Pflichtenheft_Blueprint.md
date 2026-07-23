@@ -481,7 +481,7 @@ jeder Funktion.
 | `mod_elang_start_attempt` [implementiert] | Versuch beginnen oder fortsetzen | ja | ja |
 | `mod_elang_get_attempt_state` [implementiert] | individueller Zustand als kompaktes Zustandsobjekt | – | ja |
 | `mod_elang_submit_response` [implementiert] | Antwortprüfung für **eine** Lücke (serverseitig) | ja | ja |
-| `mod_elang_request_hint` | nächste Hilfestufe anfordern, Abzug verbuchen | ja | ja |
+| `mod_elang_request_hint` [implementiert] | nächste Hilfestufe anfordern, Abzug verbuchen | ja | ja |
 | `mod_elang_finish_attempt` [implementiert] | Versuch abschließen, Bewertung verbuchen | ja | ja |
 | `mod_elang_save_draft_version` | Autorenstand speichern | ja | – |
 | `mod_elang_publish_version` | Entwurf veröffentlichen | ja | – |
@@ -685,11 +685,18 @@ Haupttabelle, nicht Teil eines JSON-Optionsfelds. Neubewertung nur, wenn sich ei
 relevanter Zustand tatsächlich geändert haben kann. Die Domänenlogik
 (`classes/local/domain/attempt_manager.php`), die diese Aggregate aus einzelnen
 `elang_response`-Zeilen fortschreibt, ist seit 2.0.0-alpha.3 implementiert und
-getestet (`start_attempt()`, `submit_response()`, `finish_attempt()`). Was noch
-fehlt: die eigentliche Moodle-Completion-Anbindung (`elang_supports(
+getestet (`start_attempt()`, `submit_response()`, `finish_attempt()`); seit
+2.0.0-alpha.6 zusätzlich `request_hint()` — Hilfestufen werden strikt in
+Reihenfolge freigegeben, und `elang_gaphint.penalty` fließt in die Neuberechnung
+von `elang_response.score` und darüber in `elang_attempt.score` ein (nicht
+additiv über Stufen hinweg: die Strafe einer Stufe berücksichtigt bereits alles,
+was bis einschließlich dieser Stufe offengelegt wurde). Eine nachträglich
+angeforderte Hilfe zu einer bereits korrekt beantworteten Lücke senkt die Wertung
+rückwirkend, da bei jeder Antwortabgabe UND jeder Hilfeanfrage aus dem
+tatsächlichen Zustand neu berechnet wird, nie zum Zeitpunkt der Abgabe fixiert.
+Was noch fehlt: die eigentliche Moodle-Completion-Anbindung (`elang_supports(
 FEATURE_COMPLETION_HAS_RULES)` liefert bislang `false`, siehe Kap. 5.1/CHANGELOG
-alpha.1), Hilfestufen (`elang_gaphint` wird von `attempt_manager` noch nicht
-konsultiert) und eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht).
+alpha.1) und eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht).
 
 ### 10.6 Gradebook [offen]
 

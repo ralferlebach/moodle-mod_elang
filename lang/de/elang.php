@@ -36,6 +36,7 @@ $string['elang:viewreports'] = 'Berichte zu Lernenden ansehen';
 $string['error:attemptnotinprogress'] = 'Dieser Versuch läuft nicht mehr.';
 $string['error:gapnotinattemptversion'] = 'Diese Lücke gehört nicht zur Übungsversion dieses Versuchs.';
 $string['error:noaccesstoattempt'] = 'Sie haben keinen Zugriff auf diesen Versuch.';
+$string['error:nomorehints'] = 'Für diese Lücke sind keine weiteren Hilfen verfügbar.';
 $string['error:nopublishedversion'] = 'Für diese Übung ist noch kein Inhalt veröffentlicht.';
 $string['modulename'] = 'Sprachübung';
 $string['modulename_help'] = 'Die Aktivität Sprachübung lässt Lernende Lücken in zeitcodierten Untertiteln ausfüllen, während sie ein Video ansehen oder anhören.

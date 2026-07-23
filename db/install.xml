@@ -104,7 +104,6 @@
         <KEY NAME="gapid" TYPE="foreign" FIELDS="gapid" REFTABLE="elang_gap" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="gapid" UNIQUE="false" FIELDS="gapid"/>
       </INDEXES>
     </TABLE>
 
@@ -153,7 +152,6 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="elangid-userid-attemptnumber" UNIQUE="true" FIELDS="elangid, userid, attemptnumber"/>
-        <INDEX NAME="versionid" UNIQUE="false" FIELDS="versionid"/>
       </INDEXES>
     </TABLE>
 

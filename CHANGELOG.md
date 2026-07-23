@@ -11,6 +11,119 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.6] - 2026-07-23
+
+Phase 2, fifth content increment: hint requests — the last piece of the
+attempt lifecycle that was still a stub.
+
+### Added
+- `classes/local/domain/attempt_manager.php`: new `request_hint()`.
+  Hint levels are revealed strictly in order — always the level one above
+  whatever was last revealed for that gap, never a specific level chosen by
+  the caller — and fail if no `elang_gaphint` row exists at that level.
+  Requesting a hint before ever answering creates an empty `elang_response`
+  row to hold the revealed level (`responsetext` has no schema-level
+  default, same reasoning as `elang.language`, so it is set explicitly).
+  `recalculate_attempt_aggregates()` reworked to be hint-penalty-aware:
+  each `elang_gaphint.penalty` (0..1, the fraction of a gap's point value
+  given up by having revealed hints up to and including that level — not
+  additive across levels) is looked up for a response's current hint level
+  and applied to that response's own `score` (also recomputed and persisted
+  now, not just the attempt-level aggregate), then summed into the attempt
+  score. With no hint used, this reduces exactly to the pre-hint
+  `correctgaps`/`totalgaps` scoring — verified explicitly, not just assumed.
+  Requesting a hint *after* an already-accepted answer retroactively reduces
+  that response's and the attempt's score, since scores are recalculated
+  from current state on every submission or hint request, never fixed at
+  submission time.
+- `classes/external/request_hint.php`: reveals the next hint level for a
+  gap within an in-progress attempt, returning the hint content alongside
+  the updated `hintedgaps`/`score` so a caller never needs a separate round
+  trip to find out what the hint cost. Same ownership check
+  (`attempt_helper::require_attempt_ownership()`), same gap-belongs-to-
+  attempted-version check, same friendly-error-before-hitting-the-domain-
+  layer's-`coding_exception` pattern as `submit_response`. If a hint's
+  `hinttype` happens to be `solution`, its `hinttext` *is* the solution —
+  that is by design (a learner who deliberately exhausts hints up to a
+  solution-type level explicitly asked for it, penalty included) and is
+  unrelated to `get_exercise`/`get_cues` never exposing solutions regardless
+  of hint state.
+- `db/services.php`: `mod_elang_request_hint` registered as `type: write`,
+  `ajax: true`, Moodle-App-capable, gated by `mod/elang:attempt`.
+- New language string `error:nomorehints`.
+- PHPUnit coverage: `tests/local/domain/attempt_manager_test.php` gained
+  hint-specific cases (first/second hint reveals the correct level, beyond-
+  last-level rejection, not-in-progress rejection, accepted/unaccepted
+  scoring with a hint applied, retroactive penalty after an already-correct
+  answer); `tests/external/request_hint_test.php` (happy path, penalty
+  reflected in a subsequent `submit_response` call, beyond-last-level
+  rejection, ownership violation, cross-version gap rejection, finished-
+  attempt rejection). The standalone domain smoke script gained a dedicated
+  hint section (its own fresh version, to avoid the totalgaps miscount that
+  comes from adding a gap to a version an earlier smoke-test attempt had
+  already counted against — caught and fixed before shipping, not after) —
+  34 checks in total, all passing, independent of a Moodle bootstrap.
+- `version.php`: 2026072304 -> 2026072305 (2.0.0-alpha.6) — required for the
+  same reason as alpha.4/alpha.5's bumps: an already-installed site only
+  re-scans `db/services.php` on a version change.
+
+### Fixed
+
+Found trying an actual site upgrade via the Moodle admin UI for the first
+time — every previous real-instance test run (sessions 002-005) exercised
+`db/install.xml` only, via PHPUnit's fresh-install bootstrap, never
+`db/upgrade.php`'s incremental path. Corrected without a version bump (still
+2.0.0-alpha.6).
+
+- **`coding_exception`: "Key gapid collides with index gapid specified in
+  table elang_gapanswer"**, thrown from `xmldb_table::addIndex()` during
+  `xmldb_elang_upgrade()`. Root cause predates this increment entirely — it
+  has been latent in the schema since 2.0.0-alpha.2, when `elang_gapanswer`
+  and `elang_attempt` were first defined, and simply never had a code path
+  that exercised it: both tables declared a `KEY` (foreign key) *and* a
+  separate `INDEX` covering the exact same single field
+  (`elang_gapanswer.gapid`, `elang_attempt.versionid`). A foreign key
+  already creates an implicit index, so the extra explicit index is both
+  redundant and, when added via the imperative `xmldb_table`/`xmldb_field`
+  API `db/upgrade.php` uses, explicitly rejected by Moodle as a collision.
+  `db/install.xml`'s declarative XML loader apparently does not perform the
+  same check — every prior fresh install via PHPUnit had the identical
+  redundant indexes and never complained, which is why this went unnoticed
+  through five previous real-instance test rounds. Removed the redundant
+  index from **both** `db/install.xml` and `db/upgrade.php` (a fresh install
+  and an upgraded install must produce the identical final schema), keeping
+  the foreign key in each case. A systematic check of every other table for
+  the same pattern (not just the one reported) found one more instance
+  (`elang_attempt`/`versionid`) before it could surface as a second,
+  separate failure on a follow-up upgrade attempt.
+- **Recovery note for anyone who already hit this**: the failing
+  `add_index()` call happens while building the `elang_gapanswer` table
+  definition in memory, *before* `$dbman->create_table()` is invoked for it,
+  so `elang_gapanswer` itself was never partially created. Everything before
+  it in the same upgrade step (`elang.language`/`elang.currentversionid`,
+  `elang_version`, `elang_cue`, `elang_gap`) had almost certainly already
+  been created in the database by the time the failure occurred, since MySQL/
+  MariaDB DDL auto-commits per statement and cannot be rolled back by a
+  surrounding PHP exception. Every table/field creation in
+  `xmldb_elang_upgrade()` was already guarded with `$dbman->table_exists()`/
+  `field_exists()` checks from the start, so re-running the upgrade with
+  this fix correctly skips what already exists and only creates what the
+  failed run never reached — no manual cleanup should be necessary.
+
+### Known gaps
+- No enforcement of a maximum attempt count (unchanged).
+- No completion or gradebook integration reads the aggregates yet
+  (unchanged). Gradebook integration will need to read the now
+  hint-penalty-aware `elang_attempt.score`, not recompute it independently.
+- `elang.answermaxlength` still does not exist; `submit_response`'s 500-
+  character cap remains a hard global default, not a configurable one.
+- The real-instance run that surfaced the schema fix above (see "Fixed")
+  exercised the upgrade path, not this increment's own PHPUnit test suite —
+  `tests/local/domain/attempt_manager_test.php`'s hint cases and
+  `tests/external/request_hint_test.php` have not been run against a real
+  Moodle instance yet, only `php -l`, `phpcs --standard=moodle` (0/0),
+  `phpcpd` (no clones) and the standalone smoke script.
+
 ## [2.0.0-alpha.5] - 2026-07-23
 
 Phase 2, fourth content increment: the read-side External Functions a player

@@ -74,6 +74,15 @@ $functions = [
         'capabilities' => 'mod/elang:attempt',
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'mod_elang_request_hint' => [
+        'classname' => 'mod_elang\external\request_hint',
+        'methodname' => 'execute',
+        'description' => 'Reveal the next hint level for a gap within an in-progress attempt.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:attempt',
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'mod_elang_finish_attempt' => [
         'classname' => 'mod_elang\external\finish_attempt',
         'methodname' => 'execute',

@@ -1,0 +1,184 @@
+## SESSION-START: Sprachübung – mod_elang 2.0
+
+Du arbeitest als erfahrener Moodle-Architekt und PHP-Entwickler
+an einem laufenden Projekt. Lies zunächst alles, was ich dir gebe,
+bevor du antwortest.
+
+---
+
+### A) Lastenheft, Pflichtenheft und Blueprint
+
+Die aktuellen Dokumente liegen im Plugin-Repo:
+  docs/materials/Lastenheft_Pflichtenheft_Blueprint.md   (verbindlich)
+  docs/materials/Blueprint_kompakt.md                    (Arbeitsfassung)
+  docs/materials/Machbarkeit_Zusatzanforderungen.md      (Exporte, Icon, YouTube, KI)
+  docs/materials/Migration_V1_V2.md                      (Migration und Restore)
+  docs/materials/Lizenz_und_Herkunft.md                  (CeCILL-B/GPL, Namensfrage)
+  docs/materials/Ideen_Backlog.md                        (bewertetes Backlog)
+
+---
+
+### B) Kontext-Dokument der letzten Sitzung
+
+Das aktuelle Kontext-Dokument (sessionende der Vorsitzung) ist im Anhang
+zu finden. Ältere Kontext-Dokumente zwecks Referenz: docs/sessions/
+
+---
+
+### C) Aktueller Code
+
+Der aktuelle Plugin-Stand liegt als Patch-ZIP im Anhang, einzuspielen
+in die Moodle-Installation unter mod/elang/.
+
+Moodle: >= 4.5 LTS (2024100700) bis 5.3 LTS. supported = [405, 503].
+        Releaseziel 5.3 (Code Freeze 24.08.2026, Release 05.10.2026).
+        KEINE Abwärtskompatibilität < 4.5.
+PHP:    8.1 bis 8.4 — Code strikt auf PHP-8.1-Sprachstand beschränken!
+        (4.5 -> 8.1-8.3, 5.0 -> 8.2-8.3, 5.2/5.3 -> 8.3-8.4)
+DB:     PostgreSQL und MariaDB/MySQL.
+
+Haupt-Dependencies:
+  KEINE. Optionale Integrationen (KI-Subsystem, OAuth 2, Dateikonverter, ffmpeg)
+  werden zur Laufzeit erkannt und degradieren sauber. Nicht in version.php
+  deklariert.
+
+Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
+  Version 2.0 ist eine kompatible NEUENTWICKLUNG, kein Refactoring.
+  Aus V1 wird KEIN Code übernommen (siehe Lizenz_und_Herkunft.md).
+
+---
+
+### D) Aktueller Entwicklungsstand
+
+**Version:** 2.0.0-alpha.1 (2026072300) — Infrastruktur-Skelett.
+
+**Grundsätze (nicht ohne explizite Diskussion ändern):**
+  A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
+      Migration), technisch neu. Keine Portierung von V1-Code.
+  B — Ausschließlich dokumentierte Moodle-APIs. Keine eigenen Endpunkte, kein
+      eigenes HTML-Dokument, kein Fremd-Frontend-Framework.
+  C — Kein Release ohne vollständige Privacy-API, ohne CSRF-/Capability-
+      Absicherung aller schreibenden Operationen, ohne verlustfreie
+      Inhaltsbearbeitung.
+
+**Zuletzt abgeschlossen (Session 001):**
+  - Infrastruktur-Skelett: version.php, lib.php (supports + MOD_PURPOSE_ASSESSMENT),
+    mod_form.php, view.php, db/{install.xml,access.php,install.php,upgrade.php}
+  - index.php + event course_module_instance_list_viewed (nur für Moodle 4.5;
+    ab 5.0 übernimmt die zentrale Aktivitätenübersicht)
+  - pix/monologo.svg + .png (einfarbig, #212529)
+  - Null-Privacy-Provider (Skelett speichert noch keine personenbezogenen Daten)
+  - GitHub-Actions-CI: 4.5/8.1, 4.5/8.3, 5.0/8.2, 5.2/8.3, 5.2/8.4, 5.3-dev/8.4
+    (5.3-dev nicht blockierend)
+  - Makefile, phpcs.xml, PHPUnit-Basistests, Generator, Behat-Feature
+  - Vollständige Dokumentation unter docs/materials/ und docs/prompt-templates/
+
+**Als nächstes geplant (Phase 2 — Daten- und Domain-Schicht):**
+  - Versioniertes Datenmodell: elang_version, elang_cue, elang_gap,
+    elang_gapanswer, elang_gaphint, elang_attempt, elang_response
+  - Repositories, answer_evaluator, attempt_manager, version_manager
+  - Completion auf Aggregaten, Gradebook-Anbindung
+  - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task samt Trockenlauf
+  - Ablösung des Null-Privacy-Providers (Freigabevoraussetzung!)
+  - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
+
+**Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
+  2.1-1 regelbasierte Lückenerzeugung
+  2.1-2 Antwortvariante nachträglich anerkennen inkl. Neubewertung
+  2.1-3 Zeichenleiste für Sonderzeichen
+  2.1-4 Übersetzungsspur als Hilfestufe
+  2.1-5 Blindmodus und Audio-only
+  Die Vorleistungen dafür MÜSSEN in 2.0 ins Datenmodell: stabile cuekey/gapkey,
+  dauerhaft gespeicherter Antworttext, zustandsfreie Bewertungsfunktion.
+
+---
+
+### E) Ziel dieser Sitzung
+
+Wir knüpfen an die Arbeiten an, die im aktuellen Kontext-Dokument
+und in der angehängten Code-Base vorliegen, und gehen, wenn der letzte
+Arbeitsschritt als vollumfänglich erfüllt angesehen wird, zum nächsten
+vorgesehenen Schritt in der Umsetzung über.
+
+Schlüssel-Entwurfsentscheidungen (nicht verändern ohne explizite Diskussion):
+  1. Versionierte Übungsdefinition. Inhaltsänderungen erzeugen eine neue Version;
+     laufende Versuche bleiben an der alten Version. Kein Löschen von Lerndaten
+     beim Speichern — das war P0.1 in V1.
+  2. Keine eigene AJAX-Schicht. Alles über External Functions + core/ajax.
+     Destruktives nur per bestätigtem POST bzw. Moodleform.
+  3. Lösungen und Antwortvarianten verlassen den Server nicht. Prüfung
+     ausschließlich serverseitig. Keine Lösungstexte in Events.
+  4. Eine Zeile je fachlichem Objekt. Keine JSON-Blobs. Fortschritt und Abschluss
+     über indizierte Aggregate auf elang_attempt.
+  5. Ausgabe über Renderables, Renderer und Mustache; JavaScript als native
+     ES-Module unter amd/src. Kein jQuery, kein Enyo, kein Bower.
+  6. Reporting über Report Builder; Datenexport über die Dataformat API
+     (CSV/XLSX/ODS/JSON ohne formatspezifischen Eigencode).
+  7. Migration wird an der EXISTENZ der Legacy-Tabellen festgemacht, nicht an
+     Versionsnummern. Legacy-Tabellen werden erst in einem späteren Release
+     abgebaut.
+  8. Keine harten Fremdabhängigkeiten; alles Optionale zur Laufzeit erkannt.
+  9. Versionsabhängige APIs über Fähigkeitsprüfung (Klassen-/Funktionsexistenz),
+     NIE über Versionsvergleiche im Fachcode. Betrifft vor allem:
+     courseformat\overview (ab 5.0), core_ai-Aktionen (4.5 kennt nur
+     generate_text und generate_image), Report-Builder-Erweiterungen.
+
+Bekannte Stolperfallen (Coding-Standards und Testumgebung):
+  - Lang-Dateien: alphabetisch sortiert, keine Kommentar-Trennzeilen
+  - Keine Leerzeile nach öffnender { (Klasse, Methode, Block)
+  - Genau 1 Space nach Komma; keine Alignment-Paddings
+  - Inline-Kommentare: Großbuchstabe/Ziffer am Anfang, Satzzeichen am Ende
+  - Keine MOODLE_INTERNAL-Guards in Klassen-Dateien (classes/); auch nicht in
+    reinen Funktions-/Generator-Dateien ohne Seiteneffekte (lib.php, tests/generator)
+  - Kein "TODO"/"@todo"-Token in ausgeliefertem Code (moodlecheck verlangt MDL-Ref)
+  - @param-Typ muss dem tatsächlichen Type-Hint exakt entsprechen
+  - @covers-Annotation in jeder Testklasse
+  - Tabellen- und Feldnamen: durchgehend Kleinbuchstaben, Feldnamen ohne Underscore
+  - Statische Register in Tests via setUp zurücksetzen (resetAfterTest setzt nur
+    die DB zurück, keine Statics)
+  - Moodle 5.3 ist noch nicht veröffentlicht: 5.3-CI-Jobs sind bewusst
+    nicht blockierend
+  - PHP 8.1 ist die Untergrenze: KEINE readonly-Klassen, KEINE DNF-Typen,
+    KEINE typisierten Klassenkonstanten, KEINE Property Hooks
+  - PHPUnit-Metadaten als @covers-Annotation, nicht als Attribut
+    (Attribute stehen auf Moodle 4.5 nicht zur Verfügung)
+
+---
+
+### F) Modus zur Delivery
+
+- Code-Changes immer ausliefern als Patch-ZIP: eine ZIP-Datei, die NUR
+  die geänderten Dateien enthält (kein .git-Ordner, keine docs/-Dateien)
+- Patch-ZIPs erhalten einen durchnummerierten Namen (patch-2.0.YY.zip),
+  die Version in version.php orientiert sich am aktuellen Datum und wird
+  mit jeder Iteration hochgezählt (Format: YYYYMMDDNN, z.B. 2026072301)
+- Zu jeder Änderung eine einzeilige Kurzbeschreibung des Commits (englisch)
+  sowie bis zu 5 Stichpunkte zu den vorgenommenen Änderungen.
+  Diese Angaben als MD-Code DIREKT UNTER dem Download-Link der Patch-ZIP
+- Bei der Code-Generierung immer die Moodle-Coding-Standards einhalten:
+    - GPL-Boilerplate-Header in jeder Datei
+    - PHPDoc für alle Klassen, Methoden und Properties
+    - Short array syntax ([] statt array())
+    - Keine Leerzeile nach öffnender {
+    - Multiline-Argumente: jedes Argument auf eigener Zeile
+    - Genau 1 Space nach Komma in Argumentlisten (kein Alignment-Padding)
+    - Inline-Kommentare: Großbuchstabe/Ziffer am Anfang, Punkt/!/? am Ende
+    - Keine MOODLE_INTERNAL-Guards in Klassen-Dateien (classes/)
+    - Membervariablen: all lowercase (kein camelCase)
+    - Lang-Strings: alphabetisch sortiert, keine Kommentar-Trennzeilen
+    - PHPUnit-Tests: basic_testcase ohne DB, advanced_testcase mit DB
+    - @covers-Annotation in jeder Testklasse
+- Author: Ralf Erlebach, Jahr: 2026, Lizenz: GPL v3 or later
+- Bei Unklarheiten und auftretenden Fehlern: Shell-Skripte, SQL-Abfragen
+  und JS-Skripte für die Konsole mitliefern. Diagnose-Skripte werden
+  grundsätzlich nur im Chat-Fenster ausgeliefert, nie als Download!
+
+Bevor du beginnst:
+1. Bestätige kurz, was du aus dem Kontext-Dokument und den
+   Dateien verstanden hast.
+2. Benenne, falls vorhanden, Widersprüche oder fehlende
+   Informationen, die du für die heutige Aufgabe brauchst.
+3. Warte dann auf meine Freigabe, bevor du Code schreibst.
+
+Liefere nun eine kurze Einschätzung zu den bevorstehenden Arbeiten
+und den drei Punkten oben!

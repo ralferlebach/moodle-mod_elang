@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<ruleset name="mod_elang">
+    <description>PHPCS configuration for mod_elang.</description>
+    <rule ref="moodle"/>
+    <exclude-pattern>*/tools/*</exclude-pattern>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+</ruleset>

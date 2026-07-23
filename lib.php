@@ -119,9 +119,52 @@ function elang_delete_instance(int $id): bool {
     }
 
     $transaction = $DB->start_delegated_transaction();
-    // Dependent records are deleted here before the parent record once the
-    // versioned data model exists (phase 2).
+
+    // Dependent records are deleted in child-to-parent order, using subqueries
+    // rather than loading id lists into PHP (see Lastenheft, "manuell
+    // zusammengesetzte IN-Klausel" as a V1 finding to avoid repeating).
+    $DB->delete_records_select(
+        'elang_response',
+        'attemptid IN (SELECT id FROM {elang_attempt} WHERE elangid = ?)',
+        [$id]
+    );
+    $DB->delete_records('elang_attempt', ['elangid' => $id]);
+
+    $DB->delete_records_select(
+        'elang_gaphint',
+        'gapid IN (SELECT g.id
+                     FROM {elang_gap} g
+                     JOIN {elang_cue} c ON c.id = g.cueid
+                     JOIN {elang_version} v ON v.id = c.versionid
+                    WHERE v.elangid = ?)',
+        [$id]
+    );
+    $DB->delete_records_select(
+        'elang_gapanswer',
+        'gapid IN (SELECT g.id
+                     FROM {elang_gap} g
+                     JOIN {elang_cue} c ON c.id = g.cueid
+                     JOIN {elang_version} v ON v.id = c.versionid
+                    WHERE v.elangid = ?)',
+        [$id]
+    );
+    $DB->delete_records_select(
+        'elang_gap',
+        'cueid IN (SELECT c.id
+                     FROM {elang_cue} c
+                     JOIN {elang_version} v ON v.id = c.versionid
+                    WHERE v.elangid = ?)',
+        [$id]
+    );
+    $DB->delete_records_select(
+        'elang_cue',
+        'versionid IN (SELECT id FROM {elang_version} WHERE elangid = ?)',
+        [$id]
+    );
+    $DB->delete_records('elang_version', ['elangid' => $id]);
+
     $DB->delete_records('elang', ['id' => $id]);
+
     $transaction->allow_commit();
 
     return true;

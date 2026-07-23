@@ -43,3 +43,5 @@ $string['pluginadministration'] = 'Sprachübung-Administration';
 $string['pluginname'] = 'Sprachübung';
 $string['privacy:metadata'] = 'Das Plugin Sprachübung speichert derzeit keine personenbezogenen Daten. Diese Erklärung wird durch einen vollständigen Privacy Provider ersetzt, sobald Versuche und Antworten umgesetzt sind.';
 $string['skeletonnotice'] = 'Diese Aktivität ist ein Infrastruktur-Skelett für Version 2.0. Player, Transkript und Bearbeitungsbereich sind noch nicht umgesetzt.';
+$string['subplugintype_elangscript'] = 'Schrift-Handler';
+$string['subplugintype_elangscript_plural'] = 'Schrift-Handler';

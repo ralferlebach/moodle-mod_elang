@@ -43,3 +43,5 @@ $string['pluginadministration'] = 'Language exercise administration';
 $string['pluginname'] = 'Language exercise';
 $string['privacy:metadata'] = 'The Language exercise plugin does not store any personal data yet. This declaration is replaced by a full privacy provider as soon as attempts and responses are implemented.';
 $string['skeletonnotice'] = 'This activity is an infrastructure skeleton for version 2.0. The player, transcript and answering area are not implemented yet.';
+$string['subplugintype_elangscript'] = 'Script handler';
+$string['subplugintype_elangscript_plural'] = 'Script handlers';

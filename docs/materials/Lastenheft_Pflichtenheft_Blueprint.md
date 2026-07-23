@@ -3,7 +3,7 @@
 **Plugin:** `mod_elang` — „Sprachübung" (Version 2.0)
 **Zielplattform:** Moodle **4.5 LTS** bis **5.3 LTS** · PHP **8.1 – 8.4**
 **Autor / Lizenz:** Ralf Erlebach · GNU GPL v3 or later
-**Dokumentversion:** 1.1 · Stand: 23. Juli 2026 (Session 001)
+**Dokumentversion:** 1.2 · Stand: 23. Juli 2026 (Session 002)
 
 ---
 
@@ -163,7 +163,7 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
 | **L-F3** | Lehrende markieren Lücken in einem **visuellen Editor** (Timeline + Segmentliste + Textauswahl), nicht über eine Auszeichnungssyntax in der Untertiteldatei. Die V1-Syntax bleibt beim Import lesbar. |
 | **L-F4** | Die Übungsdefinition ist **versioniert**. Änderungen an einer Übung dürfen bereits begonnene oder abgeschlossene Versuche nicht verändern und niemals löschen. |
 | **L-F5** | Es gibt ein **Versuchsmodell**: konfigurierbare Versuchsanzahl, Fortsetzen oder Neubeginn, Wertung als bester/letzter/durchschnittlicher Versuch. |
-| **L-F6** | Die **Antwortbewertung** ist pro Aktivität und pro Lücke konfigurierbar: Groß-/Kleinschreibung, Leerraum, Interpunktion, diakritische Zeichen, alternative Schreibweisen, mehrere akzeptierte Antworten, exakte oder tolerante Bewertung, optional reguläre Ausdrücke für berechtigte Autor:innen. |
+| **L-F6** | Die **Antwortbewertung** ist pro Lücke einer von zwei benannten Algorithmen: „komplett-richtig" (zeichengenau, inkl. Diakritika/Apostrophe) oder „Wort erkannt" (Grundform-Abgleich über eine Translationstabelle). Mehrere akzeptierte Antworten je Lücke sind möglich; optional reguläre Ausdrücke für berechtigte Autor:innen. Die Grundform-Reduktion für nicht-lateinische Schriften (Koreanisch, Chinesisch, Japanisch, Sanskrit, Kyrillisch, …) ist über einen eigenen Subplugin-Typ (`elangscript`) offen erweiterbar, ohne den Kern zu ändern. |
 | **L-F7** | **Mehrstufige Hilfen** je Lücke (sprachlicher Hinweis → Anfangsbuchstabe/Wortlänge → Teilauflösung → Lösung), je Stufe mit konfigurierbarem Punktabzug. |
 | **L-F8** | Ergebnisse werden an das **Moodle-Gradebook** übergeben. |
 | **L-F9** | **Aktivitätsabschluss** ist konfigurierbar über Ansicht, Bearbeitungsgrad, Mindestpunktzahl, Anzahl gelöster Lücken oder Abschluss eines Versuchs. |
@@ -208,7 +208,7 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
 | **P2** (→L-F2/L-F3) | Import über `classes/local/import/{vtt_parser,srt_parser,legacy_markup_parser}.php` mit Vorschau- und Validierungsschritt; visueller Editor als eigene Seite `edit.php` mit Timeline-, Segment- und Lückenkomponenten. |
 | **P3** (→L-F4/L-Q11) | Versionierte Übungsdefinition (`elang_version`, `elang_cue`, `elang_gap`, `elang_gapanswer`, `elang_gaphint`); Änderungen erzeugen eine neue Version; Versuche verweisen auf genau die bearbeitete Version. Sämtliche Schreibpfade in `$DB->start_delegated_transaction()`. |
 | **P4** (→L-F5/L-F8/L-F9/L-Q6) | `attempt_manager` führt aggregierte Zähler (`totalgaps`, `answeredgaps`, `correctgaps`, `hintedgaps`, `score`, `state`) auf `elang_attempt` mit; Completion und Gradebook lesen ausschließlich diese Aggregate. Completion-Einstellungen sind reguläre Spalten der Haupttabelle. |
-| **P5** (→L-F6/L-Q8) | `answer_evaluator` mit austauschbaren Normalisierungsstrategien und Bewertungsprofilen; Unicode-Normalisierung über `Normalizer`/`Transliterator` statt `setlocale()`; Toleranzmaß auf Codepoint-Arrays statt wiederholter `mb_substr()`-Aufrufe; harte serverseitige Längenobergrenze je Lücke. |
+| **P5** (→L-F6/L-Q8) [implementiert] | `answer_evaluator` mit genau zwei benannten Algorithmen (`exact`, `wordrecognized`), die Reduktion je Schriftsystem über austauschbare `script_handler`-Implementierungen (`latin_script_handler` im Kern, `elangscript`-Subplugins für nicht-lateinische Schriften); Unicode-Normalisierung über `Normalizer` statt `setlocale()`; harte serverseitige Längenobergrenze je Lücke plus Verteidigung in der Tiefe bei Regex-Antwortvarianten. Details in Kap. 10. |
 | **P6** (→L-F7) | `elang_gaphint` mit Stufe, Typ, Text und Abzug; Hilfeanforderung ausschließlich über External Function, Abzug serverseitig verbucht. |
 | **P7** (→L-F10/L-F11/L-F19/L-Q4) | Berichte über **Report Builder** (System Reports + Entities); Export über die **Dataformat API** (`\core\dataformat`) — CSV, XLSX, ODS, JSON ohne Eigencode; Gruppenfilter über `groups_get_activity_groupmode()` / `groups_get_activity_group()`; E-Mail-Adresse keine Standardspalte; Schutz vor Formel-Injektion in Tabellenformaten. |
 | **P8** (→L-F12) | `classes/local/export/{worksheet_builder,pdf_exporter,docx_exporter,odt_exporter}.php`; PDF über die Moodle-`pdf`-Klasse (TCPDF); DOCX und ODT als ZIP-Pakete aus Vorlagen über `ZipArchive` ohne Fremdbibliothek; Standbilder über `classes/local/media/frame_provider.php` (browserseitige Erfassung zur Autorenzeit, optional serverseitig, sonst ohne Bilder). Erzeugung schwerer Exporte als Ad-hoc-Task, Cache über Content-Hash. |
@@ -233,8 +233,16 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
   bleiben mit der alten Version verbunden und bleiben auswertbar.
 - Ein Import identischer VTT- und SRT-Dateien erzeugt identische Cue- und
   Gap-Strukturen (Referenztest).
-- Die definierten Referenzübungen liefern exakt die erwarteten Bewertungen
-  (Groß-/Kleinschreibung, Akzente, Apostrophe, Interpunktion, Alternativen).
+- Die definierten Referenzfälle liefern exakt die erwarteten Klassifizierungen
+  für beide Algorithmen (Groß-/Kleinschreibung, Akzente, Apostrophvarianten,
+  ß/œ/ø-artige Sonderfälle, unabhängige Antwortvarianten und reguläre
+  Ausdrücke) — **erfüllt seit 2.0.0-alpha.2**, siehe
+  `tests/local/grading/{latin_script_handler_test,answer_evaluator_test}.php`.
+- Eine Sprache ohne installiertes `elangscript`-Subplugin bewertet nachweislich
+  weiterhin korrekt (Fallback auf `latin_script_handler`); ein installiertes
+  Subplugin wird nachweislich für seine deklarierten Sprachcodes bevorzugt vor
+  dem Kern-Standard herangezogen — **erfüllt seit 2.0.0-alpha.2**, siehe
+  `tests/local/grading/script_handler_manager_test.php`.
 - Migration einer produktionsnahen V1-Datenmenge läuft vollständig durch,
   wiederaufnehmbar, ohne Datenverlust; der Trockenlaufbericht stimmt mit dem
   Ergebnis überein.
@@ -259,8 +267,8 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
 **Qualität**
 
 - phpcs (Moodle-Standard, `--max-warnings 0`), phpdoc, Mustache-Lint, Grunt/ESLint,
-  `moodle-plugin-ci validate`, PHPUnit und Behat grün auf Moodle 5.2 und auf dem
-  5.3-Stand nach dessen Veröffentlichung.
+  `moodle-plugin-ci validate`, PHPUnit und Behat grün auf Moodle 4.5 und 5.2
+  sowie auf dem 5.3-Stand nach dessen Veröffentlichung.
 - Accessibility-Audit (Axe/WAVE, Tastatur-only, Screenreader, Zoom 200 %,
   Kontrast) ohne Befund der Schwere „kritisch" oder „schwer".
 - Lasttest: Übung mit ≥ 1500 Cues und ≥ 300 Lücken bleibt im Player und in der
@@ -272,7 +280,7 @@ JavaScript-API, Untertitel-Auszeichnungssyntax als primäres Autorenwerkzeug.
 
 ```
 mod/elang/
-├── version.php                       # 5.2 minimum, supported [502,503], keine deps
+├── version.php                       # 4.5 minimum, supported [405,503], keine deps
 ├── lib.php                           # supports/purpose, Instanz-Lebenszyklus, Datei-Serving
 ├── locallib.php                      # nur noch dünne Hilfsfunktionen (Ziel: entfällt)
 ├── mod_form.php                      # Aktivitätseinstellungen
@@ -282,6 +290,7 @@ mod/elang/
 ├── report.php                        # Einstieg in die Report-Builder-Berichte
 ├── export.php                        # Arbeitsblatt-/Transkriptexport (bestätigter POST)
 ├── settings.php                      # Admin-Einstellungen (Defaults, Limits, Optionales)
+├── script/                           # elangscript-Subplugins (siehe Kap. 10.2), leer im Kern
 ├── amd/src/
 │   ├── player.js                     # Mediensteuerung, Segmentwiederholung, Tempo
 │   ├── transcript.js                 # Synchronisiertes Transkript, Fokusführung
@@ -294,20 +303,22 @@ mod/elang/
 ├── classes/
 │   ├── external/                     # External Functions (siehe Kap. 7)
 │   ├── local/
-│   │   ├── domain/{answer_evaluator,attempt_manager,version_manager}.php
-│   │   ├── normalizer/{case,whitespace,punctuation,diacritics,…}.php
+│   │   ├── domain/{attempt_manager,version_manager}.php
+│   │   ├── grading/{script_handler,latin_script_handler,script_handler_manager,
+│   │   │            answer_evaluator,grading_result}.php   # siehe Kap. 10
 │   │   ├── repository/{cue_repository,gap_repository,attempt_repository,…}.php
 │   │   ├── import/{vtt_parser,srt_parser,legacy_markup_parser,import_report}.php
 │   │   ├── export/{worksheet_builder,pdf_exporter,docx_exporter,odt_exporter}.php
 │   │   └── media/frame_provider.php
 │   ├── output/                       # Renderables + renderer
 │   ├── reportbuilder/local/{entities,systemreports}/
-│   ├── courseformat/overview.php     # Aktivitätenübersicht (Moodle 5.x)
+│   ├── courseformat/overview.php     # Aktivitätenübersicht (ab Moodle 5.0)
+│   ├── plugininfo/elangscript.php    # Subplugin-Typ-Deklaration (siehe Kap. 10.2)
 │   ├── event/                        # nur IDs und Zustände
 │   ├── task/{migrate_v1_task,build_worksheet_task,…}.php
 │   └── privacy/provider.php
 ├── backup/moodle2/                   # backup_/restore_ inkl. V1-Restore-Pfad
-├── db/                               # install.xml, access.php, services.php,
+├── db/                               # install.xml, access.php, services.php, subplugins.json,
 │                                     # caches.php, tasks.php, upgrade.php, install.php
 ├── lang/{en,de}/elang.php
 ├── pix/monologo.{svg,png}
@@ -339,61 +350,78 @@ Funktionsexistenz, `get_config`), nie über Versionsvergleiche im Fachcode.
 ### 6.1 Tabellen
 
 ```text
-elang                      Aktivitätsinstanz
+elang                      Aktivitätsinstanz  [Stand 2.0.0-alpha.2: implementiert]
  ├─ id, course, name, intro, introformat
- ├─ currentversionid       veröffentlichte Version
- ├─ mediasource            Datei | externe URL
- ├─ maxattempts, grademethod, grade
- ├─ hintpolicy, hintpenalty
- ├─ completionminscore, completionmingaps, completionallgaps
- ├─ answermaxlength
+ ├─ language               BCP-47-ähnlicher Sprach-/Schriftcode, steuert die
+ │                         Handler-Wahl in Kap. 10 (z. B. de, fr, ko, zh-Hans)
+ ├─ currentversionid       veröffentlichte Version — bewusst OHNE deklarierten
+ │                         Fremdschlüssel, um einen zirkulären DDL-Verweis mit
+ │                         elang_version.elangid zu vermeiden (Anwendungslogik
+ │                         statt DB-Constraint)
+ ├─ mediasource            Datei | externe URL                    [offen]
+ ├─ maxattempts, grademethod, grade                                [offen]
+ ├─ hintpolicy, hintpenalty                                        [offen]
+ ├─ completionminscore, completionmingaps, completionallgaps       [offen]
+ ├─ answermaxlength        [offen — vgl. elang_gap.maxlength]
  └─ timecreated, timemodified
 
-elang_version              unveränderliche Übungsversion
+elang_version              unveränderliche Übungsversion  [implementiert]
  ├─ id, elangid, versionnumber
  ├─ status                 draft | published | archived
  ├─ contenthash            Cache- und Exportschlüssel
  └─ usermodified, timecreated
 
-elang_cue                  Transkriptsegment
+elang_cue                  Transkriptsegment  [implementiert]
  ├─ id, versionid, sortorder
  ├─ cuekey                 stabile Identität über Versionen hinweg
  ├─ starttime, endtime     Millisekunden
  └─ transcript, transcriptformat
 
-elang_gap                  Lücke innerhalb eines Cues
+elang_gap                  Lücke innerhalb eines Cues  [implementiert]
  ├─ id, cueid, sortorder
  ├─ gapkey                 stabile Identität über Versionen hinweg
  ├─ charstart, charlength  Position im Cue-Text
- ├─ solution               Musterlösung
- ├─ gradingprofile         Verweis auf Bewertungsprofil
- ├─ maxlength, linkurl     validierte Zusatzressource (optional)
- └─ timecreated
+ ├─ solution               Musterlösung — verlässt den Server nie (Kap. 7/10)
+ ├─ gradingalgorithm       exact | wordrecognized (Kap. 10.1)
+ ├─ maxlength, linkurl     Zusatzbegrenzung/validierte Zusatzressource (optional)
 
-elang_gapanswer            akzeptierte Antwortvariante
+elang_gapanswer            akzeptierte Antwortvariante  [implementiert]
  ├─ id, gapid, sortorder
- ├─ answer, matchtype      exact | normalised | regex
- └─ casesensitive
+ ├─ answer
+ └─ isregex                0/1 — regulärer Ausdruck, siehe Kap. 10.3
 
-elang_gaphint              Hilfestufe
+elang_gaphint              Hilfestufe  [implementiert]
  ├─ id, gapid, level
  ├─ hinttype               text | firstletter | wordlength | partial | solution
+ │                         | translation (translation reserviert für 2.1-4)
  ├─ hinttext, penalty
  └─ timecreated
 
-elang_attempt              Versuch einer Person
+elang_attempt              Versuch einer Person  [Schema implementiert,
+                            Domänenlogik (Start/Fortsetzen/Abschluss) offen]
  ├─ id, elangid, versionid, userid, attemptnumber
  ├─ state                  inprogress | finished | abandoned
- ├─ totalgaps, answeredgaps, correctgaps, hintedgaps
+ ├─ totalgaps, answeredgaps, hintedgaps
+ ├─ exactgaps              exakt gelöst, unabhängig vom konfigurierten Algorithmus
+ ├─ correctgaps            als richtig akzeptiert (exactgaps ⊆ correctgaps)
  ├─ score
  └─ timestart, timefinish, timemodified
 
-elang_response             Antwort auf eine Lücke
+elang_response              Antwort auf eine Lücke  [Schema implementiert,
+                            Schreibpfad über External Function offen]
  ├─ id, attemptid, gapid
- ├─ responsetext, resultstate  correct | incorrect | partial | hinted | empty
+ ├─ responsetext           vollständig gespeichert (Voraussetzung für 2.1-2)
+ ├─ resultstate             exact | wordrecognized | incorrect | empty
+ ├─ accepted                0/1 — resultstate erfüllt gradingalgorithm des Gaps
  ├─ tries, hintlevel, score
  └─ timecreated, timemodified
 ```
+
+`[implementiert]` markiert Tabellen, die bereits über `db/install.xml` und
+`db/upgrade.php` existieren (Stand 2.0.0-alpha.2). `[offen]` markiert Felder, die
+erst mit der Autoren- bzw. Versuchs-API (Phase 3/4) hinzukommen. Die
+Kernel-Grading-Logik (`classes/local/grading/`, siehe Kap. 10) ist bereits
+lauffähig und getestet, auch wenn noch keine Oberfläche sie aufruft.
 
 **Stabile fachliche Identität (`cuekey`, `gapkey`).** Eine Version ist
 unveränderlich — Segment und Lücke sind fachlich aber dieselben, auch wenn eine
@@ -405,8 +433,18 @@ Vorhaben 2.1-2). Ohne diese Schlüssel ließe sich eine Neubewertung nach
 Inhaltsänderung nicht sauber durchführen. Sie werden deshalb bereits in 2.0
 eingeführt, obwohl 2.0 sie noch nicht auswertet.
 
+**`resultstate` vs. `accepted`.** Diese Trennung ist bewusst: `resultstate` hält
+die feinste Klassifizierung fest, die der Evaluator finden konnte — unabhängig
+vom konfigurierten Algorithmus der Lücke. `accepted` ist die davon getrennte,
+regelbasierte Entscheidung, ob das für *diese* Lücke als richtig zählt. Ein exakt
+getippter Treffer auf einer lediglich „Wort erkannt"-konfigurierten Lücke wird
+also weiterhin als `exact` protokolliert — nicht als generisches „richtig". Damit
+können Berichte zeigen, wie präzise geantwortet wurde, unabhängig davon, wie
+streng die Lücke eingestellt ist. Details und Beispiele in Kap. 10.
+
 **Schlüssel und Indizes (Auszug):** eindeutig `elang_attempt(elangid, userid,
-attemptnumber)`; eindeutig `elang_response(attemptid, gapid)`; Fremdschlüssel auf
+attemptnumber)`; eindeutig `elang_response(attemptid, gapid)`; eindeutig
+`elang_cue(versionid, cuekey)` und `elang_gap(cueid, gapkey)`; Fremdschlüssel auf
 `user`, `course` und die jeweils übergeordnete Tabelle; Index
 `elang_cue(versionid, sortorder)` und `elang_cue(versionid, starttime)` für
 Paginierung und Zeitsuche.
@@ -502,23 +540,122 @@ Version. Laufende Versuche bleiben an der bisherigen Version.
 
 ## 10. Blueprint — Bewertung, Abschluss, Gradebook
 
-**Bewertungsprofile** je Aktivität und je Lücke: Groß-/Kleinschreibung,
-Leerraum, Interpunktion, diakritische Zeichen, alternative Schreibweisen, mehrere
-akzeptierte Antworten, exakte oder tolerante Bewertung, optional reguläre
-Ausdrücke (nur mit `mod/elang:useregex`, mit Zeitlimit und Längenbegrenzung).
+### 10.1 Zwei Bewertungsalgorithmen [implementiert]
 
-**Toleranzmaß:** die V1-Semantik (Jaro) wird als Referenzverhalten übernommen,
-aber neu implementiert: Eingabelänge hart begrenzt, Strings einmalig in
-Unicode-Codepoints zerlegt, Normalisierung als eigene Strategieklasse,
-`Normalizer`/`Transliterator` statt globaler `setlocale()`-Umschaltung.
+Statt eines frei kombinierbaren Bündels von Einzelschaltern (Groß-/
+Kleinschreibung, Leerraum, Interpunktion, Diakritika je einzeln togglebar) gibt es
+genau **zwei benannte Algorithmen**, je Lücke über `elang_gap.gradingalgorithm`
+gewählt:
 
-**Abschluss** liest ausschließlich die Aggregate auf `elang_attempt` und ist damit
-nahezu konstant aufwendig. Abschlussregeln sind reguläre Spalten der Haupttabelle,
-nicht Teil eines JSON-Optionsfelds. Neubewertung nur, wenn sich ein relevanter
-Zustand tatsächlich geändert haben kann.
+| Algorithmus | Bezeichnung | Verhalten |
+| --- | --- | --- |
+| `exact` | „komplett-richtig" | Zeichengenauer Treffer — Diakritika, Groß-/Kleinschreibung und Apostrophvariante müssen stimmen. Unicode-Normalform wird technisch kanonisiert (NFC), das ist keine Toleranz, sondern Voraussetzung dafür, dass zwei optisch identische Zeichenketten überhaupt vergleichbar sind. |
+| `wordrecognized` | „Wort erkannt" | Ein Treffer zählt, sobald Antwort und Lösung auf dieselbe Grundform reduziert werden — kleingeschrieben, mit auf Basisbuchstaben reduzierten oder transliterierten Diakritika, mit vereinheitlichten Apostrophvarianten. Die Reduktion selbst ist schriftsystemabhängig (Kap. 10.2). |
 
-**Gradebook:** ein Grade-Item, Wertung als bester / letzter / durchschnittlicher
-Versuch, Punkte oder Prozent.
+**`resultstate` vs. `accepted` (Kap. 6.1):** Der Evaluator ermittelt immer die
+feinstmögliche Klassifizierung (`exact` > `wordrecognized` > `incorrect` >
+`empty`), unabhängig vom konfigurierten Algorithmus der Lücke. `accepted` ist die
+davon getrennte Regel: ein `exact`-Treffer wird immer akzeptiert; ein
+`wordrecognized`-Treffer nur, wenn die Lücke selbst auf `wordrecognized`
+konfiguriert ist. Diese Trennung liefert Berichten eine Präzisionsauskunft
+(„richtig, aber ungenau getippt"), die eine einzelne Boolean-Spalte nicht leisten
+könnte, und sie liefert `elang_attempt.exactgaps` und `.correctgaps` als
+unterscheidbare Aggregate.
+
+**Umgesetzt in** `classes/local/grading/{answer_evaluator,grading_result}.php`.
+Referenzfälle (u. a. café/cafe, Straße/strasse, œuf/oeuf, kız/kiz,
+Apostrophvarianten) sind in
+`tests/local/grading/{latin_script_handler_test,answer_evaluator_test}.php`
+festgeschrieben — dieselben Fälle, die dieses Kapitel beschreibt, sind lauffähige
+Tests, keine bloße Absichtserklärung.
+
+### 10.2 Schriftsystemabhängige Reduktion und das `elangscript`-Subplugin [implementiert]
+
+Die Reduktion für `wordrecognized` ist für lateinische Schriften ein
+überschaubares, gut definiertes Problem (Diakritika entfernen, transliterieren).
+Für Koreanisch, Chinesisch, Japanisch, Sanskrit, Kyrillisch und weitere
+nicht-lateinische Schriften ist „auf Basisbuchstaben reduzieren" keine sinnvolle
+Operation — dort brauchte es je Schrift ein eigenes, nicht-triviales
+Transliterationsschema (Revised Romanization, Pinyin, Rōmaji, IAST,
+wissenschaftliche Transliteration, …). Diese Vielfalt im Kern zu bündeln wäre ein
+eigenständiges, fehleranfälliges Großprojekt; stattdessen definiert `mod_elang`
+einen neuen **Subplugin-Typ `elangscript`** (`db/subplugins.json`, Verzeichnis
+`script/`), über den Drittanbieter oder spätere Kern-Erweiterungen genau diese
+Schriften nachrüsten können, ohne den Kern anzufassen.
+
+```text
+classes/local/grading/script_handler.php            Schnittstelle
+classes/local/grading/latin_script_handler.php       Kern-Default für lateinische Schriften
+classes/local/grading/script_handler_manager.php     Discovery + Routing nach elang.language
+classes/plugininfo/elangscript.php                   Moodle-Plugintyp-Deklaration
+```
+
+**Routing:** `script_handler_manager` fragt jedes installierte
+`elangscript_<name>`-Subplugin (Klasse `\elangscript_<name>\handler`), welche
+Sprach-/Schriftcodes es abdeckt (`get_supported_codes()`), und indiziert sie.
+Für eine Aktivität mit `elang.language = 'zh-Hans'` wird zuerst der exakte Code,
+dann der Primär-Subtag (`zh`) gesucht; beansprucht kein installiertes Subplugin
+den Code, greift `latin_script_handler` als Standard — das Plugin bleibt für
+lateinische Sprachen **ohne jedes Subplugin voll funktionsfähig**.
+
+**Kein Subplugin für den Latin-Fall.** `latin_script_handler` deckt Deutsch,
+Französisch, Spanisch, Italienisch, Portugiesisch, Türkisch, die nordischen
+Sprachen, Polnisch, Tschechisch, Slowakisch, Rumänisch und ähnliche
+Latin-Alphabet-Sprachen direkt ab: Unicode-NFKD-Zerlegung plus Entfernen
+kombinierender Zeichen (`\p{Mn}`) faltet die meisten vorkomponierten Buchstaben
+automatisch; eine kleine, handgepflegte Tabelle ergänzt die nicht zerlegbaren
+Sonderfälle (ß→ss, æ→ae, œ→oe, ø→o, ð/đ→d, þ→th, ł→l, ħ→h, ı→i, ĳ→ij). Ohne die
+`intl`-Erweiterung entfällt nur der automatische NFKD-Anteil (dokumentierter,
+nicht stiller Funktionsverlust — `intl` steht auf praktisch jeder
+Produktivinstallation zur Verfügung).
+
+**Was ein `elangscript`-Subplugin liefern muss:** eine Klasse
+`\elangscript_<name>\handler` unter `classes/handler.php` innerhalb des
+Subplugin-Verzeichnisses, die `script_handler` implementiert
+(`get_supported_codes()`, `normalise_for_exact()`,
+`normalise_for_word_recognised()`). Mehr verlangt der Kern nicht — das jeweilige
+Transliterationsschema bleibt vollständig beim Subplugin.
+
+### 10.3 Reguläre Ausdrücke als eigener Mechanismus, nicht als dritte Stufe [implementiert]
+
+`elang_gapanswer.isregex` markiert eine Antwortvariante als regulären Ausdruck.
+Ein Treffer zählt immer als `exact` und wird immer akzeptiert — reguläre
+Ausdrücke sind ein **alternativer Prüfmechanismus** für Autor:innen mit
+`mod/elang:useregex`, keine dritte Toleranzstufe zwischen „exact" und
+„wordrecognized". Absicherung gegen das in Kap. 21 (Risiko 7) benannte
+DoS-Risiko: harte Obergrenze der geprüften Antwortlänge
+(`answer_evaluator::MAX_REGEX_INPUT_LENGTH`) als Verteidigung in der Tiefe,
+`preg_match` mit Fehlerunterdrückung statt Absturz bei fehlerhaften Mustern. Die
+eigentliche Längenbegrenzung und Musterprüfung beim Speichern bleibt Aufgabe der
+noch zu bauenden Autoren-API (Phase 4).
+
+### 10.4 Toleranzmaß-Herkunft
+
+Die V1-Semantik (Jaro-Distanz als kontinuierliches Ähnlichkeitsmaß) wird **nicht**
+fortgeführt. An ihre Stelle tritt die oben beschriebene binäre
+Zwei-Algorithmen-Klassifizierung, weil sie Autor:innen eine klare, erklärbare
+Entscheidung abverlangt („wie streng muss diese Lücke sein") statt eines
+schwer vorhersagbaren Ähnlichkeitsschwellwerts. Eingabelänge ist serverseitig hart
+begrenzt (`elang_gap.maxlength`, defensiv zusätzlich in `answer_evaluator`);
+Strings werden nicht wiederholt mit `mb_substr()` durchlaufen; keine globale
+`setlocale()`-Umschaltung — Normalisierung läuft ausschließlich über
+`Normalizer`/eigene Tabellen innerhalb des jeweiligen `script_handler`.
+
+### 10.5 Abschluss [offen — Schema vorbereitet]
+
+Abschluss liest ausschließlich die Aggregate auf `elang_attempt`
+(`totalgaps`, `answeredgaps`, `exactgaps`, `correctgaps`, `hintedgaps`, `score`)
+und ist damit nahezu konstant aufwendig. Abschlussregeln sind reguläre Spalten der
+Haupttabelle, nicht Teil eines JSON-Optionsfelds. Neubewertung nur, wenn sich ein
+relevanter Zustand tatsächlich geändert haben kann. Die Domänenlogik
+(`classes/local/domain/attempt_manager.php`), die diese Aggregate aus einzelnen
+`elang_response`-Zeilen fortschreibt, ist noch nicht implementiert — das Schema
+und der Evaluator, auf denen sie aufbaut, sind es.
+
+### 10.6 Gradebook [offen]
+
+Ein Grade-Item, Wertung als bester / letzter / durchschnittlicher Versuch, Punkte
+oder Prozent.
 
 ---
 

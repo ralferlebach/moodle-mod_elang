@@ -103,4 +103,57 @@ final class lib_test extends \advanced_testcase {
         $this->assertTrue(elang_delete_instance($elang->id));
         $this->assertFalse($DB->record_exists('elang', ['id' => $elang->id]));
     }
+
+    /**
+     * Deleting an instance removes every dependent record in the versioned
+     * schema: version, cue, gap, gapanswer, gaphint, attempt and response.
+     *
+     * @return void
+     */
+    public function test_delete_instance_cascades_through_the_versioned_schema(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+
+        $version = $generator->create_version(['elangid' => $elang->id]);
+        $cue = $generator->create_cue(['versionid' => $version->id]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $generator->create_gapanswer(['gapid' => $gap->id, 'answer' => 'chats']);
+        $generator->create_gaphint(['gapid' => $gap->id]);
+
+        $attempt = (object) [
+            'elangid' => $elang->id,
+            'versionid' => $version->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+            'timestart' => time(),
+            'timemodified' => time(),
+        ];
+        $attempt->id = $DB->insert_record('elang_attempt', $attempt);
+
+        $response = (object) [
+            'attemptid' => $attempt->id,
+            'gapid' => $gap->id,
+            'responsetext' => 'chat',
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ];
+        $DB->insert_record('elang_response', $response);
+
+        $this->assertTrue(elang_delete_instance($elang->id));
+
+        $this->assertSame(0, $DB->count_records('elang_version', ['elangid' => $elang->id]));
+        $this->assertSame(0, $DB->count_records('elang_cue', ['versionid' => $version->id]));
+        $this->assertSame(0, $DB->count_records('elang_gap', ['cueid' => $cue->id]));
+        $this->assertSame(0, $DB->count_records('elang_gapanswer', ['gapid' => $gap->id]));
+        $this->assertSame(0, $DB->count_records('elang_gaphint', ['gapid' => $gap->id]));
+        $this->assertSame(0, $DB->count_records('elang_attempt', ['elangid' => $elang->id]));
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+    }
 }

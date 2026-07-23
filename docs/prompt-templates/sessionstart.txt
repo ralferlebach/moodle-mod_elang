@@ -27,7 +27,8 @@ zu finden. Ältere Kontext-Dokumente zwecks Referenz: docs/sessions/
 
 ### C) Aktueller Code
 
-Der aktuelle Plugin-Stand liegt als Patch-ZIP im Anhang, einzuspielen
+Repository: https://github.com/ralferlebach/moodle-mod_elang/tree/development
+Der aktuelle Plugin-Stand liegt zusätzlich als Patch-ZIP im Anhang, einzuspielen
 in die Moodle-Installation unter mod/elang/.
 
 Moodle: >= 4.5 LTS (2024100700) bis 5.3 LTS. supported = [405, 503].
@@ -50,7 +51,9 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.1 (2026072300) — Infrastruktur-Skelett.
+**Version:** 2.0.0-alpha.2 (2026072301) — Infrastruktur + versioniertes
+Datenmodell + zwei-Algorithmen-Bewertung. Player, Autorenwerkzeug, External
+Functions, Reporting und Exporte fehlen noch vollständig.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -61,25 +64,47 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 001):**
-  - Infrastruktur-Skelett: version.php, lib.php (supports + MOD_PURPOSE_ASSESSMENT),
-    mod_form.php, view.php, db/{install.xml,access.php,install.php,upgrade.php}
-  - index.php + event course_module_instance_list_viewed (nur für Moodle 4.5;
-    ab 5.0 übernimmt die zentrale Aktivitätenübersicht)
-  - pix/monologo.svg + .png (einfarbig, #212529)
-  - Null-Privacy-Provider (Skelett speichert noch keine personenbezogenen Daten)
-  - GitHub-Actions-CI: 4.5/8.1, 4.5/8.3, 5.0/8.2, 5.2/8.3, 5.2/8.4, 5.3-dev/8.4
-    (5.3-dev nicht blockierend)
-  - Makefile, phpcs.xml, PHPUnit-Basistests, Generator, Behat-Feature
-  - Vollständige Dokumentation unter docs/materials/ und docs/prompt-templates/
+**Zuletzt abgeschlossen (Session 002):**
+  - db/install.xml + db/upgrade.php (2026072300 -> 2026072301): elang_version,
+    elang_cue (cuekey), elang_gap (gapkey, gradingalgorithm), elang_gapanswer
+    (isregex), elang_gaphint, elang_attempt (exactgaps/correctgaps getrennt),
+    elang_response (resultstate/accepted getrennt); elang.language +
+    elang.currentversionid (bewusst OHNE FK, zirkulärer DDL-Verweis vermieden)
+  - classes/local/grading/: answer_evaluator (Algorithmen exact/wordrecognized),
+    grading_result, script_handler (Interface), latin_script_handler (Default
+    für lateinische Schriften), script_handler_manager (Discovery/Routing)
+  - Neuer Subplugin-Typ elangscript (db/subplugins.json MIT subplugintypes-
+    UND plugintypes-Schlüssel wegen MDL-83705, classes/plugininfo/elangscript.php)
+    für nicht-lateinische Schriften (Koreanisch, Chinesisch, Japanisch,
+    Sanskrit, Kyrillisch, ...) — Kern bleibt ohne jedes Subplugin voll
+    funktionsfähig (Fallback auf latin_script_handler)
+  - lib.php: elang_delete_instance() kaskadiert jetzt durch das volle Schema
+  - Testdatengenerator um create_version/cue/gap/gapanswer/gaphint erweitert;
+    PHPUnit-Tests inkl. Referenzfällen (café/cafe, Straße/strasse, œuf/oeuf,
+    kız/kiz, Apostrophvarianten, Regex, Handler-Routing/Fallback)
+  - CI-BUGFIX: --no-init + manuelles cli/init.php war ein veralteter
+    moodle-plugin-ci-v3-Workaround; entfernt, moodle-plugin-ci phpunit/behat
+    initialisieren seit v4 selbst (siehe aktuelles gha.dist.yml). savepoints-
+    Check ergänzt.
+  - phpcs (moodle-Standard, real gegen moodlehq/moodle-cs 3.7.0 geprüft):
+    0 Fehler, 0 Warnungen nach Korrektur von Mehrzeilen-if-Formatierung,
+    3 fehlenden Docblocks, einem Backtick-String-Warning, einem Kommentar-Case
+  - Blueprint Kap. 5/6.1/10 sowie Migration_V1_V2.md, README, CHANGELOG auf den
+    tatsächlichen Stand gebracht (vorheriger Zwischenstand hatte Doku-Updates
+    fälschlich als erledigt gemeldet — das ist jetzt nachgeholt und stimmt)
 
-**Als nächstes geplant (Phase 2 — Daten- und Domain-Schicht):**
-  - Versioniertes Datenmodell: elang_version, elang_cue, elang_gap,
-    elang_gapanswer, elang_gaphint, elang_attempt, elang_response
-  - Repositories, answer_evaluator, attempt_manager, version_manager
-  - Completion auf Aggregaten, Gradebook-Anbindung
-  - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task samt Trockenlauf
-  - Ablösung des Null-Privacy-Providers (Freigabevoraussetzung!)
+**Als nächstes geplant (Phase 2 — Domänen- und API-Schicht):**
+  - attempt_manager, version_manager (classes/local/domain/)
+  - External Functions für Versuchsstart/-fortsetzung/Antwortabgabe/Hilfe
+    (schreibender Zugriff auf elang_attempt/elang_response entsteht dort)
+  - Ablösung des Null-Privacy-Providers (Freigabevoraussetzung, sobald der
+    Schreibpfad für Lerndaten existiert — Schema ist bereits bereit)
+  - Completion auf den Aggregaten (exactgaps/correctgaps/...), Gradebook-Anbindung
+  - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
+    existiert bereits als elang_gap.maxlength)
+  - Migration V1 -> V2 als wiederaufnehmbarer Ad-hoc-Task — BLOCKIERT auf
+    einen V1-Datensimulator, da keine echten V1-Bestandsdaten mehr verfügbar
+    sind (siehe Migration_V1_V2.md, Kap. 1.1)
   - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
 
 **Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
@@ -122,6 +147,13 @@ Schlüssel-Entwurfsentscheidungen (nicht verändern ohne explizite Diskussion):
      NIE über Versionsvergleiche im Fachcode. Betrifft vor allem:
      courseformat\overview (ab 5.0), core_ai-Aktionen (4.5 kennt nur
      generate_text und generate_image), Report-Builder-Erweiterungen.
+  10. Bewertung: GENAU zwei benannte Algorithmen (exact, wordrecognized), keine
+      frei kombinierbaren Einzelschalter. resultstate (feinste gefundene
+      Klassifizierung) und accepted (Regelentscheidung für DIESE Lücke) bleiben
+      getrennte Felder. Schriftsystemabhängige Reduktion läuft über
+      script_handler_manager -> elangscript-Subplugin oder latin_script_handler
+      als Default. Regex-Antwortvarianten sind ein eigener Mechanismus (zählen
+      bei Treffer immer als exact), keine dritte Toleranzstufe.
 
 Bekannte Stolperfallen (Coding-Standards und Testumgebung):
   - Lang-Dateien: alphabetisch sortiert, keine Kommentar-Trennzeilen
@@ -142,6 +174,25 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     KEINE typisierten Klassenkonstanten, KEINE Property Hooks
   - PHPUnit-Metadaten als @covers-Annotation, nicht als Attribut
     (Attribute stehen auf Moodle 4.5 nicht zur Verfügung)
+  - Mehrzeilige if-Bedingungen: öffnende Klammer allein auf der if-Zeile, erster
+    Ausdruck auf der Folgezeile, schließende Klammer allein auf eigener Zeile
+    vor { (phpcbf korrigiert das automatisch, aber es lohnt sich, gleich richtig
+    zu schreiben)
+  - Wer ein Interface implementiert, braucht auf JEDER implementierenden Methode
+    ein EIGENES Docblock — das Docblock im Interface reicht moodlecheck/phpcs
+    nicht, auch wenn es inhaltlich redundant wirkt
+  - Keine literalen Backticks in Strings (auch nicht als einzelnes Zeichen in
+    einer Zuordnungstabelle) — \u{0060} in einem DOPPELT gequoteten String
+    verwenden; \u{}-Escapes werden in einfach gequoteten Strings NICHT
+    interpretiert
+  - #[\Override]-Attribut ist PHP 8.3+, verstößt gegen die 8.1-Untergrenze
+  - moodle-plugin-ci: --no-init + manuelles "cd moodle && php admin/tool/
+    {phpunit,behat}/cli/init.php" ist ein veralteter v3-Workaround und in v4
+    fragil/nicht mehr nötig; moodle-plugin-ci phpunit/behat initialisieren
+    selbst (siehe aktuelles gha.dist.yml als Referenz)
+  - Vor dem Ausliefern lokal prüfen, sofern ein PHP mit intl-Extension
+    verfügbar ist: php -l auf jede Datei, phpcs --standard=moodle gegen den
+    ganzen Baum (moodlehq/moodle-cs via Composer installierbar)
 
 ---
 

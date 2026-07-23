@@ -7,10 +7,15 @@ words or phrases are hidden; learners type them in, may request graded hints and
 receive immediate feedback. Teachers import WebVTT or SubRip subtitles, mark the
 gaps, configure how strictly answers are compared, and follow progress in reports.
 
-> **Status: infrastructure skeleton.** This tree contains the version, build,
-> CI, documentation and prompt infrastructure for the 2.0 rewrite. The exercise
-> domain — versioned exercise definitions, cues, gaps, attempts, responses,
-> grading, player, authoring tool and reports — is **not implemented yet**.
+**Repository:** <https://github.com/ralferlebach/moodle-mod_elang/tree/development>
+
+> **Status: infrastructure and grading engine, no player/authoring UI yet.**
+> The versioned exercise schema (`elang_version`/`elang_cue`/`elang_gap`/
+> `elang_gapanswer`/`elang_gaphint`/`elang_attempt`/`elang_response`) and the
+> two-algorithm answer evaluator (`classes/local/grading/`, including the
+> `elangscript` subplugin type for non-Latin scripts) are implemented and
+> tested from `2.0.0-alpha.2` onwards. The player, transcript view, authoring
+> tool, External Functions, reporting and exports are **not implemented yet**.
 > See `docs/materials/Lastenheft_Pflichtenheft_Blueprint.md`.
 
 ## Relationship to version 1
@@ -34,26 +39,35 @@ for version 2.0 has been raised with him.
 
 ## Requirements
 
-- Moodle **5.2** or higher. Moodle **5.3 LTS** is the release target.
-- PHP **8.3** or **8.4**.
+- Moodle **4.5 LTS** up to **5.3 LTS**. Moodle 5.3 is the release target.
+- PHP **8.1** to **8.4**, within the bounds of the respective Moodle release
+  (4.5 → 8.1–8.3, 5.0 → 8.2–8.3, 5.2/5.3 → 8.3–8.4).
 - PostgreSQL or MariaDB/MySQL as supported by the Moodle release.
 - No external plugin dependencies.
+
+Because Moodle 4.5 is in the supported range, the code is written against
+**PHP 8.1** throughout, and version-dependent APIs are used through capability
+checks rather than version comparisons.
 
 ## Repository layout
 
 ```
 mod/elang/
-├── version.php                  # component, requires 5.2, supported [502,503]
+├── version.php                  # component, requires 4.5, supported [405,503]
 ├── lib.php                      # module features, purpose, instance lifecycle
 ├── mod_form.php                 # instance settings form (general section only)
 ├── view.php                     # activity page inside the standard page frame
 ├── index.php                    # instance list — only relevant on Moodle 4.5
-├── classes/event/               # course_module_viewed
-├── classes/privacy/provider.php # null provider — replaced in phase 2
-├── db/                          # install.xml, access.php, install.php, upgrade.php
+├── script/                      # elangscript subplugins live here (none in core)
+├── classes/
+│   ├── event/                   # course_module_viewed, course_module_instance_list_viewed
+│   ├── local/grading/           # answer_evaluator, script_handler(_manager), grading_result
+│   ├── plugininfo/elangscript.php  # subplugin type declaration
+│   └── privacy/provider.php     # null provider — replaced once attempts/responses are written
+├── db/                          # install.xml, access.php, subplugins.json, install.php, upgrade.php
 ├── lang/{en,de}/elang.php       # language strings
-├── pix/monologo.{svg,png}       # monochrome activity icon (+ icon.svg fallback)
-├── tests/                       # PHPUnit, generator, Behat
+├── pix/monologo.{svg,png}       # monochrome activity icon
+├── tests/                       # PHPUnit (incl. tests/local/grading/), generator, Behat
 ├── tools/                       # developer helpers (not shipped in releases)
 ├── docs/                        # blueprint, feasibility studies, prompts, sessions
 └── .github/workflows/           # moodle-plugin-ci pipelines

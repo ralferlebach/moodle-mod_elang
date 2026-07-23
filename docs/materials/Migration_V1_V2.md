@@ -12,11 +12,52 @@ gilt:
 
 - Sites können mehrere Plugin-Releases übersprungen haben; die gespeicherte
   `version`-Nummer ist deshalb kein verlässlicher Anker.
-- Der Sprung von Moodle 3.4 auf 5.2 erfolgt bei realen Installationen ohnehin über
+- Der Sprung von Moodle 3.4 auf 4.5 erfolgt bei realen Installationen ohnehin über
   mehrere Moodle-Zwischenversionen. Das Plugin muss den Zustand vorfinden, nicht
   vorhersagen.
 - Die V1-Daten liegen überwiegend als JSON-Text in `elang_cues.json`,
   `elang_users.json` und `elang.options` vor.
+
+---
+
+## 1.1 Offener Punkt: keine echten V1-Testdaten verfügbar
+
+**Stand 23. Juli 2026:** Für die Entwicklung und für automatisierte Migrationstests
+stehen derzeit **keine echten V1-Bestandsdaten** zur Verfügung — auch nicht mehr
+beim Auftraggeber selbst. Das betrifft sowohl reale `elang_cues.json`/
+`elang_users.json`-Inhalte als auch reale `.mbz`-Sicherungen für den
+Restore-Pfad (Kap. 5).
+
+**Konsequenz für diesen Entwicklungsstand:** Die Migrationslogik (Kap. 2–4)
+bleibt Spezifikation, bis sie gegen echte oder zumindest realistische Daten
+geprüft werden kann. Referenzfälle für den `answer_evaluator` (siehe
+`Lastenheft_Pflichtenheft_Blueprint.md`, Kap. 10) wurden unabhängig davon bereits
+festgeschrieben, weil sie sich aus der fachlichen Spezifikation und nicht aus
+V1-Bestandsdaten ableiten ließen.
+
+**Geplanter Ausweg — V1-Datensimulator (zurückgestellt auf Phase 2, späterer
+Schritt):** Ein eigenständiges Werkzeug, das synthetische, aber strukturell
+realistische V1-Bestände erzeugt:
+
+- Schema exakt nach `moodle-mod_elang` 1.x `db/install.xml` (liegt vor, siehe
+  Projektarchiv), inklusive der bekannten Altlasten aus Kap. 3.1 der technischen
+  Gesamtbewertung (fehlerhafter Gap-Zähler, verwaiste Antwortdatensätze durch das
+  V1-Löschverhalten bei jedem Speichern);
+- realistische Mengengerüste (Anzahl Aktivitäten, Cues je Aktivität, Lernende je
+  Aktivität) als Parameter, um sowohl kleine Funktionstests als auch
+  Lasttests der Migration (Kap. 4, „speicherschonend") zu ermöglichen;
+- gezielt eingestreute Grenzfälle: sehr lange Antworttexte, ungültige
+  `[Antwort(Link)]`-URLs, leere `elang_users.json`-Einträge, doppelt vorkommende
+  Cue-Nummern durch den V1-Zählerfehler;
+- Ausgabe wahlweise als direkt einspielbare SQL-Fixture für PHPUnit
+  (`advanced_testcase`) oder als eigenständige Mini-Moodle-3.4-kompatible
+  Datenbank für einen echten Restore-Test.
+
+Dieses Werkzeug ist **nicht** Teil des aktuellen Entwicklungsstands und wird erst
+gebaut, wenn Phase 2 an die eigentliche Migrationslogik geht. Bis dahin ist
+`Migration_V1_V2.md` als Spezifikation zu lesen, nicht als getestetes Verhalten —
+im Unterschied zu den in Kap. 10 des Blueprints beschriebenen und bereits
+lauffähig getesteten Bewertungsalgorithmen.
 
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.

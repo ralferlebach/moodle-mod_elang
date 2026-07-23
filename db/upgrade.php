@@ -21,7 +21,7 @@
  * elang_check) into the versioned version 2 data model is keyed on the presence
  * of the legacy tables rather than on a version number, because sites may have
  * skipped several plugin releases. It runs as a resumable ad-hoc task and is
- * introduced in phase 2; see docs/materials/Migration_V1_V2.md.
+ * introduced in a later step of phase 2; see docs/materials/Migration_V1_V2.md.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -35,6 +35,166 @@
  * @return bool Success
  */
 function xmldb_elang_upgrade(int $oldversion): bool {
-    // No upgrade steps yet: 2.0.0-alpha.1 is the first version of the new schema.
+    global $DB;
+
+    $dbman = $DB->get_manager();
+
+    if ($oldversion < 2026072301) {
+        // Extend the base elang table with the fields the versioned schema needs.
+        $table = new xmldb_table('elang');
+
+        $field = new xmldb_field('language', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '', 'introformat');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('currentversionid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'language');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $index = new xmldb_index('currentversionid', XMLDB_INDEX_NOTUNIQUE, ['currentversionid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Define table elang_version to be created.
+        $table = new xmldb_table('elang_version');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('elangid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('versionnumber', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'draft');
+        $table->add_field('contenthash', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('elangid', XMLDB_KEY_FOREIGN, ['elangid'], 'elang', ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('elangid-versionnumber', XMLDB_INDEX_UNIQUE, ['elangid', 'versionnumber']);
+        $table->add_index('status', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_cue to be created.
+        $table = new xmldb_table('elang_cue');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('versionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('cuekey', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('starttime', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('endtime', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('transcript', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('transcriptformat', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('versionid', XMLDB_KEY_FOREIGN, ['versionid'], 'elang_version', ['id']);
+        $table->add_index('versionid-sortorder', XMLDB_INDEX_NOTUNIQUE, ['versionid', 'sortorder']);
+        $table->add_index('versionid-starttime', XMLDB_INDEX_NOTUNIQUE, ['versionid', 'starttime']);
+        $table->add_index('versionid-cuekey', XMLDB_INDEX_UNIQUE, ['versionid', 'cuekey']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_gap to be created.
+        $table = new xmldb_table('elang_gap');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cueid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('gapkey', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('charstart', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('charlength', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('solution', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('gradingalgorithm', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'exact');
+        $table->add_field('maxlength', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('linkurl', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('cueid', XMLDB_KEY_FOREIGN, ['cueid'], 'elang_cue', ['id']);
+        $table->add_index('cueid-sortorder', XMLDB_INDEX_NOTUNIQUE, ['cueid', 'sortorder']);
+        $table->add_index('cueid-gapkey', XMLDB_INDEX_UNIQUE, ['cueid', 'gapkey']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_gapanswer to be created.
+        $table = new xmldb_table('elang_gapanswer');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('gapid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('answer', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('isregex', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('gapid', XMLDB_KEY_FOREIGN, ['gapid'], 'elang_gap', ['id']);
+        $table->add_index('gapid', XMLDB_INDEX_NOTUNIQUE, ['gapid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_gaphint to be created.
+        $table = new xmldb_table('elang_gaphint');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('gapid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('level', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('hinttype', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, 'text');
+        $table->add_field('hinttext', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('penalty', XMLDB_TYPE_NUMBER, '10, 5', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('gapid', XMLDB_KEY_FOREIGN, ['gapid'], 'elang_gap', ['id']);
+        $table->add_index('gapid-level', XMLDB_INDEX_UNIQUE, ['gapid', 'level']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_attempt to be created.
+        $table = new xmldb_table('elang_attempt');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('elangid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('versionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('attemptnumber', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('state', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'inprogress');
+        $table->add_field('totalgaps', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('answeredgaps', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('exactgaps', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('correctgaps', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('hintedgaps', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('score', XMLDB_TYPE_NUMBER, '10, 5', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timestart', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timefinish', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('elangid', XMLDB_KEY_FOREIGN, ['elangid'], 'elang', ['id']);
+        $table->add_key('versionid', XMLDB_KEY_FOREIGN, ['versionid'], 'elang_version', ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('elangid-userid-attemptnumber', XMLDB_INDEX_UNIQUE, ['elangid', 'userid', 'attemptnumber']);
+        $table->add_index('versionid', XMLDB_INDEX_NOTUNIQUE, ['versionid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table elang_response to be created.
+        $table = new xmldb_table('elang_response');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('attemptid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('gapid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('responsetext', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('resultstate', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'empty');
+        $table->add_field('accepted', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('tries', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('hintlevel', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('score', XMLDB_TYPE_NUMBER, '10, 5', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('attemptid', XMLDB_KEY_FOREIGN, ['attemptid'], 'elang_attempt', ['id']);
+        $table->add_key('gapid', XMLDB_KEY_FOREIGN, ['gapid'], 'elang_gap', ['id']);
+        $table->add_index('attemptid-gapid', XMLDB_INDEX_UNIQUE, ['attemptid', 'gapid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026072301, 'elang');
+    }
+
     return true;
 }

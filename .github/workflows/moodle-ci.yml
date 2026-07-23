@@ -146,6 +146,9 @@ jobs:
       - name: Validate plugin structure
         run: moodle-plugin-ci validate
 
+      - name: Check upgrade savepoints
+        run: moodle-plugin-ci savepoints
+
   # ── 2. PHPUnit ───────────────────────────────────────────────────────────
   phpunit:
     name: "PHPUnit (${{ matrix.moodle }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
@@ -209,23 +212,18 @@ jobs:
           echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
-      - name: Install Moodle and plugin (no test init)
+      - name: Install Moodle and plugin
         run: |
           moodle-plugin-ci install \
             --plugin ./plugin \
-            --branch ${{ matrix.moodle }} \
             --db-host 127.0.0.1 \
             --db-port ${{ matrix.db.port }} \
             --db-user ${{ matrix.db.user }} \
             --db-pass ${{ matrix.db.pass }} \
-            --db-name moodle \
-            --no-init
+            --db-name moodle
         env:
           DB: ${{ matrix.db.type }}
           MOODLE_BRANCH: ${{ matrix.moodle }}
-
-      - name: Initialise PHPUnit environment
-        run: cd moodle && php admin/tool/phpunit/cli/init.php
 
       - name: PHPUnit – all tests
         run: moodle-plugin-ci phpunit --fail-on-warning
@@ -280,24 +278,19 @@ jobs:
           echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
-      - name: Install Moodle and plugin (no test init)
+      - name: Install Moodle and plugin
         run: |
           moodle-plugin-ci install \
             --plugin ./plugin \
-            --branch ${{ matrix.moodle }} \
             --db-type mariadb \
             --db-host 127.0.0.1 \
             --db-port 3306 \
             --db-user root \
             --db-pass root \
-            --db-name moodle \
-            --no-init
+            --db-name moodle
         env:
           DB: mariadb
           MOODLE_BRANCH: ${{ matrix.moodle }}
-
-      - name: Initialise Behat environment
-        run: cd moodle && php admin/tool/behat/cli/init.php
 
       - name: Behat – plugin scenarios
         run: |

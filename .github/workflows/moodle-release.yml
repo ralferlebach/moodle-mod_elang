@@ -104,7 +104,7 @@ jobs:
           BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
           echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
 
-      - name: Install Moodle and plugin (no test init)
+      - name: Install Moodle and plugin
         run: |
           moodle-plugin-ci install \
             --plugin ./plugin \
@@ -112,17 +112,10 @@ jobs:
             --db-port ${{ matrix.db.port }} \
             --db-user ${{ matrix.db.user }} \
             --db-pass ${{ matrix.db.pass }} \
-            --db-name ${{ matrix.db.name }} \
-            --no-init
+            --db-name ${{ matrix.db.name }}
         env:
           DB:            ${{ matrix.db.type }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
-
-      - name: Initialise PHPUnit and Behat environments
-        run: |
-          cd moodle
-          php admin/tool/phpunit/cli/init.php
-          php admin/tool/behat/cli/init.php
 
       - name: PHP Lint
         run: moodle-plugin-ci phplint
@@ -138,6 +131,9 @@ jobs:
 
       - name: Validate plugin structure
         run: moodle-plugin-ci validate
+
+      - name: Check upgrade savepoints
+        run: moodle-plugin-ci savepoints
 
       - name: Mustache lint
         run: moodle-plugin-ci mustache

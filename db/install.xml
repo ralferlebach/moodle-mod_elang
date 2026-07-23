@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/elang/db" VERSION="20260723" COMMENT="XMLDB file for Moodle mod/elang (version 2.0 skeleton)"
+<XMLDB PATH="mod/elang/db" VERSION="20260724" COMMENT="XMLDB file for Moodle mod/elang"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -11,6 +11,8 @@
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Activity name"/>
         <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Activity description"/>
         <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Format of the intro field"/>
+        <FIELD NAME="language" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="BCP-47-ish language/script code of the exercise content, e.g. de, fr, ko, zh-Hans, ja, sa, ru. Drives script_handler_manager routing (see classes/local/grading)."/>
+        <FIELD NAME="currentversionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Points at the published elang_version currently shown to learners. Deliberately NOT a declared foreign key: elang_version.elangid already references elang.id, and a second, opposite-direction foreign key would create a circular DDL dependency. The relationship is enforced in application code (classes/local/domain/version_manager.php)."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -18,6 +20,165 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="course" TYPE="foreign" FIELDS="course" REFTABLE="course" REFFIELDS="id"/>
       </KEYS>
+      <INDEXES>
+        <INDEX NAME="currentversionid" UNIQUE="false" FIELDS="currentversionid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_version" COMMENT="Immutable exercise versions. Editing content publishes a new version; existing attempts stay linked to the version they were started on, so content edits never alter or remove learner data (see Lastenheft P0.1 / P3).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="elangid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="versionnumber" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Sequential per elangid, starting at 1"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft" SEQUENCE="false" COMMENT="draft | published | archived"/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="SHA-1 over the normalised version content; cache key for rendered worksheets and player payloads"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="elangid" TYPE="foreign" FIELDS="elangid" REFTABLE="elang" REFFIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="elangid-versionnumber" UNIQUE="true" FIELDS="elangid, versionnumber"/>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_cue" COMMENT="Transcript segments (cues) belonging to one exercise version">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="versionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="cuekey" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Identity that stays stable across versions of the same elangid, so responses recorded against an older version can be related to the same cue in a newer version (see 2.1-2, retroactive answer-variant acceptance)"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="starttime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Milliseconds"/>
+        <FIELD NAME="endtime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Milliseconds"/>
+        <FIELD NAME="transcript" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="transcriptformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="versionid" TYPE="foreign" FIELDS="versionid" REFTABLE="elang_version" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="versionid-sortorder" UNIQUE="false" FIELDS="versionid, sortorder"/>
+        <INDEX NAME="versionid-starttime" UNIQUE="false" FIELDS="versionid, starttime"/>
+        <INDEX NAME="versionid-cuekey" UNIQUE="true" FIELDS="versionid, cuekey"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_gap" COMMENT="A gap within a cue's transcript text">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cueid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="gapkey" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Identity that stays stable across versions, same rationale as elang_cue.cuekey"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="charstart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Character offset of the gap within elang_cue.transcript"/>
+        <FIELD NAME="charlength" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="solution" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Primary model answer. Never included in External Function payloads sent to the player (see Lastenheft P12)."/>
+        <FIELD NAME="gradingalgorithm" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="exact" SEQUENCE="false" COMMENT="exact | wordrecognized — the acceptance threshold used to decide whether a response counts as correct; see classes/local/grading/answer_evaluator.php"/>
+        <FIELD NAME="maxlength" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional hard server-side response-length limit for this gap. Null defers to a site-wide default enforced by the not-yet-implemented attempt API (phase 3); this field lets an individual gap override that default once it exists."/>
+        <FIELD NAME="linkurl" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Optional supplementary resource, validated as PARAM_URL/moodle_url on save, never taken verbatim from subtitle markup (see Lastenheft, ungeprüfte Links aus Untertiteltexten)"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="cueid" TYPE="foreign" FIELDS="cueid" REFTABLE="elang_cue" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cueid-sortorder" UNIQUE="false" FIELDS="cueid, sortorder"/>
+        <INDEX NAME="cueid-gapkey" UNIQUE="true" FIELDS="cueid, gapkey"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_gapanswer" COMMENT="Accepted answer variants for a gap, in addition to elang_gap.solution">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="gapid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="answer" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="isregex" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 or 1. Regular-expression variants are matched with preg_match regardless of gradingalgorithm and require mod/elang:useregex; see classes/local/grading."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="gapid" TYPE="foreign" FIELDS="gapid" REFTABLE="elang_gap" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="gapid" UNIQUE="false" FIELDS="gapid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_gaphint" COMMENT="Graded hint levels for a gap">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="gapid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="level" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="hinttype" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="text" SEQUENCE="false" COMMENT="text | firstletter | wordlength | partial | solution | translation (translation reserved for 2.1-4)"/>
+        <FIELD NAME="hinttext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="penalty" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="gapid" TYPE="foreign" FIELDS="gapid" REFTABLE="elang_gap" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="gapid-level" UNIQUE="true" FIELDS="gapid, level"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_attempt" COMMENT="One attempt at an exercise by one user, pinned to the version they attempted">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="elangid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="versionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="attemptnumber" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="state" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="inprogress" SEQUENCE="false" COMMENT="inprogress | finished | abandoned"/>
+        <FIELD NAME="totalgaps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="answeredgaps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="exactgaps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Gaps solved with the exact algorithm outcome, regardless of the gap's configured acceptance threshold"/>
+        <FIELD NAME="correctgaps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Gaps accepted as correct under their configured gradingalgorithm (exactgaps is a subset)"/>
+        <FIELD NAME="hintedgaps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="score" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timefinish" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="elangid" TYPE="foreign" FIELDS="elangid" REFTABLE="elang" REFFIELDS="id"/>
+        <KEY NAME="versionid" TYPE="foreign" FIELDS="versionid" REFTABLE="elang_version" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="elangid-userid-attemptnumber" UNIQUE="true" FIELDS="elangid, userid, attemptnumber"/>
+        <INDEX NAME="versionid" UNIQUE="false" FIELDS="versionid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elang_response" COMMENT="A learner's response to one gap within one attempt">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="attemptid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="gapid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="responsetext" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Kept in full so that a retroactively accepted answer variant (2.1-2) can trigger re-grading without asking the learner again"/>
+        <FIELD NAME="resultstate" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="empty" SEQUENCE="false" COMMENT="exact | wordrecognized | incorrect | empty — the finest classification the evaluator found, independent of the gap's acceptance threshold"/>
+        <FIELD NAME="accepted" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 or 1. Whether resultstate meets or exceeds the gap's configured gradingalgorithm, i.e. whether it counts as correct"/>
+        <FIELD NAME="tries" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="hintlevel" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="score" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="attemptid" TYPE="foreign" FIELDS="attemptid" REFTABLE="elang_attempt" REFFIELDS="id"/>
+        <KEY NAME="gapid" TYPE="foreign" FIELDS="gapid" REFTABLE="elang_gap" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="attemptid-gapid" UNIQUE="true" FIELDS="attemptid, gapid"/>
+      </INDEXES>
     </TABLE>
   </TABLES>
 </XMLDB>

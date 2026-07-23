@@ -70,7 +70,7 @@ Legende Aufwand: **S** ≤ 0,5 PW · **M** 0,5–2 PW · **L** 2–5 PW · **XL*
 
 | # | Idee | Nutzen | Aufwand | Ziel |
 | --- | --- | --- | --- | --- |
-| F1 | **Sprachspezifische Normalisierungsprofile** — Deutsch (ß/ss, Umlaut-Umschrift), Französisch (Akzente, Elision), Türkisch (punktloses i), Spanisch (ñ), Griechisch (Tonoi) | hoch | M | 2.1 |
+| F1 | ~~Sprachspezifische Normalisierungsprofile~~ — **weitgehend erledigt seit 2.0.0-alpha.2**: Deutsch, Französisch, Türkisch, Spanisch und ähnliche Latin-Alphabet-Sprachen deckt `latin_script_handler` im Kern bereits ab (Blueprint Kap. 10.1/10.2). Für Griechisch (nichtlateinische Schrift) und weitere nicht-lateinische Schriften bleibt der neue `elangscript`-Subplugin-Mechanismus der vorgesehene Weg | hoch | M | **✅ 2.0 (Kern) / offen (Subplugins)** |
 | F2 | **Eingabehilfe für Sonderzeichen** — anklickbare Zeichenleiste passend zur Zielsprache, für Tastaturen ohne die benötigten Zeichen | **sehr hoch** | S | **✅ 2.1** |
 | F3 | **RTL- und IME-Tauglichkeit** — Arabisch, Hebräisch, ostasiatische Eingabemethoden; Zwischenzustände der Eingabemethode dürfen keine Prüfung auslösen | hoch | M | 2.1 |
 | F4 | **Untertitelgestaltung durch Lernende** — Schriftgröße, Kontrast, Zeilenabstand des Transkripts einstellbar und gespeichert | mittel | S | 2.1 |

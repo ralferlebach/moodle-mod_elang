@@ -41,14 +41,43 @@ elang → elang_attempt (verweist auf elang_version) → elang_response
 ```
 
 Eine Zeile je fachlichem Objekt. Keine JSON-Blobs. Aggregierte Zähler auf
-`elang_attempt` tragen Fortschritt, Bewertung und Abschluss.
-`elang_help` und `elang_check` entfallen.
+`elang_attempt` (`exactgaps`, `correctgaps`, …) tragen Fortschritt, Bewertung und
+Abschluss. `elang_help` und `elang_check` entfallen. **Schema seit
+2.0.0-alpha.2 implementiert**, Domänenlogik (Attempt-Start/-Abschluss) noch offen.
+
+## Bewertungsengine [implementiert seit 2.0.0-alpha.2]
+
+Genau zwei Algorithmen je Lücke (`elang_gap.gradingalgorithm`):
+
+| Algorithmus | Bedeutung |
+| --- | --- |
+| `exact` | „komplett-richtig" — zeichengenau inkl. Diakritika, Groß-/Kleinschreibung, Apostrophvariante |
+| `wordrecognized` | „Wort erkannt" — Treffer nach Grundform-Reduktion (Translationstabelle) |
+
+`elang_response.resultstate` hält die feinste gefundene Klassifizierung fest
+(`exact`/`wordrecognized`/`incorrect`/`empty`), `.accepted` die davon getrennte
+Regel-Entscheidung für die jeweilige Lücke — ein exakter Treffer auf einer
+lediglich lenient konfigurierten Lücke bleibt als `exact` sichtbar.
+
+Die Grundform-Reduktion ist schriftsystemabhängig: `latin_script_handler` deckt
+lateinische Sprachen im Kern ab (NFKD + Fallback-Tabelle für ß/æ/œ/ø/ð/þ/ł/ı/ĳ);
+ein neuer Subplugin-Typ **`elangscript`** (`db/subplugins.json`,
+`classes/plugininfo/elangscript.php`) erlaubt Drittanbietern, nicht-lateinische
+Schriften (Koreanisch, Chinesisch, Japanisch, Sanskrit, Kyrillisch, …)
+nachzurüsten, ohne den Kern zu ändern. `script_handler_manager` routet nach
+`elang.language`, mit Fallback auf den Latin-Handler.
+
+Reguläre Ausdrücke (`elang_gapanswer.isregex`) sind ein eigener Mechanismus
+(zählen bei Treffer immer als `exact`), keine dritte Toleranzstufe.
+
+Details, Beispiele und Referenzfälle: Blueprint Kap. 10.
 
 ## Schichten
 
 | Schicht | Umsetzung |
 | --- | --- |
-| Domain | `answer_evaluator`, `attempt_manager`, `version_manager` |
+| Domain | `attempt_manager`, `version_manager` (offen) |
+| Grading | `answer_evaluator`, `script_handler(_manager)`, `latin_script_handler` — **implementiert** |
 | Persistenz | kleine Repository-Klassen mit gezielten Queries |
 | API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` |
 | Ausgabe | Renderables, Renderer, Mustache |
@@ -97,7 +126,8 @@ Summe 2.1: **4,2–6,1 PW**.
 ## Phasen
 
 1. Spezifikation, Skelett, CI, Dokumentation *(erledigt: 2.0.0-alpha.1)*
-2. Datenmodell, Domain, Completion, Gradebook, Migration
+2. Datenmodell, Bewertungsengine *(Schema + Grading erledigt: 2.0.0-alpha.2)*,
+   Domain (Attempt/Version-Manager, offen), Completion, Gradebook, Migration
 3. Lernendenoberfläche
 4. Autoreneditor, Reporting, Exporte
 5. Härtung, Privacy, Backup, Audits, Revalidierung gegen Moodle 5.3
@@ -114,3 +144,12 @@ Aufwand gesamt 2.0: **21–36 Personenwochen**, MVP **12–18**. Version 2.1: **
 - Reguläre Ausdrücke in Antwortvarianten → eigene Capability, Zeit- und
   Längenbegrenzung.
 - Standbilder aus eingebetteten Fremdvideos sind technisch unerreichbar.
+- **Keine echten V1-Bestandsdaten verfügbar** (Stand 23.07.2026) — Migration
+  bleibt Spezifikation, bis ein V1-Datensimulator gebaut ist
+  (`Migration_V1_V2.md`, Kap. 1.1).
+
+## Betrieb der CI
+
+`moodle-plugin-ci` v4 initialisiert PHPUnit/Behat selbst über `moodle-plugin-ci
+phpunit`/`behat` — **kein** `--no-init` + manuelles `cli/init.php` mehr
+(pre-v4-Workaround, in 2.0.0-alpha.2 aus beiden Workflows entfernt).

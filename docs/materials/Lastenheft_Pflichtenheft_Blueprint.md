@@ -478,20 +478,38 @@ jeder Funktion.
 | --- | --- | --- | --- |
 | `mod_elang_get_exercise` | statische Übungsdefinition der aktuellen Version (ohne Lösungen) | – | ja |
 | `mod_elang_get_cues` | paginierte Cues eines Zeitfensters | – | ja |
-| `mod_elang_start_attempt` | Versuch beginnen oder fortsetzen | ja | ja |
+| `mod_elang_start_attempt` [implementiert] | Versuch beginnen oder fortsetzen | ja | ja |
 | `mod_elang_get_attempt_state` | individueller Zustand als kompaktes Zustandsobjekt | – | ja |
-| `mod_elang_submit_responses` | gebündelte Antwortprüfung (serverseitig) | ja | ja |
+| `mod_elang_submit_response` [implementiert] | Antwortprüfung für **eine** Lücke (serverseitig) | ja | ja |
 | `mod_elang_request_hint` | nächste Hilfestufe anfordern, Abzug verbuchen | ja | ja |
-| `mod_elang_finish_attempt` | Versuch abschließen, Bewertung verbuchen | ja | ja |
+| `mod_elang_finish_attempt` [implementiert] | Versuch abschließen, Bewertung verbuchen | ja | ja |
 | `mod_elang_save_draft_version` | Autorenstand speichern | ja | – |
 | `mod_elang_publish_version` | Entwurf veröffentlichen | ja | – |
 | `mod_elang_preview_import` | Importvorschau und Validierungsbericht | – | – |
 | `mod_elang_queue_worksheet` | Arbeitsblatt-Export beauftragen | ja | – |
 
-**Regeln für alle Funktionen:** Kontext aus der Modul-ID auflösen,
-`require_login($course, false, $cm)`, `require_capability(...)`, Gruppenprüfung,
-Längen- und Frequenzbegrenzung, keine Lösungstexte in Rückgaben oder Events,
-Rückgabe als deklarierte `external_single_structure`.
+Abweichung von der ursprünglichen Planung: Statt eines gebündelten
+`mod_elang_submit_responses` (Mehrzahl, mehrere Lücken je Aufruf) wurde
+`mod_elang_submit_response` (Einzahl, eine Lücke je Aufruf) umgesetzt — passend
+zur Signatur von `attempt_manager::submit_response()`. Ein Bündeln mehrerer
+Antworten in einem Aufruf ist eine spätere Optimierung (weniger Requests bei
+Segmentwechsel), keine Voraussetzung für Korrektheit, und kann ergänzt werden,
+ohne die Einzel-Funktion zu entfernen.
+
+**Regeln für alle implementierten Funktionen (Stand 2.0.0-alpha.4, verifiziert
+gegen reale Moodle-Beispiele):** Kontext aus der Modul-ID bzw. — bei
+versuchsbezogenen Funktionen — aus dem Versuch selbst auflösen,
+`self::validate_context($context)` (deckt die Login-Prüfung ab; ein zusätzlicher
+`require_login()`-Aufruf ist bei External Functions weder nötig noch das
+verbreitete Muster), `require_capability('mod/elang:attempt', $context)`, **und
+zusätzlich eine Eigentümerprüfung** (`attempt_helper::require_attempt_ownership()`):
+eine Capability allein verhindert nicht, dass eine berechtigte Person einen
+fremden Versuch anhand einer erratenen ID bearbeitet. `submit_response` prüft
+zusätzlich, dass die angesprochene Lücke tatsächlich zur Version des Versuchs
+gehört, und begrenzt die Antwortlänge hart auf 500 Zeichen als Verteidigung in
+der Tiefe (die konfigurierbare Pro-Lücke- bzw. Site-Grenze bleibt offen, siehe
+Kap. 21). Keine Lösungstexte in Rückgaben oder Events. Rückgabe als deklarierte
+`external_single_structure`.
 
 Destruktive Operationen (Fortschritt zurücksetzen, Version verwerfen) laufen
 **nicht** über GET-Links, sondern über ein Moodleform mit Bestätigung bzw. einen
@@ -765,7 +783,7 @@ auf ausdrückliche Anforderung erzeugt und nicht gecacht.
 
 ---
 
-## 15. Blueprint — Datenschutz
+## 15. Blueprint — Datenschutz [implementiert seit 2.0.0-alpha.4]
 
 `classes/privacy/provider.php` implementiert:
 
@@ -774,13 +792,23 @@ auf ausdrückliche Anforderung erzeugt und nicht gecacht.
 - `\core_privacy\local\request\plugin\provider` — Kontexte, Export, Löschung;
 - `\core_privacy\local\request\core_userlist_provider` — Nutzerliste je Kontext.
 
-Umgesetzt werden: Export aller Versuche und Antworten, Löschung bzw.
-Anonymisierung pro Person, Löschung pro Aktivitätskontext, definierte
-Aufbewahrungslogik und Privacy-Unit-Tests.
+Umgesetzt: Export aller Versuche und Antworten, Löschung pro Person
+(`delete_data_for_user`/`delete_data_for_users`), Löschung pro
+Aktivitätskontext (`delete_data_for_all_users_in_context`), Privacy-Unit-Tests
+(`tests/privacy/provider_test.php`). Löschung nutzt dieselbe
+Subquery-basierte Kaskade wie `elang_delete_instance()` in `lib.php`, statt
+ID-Listen nach PHP zu laden.
 
-Bis zur Einführung der Versuchstabellen bleibt bewusst ein `null_provider`
-bestehen; das Skelett speichert keine personenbezogenen Daten. **Die Ablösung ist
-Freigabevoraussetzung für die erste Version, die Lerndaten speichert.**
+Offen: eine definierte Aufbewahrungslogik (automatisches Löschen nach Ablauf
+einer Frist) ist noch nicht Teil des Providers — dafür fehlt noch die
+Konfigurationsoberfläche, die eine solche Frist überhaupt festlegen könnte.
+
+Der `null_provider` aus 2.0.0-alpha.1/alpha.2 war korrekt für den
+schema-losen bzw. schreibpfadlosen Zwischenstand. Mit den External Functions
+aus alpha.4 (`classes/external/`) existiert erstmals ein echter, von außen
+erreichbarer Schreibpfad auf `elang_attempt`/`elang_response` — genau der
+Punkt, an dem die hier ursprünglich formulierte Freigabevoraussetzung fällig
+wurde, und an dem die Ablösung jetzt erfolgt ist.
 
 ---
 

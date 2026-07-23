@@ -16,26 +16,257 @@
 
 namespace mod_elang\privacy;
 
+use core_privacy\local\metadata\collection;
+use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\approved_userlist;
+use core_privacy\local\request\contextlist;
+use core_privacy\local\request\transform;
+use core_privacy\local\request\userlist;
+use core_privacy\local\request\writer;
+
 /**
  * Privacy provider for mod_elang.
  *
- * The 2.0 skeleton stores no personal data, so a null provider is correct for
- * this version. It is replaced by a metadata provider, a plugin provider and a
- * userlist provider in phase 2, when attempts and responses are introduced.
- * Release of any version that stores learner data without that replacement is a
- * blocking defect; see docs/materials/Lastenheft_Pflichtenheft_Blueprint.md.
+ * Covers elang_attempt and elang_response, the two tables that hold learner
+ * data: who attempted an exercise, when, how far they got, what they typed
+ * for each gap and how it was evaluated. Exercise content (elang_version,
+ * elang_cue, elang_gap, elang_gapanswer, elang_gaphint) is not personal data
+ * and is out of scope here.
+ *
+ * This replaces the null_provider that was correct for the schema-only
+ * skeleton (2.0.0-alpha.1/alpha.2): the external functions introduced
+ * alongside this provider are the first code path that can actually write to
+ * elang_attempt/elang_response from outside a test, which is exactly the
+ * point at which Lastenheft L-Q4 requires a full provider to exist.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\null_provider {
+class provider implements
+    \core_privacy\local\metadata\provider,
+    \core_privacy\local\request\core_userlist_provider,
+    \core_privacy\local\request\plugin\provider {
     /**
-     * Return the reason why this plugin stores no personal data.
+     * Describe the personal data stored by this plugin.
      *
-     * @return string The identifier of the language string explaining the reason
+     * @param collection $collection The metadata collection to add to
+     * @return collection The updated metadata collection
      */
-    public static function get_reason(): string {
-        return 'privacy:metadata';
+    public static function get_metadata(collection $collection): collection {
+        $collection->add_database_table('elang_attempt', [
+            'userid' => 'privacy:metadata:elang_attempt:userid',
+            'attemptnumber' => 'privacy:metadata:elang_attempt:attemptnumber',
+            'state' => 'privacy:metadata:elang_attempt:state',
+            'score' => 'privacy:metadata:elang_attempt:score',
+            'timestart' => 'privacy:metadata:elang_attempt:timestart',
+            'timefinish' => 'privacy:metadata:elang_attempt:timefinish',
+        ], 'privacy:metadata:elang_attempt');
+
+        $collection->add_database_table('elang_response', [
+            'responsetext' => 'privacy:metadata:elang_response:responsetext',
+            'resultstate' => 'privacy:metadata:elang_response:resultstate',
+            'accepted' => 'privacy:metadata:elang_response:accepted',
+            'tries' => 'privacy:metadata:elang_response:tries',
+            'timecreated' => 'privacy:metadata:elang_response:timecreated',
+        ], 'privacy:metadata:elang_response');
+
+        return $collection;
+    }
+
+    /**
+     * Return every context that holds personal data for the given user.
+     *
+     * @param int $userid The user to search for
+     * @return contextlist The list of contexts containing personal data for this user
+     */
+    public static function get_contexts_for_userid(int $userid): contextlist {
+        $contextlist = new contextlist();
+
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+                  JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                  JOIN {elang} e ON e.id = cm.instance
+                  JOIN {elang_attempt} a ON a.elangid = e.id
+                 WHERE a.userid = :userid";
+
+        $contextlist->add_from_sql($sql, [
+            'contextlevel' => CONTEXT_MODULE,
+            'modname' => 'elang',
+            'userid' => $userid,
+        ]);
+
+        return $contextlist;
+    }
+
+    /**
+     * Add every user with personal data in the given context to the userlist.
+     *
+     * @param userlist $userlist The userlist to add users to
+     * @return void
+     */
+    public static function get_users_in_context(userlist $userlist): void {
+        $context = $userlist->get_context();
+        if (!$context instanceof \context_module) {
+            return;
+        }
+
+        $sql = "SELECT a.userid
+                  FROM {course_modules} cm
+                  JOIN {elang} e ON e.id = cm.instance
+                  JOIN {elang_attempt} a ON a.elangid = e.id
+                 WHERE cm.id = :cmid";
+
+        $userlist->add_from_sql('userid', $sql, ['cmid' => $context->instanceid]);
+    }
+
+    /**
+     * Export all personal data for the approved contexts and user.
+     *
+     * @param approved_contextlist $contextlist List of approved contexts for one user
+     * @return void
+     */
+    public static function export_user_data(approved_contextlist $contextlist): void {
+        global $DB;
+
+        if (!$contextlist->count()) {
+            return;
+        }
+
+        $user = $contextlist->get_user();
+
+        foreach ($contextlist->get_contexts() as $context) {
+            if (!$context instanceof \context_module) {
+                continue;
+            }
+
+            $cm = get_coursemodule_from_id('elang', $context->instanceid, 0, false, MUST_EXIST);
+
+            $attempts = $DB->get_records('elang_attempt', ['elangid' => $cm->instance, 'userid' => $user->id]);
+            if (empty($attempts)) {
+                continue;
+            }
+
+            $exportedattempts = [];
+            foreach ($attempts as $attempt) {
+                $responses = $DB->get_records('elang_response', ['attemptid' => $attempt->id]);
+
+                $exportedresponses = [];
+                foreach ($responses as $response) {
+                    $exportedresponses[] = (object) [
+                        'responsetext' => $response->responsetext,
+                        'resultstate' => $response->resultstate,
+                        'accepted' => (bool) $response->accepted,
+                        'tries' => (int) $response->tries,
+                        'timecreated' => transform::datetime((int) $response->timecreated),
+                    ];
+                }
+
+                $exportedattempts[] = (object) [
+                    'attemptnumber' => (int) $attempt->attemptnumber,
+                    'state' => $attempt->state,
+                    'score' => (float) $attempt->score,
+                    'timestart' => transform::datetime((int) $attempt->timestart),
+                    'timefinish' => $attempt->timefinish ? transform::datetime((int) $attempt->timefinish) : null,
+                    'responses' => $exportedresponses,
+                ];
+            }
+
+            writer::with_context($context)->export_data(
+                [get_string('pluginname', 'mod_elang')],
+                (object) ['attempts' => $exportedattempts]
+            );
+        }
+    }
+
+    /**
+     * Delete all personal data for every user in the given context.
+     *
+     * @param \context $context The context to delete personal data within
+     * @return void
+     */
+    public static function delete_data_for_all_users_in_context(\context $context): void {
+        if (!$context instanceof \context_module) {
+            return;
+        }
+
+        $cm = get_coursemodule_from_id('elang', $context->instanceid);
+        if (!$cm) {
+            return;
+        }
+
+        self::delete_attempts_and_responses_where('elangid = :elangid', ['elangid' => $cm->instance]);
+    }
+
+    /**
+     * Delete all personal data for one user across the approved contexts.
+     *
+     * @param approved_contextlist $contextlist List of approved contexts for one user
+     * @return void
+     */
+    public static function delete_data_for_user(approved_contextlist $contextlist): void {
+        $userid = $contextlist->get_user()->id;
+
+        foreach ($contextlist->get_contexts() as $context) {
+            if (!$context instanceof \context_module) {
+                continue;
+            }
+
+            $cm = get_coursemodule_from_id('elang', $context->instanceid);
+            if (!$cm) {
+                continue;
+            }
+
+            self::delete_attempts_and_responses_where(
+                'elangid = :elangid AND userid = :userid',
+                ['elangid' => $cm->instance, 'userid' => $userid]
+            );
+        }
+    }
+
+    /**
+     * Delete personal data for the approved users in one context.
+     *
+     * @param approved_userlist $userlist The approved users in one context
+     * @return void
+     */
+    public static function delete_data_for_users(approved_userlist $userlist): void {
+        $context = $userlist->get_context();
+        if (!$context instanceof \context_module) {
+            return;
+        }
+
+        $cm = get_coursemodule_from_id('elang', $context->instanceid);
+        if (!$cm) {
+            return;
+        }
+
+        foreach ($userlist->get_userids() as $userid) {
+            self::delete_attempts_and_responses_where(
+                'elangid = :elangid AND userid = :userid',
+                ['elangid' => $cm->instance, 'userid' => $userid]
+            );
+        }
+    }
+
+    /**
+     * Delete elang_response and elang_attempt rows matching a WHERE clause
+     * against elang_attempt, using a subquery rather than loading id lists
+     * into PHP first.
+     *
+     * @param string $attemptwheresql WHERE clause fragment against elang_attempt, using named parameters
+     * @param array $params Named parameters for the WHERE clause
+     * @return void
+     */
+    private static function delete_attempts_and_responses_where(string $attemptwheresql, array $params): void {
+        global $DB;
+
+        $DB->delete_records_select(
+            'elang_response',
+            "attemptid IN (SELECT id FROM {elang_attempt} WHERE $attemptwheresql)",
+            $params
+        );
+        $DB->delete_records_select('elang_attempt', $attemptwheresql, $params);
     }
 }

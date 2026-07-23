@@ -11,6 +11,140 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.4] - 2026-07-23
+
+Phase 2, third content increment: the first real, reachable write path —
+External Functions calling into the domain layer — and, as a direct
+consequence, a full privacy provider replacing the null provider.
+
+### Added
+- `classes/external/{start_attempt,submit_response,finish_attempt}.php`
+  and `classes/external/attempt_helper.php` (shared trait): three
+  `core/ajax`- and Moodle-App-capable external functions
+  (`mod_elang_start_attempt`, `mod_elang_submit_response`,
+  `mod_elang_finish_attempt`), declared in the new `db/services.php`. Every
+  write is capability-checked (`mod/elang:attempt`) **and** ownership-checked
+  (`attempt_helper::require_attempt_ownership()`) — a capable user still
+  cannot act on another learner's attempt by guessing its id, which a
+  capability check alone cannot prevent. `submit_response` additionally
+  rejects a gap that does not belong to the attempted version, and enforces
+  a defence-in-depth 500-character response cap ahead of the grading engine
+  (the configurable per-gap/site-wide limit is still open, see "Known gaps").
+  Player-facing solution text never appears in any parameter or return
+  value, matching Lastenheft P12.
+- Full privacy provider (`classes/privacy/provider.php`), replacing the null
+  provider that was correct only for the schema-only skeleton: implements
+  `metadata\provider`, `request\plugin\provider` and
+  `request\core_userlist_provider` for `elang_attempt` and `elang_response`.
+  Deletion reuses the subquery-based pattern already used by
+  `elang_delete_instance()` rather than loading id lists into PHP.
+- `mod/elang:attempt`'s existing capability now has real code paths that
+  enforce it; no new capabilities were needed.
+- New language strings: four `error:*` strings for the external functions'
+  failure cases, and the full set of `privacy:metadata:elang_attempt*` /
+  `privacy:metadata:elang_response*` field descriptions, replacing the
+  removed null-provider `privacy:metadata` string.
+- PHPUnit coverage: `tests/external/{start_attempt_test,submit_response_test,
+  finish_attempt_test}.php` (happy path, attempt resumption, capability
+  denial, missing published version, ownership violation, cross-version gap
+  rejection, finished-attempt rejection, oversized response rejection) and
+  `tests/privacy/provider_test.php` (context discovery, export, userlist,
+  context-wide deletion, per-user deletion, per-approved-userlist deletion).
+- `version.php`: 2026072302 -> 2026072303 (2.0.0-alpha.4). No schema change,
+  but a version bump is required regardless: without it, an already-installed
+  site never re-scans `db/services.php` and the new external functions are
+  never registered.
+
+### Fixed
+
+Found by running the real test suite against a Moodle 4.5.12 instance for the
+first time — corrected without a version bump (this is still 2.0.0-alpha.4,
+not a new release).
+
+- **`Fatal error: Class "externallib_advanced_testcase" not found`**, in all
+  three external function test files. That legacy base class lives in
+  `webservice/tests/helpers.php` and needs an explicit `require_once()` to be
+  defined — the same class of mistake as the fixture-loading issue from the
+  previous round, this time hitting a Moodle core class rather than a fixture
+  of ours. Rather than adding the `require_once()`, all three test classes
+  now extend `\advanced_testcase` directly: nothing in these tests used any
+  `externallib_advanced_testcase`-specific functionality (only inherited
+  `resetAfterTest()`/`create_and_enrol()`/`setUser()`), and
+  `externallib_advanced_testcase` is scheduled for deprecation from Moodle
+  4.6 onwards and recommends running in an isolated process to avoid its
+  `class_alias()` calls leaking into other tests — none of which is worth
+  taking on for functionality that was never used.
+- **`phpcpd` found 35 duplicated lines** between `submit_response_test.php`
+  and `finish_attempt_test.php` (their nearly-identical `setUp()` methods).
+  Extracted into `tests/fixtures/attempt_test_fixture.php`. First attempt: a
+  trait (`attempt_test_fixture`) consumed via `use attempt_test_fixture;`
+  inside each class, loaded via `require_once()` in `setUpBeforeClass()` —
+  this shipped but was never actually tested against a real instance before
+  release and failed immediately with `Fatal error: Trait
+  "mod_elang\fixtures\attempt_test_fixture" not found`. Root cause: a trait
+  consumed via `use` inside a class body is resolved when that class is
+  *compiled*, i.e. as soon as the file is loaded — before any method,
+  including a static `setUpBeforeClass()`, can run. `require_once()` inside
+  a method is therefore too late for a trait, even though the identical
+  pattern works for `fake_script_handler.php` (a plain class referenced only
+  via `new` inside method bodies, which *is* resolved lazily). Moving the
+  `require_once()` to file scope, before the class declaration, does load
+  the trait in time, but then trips a *different* real check:
+  `phpcs --standard=moodle` flags a file-scope `require_once()` outside a
+  `MOODLE_INTERNAL`-guarded context as an unwanted global-state change.
+  Final fix: `attempt_test_fixture` is a plain class
+  (`attempt_test_fixture_builder`) with a public static `create()` factory
+  method, referenced only inside `setUp()` — same lazy-loading shape as
+  `fake_script_handler.php`, so the existing `require_once()`-in-
+  `setUpBeforeClass()` pattern works unmodified, with no file-scope
+  statement needed. Verified this time with a standalone script that
+  reproduces PHPUnit's exact call order (class declared and parsed, *then*
+  `setUpBeforeClass()` invoked, *then* the fixture class used) before
+  shipping, rather than only running `php -l`/`phpcs`, which cannot catch a
+  "resolved too late" ordering bug like this one.
+- **`tests/privacy/provider_test.php` assertion failure** (`Failed asserting
+  that an array contains 110003`): the same string-vs-int mismatch we have
+  hit repeatedly in production code (`get_record()`/`get_field()` returning
+  strings for integer columns on MariaDB/PDO), this time in a test
+  assertion. `PHPUnit\Framework\Assert::assertContains()` has used *strict*
+  (`===`) comparison since PHPUnit 9 (previously loose in PHPUnit 8 and
+  earlier — see `sebastianbergmann/phpunit#3426`), so a `context->id` that
+  arrived as a genuine `int` no longer matched a
+  `contextlist::get_contextids()` array whose values came back as strings
+  from a raw SQL query. Both sides now cast to `int` explicitly. Verified
+  with a standalone script simulating PHPUnit 9's exact `in_array(...,
+  true)` comparison before shipping, reproducing the failure with the old
+  code and confirming the fix with the new code.
+- `tools/mustache_check.php`: fixed a leftover `@package
+  local_instantcoursecompletion` from the stub template it was copied from.
+  Also changed its behaviour when `templates/` does not exist yet — from an
+  `ERROR:`-prefixed message with exit code 1 to an `OK:`-prefixed message
+  with exit code 0. This was never actually blocking anything (the Makefile
+  target ignores this tool's exit code, and CI's `grep -v '^OK:'` already
+  filtered it), but the wording was misleading: mod_elang has no
+  renderer/output layer yet (phase 3, not started), so there being no
+  `templates/` directory is the correct, expected state, not an error.
+
+### Known gaps
+- Hint requests still are not implemented (unchanged from alpha.3).
+- No enforcement of a maximum attempt count (unchanged from alpha.3).
+- No completion or gradebook integration reads the aggregates yet
+  (unchanged from alpha.3).
+- The 500-character response cap in `submit_response` is a hard, global
+  safety net, not the configurable per-gap (`elang_gap.maxlength`) or
+  site-wide default the blueprint specifies; that needs the authoring UI
+  (phase 4) to actually set a value.
+- No read-side external functions yet (`mod_elang_get_exercise`,
+  `mod_elang_get_cues`, `mod_elang_get_attempt_state`): a player cannot yet
+  fetch what to display, only submit against gap ids it would have to know
+  in advance. These are next.
+- These external functions and the privacy provider have not been run
+  against a real Moodle instance yet — verified with `php -l` and
+  `phpcs --standard=moodle` (0 errors, 0 warnings) only. Given the pattern of
+  the last two increments, a first real PHPUnit run is likely to surface at
+  least minor issues (as it twice did before) and should be treated as
+  expected, not alarming.
+
 ## [2.0.0-alpha.3] - 2026-07-23
 
 Phase 2, second content increment: the domain layer sitting on top of the

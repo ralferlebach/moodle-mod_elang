@@ -30,7 +30,7 @@
  *
  * NOT shipped with the plugin (excluded in .gitattributes export-ignore).
  *
- * @package    local_instantcoursecompletion
+ * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,8 +40,12 @@
 $dir = $argv[1] ?? dirname(__DIR__) . '/templates';
 
 if (!is_dir($dir)) {
-    fwrite(STDERR, "ERROR: directory not found: {$dir}\n");
-    exit(1);
+    // Not an error: mod_elang has no renderer/output layer yet (that is
+    // phase 3, "Lernendenoberfläche" — see docs/materials/), so there is
+    // genuinely nothing to check yet. Once templates/ exists, this check
+    // starts validating it automatically; nothing else needs to change.
+    echo "OK:    no {$dir} directory yet (nothing to check)\n";
+    exit(0);
 }
 
 $errors = 0;

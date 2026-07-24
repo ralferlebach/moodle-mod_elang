@@ -324,5 +324,36 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072407, 'elang');
     }
 
+    if ($oldversion < 2026072414) {
+        // Migration_V1_V2.md chapter 2 step 4 ("Verifikation") / this
+        // release's admin sign-off page: deliberately separate from
+        // currentversionid — an activity can be migrated but not yet
+        // reviewed, tracked by these two staying NULL until an
+        // administrator explicitly approves it via
+        // classes/local/migration/v1_signoff.php.
+        $table = new xmldb_table('elang');
+
+        $field = new xmldb_field('migrationapproveduserid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field(
+            'migrationapprovedtime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'migrationapproveduserid'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026072414, 'elang');
+    }
+
     return true;
 }

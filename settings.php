@@ -15,7 +15,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin version definition for mod_elang.
+ * Site administration settings/pages for mod_elang.
+ *
+ * No configurable settings exist yet — this file exists solely to register
+ * admin_migrate_v1.php (Migration_V1_V2.md chapter 2) as a page under Site
+ * administration > Plugins > Activity modules > elang, using
+ * admin_externalpage rather than admin_settingpage since it is an action
+ * page, not a settings form. Requires moodle/site:config, the same
+ * capability admin_externalpage_setup() enforces for every other page
+ * nested under $ADMIN — no plugin-specific capability was created for this.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -24,20 +32,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component    = 'mod_elang';
-$plugin->version      = 2026072414;
-
-// Moodle 4.5.0 LTS — hard minimum. The plugin runs on PHP 8.1 (Moodle 4.5)
-// through PHP 8.4 (Moodle 5.2+), so no language feature above PHP 8.1 may be used.
-$plugin->requires     = 2024100700;
-
-// Tested from Moodle 4.5 LTS up to the 5.3 development branch. Moodle 5.3 is the
-// next LTS (code freeze 24 Aug 2026, release 5 Oct 2026); raise the upper bound
-// and re-validate against the final stable branch after that date.
-$plugin->supported    = [405, 503];
-$plugin->maturity     = MATURITY_ALPHA;
-$plugin->release      = '2.0.0-alpha.19';
-
-// No external plugin dependencies. Optional integrations (AI subsystem, OAuth 2
-// services, file converters, ffmpeg) are detected at runtime and are never required.
-$plugin->dependencies = [];
+if ($hassiteconfig) {
+    $ADMIN->add(
+        'modsettings',
+        new admin_externalpage(
+            'elangmigratev1',
+            get_string('migratev1:heading', 'mod_elang'),
+            new moodle_url('/mod/elang/admin_migrate_v1.php'),
+            'moodle/site:config'
+        )
+    );
+}

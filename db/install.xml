@@ -19,6 +19,8 @@
         <FIELD NAME="options" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Version 1's raw options JSON blob, kept ONLY so migration code can read it after the schema upgrade that adds the columns above but before the data migration that consumes it (Migration_V1_V2.md chapter 1.2, decision A). Never written or read by any V2 code path outside the migrator. NULL for every activity created directly as V2. Dropped in a later release once migration is verified complete, same principle as the legacy elang_cues/elang_users/elang_help/elang_check tables (Migration_V1_V2.md chapter 2, step 5)."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="migrationapproveduserid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Migration_V1_V2.md chapter 2 step 4 (Verifikation): the user who reviewed the post-migration verification report and explicitly signed off on it. NULL means not yet reviewed/approved, regardless of whether currentversionid is already set — migration and approval are deliberately separate decisions. Not a declared foreign key to user, same reasoning as elang.currentversionid's own comment: enforced in application code (classes/local/migration/v1_signoff.php), not the DB layer."/>
+        <FIELD NAME="migrationapprovedtime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp for migrationapproveduserid. Both NULL together, both set together — never one without the other."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

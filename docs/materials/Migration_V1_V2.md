@@ -269,8 +269,30 @@ ausdrückliche Bestätigung ab und reiht danach den Ad-hoc-Task ein — der
 läuft beim nächsten Cron-Durchlauf oder sofort über
 `php admin/cli/adhoc_task.php --execute`.
 
-Bewusst weiterhin nicht enthalten: eine Adminseite (das CLI-Skript deckt
-denselben Bedarf vorerst ab).
+**Update 24.07.2026 — Adminseite + Freigabe-Workflow ergänzt.**
+
+- `admin_migrate_v1.php` (registriert über `settings.php`, unter Website-
+  Administration > Plugins > Aktivitäten > elang, `moodle/site:config`):
+  webbasiertes Gegenstück zu `cli/migrate_v1.php` — zeigt denselben
+  Trockenlauf-Bericht, reiht auf Bestätigung denselben Ad-hoc-Task ein.
+- Zusätzlich, was das CLI-Skript nicht abdeckt: zeigt für jede migrierte,
+  noch nicht geprüfte Aktivität den `v1_verifier`-Bericht direkt an und
+  bietet die ausdrückliche Freigabe (Schritt 4, „Freigabe durch
+  Administration") als eigene Aktion an.
+- `classes/local/migration/v1_signoff.php`: hält die Freigabe-Entscheidung
+  fest — bewusst **getrennt** von `elang.currentversionid` (migriert und
+  geprüft/freigegeben sind zwei verschiedene Zustände) und bewusst **ohne**
+  Zwang zu einem befundfreien Verifikationsbericht: die Entscheidung, eine
+  Migration trotz gefundener Abweichungen freizugeben, bleibt beim
+  Menschen, nicht bei der Klasse. Zwei neue, nullable Felder auf der echten
+  `elang`-Tabelle (`migrationapproveduserid`, `migrationapprovedtime`,
+  Schritt `2026072414`), nach demselben Prinzip wie `options` (Kap. 1.3) —
+  reines Migrations-Hilfsfeld, kein V2-Code außerhalb dieser Klasse liest
+  oder schreibt es.
+
+Bewusst weiterhin nicht enthalten: irgendeine Kopplung der Freigabe an
+Schritt 5 („Abbau") — der ist ohnehin ein separates, späteres Release und
+entscheidet selbst, was er dafür voraussetzt.
 
 **Update 24.07.2026 — Schritt 4 (Verifikation) implementiert.**
 `classes/local/migration/v1_verifier.php::verify_activity()` gleicht eine

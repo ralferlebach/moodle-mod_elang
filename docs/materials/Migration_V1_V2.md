@@ -203,6 +203,38 @@ als Bereich, Lernende je Aktivität, Zufalls-Seed für reproduzierbare Läufe):
   Aktivitäten, `number` bleibt auch im großen Lauf immer sauber, alle vier
   Grenzfälle nachweisbar vorhanden bzw. bei Bedarf abschaltbar.
 
+**Update 24.07.2026 — Schritt 3 (Migration) implementiert.**
+`classes/local/migration/v1_migrator.php` migriert **eine** Aktivität
+transaktional (das ist die Verarbeitungseinheit, die ein wiederaufnehmbarer
+Ad-hoc-Task später in einer Schleife aufrufen würde — der Task selbst, mit
+Blockbildung über mehrere Aktivitäten hinweg, Fortschrittsmarkern und
+Terminierung, ist noch nicht gebaut):
+
+```text
+classes/local/migration/v1_options_mapper.php   Bewertungs-Mapping, geteilt mit v1_detector
+classes/local/migration/v1_migrator.php          migrate_activity(int $elangid): object
+tests/local/migration/v1_migrator_test.php       Golden-Master gegen die echte Beispielaktivität
+```
+
+Abgedeckt: `elang_cues.json` → `elang_cue`/`elang_gap` (über `v1_cue_parser`,
+`cuekey`/`gapkey` aus den stabilen V1-IDs, nicht aus dem fehlerhaften
+`order`-Zähler); `[eckige Klammer]` → genau eine `elang_gaphint`-Stufe
+(Level 1, Typ `solution`, `penalty = 0`), unabhängig davon, ob eine Person
+sie je genutzt hat — das ist eine Autoren-Eigenschaft der Lücke, keine
+Antwort-Tatsache; `elang.options` → `gradingalgorithm`/`jarothreshold`
+aktivitätsweit; `elang_users` → ein `elang_attempt` je Person
+(`attemptnumber = 1`, `state = finished`) plus ein `elang_response` je
+tatsächlich vorhandenem Eintrag, neu bewertet über den echten
+`answer_evaluator` statt über eine eigene Nachbildung der Bewertungslogik;
+`tries` immer `1`; ungültige Link-URLs werden verworfen und gemeldet, nicht
+stillschweigend übernommen; verwaiste `elang_users`-Zeilen (Cue oder
+Position ohne Gegenstück) werden gemeldet und übersprungen, brechen die
+Migration der übrigen Aktivität nicht ab.
+
+Bewusst nicht enthalten: die Schleife über mehrere Aktivitäten mit
+Fortschrittsmarkern, der Ad-hoc-Task selbst, Adminseite/CLI, Verifikation
+(Soll-/Ist-Abgleich nach der Migration).
+
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.
 

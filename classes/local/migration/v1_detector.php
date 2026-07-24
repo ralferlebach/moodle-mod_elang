@@ -128,7 +128,7 @@ final class v1_detector {
             }
 
             $options = json_decode((string) $elang->options, true) ?? [];
-            [$gradingalgorithm, $jarothreshold] = self::map_grading_algorithm($options);
+            [$gradingalgorithm, $jarothreshold] = v1_options_mapper::map_grading_algorithm($options);
 
             $cuerecords = $DB->get_records('elang_cues', ['id_elang' => $elangid]);
             $gapcount = 0;
@@ -161,30 +161,5 @@ final class v1_detector {
         }
 
         return $report;
-    }
-
-    /**
-     * Decide gradingalgorithm and jarothreshold for a V1 activity from its
-     * options, per the rule confirmed against the V1 source
-     * (Migration_V1_V2.md chapter 1.2, server.php:315-340): V1 applies
-     * usecasesensitive/usetransliteration/jaroDistance uniformly to every
-     * gap in the activity, OR-combined, so every gap gets the SAME mapped
-     * algorithm — there is no per-gap source to honour even in principle.
-     *
-     * @param array $options Decoded elang.options
-     * @return array{0: string, 1: float} [gradingalgorithm, jarothreshold]
-     */
-    private static function map_grading_algorithm(array $options): array {
-        $casesensitive = $options['usecasesensitive'] ?? true;
-        $transliteration = $options['usetransliteration'] ?? false;
-        $jarodistance = isset($options['jaroDistance']) ? (float) $options['jaroDistance'] : 1.0;
-
-        $lenient = !$casesensitive || $transliteration || $jarodistance < 1.0;
-
-        if (!$lenient) {
-            return ['exact', 1.0];
-        }
-
-        return ['wordrecognized', $jarodistance];
     }
 }

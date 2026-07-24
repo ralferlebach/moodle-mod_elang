@@ -164,7 +164,7 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
             'timecreated' => time(),
             'timemodified' => time(),
         ], true, false, true);
-        $DB->insert_record_raw('elang_cues', (object) [
+        v1_legacy_schema::insert_row('elang_cues', (object) [
             'id' => 900,
             'id_elang' => 2,
             'number' => 1,
@@ -172,7 +172,7 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
             'end' => 1000,
             'title' => 'Broken.',
             'json' => json_encode([['type' => 'text', 'content' => 'Broken.']]),
-        ], true, false, true);
+        ]);
 
         $task = new migrate_v1_activities_task();
         $task->set_custom_data((object) ['blocksize' => 20]);

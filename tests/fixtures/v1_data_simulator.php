@@ -205,7 +205,11 @@ final class v1_data_simulator {
             $ordercounter = $cueindex;
             [$title, $json, $gapcount] = $this->build_cue_from_template($template, $ordercounter);
 
-            $DB->insert_record_raw('elang_cues', (object) [
+            // Table elang_cues has real V1 columns begin/end, both SQL
+            // reserved words on at least PostgreSQL — see
+            // v1_legacy_schema::insert_row()'s docblock for why this must
+            // go through it rather than insert_record_raw().
+            v1_legacy_schema::insert_row('elang_cues', (object) [
                 'id' => $cueid,
                 'id_elang' => $elangid,
                 'number' => $cueindex + 1,
@@ -213,7 +217,7 @@ final class v1_data_simulator {
                 'end' => $cueindex * 5000 + 4000,
                 'title' => $title,
                 'json' => $json,
-            ], true, false, true);
+            ]);
         }
 
         for ($learner = 0; $learner < (int) $this->options['learnersperactivity']; $learner++) {
@@ -334,7 +338,12 @@ final class v1_data_simulator {
                     // agree when the guess was right — see
                     // Migration_V1_V2.md chapter 1.2.
                     $content = $correct ? $element['content'] : $submitted;
-                    $DB->insert_record('elang_check', [
+                    // Table elang_check has a real V1 column named `user` —
+                    // a SQL reserved word on at least PostgreSQL, same
+                    // reasoning as elang_cues.begin/end, see
+                    // v1_legacy_schema::insert_row()'s docblock.
+                    v1_legacy_schema::insert_row('elang_check', (object) [
+                        'id' => $this->next_id(),
                         'id_elang' => $elangid,
                         'cue' => $cuerecord->number,
                         'guess' => $element['order'],
@@ -407,7 +416,7 @@ final class v1_data_simulator {
         // A gap with an invalid link URL — not http(s), not a Moodle-internal
         // target.
         $linkcue = $this->next_id();
-        $DB->insert_record_raw('elang_cues', (object) [
+        v1_legacy_schema::insert_row('elang_cues', (object) [
             'id' => $linkcue,
             'id_elang' => $elangid,
             'number' => 9999,
@@ -419,7 +428,7 @@ final class v1_data_simulator {
                 ['type' => 'input', 'content' => 'link', 'order' => 999999, 'help' => true, 'link' => 'javascript:alert(1)'],
                 ['type' => 'text', 'content' => ' for more.'],
             ]),
-        ], true, false, true);
+        ]);
         $this->summary->edgecases[] = "invalid_link_url (elang_cues id={$linkcue})";
 
         // An empty elang_users.json entry (help never requested, nothing

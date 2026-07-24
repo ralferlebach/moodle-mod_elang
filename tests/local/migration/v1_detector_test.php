@@ -146,7 +146,7 @@ final class v1_detector_test extends \advanced_testcase {
                 'jaroDistance' => '0.9',
             ]),
         ], true, false, true);
-        $DB->insert_record_raw('elang_cues', (object) [
+        v1_legacy_schema::insert_row('elang_cues', (object) [
             'id' => 900,
             'id_elang' => 2,
             'number' => 1,
@@ -158,7 +158,7 @@ final class v1_detector_test extends \advanced_testcase {
                 ['type' => 'input', 'content' => 'ciel', 'order' => 0, 'help' => false],
                 ['type' => 'text', 'content' => ' est bleu.'],
             ]),
-        ], true, false, true);
+        ]);
 
         $report = v1_detector::dry_run_report();
         $this->assertCount(1, $report);
@@ -181,7 +181,7 @@ final class v1_detector_test extends \advanced_testcase {
         v1_legacy_schema::create_tables();
         v1_legacy_schema::insert_sample_activity();
 
-        $DB->insert_record_raw('elang_cues', (object) [
+        v1_legacy_schema::insert_row('elang_cues', (object) [
             'id' => 999,
             'id_elang' => 1,
             'number' => 10,
@@ -189,7 +189,7 @@ final class v1_detector_test extends \advanced_testcase {
             'end' => 42000,
             'title' => 'broken',
             'json' => '{"not":"an array"}',
-        ], true, false, true);
+        ]);
 
         $report = v1_detector::dry_run_report();
         $entry = $report[0];

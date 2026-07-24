@@ -270,8 +270,26 @@ läuft beim nächsten Cron-Durchlauf oder sofort über
 `php admin/cli/adhoc_task.php --execute`.
 
 Bewusst weiterhin nicht enthalten: eine Adminseite (das CLI-Skript deckt
-denselben Bedarf vorerst ab) und die Verifikation (Soll-/Ist-Abgleich nach
-der Migration, Schritt 4).
+denselben Bedarf vorerst ab).
+
+**Update 24.07.2026 — Schritt 4 (Verifikation) implementiert.**
+`classes/local/migration/v1_verifier.php::verify_activity()` gleicht eine
+bereits migrierte Aktivität gegen die V1-Quelle ab — bewusst **unabhängig**
+vom Migrationsbericht aus Schritt 3: dieser sagt nur, was die Migration zu
+tun *glaubte*; die Verifikation liest `elang_cues`/`elang_users` erneut über
+`v1_cue_parser`/`v1_options_mapper` und vergleicht das Ergebnis frisch mit
+dem tatsächlichen V2-Bestand. Geprüft: Transkripte, Lücken-Position/
+-Musterlösung/-Algorithmus, Hilfestufen-Vorhandensein, sowie — unabhängig
+von den in `elang_attempt` gespeicherten Aggregaten — die Anzahl der
+Antworten je Person, gezählt direkt aus `elang_users`. Findet nichts
+automatisch selbst — jede Abweichung landet im Bericht, nichts wird
+stillschweigend korrigiert. Setzt voraus, dass die V1-Legacy-Tabellen noch
+vorhanden sind (das ist vor Schritt 5 „Abbau" ohnehin der Fall).
+
+Sieben Tests, davon fünf, die gezielt je eine Art von Manipulation nach
+einer sauberen Migration vornehmen (Musterlösung geändert, Cue gelöscht,
+Bewertungsalgorithmus geändert, Antwort gelöscht) und bestätigen, dass genau
+das erkannt wird — nicht nur, dass eine saubere Migration „ok" zurückgibt.
 
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.
@@ -316,6 +334,31 @@ schreibt. Umgesetzt:
 wieder aus dem Schema entfernt wird (Kap. 2, Schritt 5 „Abbau" — erst nach
 verifizierter Migration, mindestens ein Release Abstand, analog zu den
 Legacy-Tabellen selbst).
+
+---
+
+## 1.4 PostgreSQL-Fund: reservierte Wörter in der echten V1-Spaltenbenennung
+(24.07.2026)
+
+CI gegen PostgreSQL (bisher lief nur manuell gegen MariaDB) deckte auf:
+`elang_cues.begin`/`.end` und `elang_check.user` — echte V1-Spaltennamen,
+exakt aus dem 2018er-Quellcode übernommen — sind auf PostgreSQL reservierte
+SQL-Wörter. Moodles `insert_record()`/`insert_record_raw()` quoten
+Spaltennamen grundsätzlich nie; auf MariaDB unauffällig, auf PostgreSQL ein
+Syntaxfehler bei jedem Insert, das diese Spalten benennt.
+
+**Betrifft nur die Testfixture, nicht die echte Migration:** `v1_migrator`/
+`v1_detector`/`v1_verifier` lesen die echten V1-Tabellen ausschließlich über
+`SELECT *`-artige Aufrufe (`get_record(s)`), die nie eine explizite
+Spaltenliste in die generierte SQL schreiben — dort taucht `begin`/`end`/
+`user` als Bare-Identifier nie auf. Nur die Testfixture muss synthetische
+V1-Daten *einfügen* und braucht dafür eine explizite Spaltenliste.
+
+**Fix:** `v1_legacy_schema::insert_row()` — quotet jede Spalte
+datenbankspezifisch (`` ` `` auf MySQL/MariaDB, `"` sonst) über eine rohe,
+parametrisierte `INSERT`-Anweisung. Ersetzt jetzt jeden Insert in
+`v1_legacy_schema.php`, `v1_data_simulator.php` und den Testdateien, die
+direkt in `elang_cues`/`elang_check` schreiben.
 
 ---
 

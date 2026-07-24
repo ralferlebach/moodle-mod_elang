@@ -146,6 +146,48 @@ final class v1_legacy_schema {
     }
 
     /**
+     * Insert one row, with every column identifier quoted for the active
+     * database driver.
+     *
+     * Needed because several of the real V1 column names this fixture must
+     * reproduce exactly — `begin`/`end` on elang_cues, `user` on
+     * elang_check — are SQL reserved words on at least PostgreSQL, and
+     * Moodle's own insert_record()/insert_record_raw() never quote column
+     * identifiers in the INSERT statements they generate. That is a
+     * reasonable assumption for virtually every real Moodle schema (no
+     * official plugin uses a reserved word as a column name), just not for
+     * this one, faithfully reproducing V1's own 2018 column choices — on
+     * MySQL/MariaDB this silently worked anyway (confirmed via CI against
+     * both drivers, 2026-07-24); PostgreSQL rejected the resulting
+     * `INSERT INTO t (...,begin,end,...)` outright as a syntax error.
+     *
+     * Always inserts the row's own `id` explicitly — the same thing
+     * insert_record_raw()'s $customsequence=true achieves, needed here too
+     * since every caller in this fixture depends on stable, predictable ids
+     * for cross-references between rows.
+     *
+     * @param string $table Table name without the site prefix
+     * @param \stdClass $record Every property becomes one column; must include `id`
+     * @return void
+     */
+    public static function insert_row(string $table, \stdClass $record): void {
+        global $DB;
+
+        $columns = array_keys((array) $record);
+        // chr(96) is a backtick — written this way, not as a literal
+        // character in a string, because Moodle's coding standard flags
+        // backticks inside string literals (they usually signal accidental
+        // shell-exec syntax elsewhere; here it is genuinely just MySQL's
+        // identifier-quote character, not an operator).
+        $quote = $DB->get_dbfamily() === 'mysql' ? chr(96) : '"';
+        $quotedcolumns = array_map(static fn ($name) => $quote . $name . $quote, $columns);
+        $placeholders = array_fill(0, count($columns), '?');
+
+        $sql = 'INSERT INTO {' . $table . '} (' . implode(',', $quotedcolumns) . ') VALUES (' . implode(',', $placeholders) . ')';
+        $DB->execute($sql, array_values((array) $record));
+    }
+
+    /**
      * Populate the real `elang` table and the four legacy-only tables with
      * the sample activity supplied by the client on 2026-07-24: one
      * activity ("Test", id 1), nine cues transcribed from example.srt (see
@@ -168,8 +210,6 @@ final class v1_legacy_schema {
      * @return void
      */
     public static function insert_sample_activity(): void {
-        global $DB;
-
         // Columns grade, completionfinishattempt, jarothreshold and
         // currentversionid are deliberately absent below: the first three
         // have real schema DEFAULTs (100/0/1) that the database applies on
@@ -177,7 +217,7 @@ final class v1_legacy_schema {
         // "not yet
         // migrated" state this fixture is meant to represent — see the
         // class docblock.
-        $DB->insert_record_raw('elang', (object) [
+        self::insert_row('elang', (object) [
             'id' => 1,
             'course' => 2,
             'name' => 'Test',
@@ -189,7 +229,7 @@ final class v1_legacy_schema {
             'options' => '{"showlanguage":true,"repeatedunderscore":10,"titlelength":100,"limit":"10",'
                 . '"left":20,"top":20,"size":16,"usetransliteration":false,"usecasesensitive":true,'
                 . '"jaroDistance":"1","completion_gapfilled":0,"completion_gapcompleted":0}',
-        ], true, false, true);
+        ]);
 
         $cues = [
             [10, 1, 1, 0, 2500, 'Welcome to the ... Subtitle File!',
@@ -236,7 +276,7 @@ final class v1_legacy_schema {
                 . '{"type":"text","content":" to your videos!"}]', ],
         ];
         foreach ($cues as [$id, $idelang, $number, $begin, $end, $title, $json]) {
-            $DB->insert_record_raw('elang_cues', (object) [
+            self::insert_row('elang_cues', (object) [
                 'id' => $id,
                 'id_elang' => $idelang,
                 'number' => $number,
@@ -244,7 +284,7 @@ final class v1_legacy_schema {
                 'end' => $end,
                 'title' => $title,
                 'json' => $json,
-            ], true, false, true);
+            ]);
         }
 
         $users = [
@@ -253,13 +293,13 @@ final class v1_legacy_schema {
             [3, 1, 12, 2, '{"1":{"help":true,"content":""}}'],
         ];
         foreach ($users as [$id, $idelang, $idcue, $iduser, $json]) {
-            $DB->insert_record_raw('elang_users', (object) [
+            self::insert_row('elang_users', (object) [
                 'id' => $id,
                 'id_elang' => $idelang,
                 'id_cue' => $idcue,
                 'id_user' => $iduser,
                 'json' => $json,
-            ], true, false, true);
+            ]);
         }
 
         // Neither elang_help nor elang_check carries a user reference — see
@@ -270,13 +310,13 @@ final class v1_legacy_schema {
             [2, 1, 3, 2, 'files'],
         ];
         foreach ($help as [$id, $idelang, $cue, $guess, $info]) {
-            $DB->insert_record_raw('elang_help', (object) [
+            self::insert_row('elang_help', (object) [
                 'id' => $id,
                 'id_elang' => $idelang,
                 'cue' => $cue,
                 'guess' => $guess,
                 'info' => $info,
-            ], true, false, true);
+            ]);
         }
 
         $check = [
@@ -286,14 +326,14 @@ final class v1_legacy_schema {
             [4, 1, 3, 2, 'files', 'files'],
         ];
         foreach ($check as [$id, $idelang, $cue, $guess, $info, $user]) {
-            $DB->insert_record_raw('elang_check', (object) [
+            self::insert_row('elang_check', (object) [
                 'id' => $id,
                 'id_elang' => $idelang,
                 'cue' => $cue,
                 'guess' => $guess,
                 'info' => $info,
                 'user' => $user,
-            ], true, false, true);
+            ]);
         }
     }
 }

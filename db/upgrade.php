@@ -233,6 +233,37 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072307, 'elang');
     }
 
+    if ($oldversion < 2026072308) {
+        // Self-healing step. On at least one real site, mdl_config_plugins
+        // recorded 2026072307 as already applied, but the elang table was
+        // actually still missing completionfinishattempt — which then made
+        // the very next step below fail with a DDL error (ALTER TABLE ...
+        // ADD COLUMN jarothreshold ... AFTER completionfinishattempt,
+        // referencing a column that did not actually exist on that site).
+        // The exact root cause of the mismatch between the recorded
+        // version and the real schema was not established; this step does
+        // not depend on figuring that out. It only depends on
+        // field_exists() against the schema as it actually is right now,
+        // and heals every field this plugin has ever added to elang, not
+        // only the one observed missing — deliberately not positioned via
+        // 'previous' (column order has no functional effect and a wrong
+        // 'previous' reference is exactly what caused the original
+        // failure).
+        $table = new xmldb_table('elang');
+
+        $fields = [
+            new xmldb_field('grade', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '100'),
+            new xmldb_field('completionfinishattempt', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026072308, 'elang');
+    }
+
     if ($oldversion < 2026072401) {
         // Backing field for the Jaro-similarity threshold used by the
         // wordrecognized grading algorithm (see

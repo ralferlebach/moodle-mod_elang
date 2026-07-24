@@ -68,6 +68,14 @@ final class v1_data_simulator_test extends \advanced_testcase {
 
         v1_legacy_schema::drop_tables();
         v1_legacy_schema::create_tables();
+        // Calling drop_tables()/create_tables() only ever touches the four
+        // legacy-only tables (by design — they must never go near
+        // install.xml's own elang table). The simulator writes straight
+        // into the real elang table now (Migration_V1_V2.md chapter 1.3),
+        // so this test has to clear that itself before generating a second
+        // time with the same
+        // ids, or the second run's INSERT collides with the first run's row.
+        $DB->delete_records('elang');
 
         $simulator2 = new v1_data_simulator(['seed' => 42, 'activitycount' => 1, 'injectedgecases' => false]);
         $summary2 = $simulator2->generate();
@@ -175,7 +183,7 @@ final class v1_data_simulator_test extends \advanced_testcase {
         // Column `number`, unlike `order`, must stay strictly sequential and
         // unique — verified never to be affected by the bug
         // (Migration_V1_V2.md chapter 1.2).
-        $numbers = $DB->get_fieldset_select('elang_cues', 'number', 'id_elang = ?', [$summary->elangids[0]]);
+        $numbers = array_map('intval', $DB->get_fieldset_select('elang_cues', 'number', 'id_elang = ?', [$summary->elangids[0]]));
         sort($numbers);
         $this->assertSame(range(1, 10), $numbers);
     }

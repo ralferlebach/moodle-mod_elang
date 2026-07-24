@@ -21,13 +21,18 @@ namespace mod_elang\local\migration;
  * read-only "Trockenlauf" (dry run) report Migration_V1_V2.md chapter 2 step
  * 2 calls for — before any migration step is allowed to write anything.
  *
- * V1 and V2 both happen to use a table literally called `elang` (same name,
- * completely different columns — V1's has `options`/`language` text
- * columns, V2's has `currentversionid`/`jarothreshold`/`grade`), so that
- * table's mere existence is never a usable signal on its own. The reliable
- * signal is `elang_cues` (plural): a V1-only table name that cannot collide
- * with anything V2 declares (`elang_cue`, singular, is a different table).
- * See Migration_V1_V2.md chapter 1.1 ("Grundsatz: Die Migration wird an der
+ * V1 and V2 share the same `elang` table — a V1 activity's row already
+ * exists before any V2 schema step runs (Moodle requires exactly one
+ * activity instance row per course module) and simply gains new columns
+ * over time. Since 2026072407 (Migration_V1_V2.md chapter 1.2, decision A)
+ * that includes a nullable `options` column purely so V1's JSON blob
+ * survives from schema upgrade to data migration; the table's mere
+ * existence is still never a usable signal on its own (every elang row has
+ * one), so "pending" is decided from `options` being present and
+ * `currentversionid` still being empty on the SAME row, not from a second
+ * table. `elang_cues` (plural, V1-only, distinct from V2's singular
+ * `elang_cue`) is the signal for whether V1 legacy content exists at all —
+ * see Migration_V1_V2.md chapter 1.1 ("Grundsatz: Die Migration wird an der
  * Existenz der Legacy-Tabellen festgemacht, nicht an Versionsnummern").
  *
  * This class only reads. It does not migrate anything, does not create the
@@ -60,14 +65,12 @@ final class v1_detector {
      *
      * "Not yet migrated" is necessarily approximate at this stage: without
      * the progress-tracking schema a real migration task will introduce,
-     * the only signal available is whether the real V2 `elang` row for the
-     * same id already has a currentversionid set — see
-     * v1_legacy_schema::create_tables()'s docblock for why the V1-only
-     * metadata (name/options/language) is read from a separately-modelled
-     * `elang_v1` table rather than from `elang` itself in this test
-     * environment; a real migration reads that data from the very same
-     * `elang` row instead, since it is the same row before and after the
-     * schema upgrade adds the new V2 columns.
+     * the only signal available is the same elang row's own
+     * currentversionid still being empty. That is a reasonable dry-run
+     * heuristic, not the authoritative check the actual migration step will
+     * need (a resumable task must not silently re-migrate an activity whose
+     * publish step succeeded but whose own progress marker was never
+     * written, for instance) — see the class docblock.
      *
      * @return int[] Sorted, unique elang ids
      */
@@ -87,9 +90,8 @@ final class v1_detector {
 
             // A false return means no elang row with this id at all — on a
             // real site this would be unexpected (Moodle requires exactly
-            // one activity instance row per course module), but in this
-            // test environment it just means nobody has inserted one; treat
-            // it as pending rather than erroring. A non-empty
+            // one activity instance row per course module), but fail safe
+            // (treat as pending) rather than fatal. A non-empty
             // currentversionid means it already has a published V2 version,
             // treat as already migrated.
             return $currentversionid === false || empty($currentversionid);
@@ -115,8 +117,13 @@ final class v1_detector {
         $report = [];
 
         foreach (self::pending_activity_ids() as $elangid) {
-            $elang = $DB->get_record('elang_v1', ['id' => $elangid]);
-            if (!$elang) {
+            $elang = $DB->get_record('elang', ['id' => $elangid]);
+            if (!$elang || $elang->options === null) {
+                // No options blob to read: either a race with something
+                // deleting the row between the two queries, or (should not
+                // happen given v1_tables_present() and pending_activity_ids()
+                // already checked) a V2-only activity that coincidentally
+                // shares this id. Fail safe by skipping, not guessing.
                 continue;
             }
 

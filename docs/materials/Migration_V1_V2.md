@@ -208,6 +208,47 @@ festgemacht, nicht an Versionsnummern.
 
 ---
 
+## 1.3 Entscheidung: Wie `elang.options` das Zeitfenster zwischen
+Schema-Upgrade und Datenmigration übersteht (24.07.2026)
+
+**Der offene Punkt:** V2s `db/install.xml` hat kein `options`-Feld mehr
+(Kap. 6.2 des Blueprints, „Warum keine JSON-Blobs"). Da V1s `elang`-Zeile in
+der Realität dieselbe ist wie V2s (Moodle verlangt genau eine
+Instanz-Zeile je Kursmodul, sie wird per `ALTER TABLE` erweitert, nicht
+ersetzt), musste geklärt werden, wie der rohe V1-Optionen-Blob den Zeitraum
+zwischen dem Schema-Upgrade (das die neuen V2-Spalten hinzufügt) und der
+eigentlichen Datenmigration (die diesen Blob ausliest und verwirft) übersteht.
+
+**Entscheidung (Option A):** `db/upgrade.php` bekommt einen eigenen Schritt
+(`2026072407`), der `elang.options` als nullable Textfeld real hinzufügt —
+ohne Default, ohne dass V2-Code außerhalb der Migration es je liest oder
+schreibt. Umgesetzt:
+
+- `db/install.xml`: `elang.options`, `TYPE="text"`, `NOTNULL="false"`, direkt
+  nach `jarothreshold` einsortiert, mit Kommentar zur Zweckbindung.
+- `db/upgrade.php`, Schritt `2026072407`: fügt das Feld nachträglich hinzu,
+  idempotent (`field_exists()`-Prüfung wie bei allen anderen Schritten).
+- Für JEDE bestehende Aktivität (V1 migriert oder nicht, oder genuin als V2
+  angelegt) ist `options` nach diesem Schritt einfach `NULL`, bis eine
+  V1-Migration sie befüllt — kein Verhaltensunterschied für rein
+  V2-native Aktivitäten.
+- `classes/local/migration/v1_detector.php` liest `name`/`options`/
+  `language` jetzt direkt aus der echten `elang`-Zeile, genau wie es die
+  eigentliche Migration später auch tun wird — keine Fiktion mehr nötig.
+- `tests/fixtures/v1_legacy_schema.php` und `v1_data_simulator.php` schreiben
+  seitdem ebenfalls direkt in die echte `elang`-Tabelle statt in ein
+  gesondertes `elang_v1`-Konstrukt; letzteres war ohnehin nur eine
+  Übergangslösung, bis dieser Punkt geklärt war (siehe Versionsgeschichte in
+  `tests/fixtures/v1_legacy_schema.php`s Docblock für die Begründung, warum
+  diese Übergangslösung nötig war und warum sie jetzt entfällt).
+
+**Damit noch offen, aber nicht mehr blockierend:** Wann genau `options`
+wieder aus dem Schema entfernt wird (Kap. 2, Schritt 5 „Abbau" — erst nach
+verifizierter Migration, mindestens ein Release Abstand, analog zu den
+Legacy-Tabellen selbst).
+
+---
+
 ## 2. Ablauf
 
 ```text

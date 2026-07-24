@@ -277,5 +277,21 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072405, 'elang');
     }
 
+    if ($oldversion < 2026072407) {
+        // Migration_V1_V2.md chapter 1.2, decision A: a real V1 site's
+        // elang row already exists (Moodle requires exactly one activity
+        // instance row per course module) with V1's own options JSON blob
+        // in it; this step only ADDS a column for that blob to survive in,
+        // it does not populate it. Nullable, no default needed. Migration
+        // code reads it later; every other V2 code path ignores it.
+        $table = new xmldb_table('elang');
+        $field = new xmldb_field('options', XMLDB_TYPE_TEXT, null, null, null, null, null, 'jarothreshold');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026072407, 'elang');
+    }
+
     return true;
 }

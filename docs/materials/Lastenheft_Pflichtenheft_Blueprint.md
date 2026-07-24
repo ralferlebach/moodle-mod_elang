@@ -362,6 +362,13 @@ elang                      Aktivitätsinstanz  [Stand 2.0.0-alpha.2: implementie
  │                         wordrecognized-Algorithmus, Default 1 (keine Toleranz
  │                         über die reduzierte Form hinaus) [implementiert seit
  │                         2.0.0-alpha.9, siehe Kap. 10.4]
+ ├─ options                V1-Optionen-Blob (roh, JSON), NULLABLE, nur für das
+ │                         Zeitfenster zwischen Schema-Upgrade und
+ │                         Datenmigration [implementiert seit 2.0.0-alpha.12,
+ │                         siehe Migration_V1_V2.md Kap. 1.3 — Entscheidung A].
+ │                         Kein V2-Code außerhalb der Migration liest oder
+ │                         schreibt dieses Feld; wird nach verifizierter
+ │                         Migration in einem späteren Release entfernt
  ├─ mediasource            Datei | externe URL                    [offen]
  ├─ maxattempts, grademethod, grade                                [offen]
  ├─ hintpolicy, hintpenalty                                        [offen]

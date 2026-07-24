@@ -18,38 +18,53 @@ namespace mod_elang\fixtures;
 
 /**
  * Creates the version 1 (mod_elang 1.x) legacy tables in the test database
- * and populates them with the sample dataset supplied by the client on
- * 2026-07-24 (see docs/materials/Migration_V1_V2.md, chapter 1.1) —
- * deliberately not synthetic/randomised data, so migration logic tested
- * against this fixture is tested against the exact bytes a real (if small)
- * V1 activity produced, "[]"/"{}" markup and the known gap-counter bug
- * (duplicate/missing `order` values, see below) included.
+ * and populates them, together with the real `elang` table, with the sample
+ * dataset supplied by the client on 2026-07-24 (see
+ * docs/materials/Migration_V1_V2.md, chapter 1.1) — deliberately not
+ * synthetic/randomised data, so migration logic tested against this fixture
+ * is tested against the exact bytes a real (if small) V1 activity produced,
+ * "[]"/"{}" markup and the known gap-counter bug (duplicate/missing `order`
+ * values, see below) included.
  *
  * This is intentionally a plain class with static methods, not a
- * testing_module_generator: the tables it creates (elang, elang_cues,
- * elang_users, elang_help, elang_check) are the OLD, pre-2.0 schema, not
- * anything mod_elang's own db/install.xml declares — creating and dropping
- * them is entirely the concern of whichever test needs a V1 source to
- * migrate from, not something the plugin generator should know about.
+ * testing_module_generator: the four tables create_tables() creates
+ * (elang_cues, elang_users, elang_help, elang_check) are the OLD, pre-2.0
+ * schema, not anything mod_elang's own db/install.xml declares — creating
+ * and dropping them is entirely the concern of whichever test needs a V1
+ * source to migrate from, not something the plugin generator should know
+ * about.
  *
- * Field types match the real V1 db/install.xml exactly (mod_elang 1.x,
- * release 2018091012, supplied by the client 2026-07-24 — see
- * Migration_V1_V2.md chapter 1.2), not an approximation anymore.
+ * The activity-level table is `elang` itself, not a separate one: since
+ * 2026072407 (Migration_V1_V2.md chapter 1.2, decision A) the real `elang`
+ * table carries a nullable `options` column purely so a V1 activity's JSON
+ * blob survives from schema upgrade to data migration — the exact situation
+ * this fixture models. An earlier version of this class used a separate
+ * `elang_v1` table to avoid colliding with the real one before that column
+ * existed; with `options` now part of install.xml, that workaround is gone.
+ * insert_sample_activity() below relies on grade/completionfinishattempt/
+ * jarothreshold all having real column DEFAULTs (100/0/1) so it can omit
+ * them entirely and let the database apply the same values a real,
+ * not-yet-migrated V1 activity would have after the schema upgrade alone.
+ *
+ * Field types for the four legacy-only tables match the real V1
+ * db/install.xml exactly (mod_elang 1.x, release 2018091012, supplied by
+ * the client 2026-07-24 — see Migration_V1_V2.md chapter 1.2), not an
+ * approximation.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class v1_legacy_schema {
-    /** @var string[] Table names created by create_tables(), in creation order. */
-    private const TABLES = ['elang', 'elang_cues', 'elang_users', 'elang_help', 'elang_check'];
+    /** @var string[] Legacy-only table names created by create_tables(), in creation order. */
+    private const TABLES = ['elang_cues', 'elang_users', 'elang_help', 'elang_check'];
 
     /**
-     * Create the five V1 tables. Safe to call only once per test; the
-     * caller is responsible for dropping them again (see drop_tables()),
-     * normally via resetAfterTest(true) rather than an explicit call, since
-     * these tables do not exist in install.xml and resetAfterTest() alone
-     * will not know to remove them.
+     * Create the four legacy-only V1 tables. Safe to call only once per
+     * test; the caller is responsible for dropping them again (see
+     * drop_tables()), normally via resetAfterTest(true) rather than an
+     * explicit call, since these tables do not exist in install.xml and
+     * resetAfterTest() alone will not know to remove them.
      *
      * @return void
      */
@@ -62,18 +77,6 @@ final class v1_legacy_schema {
         // (mod_elang 1.x, release 2018091012, supplied by the client
         // 2026-07-24) exactly, not an approximation — see
         // Migration_V1_V2.md chapter 1.2.
-        $elang = new \xmldb_table('elang');
-        $elang->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
-        $elang->add_field('course', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
-        $elang->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL);
-        $elang->add_field('intro', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL);
-        $elang->add_field('introformat', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
-        $elang->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
-        $elang->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
-        $elang->add_field('language', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL);
-        $elang->add_field('options', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL);
-        $elang->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
-
         $cues = new \xmldb_table('elang_cues');
         $cues->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
         $cues->add_field('id_elang', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -94,7 +97,7 @@ final class v1_legacy_schema {
         // Real V1 schema: UNIQUE(id_cue, id_user) — at most one row per
         // (gap-bearing cue, learner), overwritten on every check/help
         // request rather than accumulating history (Migration_V1_V2.md
-        // chapter 1.2). The simulator below relies on this being enforced.
+        // chapter 1.2). The simulator relies on this being enforced.
         $users->add_index('icueuser', XMLDB_INDEX_UNIQUE, ['id_cue', 'id_user']);
 
         $help = new \xmldb_table('elang_help');
@@ -114,7 +117,7 @@ final class v1_legacy_schema {
         $check->add_field('user', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL);
         $check->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
 
-        foreach ([$elang, $cues, $users, $help, $check] as $table) {
+        foreach ([$cues, $users, $help, $check] as $table) {
             if ($dbman->table_exists($table)) {
                 $dbman->drop_table($table);
             }
@@ -123,9 +126,10 @@ final class v1_legacy_schema {
     }
 
     /**
-     * Drop the five V1 tables again. Normally unnecessary: resetAfterTest(true)
-     * drops any table not declared in install.xml at the end of the test.
-     * Provided for tests that need a clean slate mid-test without a full reset.
+     * Drop the four legacy-only V1 tables again. Normally unnecessary:
+     * resetAfterTest(true) drops any table not declared in install.xml at
+     * the end of the test. Provided for tests that need a clean slate
+     * mid-test without a full reset. Never touches the real `elang` table.
      *
      * @return void
      */
@@ -142,13 +146,17 @@ final class v1_legacy_schema {
     }
 
     /**
-     * Populate the tables with the sample activity supplied by the client on
-     * 2026-07-24: one activity ("Test", id 1), nine cues transcribed from
-     * example.srt (see docs/materials/Migration_V1_V2.md), one learner
-     * (id_user 2) with partial progress, and the elang_help/elang_check rows
-     * that same session produced.
+     * Populate the real `elang` table and the four legacy-only tables with
+     * the sample activity supplied by the client on 2026-07-24: one
+     * activity ("Test", id 1), nine cues transcribed from example.srt (see
+     * docs/materials/Migration_V1_V2.md), one learner (id_user 2) with
+     * partial progress, and the elang_help/elang_check rows that same
+     * session produced.
      *
-     * Requires create_tables() to have been called first.
+     * Requires create_tables() to have been called first, and — since this
+     * writes to the real `elang` table — the site to already be at
+     * 2026072407 or later (Migration_V1_V2.md chapter 1.2, decision A),
+     * true of any PHPUnit run against this codebase's own install.xml.
      *
      * Every insert goes through insert_record_raw(..., $customsequence = true)
      * rather than the usual insert_record(): the latter always strips any
@@ -162,6 +170,13 @@ final class v1_legacy_schema {
     public static function insert_sample_activity(): void {
         global $DB;
 
+        // Columns grade, completionfinishattempt, jarothreshold and
+        // currentversionid are deliberately absent below: the first three
+        // have real schema DEFAULTs (100/0/1) that the database applies on
+        // their own, and currentversionid being unset (NULL) is exactly the
+        // "not yet
+        // migrated" state this fixture is meant to represent — see the
+        // class docblock.
         $DB->insert_record_raw('elang', (object) [
             'id' => 1,
             'course' => 2,

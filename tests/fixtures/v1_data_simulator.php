@@ -168,10 +168,13 @@ final class v1_data_simulator {
             'completion_gapcompleted' => 30,
         ];
 
-        // Table elang_v1, not elang — see v1_legacy_schema's docblock for
-        // why (the real elang table already exists with V2 columns; this
-        // fixture must not collide with it).
-        $DB->insert_record_raw('elang_v1', (object) [
+        // Writes to the real `elang` table, not a separate legacy one — see
+        // v1_legacy_schema's class docblock for why that workaround is gone
+        // since 2026072407 added a real, nullable `options` column there
+        // (Migration_V1_V2.md chapter 1.2, decision A). grade/
+        // completionfinishattempt/jarothreshold/currentversionid are
+        // deliberately omitted below for the same reason documented there.
+        $DB->insert_record_raw('elang', (object) [
             'id' => $elangid,
             'course' => (int) $this->options['courseid'],
             'name' => 'Simulated activity ' . ($index + 1),

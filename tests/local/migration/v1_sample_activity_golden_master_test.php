@@ -84,7 +84,7 @@ final class v1_sample_activity_golden_master_test extends \advanced_testcase {
         // not at the unrelated `number`/`order` counters (see
         // Migration_V1_V2.md chapter 3.1 on the three different
         // referencing schemes).
-        $idcues = $DB->get_fieldset_select('elang_users', 'id_cue', 'id_elang = ?', [1]);
+        $idcues = array_map('intval', $DB->get_fieldset_select('elang_users', 'id_cue', 'id_elang = ?', [1]));
         sort($idcues);
         $this->assertSame([10, 11, 12], $idcues);
     }

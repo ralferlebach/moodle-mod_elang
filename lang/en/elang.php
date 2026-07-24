@@ -76,3 +76,4 @@ $string['privacy:metadata:elang_response:tries'] = 'How many times the learner s
 $string['skeletonnotice'] = 'This activity is an infrastructure skeleton for version 2.0. The player, transcript and answering area are not implemented yet.';
 $string['subplugintype_elangscript'] = 'Script handler';
 $string['subplugintype_elangscript_plural'] = 'Script handlers';
+$string['task:migratev1activities'] = 'Migrate version 1 activities';

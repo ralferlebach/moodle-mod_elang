@@ -196,7 +196,7 @@ final class v1_migrator {
             $gapsortorder = 0;
 
             foreach ($parsed->gaps as $gapindex => $gap) {
-                $position = $gapindex + 1; // elang_users.json keys are 1-indexed per cue.
+                $position = $gapindex + 1; // Position is 1-indexed per cue, matching elang_users.json's keys.
 
                 $linkurl = $this->validate_link($gap->linkurl, $v1cue->id, $position, $report);
 

@@ -136,7 +136,12 @@ final class v1_migrator_test extends \advanced_testcase {
         $this->assertEqualsWithDelta(1 / 9, (float) $attempt->score, 0.00001);
 
         $demonstrationgap = $DB->get_record('elang_gap', ['gapkey' => 'v1-gap-11-1'], '*', MUST_EXIST);
-        $response = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $demonstrationgap->id], '*', MUST_EXIST);
+        $response = $DB->get_record(
+            'elang_response',
+            ['attemptid' => $attempt->id, 'gapid' => $demonstrationgap->id],
+            '*',
+            MUST_EXIST
+        );
         $this->assertSame('demonstration', $response->responsetext);
         $this->assertSame('exact', $response->resultstate);
         $this->assertSame(1, (int) $response->accepted);
@@ -144,7 +149,12 @@ final class v1_migrator_test extends \advanced_testcase {
         $this->assertSame(0, (int) $response->hintlevel);
 
         $examplegap = $DB->get_record('elang_gap', ['gapkey' => 'v1-gap-10-1'], '*', MUST_EXIST);
-        $helpedresponse = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $examplegap->id], '*', MUST_EXIST);
+        $helpedresponse = $DB->get_record(
+            'elang_response',
+            ['attemptid' => $attempt->id, 'gapid' => $examplegap->id],
+            '*',
+            MUST_EXIST
+        );
         $this->assertSame('empty', $helpedresponse->resultstate);
         $this->assertSame(0, (int) $helpedresponse->accepted);
         $this->assertSame(1, (int) $helpedresponse->hintlevel);

@@ -76,3 +76,4 @@ $string['privacy:metadata:elang_response:tries'] = 'Wie oft die lernende Person 
 $string['skeletonnotice'] = 'Diese Aktivität ist ein Infrastruktur-Skelett für Version 2.0. Player, Transkript und Bearbeitungsbereich sind noch nicht umgesetzt.';
 $string['subplugintype_elangscript'] = 'Schrift-Handler';
 $string['subplugintype_elangscript_plural'] = 'Schrift-Handler';
+$string['task:migratev1activities'] = 'Version-1-Aktivitäten migrieren';

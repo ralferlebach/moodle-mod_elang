@@ -231,9 +231,31 @@ stillschweigend übernommen; verwaiste `elang_users`-Zeilen (Cue oder
 Position ohne Gegenstück) werden gemeldet und übersprungen, brechen die
 Migration der übrigen Aktivität nicht ab.
 
-Bewusst nicht enthalten: die Schleife über mehrere Aktivitäten mit
-Fortschrittsmarkern, der Ad-hoc-Task selbst, Adminseite/CLI, Verifikation
-(Soll-/Ist-Abgleich nach der Migration).
+**Update 24.07.2026 — Ad-hoc-Task ergänzt.**
+`classes/task/migrate_v1_activities_task.php` ruft `v1_migrator` blockweise
+über mehrere Aktivitäten hinweg auf:
+
+- Fortschritt wird **nicht** über eine eigene Tabelle verfolgt — die
+  Erkennung selbst (`v1_detector::pending_activity_ids()`,
+  `elang.currentversionid`) ist bereits der Fortschrittsmarker. Ein
+  erfolgreich migrierter Aktivität wird nie wieder zurückgegeben, egal ob
+  derselbe Task-Lauf, ein späterer, oder nach einem Cron-Abbruch neu
+  gestartet.
+- Ein `execute()`-Aufruf verarbeitet höchstens `blocksize` Aktivitäten
+  (Default 20); bleiben danach weitere offen, reiht sich der Task selbst
+  erneut ein.
+- Der Fehlschlag einer einzelnen Aktivität (Ausnahme aus
+  `migrate_activity()`) wird geloggt und übersprungen, bricht den Rest des
+  Blocks nicht ab — dieselbe Grundhaltung, die `v1_migrator` schon
+  innerhalb einer Aktivität für einzelne Cues/Lücken/Antworten verfolgt.
+- Vier Tests, u. a. ein Fall, in dem `pending_activity_ids()` eine
+  Aktivität als „ausstehend" einstuft, `migrate_activity()` sie aber
+  ablehnt (fehlender `options`-Blob trotz vorhandener `elang_cues`) — genau
+  die Inkonsistenz, die `pending_activity_ids()` selbst nicht prüft.
+
+Bewusst weiterhin nicht enthalten: Adminseite/CLI, um den Task überhaupt
+einzureihen, und die Verifikation (Soll-/Ist-Abgleich nach der Migration,
+Schritt 4).
 
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.

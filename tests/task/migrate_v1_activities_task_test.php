@@ -56,7 +56,13 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
     public function test_does_nothing_when_no_v1_tables_present(): void {
         $task = new migrate_v1_activities_task();
         $task->set_custom_data((object) ['blocksize' => 20]);
+        // The mtrace() output is expected (that is the task's whole point
+        // of communicating progress) but must not trip PHPUnit's "printed
+        // output" risky-test detection — capture and discard it rather than
+        // let it hit stdout unclaimed during the test run.
+        ob_start();
         $task->execute();
+        ob_end_clean();
 
         $this->assertTrue(true); // Reaching here without an exception is the assertion.
     }
@@ -76,7 +82,13 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
 
         $task = new migrate_v1_activities_task();
         $task->set_custom_data((object) ['blocksize' => 20]);
+        // The mtrace() output is expected (that is the task's whole point
+        // of communicating progress) but must not trip PHPUnit's "printed
+        // output" risky-test detection — capture and discard it rather than
+        // let it hit stdout unclaimed during the test run.
+        ob_start();
         $task->execute();
+        ob_end_clean();
 
         $elang = $DB->get_record('elang', ['id' => 1], '*', MUST_EXIST);
         $this->assertNotEmpty($elang->currentversionid);
@@ -109,7 +121,13 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
 
         $task = new migrate_v1_activities_task();
         $task->set_custom_data((object) ['blocksize' => 1]);
+        // The mtrace() output is expected (that is the task's whole point
+        // of communicating progress) but must not trip PHPUnit's "printed
+        // output" risky-test detection — capture and discard it rather than
+        // let it hit stdout unclaimed during the test run.
+        ob_start();
         $task->execute();
+        ob_end_clean();
 
         $migratedcount = $DB->count_records_select('elang', 'currentversionid IS NOT NULL');
         $this->assertSame(1, $migratedcount, 'only one activity should migrate with blocksize 1');
@@ -158,7 +176,13 @@ final class migrate_v1_activities_task_test extends \advanced_testcase {
 
         $task = new migrate_v1_activities_task();
         $task->set_custom_data((object) ['blocksize' => 20]);
+        // The mtrace() output is expected (that is the task's whole point
+        // of communicating progress) but must not trip PHPUnit's "printed
+        // output" risky-test detection — capture and discard it rather than
+        // let it hit stdout unclaimed during the test run.
+        ob_start();
         $task->execute();
+        ob_end_clean();
 
         $migrated = $DB->get_record('elang', ['id' => 1], '*', MUST_EXIST);
         $this->assertNotEmpty($migrated->currentversionid, 'the valid activity should still have migrated');

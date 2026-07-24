@@ -253,9 +253,25 @@ Migration der übrigen Aktivität nicht ab.
   ablehnt (fehlender `options`-Blob trotz vorhandener `elang_cues`) — genau
   die Inkonsistenz, die `pending_activity_ids()` selbst nicht prüft.
 
-Bewusst weiterhin nicht enthalten: Adminseite/CLI, um den Task überhaupt
-einzureihen, und die Verifikation (Soll-/Ist-Abgleich nach der Migration,
-Schritt 4).
+**Update 24.07.2026 — CLI-Skript ergänzt.** `cli/migrate_v1.php` ist jetzt
+der einzige Weg, die Migration tatsächlich auszulösen — bewusst dünn
+gehalten, jede fachliche Entscheidung bleibt bei `v1_detector`/
+`v1_migrator`/`migrate_v1_activities_task`:
+
+```text
+php cli/migrate_v1.php --dry-run
+php cli/migrate_v1.php --execute [--blocksize=20] [--yes]
+```
+
+`--dry-run` zeigt den Bericht aus `v1_detector::dry_run_report()`, schreibt
+nichts. `--execute` zeigt denselben Bericht, fragt (außer bei `--yes`) eine
+ausdrückliche Bestätigung ab und reiht danach den Ad-hoc-Task ein — der
+läuft beim nächsten Cron-Durchlauf oder sofort über
+`php admin/cli/adhoc_task.php --execute`.
+
+Bewusst weiterhin nicht enthalten: eine Adminseite (das CLI-Skript deckt
+denselben Bedarf vorerst ab) und die Verifikation (Soll-/Ist-Abgleich nach
+der Migration, Schritt 4).
 
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.

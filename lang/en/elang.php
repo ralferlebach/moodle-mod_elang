@@ -38,6 +38,7 @@ $string['elang:viewreports'] = 'View learner reports';
 $string['error:attemptnotinprogress'] = 'This attempt is no longer in progress.';
 $string['error:couldnotobtainlock'] = 'Could not obtain a lock for this operation. Please try again.';
 $string['error:gapnotinattemptversion'] = 'This gap does not belong to the exercise version of this attempt.';
+$string['error:invalidv1cuejson'] = 'This version 1 cue could not be parsed.';
 $string['error:noaccesstoattempt'] = 'You do not have access to this attempt.';
 $string['error:nomorehints'] = 'No further hints are available for this gap.';
 $string['error:nopublishedversion'] = 'This exercise has no published content yet.';

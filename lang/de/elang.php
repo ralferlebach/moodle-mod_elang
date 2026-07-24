@@ -38,6 +38,7 @@ $string['elang:viewreports'] = 'Berichte zu Lernenden ansehen';
 $string['error:attemptnotinprogress'] = 'Dieser Versuch läuft nicht mehr.';
 $string['error:couldnotobtainlock'] = 'Für diesen Vorgang konnte keine Sperre erlangt werden. Bitte erneut versuchen.';
 $string['error:gapnotinattemptversion'] = 'Diese Lücke gehört nicht zur Übungsversion dieses Versuchs.';
+$string['error:invalidv1cuejson'] = 'Dieser Version-1-Cue konnte nicht verarbeitet werden.';
 $string['error:noaccesstoattempt'] = 'Sie haben keinen Zugriff auf diesen Versuch.';
 $string['error:nomorehints'] = 'Für diese Lücke sind keine weiteren Hilfen verfügbar.';
 $string['error:nopublishedversion'] = 'Für diese Übung ist noch kein Inhalt veröffentlicht.';

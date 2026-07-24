@@ -28,36 +28,180 @@ beim Auftraggeber selbst. Das betrifft sowohl reale `elang_cues.json`/
 `elang_users.json`-Inhalte als auch reale `.mbz`-Sicherungen für den
 Restore-Pfad (Kap. 5).
 
+**Update 24. Juli 2026:** Der Auftraggeber hat einen kleinen, schnell erzeugten
+Datensatz nachgereicht (`mdl_elang*`-Dumps einer Einzelaktivität mit neun Cues
+sowie eine dazugehörige `example.srt`) — ausdrücklich **nicht** aus einem
+produktiven System, sondern eigens dafür erzeugt. Das ändert die Einschätzung
+nur teilweise:
+
+- **Reicht für:** Struktur- und Feldsemantik-Klärung, eine erste reale
+  Golden-Master-Fixture, Verifikation der Abbildungsregeln in Kap. 3 gegen
+  tatsächliche V1-Ausgabe (mehrere Korrekturen unten direkt daraus abgeleitet).
+- **Reicht NICHT für:** Mengengerüste/Lasttests, Mehrsprachigkeit, mehrere
+  Lernende mit unterschiedlichen Completion-Zuständen, verwaiste
+  Antwortdatensätze in realistischer Häufigkeit, den Restore-Pfad (keine
+  `.mbz`-Sicherung enthalten). Der V1-Datensimulator (unten) bleibt für diese
+  Breite notwendig.
+
 **Konsequenz für diesen Entwicklungsstand:** Die Migrationslogik (Kap. 2–4)
-bleibt Spezifikation, bis sie gegen echte oder zumindest realistische Daten
-geprüft werden kann. Referenzfälle für den `answer_evaluator` (siehe
-`Lastenheft_Pflichtenheft_Blueprint.md`, Kap. 10) wurden unabhängig davon bereits
-festgeschrieben, weil sie sich aus der fachlichen Spezifikation und nicht aus
-V1-Bestandsdaten ableiten ließen.
+bleibt größtenteils Spezifikation, bis sie gegen echte oder zumindest
+realistische Daten geprüft werden kann. Referenzfälle für den
+`answer_evaluator` (siehe `Lastenheft_Pflichtenheft_Blueprint.md`, Kap. 10)
+wurden unabhängig davon bereits festgeschrieben, weil sie sich aus der
+fachlichen Spezifikation und nicht aus V1-Bestandsdaten ableiten ließen.
 
-**Geplanter Ausweg — V1-Datensimulator (zurückgestellt auf Phase 2, späterer
-Schritt):** Ein eigenständiges Werkzeug, das synthetische, aber strukturell
-realistische V1-Bestände erzeugt:
+---
 
-- Schema exakt nach `moodle-mod_elang` 1.x `db/install.xml` (liegt vor, siehe
-  Projektarchiv), inklusive der bekannten Altlasten aus Kap. 3.1 der technischen
-  Gesamtbewertung (fehlerhafter Gap-Zähler, verwaiste Antwortdatensätze durch das
-  V1-Löschverhalten bei jedem Speichern);
-- realistische Mengengerüste (Anzahl Aktivitäten, Cues je Aktivität, Lernende je
-  Aktivität) als Parameter, um sowohl kleine Funktionstests als auch
-  Lasttests der Migration (Kap. 4, „speicherschonend") zu ermöglichen;
-- gezielt eingestreute Grenzfälle: sehr lange Antworttexte, ungültige
-  `[Antwort(Link)]`-URLs, leere `elang_users.json`-Einträge, doppelt vorkommende
-  Cue-Nummern durch den V1-Zählerfehler;
-- Ausgabe wahlweise als direkt einspielbare SQL-Fixture für PHPUnit
-  (`advanced_testcase`) oder als eigenständige Mini-Moodle-3.4-kompatible
-  Datenbank für einen echten Restore-Test.
+## 1.2 V1-Quellcode verfügbar und ausgewertet (24. Juli 2026)
 
-Dieses Werkzeug ist **nicht** Teil des aktuellen Entwicklungsstands und wird erst
-gebaut, wenn Phase 2 an die eigentliche Migrationslogik geht. Bis dahin ist
-`Migration_V1_V2.md` als Spezifikation zu lesen, nicht als getestetes Verhalten —
-im Unterschied zu den in Kap. 10 des Blueprints beschriebenen und bereits
-lauffähig getesteten Bewertungsalgorithmen.
+Der Auftraggeber hat den tatsächlichen V1-Quellcode (`mod_elang`, Release
+2018091012) nachgereicht. Damit lassen sich mehrere zuvor offene oder nur aus
+Beispieldaten erschlossene Punkte jetzt direkt am Code verifizieren. Zentrale
+Funde, mit Fundstelle:
+
+- **`jaroDistance` ist exakt der 0..1-Schwellwert, den `elang.jarothreshold`
+  bereits abbildet** (`server.php:339`: `jaro($parsedtext, $parsedcontent) >=
+  $options['jaroDistance']`; Formularvalidierung `mod_form.php:551-554`
+  verlangt `0 < jaroDistance <= 1`; Default `1`, wenn nicht gesetzt —
+  `locallib.php:60`). Kap. 3 unten entsprechend als verifiziert markiert.
+  **Eine Nebenerkenntnis:** V1s eigene `jaro()`-Funktion (`locallib.php:470`)
+  verwendet ein Vergleichsfenster von `max(len1,len2) - 1` statt des in der
+  Fachliteratur üblichen `floor(max(len1,len2)/2) - 1`, das
+  `answer_evaluator::jaro_similarity()` implementiert. Für dieselbe
+  Zeichenkette liefern beide Funktionen deshalb nicht notwendigerweise
+  denselben Zahlenwert — bei einem Schwellwert von exakt `1` (nur Identität
+  akzeptiert) ist das irrelevant, bei einem abgesenkten Schwellwert weicht das
+  Verhalten migrierter Aktivitäten von V1 graduell ab. Das ist mit der
+  bestehenden Leitentscheidung „kompatibel = nachvollziehbar, nicht
+  bitidentisch" (Blueprint Kap. 2.3) vereinbar und wird nicht nachgebaut.
+- **`gradingalgorithm` ist eine AKTIVITÄTSWEITE, nicht pro Lücke
+  konfigurierbare Eigenschaft in V1** (`server.php:315-340`): Groß-/
+  Kleinschreibung, Transliteration und Jaro-Toleranz werden für JEDE Lücke der
+  Aktivität gleich angewendet, mit ODER verknüpft. Damit ist Frage 1 (Zuordnung
+  `gradingalgorithm`) beantwortbar: Hat die Aktivität irgendeine Form von
+  Toleranz aktiv (`usecasesensitive = false` ODER `usetransliteration = true`
+  ODER `jaroDistance < 1`), erhalten ALLE ihre Lücken `wordrecognized` (das in
+  V2 ohnehin unbedingt Groß-/Kleinschreibung und Diakritika normalisiert) mit
+  `jarothreshold = jaroDistance`; hat sie keinerlei Toleranz aktiv
+  (`usecasesensitive = true`, `usetransliteration = false`, `jaroDistance = 1`),
+  erhalten alle ihre Lücken `exact`. Das ist jetzt Option A aus der vorherigen
+  Rückfrage, am Code bestätigt statt vermutet.
+- **Keine Hilfestufen, keine Bestrafung — V1 hat gar kein Gradebook.**
+  `lib.php` enthält weder `elang_grade_item_update()` noch
+  `elang_update_grades()`; die einzige Auswertung ist
+  `elang_get_completion_state()` (Abschluss, siehe unten). „Hilfe" in V1
+  (`server.php:413-499`) deckt die komplette Musterlösung auf (kein
+  abgestufter Hinweis) und ist je Lücke genau einmal nutzbar (danach mit
+  HTTP 400 gesperrt). Frage 3 ist damit beantwortet: Option B — es gab keine
+  Bestrafung, weil es keine Punktzahl gab, die hätte bestraft werden können.
+- **`tries` existiert in V1 nirgends, auch nicht in `elang_users`.**
+  Zur Präzisierung von Frage 4: `elang_users` (UNIQUE-Index auf
+  `id_cue, id_user`, `db/install.xml:62`) hält genau eine Zeile je (Cue,
+  Person) und wird bei jedem Check/jeder Hilfe-Anfrage überschrieben
+  (`server.php:388-403`, `:490-501`) — das ist der **aktuelle Stand**
+  (zuletzt eingegebener Text, ob Hilfe benutzt wurde), keine Versuchshistorie
+  und kein Zähler. `elang_check` wird bei JEDEM Check-Aufruf neu eingefügt
+  (richtig oder falsch, `info` = Musterlösung, `user` = tatsächliche Eingabe —
+  bei richtiger Antwort sind beide identisch, weil `server.php:335` den
+  gespeicherten Text bei Erfolg durch den kanonischen Lösungstext ersetzt),
+  aber ohne `id_user` bleibt es unmöglich, diese Zeilen einer Person
+  zuzuordnen. **Ergebnis:** Es gibt keine V1-Quelle für `elang_response.tries`
+  — weder in `elang_users` noch in `elang_check`. Migrierte Antworten erhalten
+  `tries = 1` (Option A/B aus der vorherigen Rückfrage waren im Ergebnis
+  identisch; `elang_check` fließt höchstens als aggregierte Bericht-Kennzahl
+  ein, wie in Kap. 3 bereits vermerkt).
+- **Der Gap-Zähler-Bug betrifft NICHT `elang_cues.number`, wie zuvor
+  ungenau beschrieben — Korrektur.** `locallib.php:342` (`foreach ($cues as
+  $i => $elt)`) weist `$cue->number = $i + 1` VOR der inneren Schleife zu
+  (`:356`), mit dem frischen, von `foreach` bei jeder Iteration neu aus dem
+  Array-Schlüssel gesetzten `$i` — `number` ist dadurch nachweisbar **immer**
+  korrekt und niemals vom Bug betroffen (löst Frage 5 endgültig, ohne
+  weitere Beispieldaten). Betroffen ist ausschließlich das per-Lücke
+  `order`-Feld: `locallib.php:381` verändert dasselbe `$i` innerhalb der
+  Lücken-Verarbeitung (`'order' => $i++`) — diese Veränderung überlebt aber
+  nicht bis zur nächsten Cue-Iteration, weil `foreach` `$i` dort ohnehin neu
+  aus dem Array-Schlüssel setzt. Bei einem Cue mit mehreren Lücken „läuft"
+  `$i` deshalb innerhalb dieses einen Cues voraus, wird aber beim nächsten Cue
+  auf dessen wahren Index zurückgesetzt — genau das erzeugt die am realen
+  Beispiel beobachteten Duplikate/Lücken in `order` (Kap. 3.1), ohne `number`
+  je zu berühren. `Lastenheft_Pflichtenheft_Blueprint.md` und die technische
+  Review hatten diesen Mechanismus unpräzise beschrieben; hiermit korrigiert.
+- **Abschlussformel vollständig rekonstruiert** (`lib.php:246-330`), als
+  Vorlage für die noch zu bauenden V2-Regeln `completionansweredpercent`/
+  `completioncorrectpercent` (Blueprint Kap. 10.5, bisher „was noch fehlt"):
+  über alle `input`-Elemente aller Cues gezählt, `completion_gapfilled` prüft
+  `(erfolgreich + Hilfe genutzt + falsch) / gesamt * 100 >= Schwellwert`
+  („irgendwie bearbeitet"), `completion_gapcompleted` prüft `erfolgreich /
+  gesamt * 100 >= Schwellwert` (Hilfe-aufgedeckte Lücken zählen hier
+  ausdrücklich NICHT als erfolgreich). Wichtiger Unterschied zum aktuellen
+  V2-Verhalten: `attempt_manager::submit_response()`/`request_hint()` zählen
+  eine Lücke nur dann zu `answeredgaps`, wenn tatsächlich Text abgegeben
+  wurde (`resultstate !== EMPTY`) — eine angeforderte, aber nie beantwortete
+  Hilfe zählt in V2 aktuell NICHT zu `answeredgaps`, in V1 zählte ein reiner
+  Hilfe-Abruf zu `completion_gapfilled` aber sehr wohl mit. Diese Abweichung
+  ist beim Bau der neuen Completion-Regeln explizit zu entscheiden, nicht
+  stillschweigend zu übernehmen oder zu verwerfen.
+- **Frage 9 (unbekannte Optionsfelder) vollständig geklärt:**
+  `repeatedunderscore` — Länge der Unterstrich-Lücken im Arbeitsblattexport
+  (`lib.php:618-632`); `titlelength` — maximale Länge des maskierten
+  `title`-Felds, danach mit „…" gekürzt (`locallib.php:348-352`); `limit` —
+  Seitengröße für die Cue-Liste im Player (`server.php:254-266`, „Listing
+  limit"), fachlich identisch zum `$limit`-Parameter von V2s eigenem
+  `get_cues`; `left`/`top`/`size` — Randabstände und Schriftgröße des
+  PDF-Arbeitsblattexports (TCPDF, `lib.php:646-651`), keine Player-Layout-
+  Einstellungen wie zunächst vermutet.
+- **Zitate aus der technischen Review bestätigt, nicht revidiert:** der
+  `/mod/book/index.php`-Fehler in
+  `backup/moodle2/backup_elang_activity_task.class.php` und der
+  `id?id=`-Fehler in `classes/event/report_viewed.php` sind exakt wie
+  ursprünglich zitiert im Quellcode vorhanden.
+
+
+**Update 24. Juli 2026 — erste, bewusst eng geschnittene Ausnahme:** Der
+Baustein „Cue-JSON in Transkript und Lücken zerlegen" (Zeichenposition,
+Musterlösung, Link, `[]`/`{}` → Hilfe erlaubt/nicht erlaubt) hängt an keiner
+der noch offenen Fragen (Bewertungsalgorithmus-Zuordnung, `jarothreshold`-
+Semantik, Hilfestufen/Penalty, `tries`-Rekonstruktion) und ist deshalb bereits
+implementiert und mit echten Golden-Master-Tests gegen alle neun Cues der
+nachgereichten Beispielaktivität abgesichert:
+
+```text
+classes/local/migration/v1_cue_parser.php                     Parser
+tests/fixtures/v1_legacy_schema.php                            V1-Schema + echte Beispieldaten
+tests/local/migration/v1_cue_parser_test.php                   Golden-Master je Cue-Form (literales JSON)
+tests/local/migration/v1_sample_activity_golden_master_test.php  dieselben Fälle end-to-end über echte DB-Zeilen
+```
+
+Alles darüber hinaus — Aktivitäts-Optionen-Mapping, Attempt-/Response-
+Rekonstruktion, Hilfestufen, Legacy-Tabellen-Erkennung, Ad-hoc-Task,
+Adminseite/CLI — bleibt Spezifikation wie zuvor.
+
+**Update 24.07.2026 — V1-Datensimulator implementiert.**
+`tests/fixtures/v1_data_simulator.php` erzeugt synthetische, aber strukturell
+realistische V1-Bestände, parametrisiert (Anzahl Aktivitäten, Cues je Aktivität
+als Bereich, Lernende je Aktivität, Zufalls-Seed für reproduzierbare Läufe):
+
+- Schema exakt nach dem jetzt vorliegenden `moodle-mod_elang` 1.x
+  `db/install.xml` (`v1_legacy_schema.php`, Kap. 1.2);
+- der fehlerhafte Gap-Zähler wird nicht nachträglich injiziert, sondern durch
+  Nachbau des exakt gleichen fehleranfälligen Mechanismus (`locallib.php:342/
+  381`, korrigiert verstanden seit Kap. 1.2) reproduziert — entsteht deshalb
+  genau dann und nur dann, wenn er auch in echten V1-Daten entstünde;
+- gezielt zuschaltbare Grenzfälle (`injectedgecases`-Option): sehr langer
+  Antworttext, verwaister `elang_users`-Datensatz (Cue-ID ohne passende
+  `elang_cues`-Zeile — der reale Mechanismus dahinter, `locallib.php:334-335`,
+  ist jetzt bekannt: jedes Speichern löscht und legt Cues neu an), ungültige
+  `link`-URL (`javascript:`-Schema), unberührter Datensatz mit leerem Inhalt;
+- Ausgabe direkt über `$DB` in eine laufende PHPUnit-Testumgebung — die in
+  Kap. 1.1 ursprünglich vorgesehene zweite Ausgabeform (eigenständige
+  Mini-Moodle-Datenbank für einen isolierten Restore-Test außerhalb von
+  PHPUnit) ist **nicht** umgesetzt, siehe Kap. 5 zum aktuellen Stand des
+  Restore-Pfads.
+- Getestet in `tests/local/migration/v1_data_simulator_test.php`: reproduzierbare
+  Läufe bei gleichem Seed, eingehaltene Eindeutigkeit von `(id_cue, id_user)`
+  (echter V1-UNIQUE-Index), nachweisbare Zähler-Kollisionen bei mehrgap-reichen
+  Aktivitäten, `number` bleibt auch im großen Lauf immer sauber, alle vier
+  Grenzfälle nachweisbar vorhanden bzw. bei Bedarf abschaltbar.
 
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.
@@ -89,20 +233,45 @@ CLI-Skript für große Installationen und Wartungsfenster.
 | --- | --- | --- |
 | `elang` (Grunddaten) | `elang` | unverändert übernommen |
 | `elang.options` (JSON) | reguläre Spalten auf `elang` | unbekannte Schlüssel werden protokolliert, nicht verworfen |
+| `elang.options.jaroDistance` | `elang.jarothreshold` | **verifiziert 24.07.2026** (Kap. 1.2): identischer 0..1-Schwellwert, `>=`-Vergleich, Default 1 — direkte Übernahme |
 | — | `elang_version` (Nr. 1, `published`) | genau eine Version je migrierter Aktivität |
-| `elang_cues` (ohne `json`) | `elang_cue` | `number` → `sortorder`, `begin`/`end` → `starttime`/`endtime`, `title` → `transcript` |
-| `elang_cues.json` | `elang_gap`, `elang_gapanswer` | Lücken, Musterlösung, Alternativen, Link |
-| `elang_users` (je Cue, je Person) | `elang_attempt` + `elang_response` | ein Versuch (`attemptnumber = 1`) je (Aktivität, Person) |
-| `elang_help` | Zähler `hintedgaps`, `hintlevel` | danach verworfen — kein Nutzerbezug, kein Zeitstempel |
-| `elang_check` | Zähler `tries` | danach verworfen — dito |
+| `elang_cues` (ohne `json`) | `elang_cue` | `number` → `sortorder` (nur als Ausgangspunkt, siehe Altlasten unten), `begin`/`end` → `starttime`/`endtime` |
+| `elang_cues.json` (Konkatenation aller `text`- und `input`-Segmente) | `elang_cue.transcript` | **korrigiert 24.07.2026:** NICHT `elang_cues.title` — das ist bereits eine mit „…" maskierte Vorschau (dieselbe Funktion wie `transcript_masker` in V2), keine Rohtranskript-Quelle. Das echte Transkript ergibt sich erst aus der geordneten Konkatenation aller Segmente in `json`. |
+| `elang_cues.json` (`type:"input"`-Segmente) | `elang_gap`, `elang_gapanswer` | eckige Klammer `[...]` im ursprünglichen Untertitel → `"help":true` (Hilfe erlaubt), geschweifte Klammer `{...}` → `"help":false` (keine Hilfe) — an einer realen Beispielinstanz verifiziert, siehe Altlasten unten |
+| `elang_users` (je Cue, je Person) | `elang_attempt` + `elang_response` | ein Versuch (`attemptnumber = 1`) je (Aktivität, Person); `elang_users.json` ist der EINZIGE der drei Lerndaten-Container mit `id_user` — nur er lässt sich einer Person zuordnen |
+| `elang_help` | **korrigiert 24.07.2026:** aggregierter Bericht-Hinweis, NICHT `hintedgaps`/`hintlevel` | enthält weder `id_user` noch Zeitstempel (bestätigt an realer Beispielinstanz UND am Quellcode, Kap. 1.2) — kann nicht personenbezogen migriert werden. `hintedgaps` je Versuch wird stattdessen aus dem `help`-Bool in `elang_users.json` abgeleitet: `help:true` → genau eine `elang_gaphint`-Stufe (Musterlösung, verifiziert keine Bestrafung, Kap. 1.2) |
+| `elang_check` | **korrigiert 24.07.2026:** aggregierter Bericht-Hinweis, NICHT `tries` | dieselbe Einschränkung wie `elang_help` — kein `id_user`. **Verifiziert (Kap. 1.2): `tries` existiert in V1 nirgends**, auch nicht in `elang_users` (hält nur den jeweils letzten Stand, keine Historie) — migrierte `elang_response.tries` wird auf `1` gesetzt, endgültig, keine weitere Quelle zu erwarten |
 
 ### 3.1 Bekannte Altlasten, die die Migration ausgleichen muss
 
-- **Fehlerhafter Gap-Zähler.** In V1 wird in `locallib.php:342` `$i` als
-  Cue-Index verwendet und in `locallib.php:381` innerhalb der Gap-Verarbeitung mit
-  `$i++` verändert. Die Cue-Nummerierung kann dadurch von der Lückenanzahl
-  vorheriger Cues abhängen. Die Migration nummeriert deshalb Cues **neu** über die
-  Startzeit und protokolliert Abweichungen zur gespeicherten `number`.
+- **Fehlerhafter Gap-Zähler — Mechanismus jetzt am Quellcode verifiziert
+  (Kap. 1.2), vorherige Beschreibung hier war ungenau.** `locallib.php:342`
+  (`foreach ($cues as $i => $elt)`) weist `$cue->number = $i + 1` **vor** der
+  inneren Lücken-Schleife zu — `number` ist dadurch nachweisbar **immer**
+  korrekt, NICHT wie zuvor vermutet abhängig von der Lückenanzahl
+  vorheriger Cues. Betroffen ist ausschließlich das globale `order`-Feld je
+  Lücke: `locallib.php:381` (`'order' => $i++`) verändert dasselbe `$i`
+  innerhalb der Lücken-Verarbeitung, doch `foreach` setzt `$i` bei der
+  nächsten Cue-Iteration ohnehin frisch aus dem Array-Schlüssel — die
+  Veränderung "überlebt" nur innerhalb desselben Cues. Am nachgereichten
+  Beispiel (Kap. 1.1) sichtbar: `order` läuft `0,1,2,3,4,5,5,6,(fehlt),8` —
+  Cue 5 und Cue 6 kollidieren auf `order:5`, `order:7` fehlt vollständig;
+  `number` blieb dabei, wie jetzt erwiesen immer, sauber `1..9`. Die
+  Migration nummeriert Lücken deshalb **neu** über die Zeichenposition
+  (`elang_cues.number` selbst darf dagegen direkt übernommen werden) und
+  protokolliert Abweichungen; `order` wird an keiner Stelle als Identität
+  übernommen.
+- **Drei verschiedene Lücken-Referenzierungsschemata — neu entdeckt
+  24.07.2026.** Dieselbe Lücke wird je nach Tabelle unterschiedlich adressiert:
+  `elang_cues.json`/`elang_check.guess`/`elang_help.guess` referenzieren über
+  den oben beschriebenen globalen (fehlerbehafteten) `order`-Zähler;
+  `elang_users.json` referenziert dieselbe Lücke dagegen **pro Cue
+  1-indiziert** (Schlüssel `"1"` für die jeweils erste Lücke des Cues,
+  unabhängig von `order`). Cues wiederum werden von `elang_check.cue`/
+  `elang_help.cue` über die fachliche `number`-Spalte referenziert, von
+  `elang_users.id_cue` dagegen über den echten Primärschlüssel `id`. Die
+  Migration muss diese drei Schemata sauber auseinanderhalten und darf sie
+  nicht vermischen.
 - **Verwaiste Antworten.** Weil jedes Speichern in V1 Cues und Antworten löschte
   und Cues neu anlegte, existieren in Beständen Antwortdatensätze ohne passenden
   Cue. Sie werden in den Bericht aufgenommen und, wenn keine Zuordnung möglich
@@ -112,6 +281,15 @@ CLI-Skript für große Installationen und Wartungsfenster.
   landen als Befund im Bericht, die Lücke bleibt erhalten.
 - **Unbegrenzte Antworttexte.** Werden auf die neue Maximallänge gekürzt; jede
   Kürzung erscheint im Bericht.
+- **Hilfestufen ohne Abstufung — verifiziert 24.07.2026 (Kap. 1.2).** V1
+  kennt pro Lücke nur ein einzelnes Bool „Hilfe benutzt" (`elang_users.json`,
+  Feld `help`) und deckt bei Nutzung die VOLLSTÄNDIGE Musterlösung auf
+  (`server.php:413-499`), nicht einen abgestuften Hinweis; Hilfe ist je Lücke
+  genau einmal nutzbar, danach mit HTTP 400 gesperrt. Eine Bestrafung gab es
+  nicht — V1 besitzt gar kein Gradebook (kein `elang_grade_item_update()`/
+  `elang_update_grades()` in `lib.php`), nur die prozentuale
+  Abschlussberechnung (Kap. 1.2). Migrierte Lücken mit `help:true` erhalten
+  deshalb genau eine `elang_gaphint`-Stufe (Typ `solution`, `penalty = 0`).
 
 ---
 
@@ -134,16 +312,63 @@ CLI-Skript für große Installationen und Wartungsfenster.
 Unabhängig von der Datenmigration muss der Restore einer `.mbz`-Datei aus einer
 V1-Installation in eine V2-Installation funktionieren (L-F13).
 
-- Die Restore-Klasse erkennt die alte Struktur an den Elementnamen der
-  Backup-XML und überführt sie über **dieselben Abbildungsregeln** wie die
-  Datenmigration.
+**Update 24.07.2026 — echte `.mbz`-Sicherung erhalten und ausgewertet.** Der
+Auftraggeber hat eine reale V1-Sicherung derselben Beispielaktivität (Kap. 1.1)
+nachgereicht. Struktur jetzt bekannt statt vermutet:
+
+- **`elang_help` und `elang_check` werden von V1 strukturell NIE gesichert.**
+  `backup_elang_stepslib.php::define_structure()` verdrahtet ausschließlich
+  `elang → cues → cue → users → user`; für Hilfe-/Check-Log gibt es keinen
+  `backup_nested_element` und keine `set_source_table()`-Zuordnung. Das ist
+  keine Lücke in dieser einen Sicherung, sondern strukturell in jeder
+  V1-`.mbz`-Datei so — der Restore-Pfad muss `elang_help`/`elang_check`
+  deshalb nie behandeln, nur der Live-Migrationspfad (direkter DB-Zugriff)
+  kennt diese Tabellen überhaupt.
+- **Erkennungsmerkmal für „das ist eine V1-Aktivität"**: `<activity
+  modulename="elang">` mit einem `<elang>`-Wurzelelement, das `<options>`
+  (JSON-Text) und `<language>` als direkte Felder trägt, verschachtelte
+  `<cues><cue>…<users><user>…` enthält, aber **kein** `<currentversionid>`,
+  `<jarothreshold>` oder `<completionfinishattempt>` — diese Felder existieren
+  nur im V2-Schema. Reicht als eindeutiges, robustes Unterscheidungsmerkmal,
+  ohne auf eine Versionsnummer angewiesen zu sein (V2 hat ohnehin noch keinen
+  eigenen Backup/Restore, `FEATURE_BACKUP_MOODLE2` ist aktuell bewusst
+  deaktiviert).
+- **ID-Remapping ist Standard-Moodle-Restore-Muster, nichts Elang-Spezifisches**
+  (`restore_elang_stepslib.php`): `elang_cue`-Alt-ID über `set_mapping()`
+  gemerkt, `id_user` über `get_mappingid('user', …)` auf die Ziel-Site
+  umgeschrieben. Die V2-Restore-Klasse kann exakt demselben Muster folgen,
+  muss aber zusätzlich pro `<cue>`/`<user>`-Element durch dieselbe
+  `v1_cue_parser`/Abbildungslogik wie die Live-Migration laufen, statt Felder
+  1:1 in die (andere) V2-Zieltabellenstruktur zu kopieren.
+- `grades.xml`/`completion.xml` der Beispielsicherung sind leer bzw. tragen
+  keine Bewertungsdaten — konsistent mit dem in Kap. 1.2 bestätigten Befund,
+  dass V1 kein Gradebook kennt.
+- Die Restore-Klasse erkennt die alte Struktur an den oben genannten
+  Elementnamen der Backup-XML und überführt sie über **dieselben
+  Abbildungsregeln** wie die Datenmigration (Kap. 3).
 - Der V1-Fehler, bei dem `backup_elang_activity_task.class.php:85` fälschlich
-  `/mod/book/index.php` kodiert, wird beim Restore toleriert und korrigiert.
+  `/mod/book/index.php` kodiert, wird beim Restore toleriert und korrigiert
+  — **jetzt am Quellcode bestätigt** (Kap. 1.2), nicht mehr nur zitiert.
 - Ebenso werden die fehlerhaften Legacy-URLs aus
-  `classes/event/report_viewed.php:121-139` (`id?id=`) ignoriert.
+  `classes/event/report_viewed.php:121-139` (`id?id=`) ignoriert — **ebenfalls
+  bestätigt**.
 - Abnahmetest: Restore einer echten V1-Sicherung erzeugt eine funktionsfähige
   V2-Aktivität mit vollständigen Cues, Lücken und — sofern in der Sicherung
-  enthalten — Lerndaten.
+  enthalten — Lerndaten. Die vorliegende Beispielsicherung eignet sich als
+  erster, realer Testfall dafür, auch wenn sie inhaltlich dieselbe kleine
+  Aktivität wie Kap. 1.1 ist, nicht neue Diversität liefert.
+
+**Hinweis zur Ablage:** Die vollständige `.mbz`-Datei (61 MB, überwiegend
+Inhalt anderer Aktivitäten desselben Kurses) wurde bewusst **nicht** ins
+Repository übernommen — genau das Gewicht-Problem, das P0-10 der technischen
+Review schon für `.git` bemängelt hatte, gilt für eine binäre Testsicherung
+erst recht. Übernommen wurde nur der elang-relevante Ausschnitt
+(`activities/elang_2/elang.xml`, ca. 3 KB) als
+`tests/fixtures/v1_sample_backup/elang.xml` — nützlich als Referenz für die
+oben dokumentierte Backup-XML-Struktur, aber **kein** Ersatz für einen
+echten Restore-Integrationstest. Ein solcher Test bräuchte die vollständige
+`.mbz` weiterhin außerhalb des Repositories (z. B. erneut vom Auftraggeber
+bereitgestellt, wenn der Restore-Pfad tatsächlich gebaut wird).
 
 ---
 

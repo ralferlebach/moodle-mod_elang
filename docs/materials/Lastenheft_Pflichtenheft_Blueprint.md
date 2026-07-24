@@ -358,6 +358,10 @@ elang                      Aktivitätsinstanz  [Stand 2.0.0-alpha.2: implementie
  │                         Fremdschlüssel, um einen zirkulären DDL-Verweis mit
  │                         elang_version.elangid zu vermeiden (Anwendungslogik
  │                         statt DB-Constraint)
+ ├─ jarothreshold          Jaro-Ähnlichkeitsschwellwert (0..1) für den
+ │                         wordrecognized-Algorithmus, Default 1 (keine Toleranz
+ │                         über die reduzierte Form hinaus) [implementiert seit
+ │                         2.0.0-alpha.9, siehe Kap. 10.4]
  ├─ mediasource            Datei | externe URL                    [offen]
  ├─ maxattempts, grademethod, grade                                [offen]
  ├─ hintpolicy, hintpenalty                                        [offen]
@@ -585,7 +589,7 @@ gewählt:
 | Algorithmus | Bezeichnung | Verhalten |
 | --- | --- | --- |
 | `exact` | „komplett-richtig" | Zeichengenauer Treffer — Diakritika, Groß-/Kleinschreibung und Apostrophvariante müssen stimmen. Unicode-Normalform wird technisch kanonisiert (NFC), das ist keine Toleranz, sondern Voraussetzung dafür, dass zwei optisch identische Zeichenketten überhaupt vergleichbar sind. |
-| `wordrecognized` | „Wort erkannt" | Ein Treffer zählt, sobald Antwort und Lösung auf dieselbe Grundform reduziert werden — kleingeschrieben, mit auf Basisbuchstaben reduzierten oder transliterierten Diakritika, mit vereinheitlichten Apostrophvarianten. Die Reduktion selbst ist schriftsystemabhängig (Kap. 10.2). |
+| `wordrecognized` | „Wort erkannt" | Ein Treffer zählt, sobald Antwort und Lösung auf dieselbe Grundform reduziert werden — kleingeschrieben, mit auf Basisbuchstaben reduzierten oder transliterierten Diakritika, mit vereinheitlichten Apostrophvarianten. Die Reduktion selbst ist schriftsystemabhängig (Kap. 10.2). Führt das allein zu keinem Treffer, zählt zusätzlich eine Jaro-Ähnlichkeit der beiden reduzierten Formen ≥ `elang.jarothreshold` (Kap. 10.4) als Treffer. |
 
 **`resultstate` vs. `accepted` (Kap. 6.1):** Der Evaluator ermittelt immer die
 feinstmögliche Klassifizierung (`exact` > `wordrecognized` > `incorrect` >
@@ -664,17 +668,65 @@ DoS-Risiko: harte Obergrenze der geprüften Antwortlänge
 eigentliche Längenbegrenzung und Musterprüfung beim Speichern bleibt Aufgabe der
 noch zu bauenden Autoren-API (Phase 4).
 
-### 10.4 Toleranzmaß-Herkunft
+### 10.4 Toleranzmaß-Herkunft [Jaro-Integration implementiert seit 2.0.0-alpha.9]
 
-Die V1-Semantik (Jaro-Distanz als kontinuierliches Ähnlichkeitsmaß) wird **nicht**
-fortgeführt. An ihre Stelle tritt die oben beschriebene binäre
-Zwei-Algorithmen-Klassifizierung, weil sie Autor:innen eine klare, erklärbare
-Entscheidung abverlangt („wie streng muss diese Lücke sein") statt eines
-schwer vorhersagbaren Ähnlichkeitsschwellwerts. Eingabelänge ist serverseitig hart
-begrenzt (`elang_gap.maxlength`, defensiv zusätzlich in `answer_evaluator`);
-Strings werden nicht wiederholt mit `mb_substr()` durchlaufen; keine globale
-`setlocale()`-Umschaltung — Normalisierung läuft ausschließlich über
-`Normalizer`/eigene Tabellen innerhalb des jeweiligen `script_handler`.
+**Historie dieser Entscheidung, da sie einmal umgekehrt wurde:** Bis
+2.0.0-alpha.8 war hier festgehalten, dass die V1-Semantik (Jaro-Distanz als
+kontinuierliches Ähnlichkeitsmaß) nicht fortgeführt wird, zugunsten einer rein
+binären Zwei-Algorithmen-Klassifizierung. Nach Prüfung eines externen
+technischen Reviews und Rücksprache mit dem Auftraggeber (Sitzung
+2026-07-24) wurde diese Entscheidung revidiert: Jaro-Ähnlichkeit ist jetzt
+**Teil** von `wordrecognized`, nicht dessen Ersatz, und gilt für **alle**
+Aktivitäten, nicht nur migrierte.
+
+**Aktuelles Verhalten:** `wordrecognized` prüft zuerst wie bisher, ob die nach
+Kap. 10.2 reduzierten Formen von Antwort und Lösung identisch sind. Ist das
+nicht der Fall, gilt die Antwort zusätzlich als `wordrecognized`, wenn die
+Jaro-Ähnlichkeit (nicht Jaro-Winkler — kein Bonus für gemeinsame Präfixe)
+zwischen den beiden reduzierten Formen den je Aktivität konfigurierbaren
+Schwellwert `elang.jarothreshold` (0..1) erreicht oder überschreitet. Der
+Standardwert `1` macht diesen Zusatzpfad de facto inaktiv (eine
+Jaro-Ähnlichkeit von 1 ist nur bei identischen Zeichenketten erreichbar, was
+der erste Vergleich ohnehin schon abdeckt) — jede vor 2.0.0-alpha.9 angelegte
+Aktivität verhält sich dadurch unverändert, bis jemand den Schwellwert aktiv
+absenkt.
+
+`exact` bleibt von dieser Änderung unberührt: ein zeichengenauer Treffer ist
+weiterhin die einzige Bedingung dafür.
+
+**Herkunft aus V1:** `elang.jarothreshold` entspricht fachlich `elang.options.
+jaroDistance` aus Version 1 (siehe Migrationsdokument, Kap. 3) — ein Aktivität
+mit V1-Wert `jaroDistance: "1"` migriert unverändert zum Default `1`, was dem
+V1-Verhalten „keine Toleranz über die Normalisierung hinaus" entspricht, sofern
+V1 bei diesem Wert tatsächlich so strikt war (siehe offener Punkt am Ende
+dieses Abschnitts).
+
+**Implementierung:** `answer_evaluator::jaro_similarity()`
+(`classes/local/grading/answer_evaluator.php`) berechnet die Ähnlichkeit über
+Unicode-Codepoints (nicht Bytes), damit mehrbyte-codierte Zeichen als eine
+Einheit verglichen werden statt an Byte-Grenzen aufgebrochen zu werden.
+Referenzfälle (u. a. der Lehrbuch-Fall MARTHA/MARHTA ≈ 0,944) sind in
+`tests/local/grading/answer_evaluator_test.php` festgeschrieben.
+
+**Verifiziert 24.07.2026 (statt offener Punkt):** `jaroDistance` ist am
+tatsächlichen V1-Quellcode geprüft worden (`server.php:339`, Formularvalidierung
+`mod_form.php:551-554`, siehe `Migration_V1_V2.md` Kap. 1.2) — exakt der
+0..1-Schwellwert, den `elang.jarothreshold` bereits abbildet, mit identischer
+`>=`-Vergleichsrichtung und demselben Default `1`. Eine Restunschärfe bleibt:
+V1s eigene `jaro()`-Funktion verwendet ein anderes Vergleichsfenster als
+`answer_evaluator::jaro_similarity()` (Details ebenda), sodass derselbe
+Schwellwert bei abgesenkten Werten nicht zwingend zum selben Ergebnis führt wie
+in V1 — bei `jarothreshold = 1` (Migrationsdefault) ist das irrelevant.
+
+Eingabelänge ist serverseitig hart begrenzt (`elang_gap.maxlength`, defensiv
+zusätzlich in `answer_evaluator`); keine globale `setlocale()`-Umschaltung —
+Normalisierung läuft ausschließlich über `Normalizer`/eigene Tabellen innerhalb
+des jeweiligen `script_handler`. Die Jaro-Berechnung selbst iteriert zwangsläufig
+zeichenweise über beide (längenbegrenzte) Zeichenketten — das ist algorithmisch
+unvermeidbar und kein Verstoß gegen den Grundsatz „keine wiederholten
+`mb_substr()`-Läufe", der sich auf vermeidbare, unbegrenzte Wiederholung
+bezieht, nicht auf einen einmaligen, in der Eingabelänge beschränkten
+Vergleich.
 
 ### 10.5 Abschluss [Aggregatpflege und Completion-Anbindung implementiert seit 2.0.0-alpha.8]
 
@@ -700,7 +752,12 @@ Seit 2.0.0-alpha.8: `classes/completion/custom_completion.php` implementiert
 und eine Bestehensnote-Bedingung liefert Moodle-Core bereits automatisch, sobald
 `FEATURE_COMPLETION_TRACKS_VIEWS` bzw. `FEATURE_GRADE_HAS_GRADE` gesetzt sind.
 Was noch fehlt: eine maximale Versuchsanzahl (`elang` hat das Feld noch nicht,
-betrifft auch Kap. 10.6).
+betrifft auch Kap. 10.6) sowie die beiden prozentbasierten V1-Completion-Regeln
+(`completionansweredpercent`/`completioncorrectpercent`, vgl. L-F9) — deren
+genaue V1-Formel jetzt am Quellcode verifiziert und in `Migration_V1_V2.md`
+Kap. 1.2 dokumentiert ist, einschließlich einer beim Nachbau zu entscheidenden
+Abweichung (V1 zählt einen reinen Hilfe-Abruf zu „bearbeitet", die aktuelle
+V2-Aggregatpflege nicht).
 
 ### 10.6 Gradebook [Grundfunktion implementiert seit 2.0.0-alpha.7, konfigurierbare Wertungsmethode offen]
 

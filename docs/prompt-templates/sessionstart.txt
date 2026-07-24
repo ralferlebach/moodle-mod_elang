@@ -183,7 +183,12 @@ Schlüssel-Entwurfsentscheidungen (nicht verändern ohne explizite Diskussion):
       getrennte Felder. Schriftsystemabhängige Reduktion läuft über
       script_handler_manager -> elangscript-Subplugin oder latin_script_handler
       als Default. Regex-Antwortvarianten sind ein eigener Mechanismus (zählen
-      bei Treffer immer als exact), keine dritte Toleranzstufe.
+      bei Treffer immer als exact), keine dritte Toleranzstufe. Seit
+      2.0.0-alpha.9: wordrecognized akzeptiert zusätzlich eine Jaro-Ähnlichkeit
+      der reduzierten Formen >= elang.jarothreshold (Default 1, migriert aus
+      V1s jaroDistance-Option) — Details und Historie dieser Kehrtwende in
+      Lastenheft_Pflichtenheft_Blueprint.md Kap. 10.4, NICHT stillschweigend
+      wieder auf "kein Jaro" zurückändern.
 
 Bekannte Stolperfallen (Coding-Standards und Testumgebung):
   - Lang-Dateien: alphabetisch sortiert, keine Kommentar-Trennzeilen

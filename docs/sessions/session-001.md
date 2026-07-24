@@ -1089,3 +1089,130 @@ ohne DB-Zugriff.
 
 Kein Versionsbump — reine Testkorrektur.
 
+---
+
+## Sessionabschluss
+
+**Datum:** 23. Juli 2026
+**Umfang:** acht inhaltliche Schritte plus mehrere reale Korrekturrunden,
+alles in einer einzigen, durchgehenden Sitzung (Session 001).
+
+### Was wurde erledigt?
+
+Vom Infrastruktur-Skelett bis zu einer real gegen Moodle 4.5.12 geprüften,
+funktional vollständigen Version 2.0.0-alpha.8:
+
+- **Schritt 1:** Infrastruktur-Skelett, CI-Pipeline, Blueprint/Lastenheft.
+- **Schritt 2:** Versioniertes Datenmodell (`elang_version`, `elang_cue`,
+  `elang_gap`, `elang_gapanswer`, `elang_gaphint`, `elang_attempt`,
+  `elang_response`), Zwei-Algorithmen-Bewertungsengine mit
+  `elangscript`-Subplugin-Architektur.
+- **Schritt 3:** Domänenschicht (`version_manager`, `attempt_manager`).
+- **Schritt 4:** Schreib-API (`start_attempt`, `submit_response`,
+  `finish_attempt`) + vollständiger Privacy-Provider.
+- **Schritt 5:** Lese-API (`get_exercise`, `get_cues`, `get_attempt_state`)
+  + Transkript-Maskierung (`transcript_masker`) — verhindert, dass Lösungen
+  je an einen Player durchgereicht werden.
+- **Schritt 6:** Hilfestufen (`request_hint`) mit hint-abzugsbewusster
+  Neubewertung.
+- **Schritt 7:** Gradebook-Grundfunktion (`elang_grade_item_update()`,
+  `elang_update_grades()`), gespeist aus der höchsten abgeschlossenen
+  Versuchspunktzahl.
+- **Schritt 8:** Custom Completion (`completionfinishattempt`), inklusive
+  des nachträglich ergänzten `elang.completionfinishattempt`-Felds und
+  `elang_get_coursemodule_info()`-Callbacks, ohne die die Regel nie
+  funktioniert hätte.
+
+**Damit ist der aktiv entwickelbare Umfang von Phase 2 vollständig und real
+gegen eine echte Moodle-4.5.12-Instanz bestätigt** (120 PHPUnit-Tests, 247
+Assertions, zuletzt 0 Fehler; `phpcs` 0/0; `phpcpd` „No clones found").
+
+### Entscheidungen getroffen (sitzungsweit, Auswahl der wichtigsten)
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Bewertung | genau zwei Algorithmen (`exact`, `wordrecognized`), `resultstate` getrennt von `accepted` | von Anfang an festgelegt (Schritt 1), nie aufgeweicht |
+| Lösungsschutz | Transkripte werden IMMER maskiert, Lücken geben nie `charstart`/`charlength` preis | verhindert sowohl direkte Lösungslecks als auch indirekte (Wortlänge als kostenloser Hinweis) |
+| Hilfestufen | strikt aufsteigend, Bestrafung nicht additiv über Stufen, Neuberechnung bei jeder Aktion statt Fixierung bei Abgabe | einfach zu autorisieren, rückwirkend korrekt bei nachträglicher Hilfeanfrage |
+| Gradebook-Methode | fest „höchster abgeschlossener Versuch", nicht konfigurierbar | bewusste, dokumentierte Vereinfachung für den ersten Schritt, keine Auslassung |
+| Custom Completion | genau eine eigene Regel (`completionfinishattempt`) | alles andere liefert Moodle-Core bereits automatisch |
+| Datenbankschema | KEY-Feld == INDEX-Feld ist immer eine Kollision, JEDE DDL-Änderung braucht `install.xml` UND `upgrade.php` synchron | aus einem realen Fund in Schritt 6 gelernt, seither Standardpraxis |
+
+### Entwurfsentscheidungen geändert / zurückgestellt
+
+Keine der neun ursprünglichen Schlüssel-Entwurfsentscheidungen aus Schritt 1
+wurde gebrochen. Eine Planungsabweichung dokumentiert (Funktionsname
+`mod_elang_submit_response` statt `submit_responses`, siehe Schritt 4).
+
+### Reale Funde dieser Sitzung — eine ehrliche Bilanz
+
+Fünf inhaltliche Schritte wurden gegen eine echte Moodle-Instanz getestet;
+jeder einzelne hat mindestens einen realen Fund geliefert:
+
+1. **Schritt 3:** fünf reale Funde (Trait-Ladereihenfolge, PHPUnit-9-Typstrenge, XMLDB-`DEFAULT=""`, u. a.).
+2. **Schritt 4:** drei Korrekturrunden (u. a. ein eigener CI-Fix, der selbst kaputt war).
+3. **Schritt 5:** zwei falsche Testerwartungen (`require_login_exception` statt `required_capability_exception` bei `:view`-Capability-Tests).
+4. **Schritt 6:** eine KEY/INDEX-Schemakollision, die seit Schritt 2 unbemerkt im Schema lag — nie zuvor über einen echten Admin-UI-Upgrade getestet, nur über PHPUnit-Frischinstallationen.
+5. **Schritt 8:** ein komplett fehlendes Produktivteil (Schema-Feld + `get_coursemodule_info()`-Callback), das die neue Completion-Regel von Anfang an funktionsunfähig gemacht hätte — über zwei Korrekturrunden hinweg vollständig behoben.
+
+Jeder dieser Funde ist im CHANGELOG mit Root-Cause-Analyse dokumentiert und
+hat mindestens eine Lektion in `sessionstart.txt` hinterlassen.
+
+### Offene Punkte für die nächste Session
+
+- [ ] Phase 3 (Lernendenoberfläche/Player) — die API dafür ist vollständig
+- [ ] `elang.answermaxlength`
+- [ ] `classes/courseformat/overview.php`
+- [ ] Migration V1 → V2 — separat blockiert (V1-Datensimulator, braucht
+      Eingabe vom Nutzer)
+- [ ] `mod_form.php`s Completion-Oberfläche wurde bisher nur über direkte
+      Generator-/Instanzdaten getestet, nie über eine echte Formularabgabe
+      im Browser
+
+### Finaler Testlauf-Stand
+
+```
+PHPUnit: 120 Tests, 247 Assertions, 0 Fehler (Moodle 4.5.12, PHP 8.2.30,
+         MariaDB 10.11.14)
+PHPCS:   0 Fehler, 0 Warnungen (moodle-Standard)
+PHPCPD:  No clones found
+PHP-Lint: fehlerfrei
+```
+
+### Verzeichnis-Snapshot (Stand Sessionende)
+
+```
+mod_elang/
+├── classes/
+│   ├── completion/custom_completion.php
+│   ├── event/ (Skelett aus Schritt 1)
+│   ├── external/ (7 Functions: get_exercise, get_cues, get_attempt_state,
+│   │              start_attempt, submit_response, finish_attempt, request_hint,
+│   │              + attempt_helper-Trait)
+│   ├── local/domain/ (version_manager, attempt_manager)
+│   ├── local/grading/ (answer_evaluator, latin_script_handler,
+│   │                   script_handler_manager, grading_result)
+│   ├── plugininfo/elangscript.php
+│   └── privacy/provider.php
+├── db/ (install.xml, upgrade.php [4 Savepoints], services.php,
+│        subplugins.json, access.php)
+├── docs/materials/ (Blueprint, Blueprint_kompakt, Migration_V1_V2)
+├── docs/sessions/session-001.md (diese Datei)
+├── docs/prompt-templates/ (sessionstart.txt, sessionende.txt)
+├── lang/{en,de}/elang.php
+├── tests/ (17 Testdateien: exercise_schema, lib, completion/,
+│           external/ [7], local/domain/ [3], local/grading/ [3],
+│           privacy/, generator/, fixtures/)
+├── lib.php, mod_form.php, version.php, view.php
+└── CHANGELOG.md
+```
+
+52 PHP-Dateien insgesamt (ohne `tools/`), davon 17 Testdateien.
+
+### Für die nächste Session in sessionstart.txt
+
+Bereits eingepflegt (siehe Abschnitt D „Aktueller Entwicklungsstand" und
+„Zuletzt abgeschlossen"/„Als nächstes geplant" oben in dieser Datei) — keine
+weitere Übertragung nötig, `sessionstart.txt` ist auf dem aktuellen Stand
+dieser Sitzung.
+

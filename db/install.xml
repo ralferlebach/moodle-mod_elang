@@ -15,6 +15,7 @@
         <FIELD NAME="currentversionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Points at the published elang_version currently shown to learners. Deliberately NOT a declared foreign key: elang_version.elangid already references elang.id, and a second, opposite-direction foreign key would create a circular DDL dependency. The relationship is enforced in application code (classes/local/domain/version_manager.php)."/>
         <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="100" SEQUENCE="false" COMMENT="Standard Moodle grade/gradetype field: positive = maximum points, 0 = ungraded, negative = -scaleid. Read by elang_grade_item_update(); the grade itself is always computed from elang_attempt.score (highest finished attempt), never entered manually."/>
         <FIELD NAME="completionfinishattempt" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether the completionfinishattempt custom completion rule (classes/completion/custom_completion.php) is enabled for this instance. Read by elang_get_coursemodule_info() into cm_info->customdata['customcompletionrules'] — without that, core_completion\activity_custom_completion::validate_rule() always rejects the rule as not in use, regardless of get_state()'s own logic."/>
+        <FIELD NAME="jarothreshold" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Minimum Jaro similarity (0..1) between two reduced forms for the wordrecognized grading algorithm to accept a non-identical reduction as a match (see classes/local/grading/answer_evaluator.php). 1 requires an identical reduction, i.e. no Jaro-based fuzziness. Migrated from version 1's elang.options.jaroDistance where present."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -33,7 +34,7 @@
         <FIELD NAME="elangid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="versionnumber" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Sequential per elangid, starting at 1"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="draft" SEQUENCE="false" COMMENT="draft | published | archived"/>
-        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-1 over the normalised version content; cache key for rendered worksheets and player payloads. No schema-level DEFAULT, same rationale as elang.language above."/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-256 over the normalised version content; cache key for rendered worksheets and player payloads. No schema-level DEFAULT, same rationale as elang.language above."/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

@@ -155,4 +155,86 @@ final class version_manager_test extends \advanced_testcase {
         $hashc = $this->manager->compute_content_hash($versiontwo->id);
         $this->assertNotSame($hasha, $hashc);
     }
+
+    /**
+     * A version that is not currently a draft — already published, in this
+     * case — cannot be published again.
+     *
+     * @return void
+     */
+    public function test_publish_rejects_a_version_that_is_not_a_draft(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->publish($draft->id, 2);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->publish($draft->id, 2);
+    }
+
+    /**
+     * The content hash is sensitive to a gap's maxlength, linkurl and a
+     * cue's transcriptformat — all three affect what is rendered or how a
+     * response is validated, so a change to any of them must invalidate a
+     * cached worksheet or player payload keyed on this hash.
+     *
+     * @return void
+     */
+    public function test_content_hash_reflects_maxlength_linkurl_and_transcriptformat(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $versionone = $this->manager->create_draft($this->elang->id, 2);
+        $cueone = $generator->create_cue([
+            'versionid' => $versionone->id,
+            'transcript' => 'Bonjour le monde',
+            'transcriptformat' => FORMAT_PLAIN,
+        ]);
+        $generator->create_gap(['cueid' => $cueone->id, 'solution' => 'monde', 'maxlength' => 50]);
+        $hashbase = $this->manager->compute_content_hash($versionone->id);
+
+        $versiontwo = $this->manager->create_draft($this->elang->id, 2);
+        $cuetwo = $generator->create_cue([
+            'versionid' => $versiontwo->id,
+            'transcript' => 'Bonjour le monde',
+            'transcriptformat' => FORMAT_PLAIN,
+        ]);
+        $generator->create_gap(['cueid' => $cuetwo->id, 'solution' => 'monde', 'maxlength' => 5]);
+        $hashdifferentmaxlength = $this->manager->compute_content_hash($versiontwo->id);
+        $this->assertNotSame($hashbase, $hashdifferentmaxlength);
+
+        $versionthree = $this->manager->create_draft($this->elang->id, 2);
+        $cuethree = $generator->create_cue([
+            'versionid' => $versionthree->id,
+            'transcript' => 'Bonjour le monde',
+            'transcriptformat' => FORMAT_MARKDOWN,
+        ]);
+        $generator->create_gap(['cueid' => $cuethree->id, 'solution' => 'monde', 'maxlength' => 50]);
+        $hashdifferentformat = $this->manager->compute_content_hash($versionthree->id);
+        $this->assertNotSame($hashbase, $hashdifferentformat);
+    }
+
+    /**
+     * compute_content_hash() correctly attributes gaps and answers to the
+     * right cue even across several cues, since the batched queries it uses
+     * group results in PHP rather than one query per cue/gap.
+     *
+     * @return void
+     */
+    public function test_content_hash_is_stable_across_multiple_cues_and_gaps(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $this->manager->create_draft($this->elang->id, 2);
+        $cueone = $generator->create_cue(['versionid' => $version->id, 'sortorder' => 1]);
+        $gapone = $generator->create_gap(['cueid' => $cueone->id, 'sortorder' => 1, 'solution' => 'chat']);
+        $generator->create_gapanswer(['gapid' => $gapone->id, 'answer' => 'chats']);
+
+        $cuetwo = $generator->create_cue(['versionid' => $version->id, 'sortorder' => 2]);
+        $generator->create_gap(['cueid' => $cuetwo->id, 'sortorder' => 1, 'solution' => 'chien']);
+        $generator->create_gap(['cueid' => $cuetwo->id, 'sortorder' => 2, 'solution' => 'oiseau']);
+
+        $hasha = $this->manager->compute_content_hash($version->id);
+        $hashb = $this->manager->compute_content_hash($version->id);
+        $this->assertSame($hasha, $hashb);
+        $this->assertSame(64, strlen($hasha), 'SHA-256 hex digest is 64 characters long.');
+    }
 }

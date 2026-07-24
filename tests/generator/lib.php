@@ -74,7 +74,7 @@ class mod_elang_generator extends testing_module_generator {
             $record->status = 'draft';
         }
         if (!isset($record->contenthash)) {
-            $record->contenthash = sha1(random_string(20));
+            $record->contenthash = hash('sha256', random_string(20));
         }
         if (!isset($record->usermodified)) {
             $record->usermodified = 2;

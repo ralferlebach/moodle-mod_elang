@@ -29,16 +29,25 @@ namespace mod_elang\local\grading;
  * - ALGORITHM_WORDRECOGNIZED ("Wort erkannt"): a match counts as correct once
  *   the response reduces to the same base form as the solution — case-folded,
  *   with diacritics stripped or transliterated to Latin base letters, and with
- *   equivalent punctuation such as apostrophe variants unified. The reduction
- *   itself is script-specific (see script_handler, script_handler_manager);
- *   for scripts that do not reduce to Latin letters this way, an elangscript
- *   subplugin supplies the transliteration.
+ *   equivalent punctuation such as apostrophe variants unified — OR, failing
+ *   that exact-after-reduction comparison, once the Jaro similarity between
+ *   the two reduced forms reaches the activity's configured $jarothreshold
+ *   (elang.jarothreshold, 0..1, migrated from version 1's jaroDistance
+ *   setting; 1.0 — the default — requires the reduced forms to be identical,
+ *   which reproduces the pre-Jaro behaviour exactly). The reduction itself is
+ *   script-specific (see script_handler, script_handler_manager); for scripts
+ *   that do not reduce to Latin letters this way, an elangscript subplugin
+ *   supplies the transliteration.
  *
  * Regardless of which algorithm a gap is configured with, the evaluator always
  * determines the finest classification it can (see grading_result): an exact
  * match against a gap configured as word-recognised is still reported as
  * RESULTSTATE_EXACT, so reports can distinguish precision from mere
- * correctness even when the gap itself is lenient.
+ * correctness even when the gap itself is lenient. A Jaro-only match (reduced
+ * forms not identical, but similar enough to clear the threshold) is reported
+ * as RESULTSTATE_WORDRECOGNIZED, the same as an identical-after-reduction
+ * match — the two are not distinguished in resultstate, only in whether a
+ * literal reduced-form match was found first.
  *
  * Regular-expression answer variants (elang_gapanswer.isregex) are matched
  * with preg_match and, on a match, are always treated as an exact result:
@@ -62,8 +71,23 @@ class answer_evaluator {
     /** @var string Gap configured to accept a word-recognised match as correct. */
     public const ALGORITHM_WORDRECOGNIZED = 'wordrecognized';
 
+    /** @var float Default Jaro-similarity threshold: 1.0 requires the reduced forms to be identical (no fuzziness). */
+    public const DEFAULT_JARO_THRESHOLD = 1.0;
+
     /** @var int Defence-in-depth cap on input handed to preg_match; the primary length limit is enforced by the caller. */
     private const MAX_REGEX_INPUT_LENGTH = 1000;
+
+    /**
+     * A control character (0x01) used as the PCRE delimiter for stored regex
+     * answer variants. Author-supplied patterns are free text and may
+     * legitimately contain '#', '/' or any other printable delimiter, so a
+     * printable delimiter risks being swallowed by the pattern itself; a
+     * control character that can never appear in an intentional pattern
+     * cannot collide.
+     *
+     * @var string
+     */
+    private const REGEX_DELIMITER = "\x01";
 
     /** @var script_handler_manager */
     private $handlermanager;
@@ -85,6 +109,9 @@ class answer_evaluator {
      * @param \stdClass[] $gapanswers Records with ->id, ->answer, ->isregex (elang_gapanswer rows for this gap)
      * @param string $language Activity language/script code (elang.language)
      * @param string $responsetext The learner's raw response
+     * @param float $jarothreshold Minimum Jaro similarity (0..1) between reduced forms for a
+     *        wordrecognised-algorithm gap to accept a non-identical reduction as a match
+     *        (elang.jarothreshold); 1.0 (the default) requires an identical reduction
      * @return grading_result The evaluation outcome
      */
     public function evaluate(
@@ -92,7 +119,8 @@ class answer_evaluator {
         string $gradingalgorithm,
         array $gapanswers,
         string $language,
-        string $responsetext
+        string $responsetext,
+        float $jarothreshold = self::DEFAULT_JARO_THRESHOLD
     ): grading_result {
         if (trim($responsetext) === '') {
             return new grading_result(grading_result::RESULTSTATE_EMPTY, false, null);
@@ -127,8 +155,7 @@ class answer_evaluator {
 
             if (
                 $best === grading_result::RESULTSTATE_INCORRECT
-                    && $handler->normalise_for_word_recognised($responsetext)
-                        === $handler->normalise_for_word_recognised($candidate->text)
+                    && $this->is_word_recognised_match($handler, $responsetext, $candidate->text, $jarothreshold)
             ) {
                 $best = grading_result::RESULTSTATE_WORDRECOGNIZED;
                 $bestcandidateid = $candidate->id;
@@ -138,6 +165,125 @@ class answer_evaluator {
         $accepted = $this->is_accepted($best, $gradingalgorithm);
 
         return new grading_result($best, $accepted, $bestcandidateid);
+    }
+
+    /**
+     * Decide whether two texts count as a word-recognised match.
+     *
+     * A match is either an identical reduced form (the pre-Jaro behaviour,
+     * always reached first since it is the strictest possible passing case),
+     * or, failing that, a Jaro similarity between the two reduced forms that
+     * reaches $jarothreshold. A threshold of 1.0 makes the Jaro branch
+     * unreachable (similarity 1.0 already implies the strings are identical),
+     * so callers that never configure a threshold see exactly the previous
+     * behaviour.
+     *
+     * @param script_handler $handler The script handler for the activity's language
+     * @param string $responsetext The learner's raw response
+     * @param string $candidatetext The candidate solution or answer variant
+     * @param float $jarothreshold Minimum Jaro similarity (0..1) to accept a non-identical reduction
+     * @return bool Whether this counts as a word-recognised match
+     */
+    private function is_word_recognised_match(
+        script_handler $handler,
+        string $responsetext,
+        string $candidatetext,
+        float $jarothreshold
+    ): bool {
+        $reducedresponse = $handler->normalise_for_word_recognised($responsetext);
+        $reducedcandidate = $handler->normalise_for_word_recognised($candidatetext);
+
+        if ($reducedresponse === $reducedcandidate) {
+            return true;
+        }
+
+        if ($jarothreshold >= 1.0) {
+            // A threshold of 1.0 can only ever be satisfied by an identical
+            // reduction, already handled above — skip the (pointless)
+            // similarity computation entirely.
+            return false;
+        }
+
+        return self::jaro_similarity($reducedresponse, $reducedcandidate) >= $jarothreshold;
+    }
+
+    /**
+     * Compute the Jaro similarity between two strings.
+     *
+     * Jaro similarity (not Jaro-Winkler: no extra weight for a shared
+     * prefix) is a value between 0.0 (no similarity) and 1.0 (identical),
+     * based on the number of matching characters within a bounded window and
+     * the number of transpositions among them. Operates on Unicode
+     * codepoints, not bytes, so multi-byte characters are compared as single
+     * units rather than being split across byte boundaries.
+     *
+     * @param string $a First string, already reduced/normalised by the caller
+     * @param string $b Second string, already reduced/normalised by the caller
+     * @return float Jaro similarity, 0.0 to 1.0
+     */
+    public static function jaro_similarity(string $a, string $b): float {
+        if ($a === $b) {
+            return 1.0;
+        }
+
+        $achars = preg_split('//u', $a, -1, PREG_SPLIT_NO_EMPTY);
+        $bchars = preg_split('//u', $b, -1, PREG_SPLIT_NO_EMPTY);
+        $alen = count($achars);
+        $blen = count($bchars);
+
+        if ($alen === 0 || $blen === 0) {
+            return 0.0;
+        }
+
+        $matchdistance = intdiv(max($alen, $blen), 2) - 1;
+        if ($matchdistance < 0) {
+            $matchdistance = 0;
+        }
+
+        $amatched = array_fill(0, $alen, false);
+        $bmatched = array_fill(0, $blen, false);
+        $matches = 0;
+
+        for ($i = 0; $i < $alen; $i++) {
+            $start = max(0, $i - $matchdistance);
+            $end = min($i + $matchdistance + 1, $blen);
+
+            for ($j = $start; $j < $end; $j++) {
+                if ($bmatched[$j] || $achars[$i] !== $bchars[$j]) {
+                    continue;
+                }
+                $amatched[$i] = true;
+                $bmatched[$j] = true;
+                $matches++;
+                break;
+            }
+        }
+
+        if ($matches === 0) {
+            return 0.0;
+        }
+
+        $transpositions = 0;
+        $bpointer = 0;
+        for ($i = 0; $i < $alen; $i++) {
+            if (!$amatched[$i]) {
+                continue;
+            }
+            while (!$bmatched[$bpointer]) {
+                $bpointer++;
+            }
+            if ($achars[$i] !== $bchars[$bpointer]) {
+                $transpositions++;
+            }
+            $bpointer++;
+        }
+        $transpositions = intdiv($transpositions, 2);
+
+        return (
+            ($matches / $alen)
+            + ($matches / $blen)
+            + (($matches - $transpositions) / $matches)
+        ) / 3;
     }
 
     /**
@@ -188,16 +334,34 @@ class answer_evaluator {
     /**
      * Match a response against a regular-expression candidate, failing safe.
      *
+     * Uses a control-character delimiter (see REGEX_DELIMITER) so that a
+     * stored pattern containing '#', '/' or any other printable character
+     * can never be misread as the end of the pattern. A pattern that fails
+     * to compile is treated as "no match" for this candidate rather than
+     * aborting the whole evaluation — an author error in one answer variant
+     * must not make every other variant (or the plain solution) unusable —
+     * but is reported through debugging() rather than silently swallowed, so
+     * it is visible in logs and during development instead of only
+     * surfacing as a confusing "always wrong" gap.
+     *
      * @param string $pattern The stored pattern (without PCRE delimiters)
      * @param string $responsetext The learner's raw response
      * @return bool Whether the pattern matched
      */
     private function matches_regex(string $pattern, string $responsetext): bool {
-        if (mb_strlen($responsetext, 'UTF-8') > self::MAX_REGEX_INPUT_LENGTH) {
+        if (\core_text::strlen($responsetext) > self::MAX_REGEX_INPUT_LENGTH) {
             return false;
         }
 
-        $result = @preg_match('#' . $pattern . '#u', $responsetext);
+        $result = @preg_match(self::REGEX_DELIMITER . $pattern . self::REGEX_DELIMITER . 'u', $responsetext);
+
+        if ($result === false) {
+            debugging(
+                'mod_elang: invalid regex answer variant could not be compiled: ' . preg_last_error_msg(),
+                DEBUG_DEVELOPER
+            );
+            return false;
+        }
 
         return $result === 1;
     }

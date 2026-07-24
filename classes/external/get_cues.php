@@ -116,14 +116,28 @@ class get_cues extends external_api {
             $limit
         );
 
+        // Load every gap for this page of cues in one query instead of one
+        // query per cue — with a page of up to MAX_LIMIT cues, the previous
+        // per-cue query pattern meant up to MAX_LIMIT + 1 database round trips
+        // for what is otherwise a single, boundedly-sized page of content.
+        $gaprecordsbycue = [];
+        if (!empty($cuerecords)) {
+            [$cueinsql, $cueinparams] = $DB->get_in_or_equal(array_keys($cuerecords));
+            $allgaprecords = $DB->get_records_select(
+                'elang_gap',
+                "cueid $cueinsql",
+                $cueinparams,
+                'cueid ASC, sortorder ASC',
+                'id, cueid, gapkey, sortorder, charstart, charlength, gradingalgorithm, maxlength, linkurl'
+            );
+            foreach ($allgaprecords as $allgaprecord) {
+                $gaprecordsbycue[$allgaprecord->cueid][] = $allgaprecord;
+            }
+        }
+
         $cues = [];
         foreach ($cuerecords as $cuerecord) {
-            $gaprecords = $DB->get_records(
-                'elang_gap',
-                ['cueid' => $cuerecord->id],
-                'sortorder ASC',
-                'id, gapkey, sortorder, charstart, charlength, gradingalgorithm, maxlength, linkurl'
-            );
+            $gaprecords = $gaprecordsbycue[$cuerecord->id] ?? [];
 
             $gaps = [];
             foreach ($gaprecords as $gaprecord) {

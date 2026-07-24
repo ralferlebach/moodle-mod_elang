@@ -55,12 +55,19 @@ class provider implements
      */
     public static function get_metadata(collection $collection): collection {
         $collection->add_database_table('elang_attempt', [
+            'versionid' => 'privacy:metadata:elang_attempt:versionid',
             'userid' => 'privacy:metadata:elang_attempt:userid',
             'attemptnumber' => 'privacy:metadata:elang_attempt:attemptnumber',
             'state' => 'privacy:metadata:elang_attempt:state',
+            'totalgaps' => 'privacy:metadata:elang_attempt:totalgaps',
+            'answeredgaps' => 'privacy:metadata:elang_attempt:answeredgaps',
+            'exactgaps' => 'privacy:metadata:elang_attempt:exactgaps',
+            'correctgaps' => 'privacy:metadata:elang_attempt:correctgaps',
+            'hintedgaps' => 'privacy:metadata:elang_attempt:hintedgaps',
             'score' => 'privacy:metadata:elang_attempt:score',
             'timestart' => 'privacy:metadata:elang_attempt:timestart',
             'timefinish' => 'privacy:metadata:elang_attempt:timefinish',
+            'timemodified' => 'privacy:metadata:elang_attempt:timemodified',
         ], 'privacy:metadata:elang_attempt');
 
         $collection->add_database_table('elang_response', [
@@ -68,7 +75,10 @@ class provider implements
             'resultstate' => 'privacy:metadata:elang_response:resultstate',
             'accepted' => 'privacy:metadata:elang_response:accepted',
             'tries' => 'privacy:metadata:elang_response:tries',
+            'hintlevel' => 'privacy:metadata:elang_response:hintlevel',
+            'score' => 'privacy:metadata:elang_response:score',
             'timecreated' => 'privacy:metadata:elang_response:timecreated',
+            'timemodified' => 'privacy:metadata:elang_response:timemodified',
         ], 'privacy:metadata:elang_response');
 
         return $collection;
@@ -124,6 +134,11 @@ class provider implements
     /**
      * Export all personal data for the approved contexts and user.
      *
+     * Loads every response for every one of the user's attempts at an
+     * activity in a single query (grouped by attemptid afterwards in PHP)
+     * rather than one query per attempt, which used to make export cost
+     * grow with the number of attempts a learner had made.
+     *
      * @param approved_contextlist $contextlist List of approved contexts for one user
      * @return void
      */
@@ -148,27 +163,37 @@ class provider implements
                 continue;
             }
 
+            $responsesbyattempt = self::get_responses_by_attempt(array_keys($attempts));
+
             $exportedattempts = [];
             foreach ($attempts as $attempt) {
-                $responses = $DB->get_records('elang_response', ['attemptid' => $attempt->id]);
-
                 $exportedresponses = [];
-                foreach ($responses as $response) {
+                foreach ($responsesbyattempt[$attempt->id] ?? [] as $response) {
                     $exportedresponses[] = (object) [
                         'responsetext' => $response->responsetext,
                         'resultstate' => $response->resultstate,
                         'accepted' => (bool) $response->accepted,
                         'tries' => (int) $response->tries,
+                        'hintlevel' => (int) $response->hintlevel,
+                        'score' => (float) $response->score,
                         'timecreated' => transform::datetime((int) $response->timecreated),
+                        'timemodified' => transform::datetime((int) $response->timemodified),
                     ];
                 }
 
                 $exportedattempts[] = (object) [
+                    'versionid' => (int) $attempt->versionid,
                     'attemptnumber' => (int) $attempt->attemptnumber,
                     'state' => $attempt->state,
+                    'totalgaps' => (int) $attempt->totalgaps,
+                    'answeredgaps' => (int) $attempt->answeredgaps,
+                    'exactgaps' => (int) $attempt->exactgaps,
+                    'correctgaps' => (int) $attempt->correctgaps,
+                    'hintedgaps' => (int) $attempt->hintedgaps,
                     'score' => (float) $attempt->score,
                     'timestart' => transform::datetime((int) $attempt->timestart),
                     'timefinish' => $attempt->timefinish ? transform::datetime((int) $attempt->timefinish) : null,
+                    'timemodified' => transform::datetime((int) $attempt->timemodified),
                     'responses' => $exportedresponses,
                 ];
             }
@@ -228,10 +253,17 @@ class provider implements
     /**
      * Delete personal data for the approved users in one context.
      *
+     * Deletes all approved users in a single set-based statement (userid IN
+     * (...)) rather than one delete per user, which used to make this scale
+     * with the number of users in the erasure request instead of running as
+     * one bounded operation.
+     *
      * @param approved_userlist $userlist The approved users in one context
      * @return void
      */
     public static function delete_data_for_users(approved_userlist $userlist): void {
+        global $DB;
+
         $context = $userlist->get_context();
         if (!$context instanceof \context_module) {
             return;
@@ -242,25 +274,60 @@ class provider implements
             return;
         }
 
-        foreach ($userlist->get_userids() as $userid) {
-            self::delete_attempts_and_responses_where(
-                'elangid = :elangid AND userid = :userid',
-                ['elangid' => $cm->instance, 'userid' => $userid]
-            );
+        $userids = array_map('intval', $userlist->get_userids());
+        if (empty($userids)) {
+            return;
         }
+
+        [$insql, $inparams] = $DB->get_in_or_equal($userids);
+
+        self::delete_attempts_and_responses_where(
+            "elangid = ? AND userid $insql",
+            array_merge([$cm->instance], $inparams)
+        );
+    }
+
+    /**
+     * Load every elang_response row for a set of attempt ids in a single
+     * query, grouped by attemptid.
+     *
+     * @param int[] $attemptids
+     * @return array<int, \stdClass[]> Responses keyed by attemptid
+     */
+    private static function get_responses_by_attempt(array $attemptids): array {
+        global $DB;
+
+        if (empty($attemptids)) {
+            return [];
+        }
+
+        [$insql, $inparams] = $DB->get_in_or_equal(array_map('intval', $attemptids));
+        $responses = $DB->get_records_select('elang_response', "attemptid $insql", $inparams);
+
+        $byattempt = [];
+        foreach ($responses as $response) {
+            $byattempt[$response->attemptid][] = $response;
+        }
+
+        return $byattempt;
     }
 
     /**
      * Delete elang_response and elang_attempt rows matching a WHERE clause
      * against elang_attempt, using a subquery rather than loading id lists
-     * into PHP first.
+     * into PHP first. Runs both deletes inside one delegated transaction, so
+     * an interrupted erasure request cannot leave attempts deleted with
+     * their responses still present, or be recorded as complete when only
+     * half-applied.
      *
-     * @param string $attemptwheresql WHERE clause fragment against elang_attempt, using named parameters
-     * @param array $params Named parameters for the WHERE clause
+     * @param string $attemptwheresql WHERE clause fragment against elang_attempt
+     * @param array $params Parameters for the WHERE clause (named or positional, matching the SQL fragment)
      * @return void
      */
     private static function delete_attempts_and_responses_where(string $attemptwheresql, array $params): void {
         global $DB;
+
+        $transaction = $DB->start_delegated_transaction();
 
         $DB->delete_records_select(
             'elang_response',
@@ -268,5 +335,7 @@ class provider implements
             $params
         );
         $DB->delete_records_select('elang_attempt', $attemptwheresql, $params);
+
+        $transaction->allow_commit();
     }
 }

@@ -26,7 +26,7 @@ use mod_elang\fixtures\fake_script_handler;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_elang\local\grading\answer_evaluator
  */
-final class answer_evaluator_test extends \basic_testcase {
+final class answer_evaluator_test extends \advanced_testcase {
     /** @var answer_evaluator */
     private $evaluator;
 
@@ -37,6 +37,7 @@ final class answer_evaluator_test extends \basic_testcase {
 
     protected function setUp(): void {
         parent::setUp();
+        $this->resetAfterTest();
         $this->evaluator = new answer_evaluator(new script_handler_manager([]));
     }
 
@@ -228,5 +229,133 @@ final class answer_evaluator_test extends \basic_testcase {
         // script_handler_manager returned for language 'xx'.
         $this->assertSame(grading_result::RESULTSTATE_WORDRECOGNIZED, $result->resultstate);
         $this->assertTrue($result->accepted);
+    }
+
+    /**
+     * The default Jaro threshold (1.0, used when a caller does not pass one
+     * explicitly) requires an identical reduced form: a near-miss typo is
+     * still incorrect, exactly the pre-Jaro behaviour every existing
+     * activity had before elang.jarothreshold existed.
+     *
+     * @return void
+     */
+    public function test_default_jaro_threshold_requires_an_identical_reduction(): void {
+        $result = $this->evaluator->evaluate(
+            'chien',
+            answer_evaluator::ALGORITHM_WORDRECOGNIZED,
+            [],
+            'fr',
+            'chien!' // Trailing typo — close, but not the same reduced form.
+        );
+
+        $this->assertSame(grading_result::RESULTSTATE_INCORRECT, $result->resultstate);
+        $this->assertFalse($result->accepted);
+    }
+
+    /**
+     * A lower Jaro threshold accepts a near-miss response as word-recognised
+     * once its similarity to the reduced solution reaches the threshold.
+     *
+     * @return void
+     */
+    public function test_lower_jaro_threshold_accepts_a_near_miss_response(): void {
+        // Jaro('chien', 'chien!') is well above 0.9 (one trailing insertion
+        // in an otherwise identical five-character string).
+        $result = $this->evaluator->evaluate(
+            'chien',
+            answer_evaluator::ALGORITHM_WORDRECOGNIZED,
+            [],
+            'fr',
+            'chien!',
+            0.9
+        );
+
+        $this->assertSame(grading_result::RESULTSTATE_WORDRECOGNIZED, $result->resultstate);
+        $this->assertTrue($result->accepted);
+    }
+
+    /**
+     * A response too dissimilar to clear even a lenient Jaro threshold is
+     * still incorrect — the threshold makes near-misses tolerable, not
+     * unrelated words. Jaro('chien', 'oiseau') is around 0.58 (they share an
+     * 'i' and an 'e' in compatible positions), so 0.7 is the threshold that
+     * actually exercises "still too dissimilar" here — a lower one would
+     * accept this pair too, which is not what this test is meant to show.
+     *
+     * @return void
+     */
+    public function test_jaro_threshold_still_rejects_an_unrelated_response(): void {
+        $result = $this->evaluator->evaluate(
+            'chien',
+            answer_evaluator::ALGORITHM_WORDRECOGNIZED,
+            [],
+            'fr',
+            'oiseau',
+            0.7
+        );
+
+        $this->assertSame(grading_result::RESULTSTATE_INCORRECT, $result->resultstate);
+        $this->assertFalse($result->accepted);
+    }
+
+    /**
+     * jaro_similarity() matches the well-known MARTHA/MARHTA textbook
+     * example (two transposed characters), and is 1.0 for identical strings
+     * and 0.0 for strings sharing no matching characters within range.
+     *
+     * @return void
+     */
+    public function test_jaro_similarity_matches_the_textbook_example(): void {
+        $this->assertEqualsWithDelta(1.0, answer_evaluator::jaro_similarity('chat', 'chat'), 0.00001);
+        $this->assertEqualsWithDelta(0.944, answer_evaluator::jaro_similarity('MARTHA', 'MARHTA'), 0.001);
+        $this->assertEqualsWithDelta(0.0, answer_evaluator::jaro_similarity('abc', 'xyz'), 0.00001);
+    }
+
+    /**
+     * A stored regex answer variant containing a literal '#' is matched
+     * correctly — the previous '#'-delimited implementation would have had
+     * the pattern collide with its own delimiter.
+     *
+     * @return void
+     */
+    public function test_regex_variant_containing_a_hash_character_matches(): void {
+        $variant = (object) ['id' => 41, 'answer' => '^item#\d+$', 'isregex' => 1];
+
+        $result = $this->evaluator->evaluate(
+            'irrelevant',
+            answer_evaluator::ALGORITHM_EXACT,
+            [$variant],
+            'en',
+            'item#42'
+        );
+
+        $this->assertSame(grading_result::RESULTSTATE_EXACT, $result->resultstate);
+        $this->assertTrue($result->accepted);
+        $this->assertSame(41, $result->matchedgapanswerid);
+    }
+
+    /**
+     * An invalid regular expression is treated as "no match" for that
+     * candidate rather than aborting evaluation of the others, and the
+     * debugging() call this triggers is asserted explicitly rather than
+     * left unclaimed — an unclaimed debugging() call would otherwise mark
+     * this test risky.
+     *
+     * @return void
+     */
+    public function test_invalid_regex_variant_does_not_abort_evaluation(): void {
+        $invalid = (object) ['id' => 51, 'answer' => '(unclosed', 'isregex' => 1];
+
+        $result = $this->evaluator->evaluate(
+            'chat',
+            answer_evaluator::ALGORITHM_EXACT,
+            [$invalid],
+            'fr',
+            'chat'
+        );
+
+        $this->assertSame(grading_result::RESULTSTATE_EXACT, $result->resultstate);
+        $this->assertNull($result->matchedgapanswerid);
+        $this->assertDebuggingCalled();
     }
 }

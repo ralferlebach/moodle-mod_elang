@@ -9,13 +9,18 @@ gaps, configure how strictly answers are compared, and follow progress in report
 
 **Repository:** <https://github.com/ralferlebach/moodle-mod_elang/tree/development>
 
-> **Status: infrastructure and grading engine, no player/authoring UI yet.**
+> **Status: data model, domain layer and full write/read API, no player/authoring UI yet.**
 > The versioned exercise schema (`elang_version`/`elang_cue`/`elang_gap`/
-> `elang_gapanswer`/`elang_gaphint`/`elang_attempt`/`elang_response`) and the
-> two-algorithm answer evaluator (`classes/local/grading/`, including the
-> `elangscript` subplugin type for non-Latin scripts) are implemented and
-> tested from `2.0.0-alpha.2` onwards. The player, transcript view, authoring
-> tool, External Functions, reporting and exports are **not implemented yet**.
+> `elang_gapanswer`/`elang_gaphint`/`elang_attempt`/`elang_response`), the
+> two-algorithm-plus-Jaro-threshold answer evaluator (`classes/local/grading/`,
+> including the `elangscript` subplugin type for non-Latin scripts), the
+> attempt/version domain layer, all seven External Functions
+> (`classes/external/`), the privacy provider, gradebook and
+> `completionfinishattempt` completion rule are implemented and tested from
+> `2.0.0-alpha.2` through `2.0.0-alpha.9`. The player, transcript view,
+> authoring tool, reporting and exports are **not implemented yet**; migration
+> from version 1 remains specified but not implemented (see
+> `docs/materials/Migration_V1_V2.md`).
 > See `docs/materials/Lastenheft_Pflichtenheft_Blueprint.md`.
 
 ## Relationship to version 1
@@ -54,20 +59,23 @@ checks rather than version comparisons.
 ```
 mod/elang/
 ├── version.php                  # component, requires 4.5, supported [405,503]
-├── lib.php                      # module features, purpose, instance lifecycle
+├── lib.php                      # module features, purpose, instance lifecycle, gradebook
 ├── mod_form.php                 # instance settings form (general section only)
 ├── view.php                     # activity page inside the standard page frame
 ├── index.php                    # instance list — only relevant on Moodle 4.5
 ├── script/                      # elangscript subplugins live here (none in core)
 ├── classes/
+│   ├── completion/custom_completion.php  # completionfinishattempt custom completion rule
 │   ├── event/                   # course_module_viewed, course_module_instance_list_viewed
-│   ├── local/grading/           # answer_evaluator, script_handler(_manager), grading_result
+│   ├── external/                # the seven mod_elang_* External Functions + attempt_helper trait
+│   ├── local/domain/             # attempt_manager, version_manager, transcript_masker
+│   ├── local/grading/            # answer_evaluator, script_handler(_manager), grading_result
 │   ├── plugininfo/elangscript.php  # subplugin type declaration
-│   └── privacy/provider.php     # null provider — replaced once attempts/responses are written
-├── db/                          # install.xml, access.php, subplugins.json, install.php, upgrade.php
+│   └── privacy/provider.php     # metadata/plugin/userlist provider for elang_attempt and elang_response
+├── db/                          # install.xml, access.php, services.php, subplugins.json, install.php, upgrade.php
 ├── lang/{en,de}/elang.php       # language strings
 ├── pix/monologo.{svg,png}       # monochrome activity icon
-├── tests/                       # PHPUnit (incl. tests/local/), fixtures/, generator, Behat
+├── tests/                       # PHPUnit (incl. tests/local/, tests/external/), fixtures/, generator, Behat
 ├── tools/                       # developer helpers (not shipped in releases)
 ├── docs/                        # blueprint, feasibility studies, prompts, sessions
 └── .github/workflows/           # moodle-plugin-ci pipelines

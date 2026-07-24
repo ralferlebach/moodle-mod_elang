@@ -60,7 +60,16 @@ class finish_attempt extends external_api {
         $context = self::require_attempt_ownership($attempt);
         require_capability('mod/elang:attempt', $context);
 
-        if ($attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS) {
+        // Only a genuinely wrong state (abandoned) is rejected here — an
+        // attempt that is already finished is deliberately let through to
+        // attempt_manager::finish_attempt(), which is idempotent for that
+        // exact case (see its docblock) so that a caller retrying a request
+        // it never learned the outcome of gets the same successful result
+        // back instead of an error.
+        if (
+            $attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS
+                && $attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_FINISHED
+        ) {
             throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
         }
 

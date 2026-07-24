@@ -74,15 +74,19 @@ final class finish_attempt_test extends \advanced_testcase {
     }
 
     /**
-     * An already-finished attempt cannot be finished again.
+     * Finishing an already-finished attempt is idempotent: it returns the
+     * same finished state rather than throwing, so a caller retrying a
+     * request it never learned the outcome of succeeds instead of seeing a
+     * spurious error.
      *
      * @return void
      */
-    public function test_rejects_finishing_an_already_finished_attempt(): void {
-        finish_attempt::execute($this->attemptid);
+    public function test_finishing_an_already_finished_attempt_is_idempotent(): void {
+        $first = finish_attempt::execute($this->attemptid);
+        $second = finish_attempt::execute($this->attemptid);
 
-        $this->expectException(\moodle_exception::class);
-        finish_attempt::execute($this->attemptid);
+        $this->assertSame('finished', $second['state']);
+        $this->assertSame($first['timefinish'], $second['timefinish']);
     }
 
     /**

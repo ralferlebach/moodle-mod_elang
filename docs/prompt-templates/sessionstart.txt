@@ -56,7 +56,8 @@ Datenmodell + zwei-Algorithmen-Bewertung + Domänenschicht + vollständige
 Schreib-API + Privacy-Provider + vollständige Lese-API + Transkript-
 Maskierung + Hilfestufen mit Score-Abzug + Gradebook + Completion
 (7 External Functions insgesamt). **Aktiv entwickelbarer Umfang von Phase 2
-damit vollständig.** Player, Autorenwerkzeug, Migration, Reporting und
+damit vollständig UND real gegen Moodle 4.5.12 bestätigt (120 Tests grün).**
+Player, Autorenwerkzeug, Migration, Reporting und
 Exporte fehlen noch vollständig (Phase 3/4). Migration V1→V2 bleibt separat
 blockiert (V1-Datensimulator).
 
@@ -69,7 +70,8 @@ blockiert (V1-Datensimulator).
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Schritt 8 dieser Sitzung):**
+**Zuletzt abgeschlossen (Schritt 8 dieser Sitzung, inkl. zweier realer
+Korrekturrunden — Endstand):**
   - classes/completion/custom_completion.php: implementiert
     \core_completion\activity_custom_completion mit GENAU EINER eigenen
     Regel, completionfinishattempt. completionview (via
@@ -81,43 +83,44 @@ blockiert (V1-Datensimulator).
   - mod_form.php: add_completion_rules()/completion_rule_enabled() --
     Feldname trägt $this->get_suffix() (seit Moodle 4.3/4.4, MDL-78516,
     Pflicht für Mehrfach-Instanzen-Formulare wie Sammel-Abschluss-
-    Bearbeitung). Explizit gegen einen realen Community-Plugin-Bugreport
-    geprüft, der genau wegen fehlendem Suffix auf Moodle 4.4 kaputt war --
-    nicht die ältere, unsuffixierte Variante aus manchen Tutorials
-    übernommen. Unser gesamter Zielbereich (ab 4.5 LTS) liegt bereits
-    jenseits der Suffix-Pflicht, es gibt also keinen Altfall abzufangen.
-  - Zwei neue Sprachstrings (EN+DE): completionfinishattempt (Checkbox-
-    Beschriftung im Formular) und completiondetail:completionfinishattempt
-    (kürzere Beschreibung in der Aktivitätsinformations-Oberfläche) --
-    bewusst zwei verschiedene Strings, passend zur eigenen Konvention von
-    Moodle-Core-Modulen mit Custom Completion.
-  - Tests: tests/completion/custom_completion_test.php neu (definierte
-    Regeln, unvollständig ohne jeden Versuch, unvollständig bei nur
-    LAUFENDEM Versuch -- muss ABGESCHLOSSEN sein, vollständig bei
-    abgeschlossenem Versuch, undefinierte Regel wird abgelehnt).
-    Genauen Exception-Typ, den validate_rule() bei einer undefinierten
-    Regel wirft, direkt gegen Moodle-Core-Quellcode bestätigt
-    (coding_exception, nicht moodle_exception, obwohl Letzteres über die
-    Vererbungshierarchie technisch auch bestanden hätte -- den genauen Typ
-    geprüft statt sich darauf zu verlassen). tests/lib_test.php: die
-    jetzt widersprüchliche Assertion (FEATURE_COMPLETION_HAS_RULES=false)
-    korrigiert.
+    Bearbeitung).
+  - Zwei neue Sprachstrings (EN+DE): completionfinishattempt,
+    completiondetail:completionfinishattempt.
+  - KRITISCHER NACHTRAG (real erst im ZWEITEN Testlauf gefunden, NICHT im
+    ursprünglichen Schritt 8 enthalten): validate_rule() prüft nicht nur,
+    ob eine Regel vom Plugin DEFINIERT ist, sondern separat, ob sie für
+    GENAU DIESE Kursmodul-Instanz AKTIVIERT ist -- das liest
+    cm_info->customdata['customcompletionrules'], befüllt AUSSCHLIESSLICH
+    durch einen {modname}_get_coursemodule_info($coursemodule)-Callback
+    (Vorbild: forum_get_coursemodule_info()). Ohne diesen Callback UND
+    eine eigene Spalte schlägt get_state() IMMER fehl. Nachträglich
+    ergänzt: elang.completionfinishattempt (int(1), NOTNULL, DEFAULT 0;
+    install.xml + upgrade.php-Savepoint auf den bereits aktuellen Wert
+    2026072307, ohne weiteren Versionsbump) und
+    lib.php::elang_get_coursemodule_info() (befüllt customdata NUR bei
+    completion == COMPLETION_TRACKING_AUTOMATIC). Siehe Stolperfallen-
+    Liste unten für die vollständige Lektion.
   - version.php: 2026072306 -> 2026072307 (2.0.0-alpha.8) -- notwendig,
-    damit Moodle die neu deklarierte Completion-Regel einliest (real
-    bestätigt über einen Forumsbeitrag mit demselben Symptom bei einem
-    anderen Plugin). Kein Schema-Wechsel diese Runde, daher kein neuer
-    upgrade.php-Savepoint.
+    damit Moodle die neu deklarierte Completion-Regel einliest. UPGRADE.PHP
+    HAT INZWISCHEN EINEN SAVEPOINT AUF 2026072307 (nachträglich für das
+    Schema-Feld ergänzt, kein weiterer Versionsbump nötig).
+  - Drei echte Testrunden gegen Moodle 4.5.12 gebraucht, bis alles grün
+    war: (1) fehlender Callback+Spalte, (2) zwei Testfehler in den
+    eigens dafür neu geschriebenen Tests selbst (fehlendes
+    resetAfterTest(), assertArrayNotHasKey() gegen ein potenziell
+    null-wertiges customdata). custom_completion_test UND alle anderen
+    Suiten (120 Tests) laufen jetzt vollständig grün.
   - php -l/phpcs (0/0), phpcpd (No clones found) real geprüft. Blueprint
     Kap. 10.5, Blueprint_kompakt.md, CHANGELOG aktualisiert.
-  - **Damit ist der aktiv entwickelbare Umfang von Phase 2 vollständig.**
-    Migration V1 -> V2 bleibt separat blockiert und zählt nicht dagegen.
-  - Noch NICHT gegen eine echte Moodle-Instanz gelaufen -- Completion-
-    Zustandsberechnung und die mod_form-Oberfläche brauchen Moodles
-    echte Completion-/Formular-Maschinerie und ließen sich nicht
-    eigenständig per Smoke-Test prüfen.
+  - **Damit ist der aktiv entwickelbare Umfang von Phase 2 vollständig UND
+    real gegen eine echte Moodle-4.5.12-Instanz bestätigt.** Migration
+    V1 -> V2 bleibt separat blockiert und zählt nicht dagegen. Einzige
+    verbleibende Lücke: die mod_form.php-Oberfläche selbst wurde nur über
+    direkte Generator-/Instanzdaten getestet, nicht über eine echte
+    Formularabgabe im Browser.
 
-Details zu allen bisherigen Schritten dieser Sitzung stehen vollständig in
-docs/sessions/session-001.md.
+Details zu allen bisherigen Schritten UND allen drei Korrekturrunden
+stehen vollständig in docs/sessions/session-001.md.
 
 **Als nächstes geplant (Phase 3 — Lernendenoberfläche):**
   - Die Lese-API (get_exercise/get_cues/get_attempt_state) und die

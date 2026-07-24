@@ -120,6 +120,69 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
+     * Exported attempt and response data includes the aggregate counters
+     * and per-response hint/score fields, not only the fields the very
+     * first version of this provider covered.
+     *
+     * @return void
+     */
+    public function test_export_user_data_includes_aggregate_and_hint_fields(): void {
+        $approvedlist = new approved_contextlist($this->student, 'mod_elang', [$this->context->id]);
+        provider::export_user_data($approvedlist);
+
+        $data = writer::with_context($this->context)->get_data([get_string('pluginname', 'mod_elang')]);
+        $attempt = $data->attempts[0];
+
+        // Using property_exists() rather than assertObjectHasAttribute()/
+        // assertObjectHasProperty(): the former was removed in PHPUnit 10,
+        // the latter does not exist before PHPUnit 10, and this plugin's CI
+        // matrix spans both (PHPUnit 9.6 on Moodle 4.5, PHPUnit 11 from
+        // Moodle 5.0 onwards).
+        foreach (['versionid', 'totalgaps', 'answeredgaps', 'exactgaps', 'correctgaps', 'hintedgaps', 'timemodified'] as $field) {
+            $this->assertTrue(property_exists($attempt, $field), "exported attempt is missing '$field'");
+        }
+
+        $response = $attempt->responses[0];
+        foreach (['hintlevel', 'score', 'timemodified'] as $field) {
+            $this->assertTrue(property_exists($response, $field), "exported response is missing '$field'");
+        }
+    }
+
+    /**
+     * The metadata declaration describes every personal field actually
+     * stored on elang_attempt and elang_response, not only a subset.
+     *
+     * @return void
+     */
+    public function test_metadata_describes_every_personal_field(): void {
+        $collection = new \core_privacy\local\metadata\collection('mod_elang');
+        $collection = provider::get_metadata($collection);
+
+        $fieldsbytable = [];
+        foreach ($collection->get_collection() as $item) {
+            if ($item instanceof \core_privacy\local\metadata\types\database_table) {
+                $fieldsbytable[$item->get_name()] = array_keys($item->get_privacy_fields());
+            }
+        }
+
+        $expectedattemptfields = [
+            'versionid', 'userid', 'attemptnumber', 'state', 'totalgaps', 'answeredgaps',
+            'exactgaps', 'correctgaps', 'hintedgaps', 'score', 'timestart', 'timefinish', 'timemodified',
+        ];
+        foreach ($expectedattemptfields as $field) {
+            $this->assertContains($field, $fieldsbytable['elang_attempt'], "elang_attempt.$field is not described in metadata");
+        }
+
+        $expectedresponsefields = [
+            'responsetext', 'resultstate', 'accepted', 'tries', 'hintlevel', 'score',
+            'timecreated', 'timemodified',
+        ];
+        foreach ($expectedresponsefields as $field) {
+            $this->assertContains($field, $fieldsbytable['elang_response'], "elang_response.$field is not described in metadata");
+        }
+    }
+
+    /**
      * The activity context lists exactly the users who have attempted it.
      *
      * @return void

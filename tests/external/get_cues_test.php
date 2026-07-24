@@ -128,6 +128,32 @@ final class get_cues_test extends \advanced_testcase {
     }
 
     /**
+     * Each cue's gaps are attributed to the correct cue even when several
+     * cues on the same page each have their own gap — the gaps for a page
+     * are now loaded in one batched query and grouped by cueid in PHP
+     * rather than one query per cue, and grouping is exactly the kind of
+     * step that could silently mix gaps up across cues if done wrong.
+     *
+     * @return void
+     */
+    public function test_gaps_are_attributed_to_the_correct_cue_across_a_page(): void {
+        $result = get_cues::execute($this->cm->id, 0, 3);
+        $result = external_api::clean_returnvalue(get_cues::execute_returns(), $result);
+
+        $this->assertCount(3, $result['cues']);
+
+        $gapkeysbycue = [];
+        foreach ($result['cues'] as $cue) {
+            $this->assertCount(1, $cue['gaps'], "cue {$cue['id']} should have exactly one gap");
+            $gapkeysbycue[$cue['id']] = $cue['gaps'][0]['gapkey'];
+        }
+
+        // Three cues, three gaps, three distinct gapkeys — nothing merged or
+        // duplicated across cues.
+        $this->assertCount(3, array_unique($gapkeysbycue));
+    }
+
+    /**
      * A negative offset is rejected.
      *
      * @return void

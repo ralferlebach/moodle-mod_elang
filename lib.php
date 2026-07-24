@@ -17,9 +17,14 @@
 /**
  * Library of interface functions and constants for mod_elang.
  *
- * Version 2.0 skeleton: infrastructure only. The exercise domain (versions, cues,
- * gaps, attempts, responses, grading, reporting) is not implemented here yet and
- * is introduced from phase 2 onwards, see docs/materials/.
+ * Covers the standard Moodle module callbacks: supported features, instance
+ * lifecycle, cached course-module info for the completionfinishattempt
+ * custom completion rule (see classes/completion/custom_completion.php), and
+ * gradebook integration. The exercise domain itself (versions, cues, gaps,
+ * attempts, responses, grading) lives under classes/local/ and
+ * classes/external/, not in this file; see docs/materials/ for the current
+ * scope of each phase. The learner-facing player, authoring tool, reporting
+ * and exports remain unimplemented (phase 3/4).
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -93,6 +98,14 @@ function elang_add_instance(stdClass $elang, ?mod_elang_mod_form $mform = null):
     // (phase 3/4).
     if (!isset($elang->language)) {
         $elang->language = '';
+    }
+    if (!isset($elang->jarothreshold)) {
+        // Same rationale as elang.language above: elang.jarothreshold is
+        // NOTNULL without a schema-level default (see db/upgrade.php), so
+        // every insert must supply it explicitly. 1.0 means "reduced forms
+        // must be identical", i.e. no Jaro-based fuzziness — the behaviour
+        // every wordrecognised gap had before this field existed.
+        $elang->jarothreshold = \mod_elang\local\grading\answer_evaluator::DEFAULT_JARO_THRESHOLD;
     }
     if (!isset($elang->grade)) {
         // The form always supplies this via standard_grading_coursemodule_
@@ -327,14 +340,25 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
         return;
     }
 
-    $attemptmanager = new \mod_elang\local\domain\attempt_manager(
-        new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager())
+    // One grouped query for every user's best (highest) score among their
+    // finished attempts, instead of attempt_manager::get_best_score() called
+    // once per user — the previous per-user loop meant one query per learner
+    // just to recompute grades for a whole activity.
+    [$insql, $inparams] = $DB->get_in_or_equal(array_map('intval', $userids));
+    $bestscores = $DB->get_records_sql(
+        "SELECT userid, MAX(score) AS bestscore
+           FROM {elang_attempt}
+          WHERE elangid = ? AND state = ? AND userid $insql
+       GROUP BY userid",
+        array_merge([$elang->id, \mod_elang\local\domain\attempt_manager::STATE_FINISHED], $inparams)
     );
+
+    $scaleitemcount = (int) $elang->grade < 0 ? elang_get_scale_item_count(-(int) $elang->grade) : 0;
 
     $grades = [];
     foreach ($userids as $uid) {
         $uid = (int) $uid;
-        $bestscore = $attemptmanager->get_best_score((int) $elang->id, $uid);
+        $bestscore = isset($bestscores[$uid]) ? (float) $bestscores[$uid]->bestscore : null;
 
         if ($bestscore === null) {
             if ($nullifnone) {
@@ -348,7 +372,7 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
 
         $grade = new stdClass();
         $grade->userid = $uid;
-        $grade->rawgrade = $bestscore * (int) $elang->grade;
+        $grade->rawgrade = elang_score_to_rawgrade($bestscore, (int) $elang->grade, $scaleitemcount);
         $grades[$uid] = $grade;
     }
 
@@ -357,4 +381,51 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
     } else {
         elang_grade_item_update($elang);
     }
+}
+
+/**
+ * Convert a 0..1 attempt score into a rawgrade for either a numeric grade or
+ * a Moodle scale.
+ *
+ * For a numeric grade (elang.grade > 0), the score is a straightforward
+ * fraction of the maximum. For a scale (elang.grade < 0, with -elang.grade
+ * the scale id), the previous implementation multiplied the fraction by the
+ * same negative grade value used for GRADE_TYPE_SCALE configuration, which
+ * always produced a negative rawgrade — scale items are 1-indexed positions,
+ * never negative. This maps the fraction proportionally onto the scale's
+ * actual item positions (1..N) instead.
+ *
+ * @param float $bestscore The best attempt score, 0..1
+ * @param int $elanggrade The raw elang.grade value (positive numeric max, or -scaleid)
+ * @param int $scaleitemcount Number of items in the scale, or 0 for a numeric grade
+ * @return float The rawgrade to push through grade_update()
+ */
+function elang_score_to_rawgrade(float $bestscore, int $elanggrade, int $scaleitemcount): float {
+    if ($elanggrade >= 0 || $scaleitemcount <= 0) {
+        return $bestscore * $elanggrade;
+    }
+
+    $position = round($bestscore * ($scaleitemcount - 1)) + 1;
+
+    return (float) min(max($position, 1), $scaleitemcount);
+}
+
+/**
+ * Return the number of items defined in a Moodle scale.
+ *
+ * @param int $scaleid The scale id (a positive number, already stripped of the sign elang.grade encodes it with)
+ * @return int Number of items in the scale, or 0 if the scale cannot be found
+ */
+function elang_get_scale_item_count(int $scaleid): int {
+    global $CFG;
+    require_once($CFG->libdir . '/gradelib.php');
+
+    $scale = grade_scale::fetch(['id' => $scaleid]);
+    if (!$scale) {
+        return 0;
+    }
+
+    $scale->load_items();
+
+    return count($scale->scale_items);
 }

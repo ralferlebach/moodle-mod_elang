@@ -56,7 +56,7 @@ final class attempt_manager_test extends \advanced_testcase {
         /** @var \mod_elang_generator $generator */
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
         $this->elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
-        $this->version = $generator->create_version(['elangid' => $this->elang->id]);
+        $this->version = $generator->create_version(['elangid' => $this->elang->id, 'status' => 'published']);
         $cue = $generator->create_cue(['versionid' => $this->version->id]);
         $this->gap = $generator->create_gap([
             'cueid' => $cue->id,
@@ -335,16 +335,111 @@ final class attempt_manager_test extends \advanced_testcase {
     }
 
     /**
-     * An already-finished attempt cannot be finished again.
+     * Finishing an already-finished attempt is idempotent: it returns the
+     * same finished record rather than throwing, so a network retry of the
+     * same request succeeds instead of surfacing a spurious error.
      *
      * @return void
      */
-    public function test_finish_attempt_rejects_an_already_finished_attempt(): void {
+    public function test_finish_attempt_is_idempotent(): void {
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
-        $this->manager->finish_attempt($attempt->id);
+        $first = $this->manager->finish_attempt($attempt->id);
+        $second = $this->manager->finish_attempt($attempt->id);
+
+        $this->assertSame(attempt_manager::STATE_FINISHED, $second->state);
+        $this->assertSame((int) $first->timefinish, (int) $second->timefinish);
+    }
+
+    /**
+     * An attempt in a genuinely different state (abandoned) still cannot be
+     * finished — only the already-finished case is tolerated.
+     *
+     * @return void
+     */
+    public function test_finish_attempt_rejects_an_abandoned_attempt(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $DB->set_field('elang_attempt', 'state', attempt_manager::STATE_ABANDONED, ['id' => $attempt->id]);
 
         $this->expectException(\coding_exception::class);
         $this->manager->finish_attempt($attempt->id);
+    }
+
+    /**
+     * submit_response() itself refuses a gap that does not belong to the
+     * attempt's version, independent of any check an External Function layer
+     * might also perform — a task, CLI script or future importer calling
+     * this method directly must not be able to bypass that check.
+     *
+     * @return void
+     */
+    public function test_submit_response_rejects_a_gap_from_a_different_version(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $otherversion = $generator->create_version(['elangid' => $this->elang->id]);
+        $othercue = $generator->create_cue(['versionid' => $otherversion->id]);
+        $othergap = $generator->create_gap(['cueid' => $othercue->id, 'solution' => 'chien']);
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->submit_response($attempt->id, $othergap->id, 'chien');
+    }
+
+    /**
+     * request_hint() itself refuses a gap that does not belong to the
+     * attempt's version, for the same reason submit_response() does.
+     *
+     * @return void
+     */
+    public function test_request_hint_rejects_a_gap_from_a_different_version(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $otherversion = $generator->create_version(['elangid' => $this->elang->id]);
+        $othercue = $generator->create_cue(['versionid' => $otherversion->id]);
+        $othergap = $generator->create_gap(['cueid' => $othercue->id, 'solution' => 'chien']);
+        $generator->create_gaphint(['gapid' => $othergap->id, 'level' => 1]);
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->request_hint($attempt->id, $othergap->id);
+    }
+
+    /**
+     * start_attempt() refuses a version that does not belong to the given
+     * activity.
+     *
+     * @return void
+     */
+    public function test_start_attempt_rejects_a_version_from_a_different_activity(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $course = $this->getDataGenerator()->create_course();
+        $otherelang = $generator->create_instance(['course' => $course->id]);
+        $otherversion = $generator->create_version(['elangid' => $otherelang->id, 'status' => 'published']);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->start_attempt($this->elang->id, $this->student->id, $otherversion->id);
+    }
+
+    /**
+     * start_attempt() refuses a version that is not (yet) published, for
+     * example a draft still being edited.
+     *
+     * @return void
+     */
+    public function test_start_attempt_rejects_an_unpublished_version(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $draft = $generator->create_version(['elangid' => $this->elang->id, 'status' => 'draft']);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->start_attempt($this->elang->id, $this->student->id, $draft->id);
     }
 
     /**

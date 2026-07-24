@@ -233,5 +233,49 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072307, 'elang');
     }
 
+    if ($oldversion < 2026072401) {
+        // Backing field for the Jaro-similarity threshold used by the
+        // wordrecognized grading algorithm (see
+        // classes/local/grading/answer_evaluator.php). Default '1' preserves
+        // exactly the previous behaviour (identical reduced forms required)
+        // for every activity that predates this field. No key or index
+        // touches this field.
+        $table = new xmldb_table('elang');
+        $field = new xmldb_field(
+            'jarothreshold',
+            XMLDB_TYPE_NUMBER,
+            '10, 5',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '1',
+            'completionfinishattempt'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026072401, 'elang');
+    }
+
+    if ($oldversion < 2026072405) {
+        // The compute_content_hash() method now produces a SHA-256 digest
+        // (64 hex characters) instead of SHA-1 (40, the width the
+        // 2026072301 step above still creates the column with). Sites that
+        // ran an earlier build of this step under version
+        // 2026072401-2026072404 (where it was nested inside the block above
+        // and never actually executed once oldversion had already passed
+        // 2026072401) still have the narrower column — this step runs
+        // unconditionally against whatever the column's current width is,
+        // so it corrects that too.
+        $versiontable = new xmldb_table('elang_version');
+        $contenthashfield = new xmldb_field('contenthash', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null, 'status');
+        if ($dbman->field_exists($versiontable, $contenthashfield)) {
+            $dbman->change_field_precision($versiontable, $contenthashfield);
+        }
+
+        upgrade_mod_savepoint(true, 2026072405, 'elang');
+    }
+
     return true;
 }

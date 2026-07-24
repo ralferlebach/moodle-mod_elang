@@ -363,4 +363,80 @@ final class lib_test extends \advanced_testcase {
         $this->assertNotFalse($info);
         $this->assertTrue(empty($info->customdata['customcompletionrules']));
     }
+
+    /**
+     * A scale-graded activity (elang.grade < 0) maps the attempt score onto
+     * a scale item position, never a negative rawgrade. Before this fix,
+     * elang_update_grades() multiplied the score fraction by the same
+     * negative value used for GRADE_TYPE_SCALE configuration, which always
+     * produced a negative rawgrade — scale positions are 1-indexed, never
+     * negative.
+     *
+     * @return void
+     */
+    public function test_update_grades_maps_a_perfect_score_onto_the_top_scale_item(): void {
+        global $CFG, $DB;
+
+        $this->resetAfterTest();
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $scale = new \grade_scale();
+        $scale->courseid = 0;
+        $scale->userid = 0;
+        $scale->name = 'mod_elang test scale';
+        $scale->scale = 'Poor,Average,Good,Excellent';
+        $scale->description = '';
+        $scale->descriptionformat = FORMAT_MOODLE;
+        $scale->id = $scale->insert();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr', 'grade' => -$scale->id]);
+
+        $versionmanager = new \mod_elang\local\domain\version_manager();
+        $draft = $versionmanager->create_draft($elang->id, $student->id);
+        $cue = $generator->create_cue(['versionid' => $draft->id]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $versionmanager->publish($draft->id, $student->id);
+
+        $attemptmanager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $attempt = $attemptmanager->start_attempt($elang->id, $student->id, $draft->id);
+        $attemptmanager->submit_response($attempt->id, $gap->id, 'chat');
+        $attemptmanager->finish_attempt($attempt->id);
+
+        elang_update_grades($elang, (int) $student->id);
+
+        $gradegrade = $DB->get_record_sql(
+            'SELECT gg.finalgrade
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gi.itemtype = ? AND gi.itemmodule = ? AND gi.iteminstance = ? AND gg.userid = ?',
+            ['mod', 'elang', $elang->id, $student->id]
+        );
+
+        $this->assertNotFalse($gradegrade);
+        // A perfect (1.0) score maps onto the highest of the 4 scale items
+        // (position 4, "Excellent") — never a negative value.
+        $this->assertEqualsWithDelta(4.0, (float) $gradegrade->finalgrade, 0.00001);
+    }
+
+    /**
+     * elang_score_to_rawgrade() maps a fractional score proportionally onto
+     * a scale's item positions, clamped to the valid 1..N range.
+     *
+     * @return void
+     */
+    public function test_score_to_rawgrade_maps_fractions_onto_scale_positions(): void {
+        // A 4-item scale: positions 1..4.
+        $this->assertEqualsWithDelta(1.0, elang_score_to_rawgrade(0.0, -7, 4), 0.00001);
+        $this->assertEqualsWithDelta(4.0, elang_score_to_rawgrade(1.0, -7, 4), 0.00001);
+        $this->assertEqualsWithDelta(3.0, elang_score_to_rawgrade(0.67, -7, 4), 0.00001);
+
+        // A numeric grade is unaffected: still a plain fraction of the maximum.
+        $this->assertEqualsWithDelta(50.0, elang_score_to_rawgrade(0.5, 100, 0), 0.00001);
+    }
 }

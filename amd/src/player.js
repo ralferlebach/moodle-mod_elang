@@ -157,7 +157,7 @@ const buildUrlMedia = (media) => {
  *
  * @param {Element} region The media region element
  * @param {Object} media The media descriptor from get_attempt_exercise
- * @returns {void}
+ * @returns {Element|null} The media element created, or null if none
  */
 const renderMedia = (region, media) => {
     region.textContent = '';
@@ -172,6 +172,7 @@ const renderMedia = (region, media) => {
     if (element) {
         region.appendChild(element);
     }
+    return element;
 };
 
 /**
@@ -375,23 +376,15 @@ const appendTranscript = (item, transcript, gapsByKey, nextLabel) => {
 };
 
 /**
- * Render a page of cues as a transcript list with gaps in place.
+ * Append a page of cues to the transcript list, each as a line with gaps in
+ * place and carrying its start/end time (milliseconds) for synchronisation.
  *
- * @param {Element} region The transcript region
+ * @param {Element} list The transcript list element
  * @param {Array} cues The cues from get_attempt_cues
+ * @param {Function} nextLabel Returns the next gap's accessible label
  * @returns {void}
  */
-const renderTranscript = (region, cues) => {
-    region.textContent = '';
-    const list = document.createElement('ol');
-    list.className = 'mod_elang-cues';
-
-    let gapnumber = 0;
-    const nextLabel = () => {
-        gapnumber += 1;
-        return strings['player:gaplabel'].replace('%gap%', gapnumber);
-    };
-
+const appendCues = (list, cues, nextLabel) => {
     cues.forEach((cue) => {
         const item = document.createElement('li');
         item.className = 'mod_elang-cue';
@@ -407,8 +400,72 @@ const renderTranscript = (region, cues) => {
         appendTranscript(item, cue.transcript, gapsByKey, nextLabel);
         list.appendChild(item);
     });
+};
 
-    region.appendChild(list);
+/**
+ * Load every cue page for the attempt and append them all, so the whole
+ * transcript is present for synchronisation rather than only the first page.
+ *
+ * @param {Element} list The transcript list element
+ * @param {Number} totalcues The total number of cues in the version
+ * @param {Function} nextLabel Returns the next gap's accessible label
+ * @returns {Promise} Resolves once every page has been appended
+ */
+const loadAllCues = async(list, totalcues, nextLabel) => {
+    const limit = 50;
+    let offset = 0;
+    while (offset < totalcues) {
+        const page = await callWs('mod_elang_get_attempt_cues', {attemptid: attemptId, offset, limit});
+        if (page.cues.length === 0) {
+            break;
+        }
+        appendCues(list, page.cues, nextLabel);
+        offset += page.cues.length;
+    }
+};
+
+/**
+ * Keep the transcript in step with a native audio/video element: highlight the
+ * cue covering the current playback time and let a click on a cue seek to it.
+ * Provider embeds (cross-origin iframes) do not expose playback time, so they
+ * are simply not synchronised.
+ *
+ * @param {HTMLMediaElement} mediaEl The audio or video element
+ * @param {Element} list The transcript list element
+ * @returns {void}
+ */
+const attachSync = (mediaEl, list) => {
+    const items = Array.from(list.querySelectorAll('.mod_elang-cue'));
+    let current = null;
+
+    mediaEl.addEventListener('timeupdate', () => {
+        const ms = mediaEl.currentTime * 1000;
+        const active = items.find(
+            (item) => ms >= parseFloat(item.dataset.starttime) && ms < parseFloat(item.dataset.endtime)
+        ) || null;
+        if (active === current) {
+            return;
+        }
+        if (current) {
+            current.classList.remove('mod_elang-current');
+            current.removeAttribute('aria-current');
+        }
+        current = active;
+        if (current) {
+            current.classList.add('mod_elang-current');
+            current.setAttribute('aria-current', 'true');
+            current.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        }
+    });
+
+    items.forEach((item) => {
+        item.addEventListener('click', (event) => {
+            if (event.target.closest('.mod_elang-gapwrap')) {
+                return;
+            }
+            mediaEl.currentTime = parseFloat(item.dataset.starttime) / 1000;
+        });
+    });
 };
 
 /**
@@ -492,11 +549,26 @@ const bootstrap = async(cmid, player) => {
     attemptId = attempt.attemptid;
 
     const exercise = await callWs('mod_elang_get_attempt_exercise', {attemptid: attemptId});
-    renderMedia(player.querySelector(SELECTORS.MEDIA), exercise.media);
+    const mediaEl = renderMedia(player.querySelector(SELECTORS.MEDIA), exercise.media);
 
-    const page = await callWs('mod_elang_get_attempt_cues', {attemptid: attemptId, offset: 0, limit: 50});
-    renderTranscript(player.querySelector(SELECTORS.TRANSCRIPT), page.cues);
+    const transcriptregion = player.querySelector(SELECTORS.TRANSCRIPT);
+    transcriptregion.textContent = '';
+    const list = document.createElement('ol');
+    list.className = 'mod_elang-cues';
+    transcriptregion.appendChild(list);
+
+    let gapnumber = 0;
+    const nextLabel = () => {
+        gapnumber += 1;
+        return strings['player:gaplabel'].replace('%gap%', gapnumber);
+    };
+
+    await loadAllCues(list, exercise.totalcues, nextLabel);
     renderControls(player);
+
+    if (mediaEl instanceof HTMLMediaElement) {
+        attachSync(mediaEl, list);
+    }
 
     const status = player.querySelector(SELECTORS.STATUS);
     if (status) {

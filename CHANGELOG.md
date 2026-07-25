@@ -28,6 +28,29 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.35] - 2026-07-25
+
+Phase 3, slice 3C: media and cue synchronisation.
+
+### Added
+- The player now loads every cue page (looping `get_attempt_cues` by
+  `offset`/`limit` up to the version's `totalcues`) and appends them all, so the
+  whole transcript is present rather than only the first 50 cues.
+- Native audio/video playback drives the transcript: a `timeupdate` listener
+  highlights the cue covering the current time (comparing `currentTime * 1000`
+  against the cues' millisecond `starttime`/`endtime`), marks it `aria-current`
+  and scrolls it into view. Clicking a cue (outside a gap) seeks the medium to
+  that cue's start.
+- The active cue is styled by weight and a leading logical border (RTL-safe),
+  not colour alone.
+
+### Note
+- Synchronisation applies to native `file`/`url` media. Provider embeds
+  (YouTube/Vimeo iframes) do not expose playback time cross-origin, so they are
+  intentionally left unsynchronised for now; wiring their player APIs would be
+  a separate piece. Same grunt build step for `amd/build/` as the previous
+  slices.
+
 ## [2.0.0-alpha.34] - 2026-07-25
 
 Phase 3, slice 3D: answering. The player is now interactive.

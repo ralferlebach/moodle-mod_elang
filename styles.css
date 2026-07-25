@@ -22,6 +22,14 @@
     line-height: 1.8;
 }
 
+/* The currently playing cue is marked by weight and a leading border, not by
+   colour alone, and uses logical properties so it follows RTL. */
+.mod_elang-player .mod_elang-cue.mod_elang-current {
+    border-inline-start: 4px solid;
+    padding-inline-start: 0.5rem;
+    font-weight: bold;
+}
+
 .mod_elang-player .mod_elang-gap {
     display: inline-block;
     width: 8em;

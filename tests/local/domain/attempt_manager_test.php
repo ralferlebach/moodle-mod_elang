@@ -552,4 +552,44 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         $this->manager->request_hint($attempt->id, $this->gap->id, 0);
     }
+
+    /**
+     * Grading reads the Jaro threshold pinned on the attempt's version, not
+     * the activity's current value: a version published with a lenient
+     * threshold accepts a near-miss even though the activity stays strict.
+     *
+     * @return void
+     */
+    public function test_grading_uses_the_versions_jaro_threshold_not_the_activitys(): void {
+        global $DB;
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => 'published',
+            'jarothreshold' => 0.9,
+        ]);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chien dort']);
+        $gap = $generator->create_gap([
+            'cueid' => $cue->id,
+            'solution' => 'chien',
+            'gradingalgorithm' => answer_evaluator::ALGORITHM_WORDRECOGNIZED,
+        ]);
+
+        // The activity keeps the strict default threshold; only the version's
+        // 0.9 can accept the trailing-typo near-miss submitted below.
+        $this->assertEqualsWithDelta(
+            1.0,
+            (float) $DB->get_field('elang', 'jarothreshold', ['id' => $this->elang->id]),
+            0.00001
+        );
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $version->id);
+        $result = $this->manager->submit_response($attempt->id, $gap->id, 'chien!');
+
+        $this->assertSame(grading_result::RESULTSTATE_WORDRECOGNIZED, $result->resultstate);
+        $this->assertTrue($result->accepted);
+    }
 }

@@ -46,6 +46,9 @@
         <FIELD NAME="mediaproviderref" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Provider-specific video reference (id or path) when mediakind = provider; NULL otherwise."/>
         <FIELD NAME="mediamime" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Optional MIME type hint for the medium (e.g. video/mp4, audio/mpeg), used to tell audio-only from video and pick a player; NULL if unknown."/>
         <FIELD NAME="mediaduration" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional media duration in whole seconds; NULL if unknown."/>
+        <FIELD NAME="language" TYPE="char" LENGTH="30" NOTNULL="true" SEQUENCE="false" COMMENT="Versioned copy of the exercise content language/script code (see elang.language). Grading an attempt uses the value pinned on the attempt's version, so editing the activity's language never changes how an in-progress attempt is scored. Seeded from elang.language when a draft is created. No schema-level DEFAULT, same rationale as elang.language above."/>
+        <FIELD NAME="jarothreshold" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Versioned copy of the Jaro similarity threshold used by the wordrecognized grading algorithm (see elang.jarothreshold). Pinned per version so grading an in-progress attempt is stable across activity edits. Seeded from elang.jarothreshold when a draft is created."/>
+        <FIELD NAME="revision" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Monotonic per-version content revision counter, bumped by the authoring layer when a draft's content changes; used for optimistic concurrency and cache invalidation. Starts at 1."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

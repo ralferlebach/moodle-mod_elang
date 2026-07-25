@@ -382,5 +382,61 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072506, 'elang');
     }
 
+    if ($oldversion < 2026072519) {
+        // Grading settings become versioned content: the content language and
+        // the Jaro similarity threshold now live on elang_version, so grading
+        // an in-progress attempt uses the settings pinned when its version was
+        // published rather than the activity's current (possibly edited)
+        // values. revision is a per-version content counter the authoring layer
+        // will bump on edits. Existing rows are backfilled from their parent
+        // elang activity, which already holds these values.
+        $table = new xmldb_table('elang_version');
+
+        // The language column ends up NOTNULL with no schema-level default
+        // (same rationale as elang.language). Add it with a temporary default so
+        // the column can be created on populated tables, backfill real values,
+        // then drop the default so the end state matches install.xml.
+        $language = new xmldb_field('language', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, 'en', 'mediaduration');
+        if (!$dbman->field_exists($table, $language)) {
+            $dbman->add_field($table, $language);
+        }
+
+        $jarothreshold = new xmldb_field(
+            'jarothreshold',
+            XMLDB_TYPE_NUMBER,
+            '10, 5',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '1',
+            'language'
+        );
+        if (!$dbman->field_exists($table, $jarothreshold)) {
+            $dbman->add_field($table, $jarothreshold);
+        }
+
+        $revision = new xmldb_field('revision', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1', 'jarothreshold');
+        if (!$dbman->field_exists($table, $revision)) {
+            $dbman->add_field($table, $revision);
+        }
+
+        // Backfill language and jarothreshold from each version's parent
+        // activity. A per-activity loop keeps the update portable across
+        // database engines (no correlated UPDATE subquery).
+        $elangs = $DB->get_recordset('elang', null, '', 'id, language, jarothreshold');
+        foreach ($elangs as $elang) {
+            $DB->set_field('elang_version', 'language', $elang->language, ['elangid' => $elang->id]);
+            $DB->set_field('elang_version', 'jarothreshold', $elang->jarothreshold, ['elangid' => $elang->id]);
+        }
+        $elangs->close();
+
+        // Drop the temporary default on language so the column matches
+        // install.xml, where it has no default and callers always supply it.
+        $languagenodefault = new xmldb_field('language', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, null, 'mediaduration');
+        $dbman->change_field_default($table, $languagenodefault);
+
+        upgrade_mod_savepoint(true, 2026072519, 'elang');
+    }
+
     return true;
 }

@@ -144,6 +144,15 @@ final class v1_migrator {
 
         $transaction = $DB->start_delegated_transaction();
 
+        // Persist the grading threshold mapped from this activity's V1 options
+        // onto the activity row before creating the draft. It becomes the
+        // activity's default for future drafts and, because create_draft seeds
+        // a new version's grading settings from the activity, the published
+        // version's pinned threshold too — so grading a new attempt scores
+        // answers exactly as V1 did. (language needs no such fix here: it is
+        // migrated onto the activity separately and create_draft copies it.)
+        $DB->set_field('elang', 'jarothreshold', $jarothreshold, ['id' => $elangid]);
+
         $draft = $this->versionmanager->create_draft($elangid);
         $cuemap = $this->migrate_cues($draft->id, $elangid, $gradingalgorithm, $report);
 

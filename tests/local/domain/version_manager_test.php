@@ -31,15 +31,23 @@ final class version_manager_test extends \advanced_testcase {
     /** @var \stdClass */
     private $elang;
 
+    /** @var \stdClass */
+    private $course;
+
+    /** @var \context_module */
+    private $context;
+
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
         $this->manager = new version_manager();
 
-        $course = $this->getDataGenerator()->create_course();
+        $this->course = $this->getDataGenerator()->create_course();
         /** @var \mod_elang_generator $generator */
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $this->elang = $generator->create_instance(['course' => $course->id]);
+        $this->elang = $generator->create_instance(['course' => $this->course->id]);
+        $cm = get_coursemodule_from_instance('elang', $this->elang->id);
+        $this->context = \context_module::instance($cm->id);
     }
 
     /**
@@ -288,5 +296,199 @@ final class version_manager_test extends \advanced_testcase {
         $hashb = $this->manager->compute_content_hash($version->id);
         $this->assertSame($hasha, $hashb);
         $this->assertSame(64, strlen($hasha), 'SHA-256 hex digest is 64 characters long.');
+    }
+
+    /**
+     * A manager (mod/elang:manage) may fetch a file from any version, whatever
+     * its status — the authoring tool needs to preview draft media.
+     *
+     * @return void
+     */
+    public function test_manager_can_access_file_for_any_version_status(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $manager = $this->getDataGenerator()->create_and_enrol($this->course, 'editingteacher');
+
+        $draft = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_DRAFT,
+        ]);
+        $published = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_PUBLISHED,
+        ]);
+        $archived = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_ARCHIVED,
+        ]);
+
+        foreach ([$draft, $published, $archived] as $version) {
+            $this->assertTrue(version_manager::user_can_access_version_file(
+                (int) $version->id,
+                (int) $this->elang->id,
+                $this->context,
+                (int) $manager->id
+            ));
+        }
+    }
+
+    /**
+     * A learner may fetch the published version's file but never a draft's.
+     *
+     * @return void
+     */
+    public function test_learner_can_access_published_but_not_draft_version_file(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $student = $this->getDataGenerator()->create_and_enrol($this->course, 'student');
+
+        $draft = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_DRAFT,
+        ]);
+        $published = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_PUBLISHED,
+        ]);
+
+        $this->assertTrue(version_manager::user_can_access_version_file(
+            (int) $published->id,
+            (int) $this->elang->id,
+            $this->context,
+            (int) $student->id
+        ));
+        $this->assertFalse(version_manager::user_can_access_version_file(
+            (int) $draft->id,
+            (int) $this->elang->id,
+            $this->context,
+            (int) $student->id
+        ));
+    }
+
+    /**
+     * An archived version's file stays available to a learner whose own attempt
+     * is pinned to it, but not to another learner without such an attempt.
+     *
+     * @return void
+     */
+    public function test_learner_can_access_own_pinned_archived_version_file(): void {
+        global $DB;
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $owner = $this->getDataGenerator()->create_and_enrol($this->course, 'student');
+        $other = $this->getDataGenerator()->create_and_enrol($this->course, 'student');
+
+        $archived = $generator->create_version([
+            'elangid' => $this->elang->id,
+            'status' => version_manager::STATUS_ARCHIVED,
+        ]);
+
+        $DB->insert_record('elang_attempt', (object) [
+            'elangid' => $this->elang->id,
+            'versionid' => $archived->id,
+            'userid' => $owner->id,
+            'attemptnumber' => 1,
+            'state' => 'inprogress',
+            'totalgaps' => 0,
+            'answeredgaps' => 0,
+            'exactgaps' => 0,
+            'correctgaps' => 0,
+            'hintedgaps' => 0,
+            'score' => 0,
+            'timestart' => time(),
+            'timemodified' => time(),
+        ]);
+
+        $this->assertTrue(version_manager::user_can_access_version_file(
+            (int) $archived->id,
+            (int) $this->elang->id,
+            $this->context,
+            (int) $owner->id
+        ));
+        $this->assertFalse(version_manager::user_can_access_version_file(
+            (int) $archived->id,
+            (int) $this->elang->id,
+            $this->context,
+            (int) $other->id
+        ));
+    }
+
+    /**
+     * Access is confined to the owning activity: a version id that belongs to a
+     * different activity is rejected even for a manager, so a crafted URL cannot
+     * borrow one module context to serve another activity's files.
+     *
+     * @return void
+     */
+    public function test_access_is_confined_to_the_owning_activity(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $manager = $this->getDataGenerator()->create_and_enrol($this->course, 'editingteacher');
+
+        $otherelang = $generator->create_instance(['course' => $this->course->id]);
+        $foreign = $generator->create_version([
+            'elangid' => $otherelang->id,
+            'status' => version_manager::STATUS_PUBLISHED,
+        ]);
+
+        $this->assertFalse(version_manager::user_can_access_version_file(
+            (int) $foreign->id,
+            (int) $this->elang->id,
+            $this->context,
+            (int) $manager->id
+        ));
+    }
+
+    /**
+     * A new draft copies the activity's current language and Jaro threshold
+     * onto the version, and starts at revision 1, so grading settings are
+     * pinned per version rather than read live from the activity.
+     *
+     * @return void
+     */
+    public function test_create_draft_seeds_grading_settings_from_activity(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance([
+            'course' => $this->course->id,
+            'language' => 'de',
+            'jarothreshold' => 0.8,
+        ]);
+
+        $draft = $this->manager->create_draft($elang->id, 2);
+
+        $this->assertSame('de', $draft->language);
+        $this->assertEqualsWithDelta(0.8, (float) $draft->jarothreshold, 0.00001);
+        $this->assertSame(1, (int) $draft->revision);
+    }
+
+    /**
+     * The content hash reflects the bytes of file-kind media: adding a file to
+     * the version's media area changes the hash, so a swapped medium
+     * invalidates cached worksheets and player payloads.
+     *
+     * @return void
+     */
+    public function test_content_hash_reflects_media_files(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $this->manager->create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Bonjour']);
+        $generator->create_gap(['cueid' => $cue->id, 'solution' => 'x']);
+        $hashbase = $this->manager->compute_content_hash($version->id);
+
+        get_file_storage()->create_file_from_string([
+            'contextid' => $this->context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => $version->id,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'fake video bytes');
+        $hashwithfile = $this->manager->compute_content_hash($version->id);
+
+        $this->assertNotSame($hashbase, $hashwithfile);
     }
 }

@@ -28,6 +28,32 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.41] - 2026-07-25
+
+### Added
+- `elang_version` now carries the grading settings previously read from the
+  activity: `language` and `jarothreshold` are copied onto each version when a
+  draft is created, plus a `revision` counter for the authoring layer. An
+  upgrade step adds the columns and backfills existing versions from their
+  parent activity.
+
+### Changed
+- Grading an in-progress attempt reads the language and Jaro threshold from the
+  attempt's pinned version (`attempt_manager::submit_response()`), not the
+  activity, so editing an activity's settings and publishing a new version no
+  longer changes how an existing attempt is scored.
+- `version_manager::compute_content_hash()` now folds the media and poster
+  files into the hash by their stored content hashes, so swapping a video or
+  poster invalidates cached worksheets and player payloads.
+- The V1 migrator writes the threshold mapped from a V1 activity's options onto
+  the activity row before creating its first version, so the migrated version
+  (which inherits it via create_draft) scores answers exactly as V1 did.
+
+### Tests
+- create_draft seeds language/jarothreshold/revision from the activity; the
+  content hash reflects added media files; grading follows the version's Jaro
+  threshold rather than the activity's.
+
 ## [2.0.0-alpha.40] - 2026-07-25
 
 ### Fixed

@@ -76,6 +76,11 @@ class mod_elang_generator extends testing_module_generator {
         if (!isset($record->contenthash)) {
             $record->contenthash = hash('sha256', random_string(20));
         }
+        if (!isset($record->language)) {
+            // The elang_version.language column is NOT NULL with no schema-level
+            // default; inherit the parent activity's value, as create_draft does.
+            $record->language = (string) $DB->get_field('elang', 'language', ['id' => $record->elangid]);
+        }
         if (!isset($record->usermodified)) {
             $record->usermodified = 2;
         }

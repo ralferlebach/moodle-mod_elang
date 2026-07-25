@@ -145,11 +145,11 @@ class attempt_manager {
      * Resubmitting to the same gap replaces the previous response rather
      * than creating a second row, and increments its try count. Any hint
      * level already revealed for this gap is preserved (submitting an
-     * answer never resets or grants hints). The activity's language
-     * (elang.language) and Jaro-similarity threshold (elang.jarothreshold)
-     * are looked up from the attempt so callers never need to pass them
-     * separately or risk them disagreeing with the activity the attempt
-     * belongs to.
+     * answer never resets or grants hints). The content language and
+     * Jaro-similarity threshold are read from the attempt's pinned version
+     * (elang_version.language / .jarothreshold), not from the activity, so
+     * grading an in-progress attempt stays stable even if the activity's
+     * settings are later edited and a new version is published.
      *
      * Also verifies that $gapid actually belongs to the attempt's version —
      * the External Function layer checks this too (classes/external/
@@ -207,7 +207,7 @@ class attempt_manager {
 
                 $transaction = $DB->start_delegated_transaction();
 
-                $elang = $DB->get_record('elang', ['id' => $attempt->elangid], '*', MUST_EXIST);
+                $version = $DB->get_record('elang_version', ['id' => $attempt->versionid], '*', MUST_EXIST);
                 $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
                 $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
                 if ((int) $cue->versionid !== (int) $attempt->versionid) {
@@ -220,9 +220,9 @@ class attempt_manager {
                     $gap->solution,
                     $gap->gradingalgorithm,
                     $gapanswers,
-                    $elang->language,
+                    $version->language,
                     $responsetext,
-                    isset($elang->jarothreshold) ? (float) $elang->jarothreshold : answer_evaluator::DEFAULT_JARO_THRESHOLD
+                    (float) $version->jarothreshold
                 );
 
                 $hintlevel = $existing ? (int) $existing->hintlevel : 0;

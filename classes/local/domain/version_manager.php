@@ -114,6 +114,55 @@ class version_manager {
     }
 
     /**
+     * Decide whether a user may receive a file from a version's media or poster area.
+     *
+     * Managers (mod/elang:manage) may fetch any version of this activity — draft,
+     * published or archived — so the authoring tool can preview unpublished media.
+     * A learner may fetch the published version's files, and an archived version's
+     * files only while one of their own attempts is pinned to that exact version,
+     * so an in-progress or finished attempt keeps rendering its original medium
+     * after a newer version is published. Draft media is never served to a
+     * non-manager, mirroring the version protection the attempt-bound read API
+     * (get_attempt_exercise) enforces, so an unpublished upload cannot leak
+     * through a guessed pluginfile URL. A version that does not belong to the
+     * given activity is rejected outright.
+     *
+     * @param int $versionid The elang_version id taken from the file path
+     * @param int $elangid The activity the file must belong to
+     * @param \context $context The module context, for the capability check
+     * @param int $userid The user requesting the file
+     * @return bool True if the user is entitled to the file, false otherwise
+     */
+    public static function user_can_access_version_file(
+        int $versionid,
+        int $elangid,
+        \context $context,
+        int $userid
+    ): bool {
+        global $DB;
+
+        $status = $DB->get_field('elang_version', 'status', ['id' => $versionid, 'elangid' => $elangid]);
+        if ($status === false) {
+            return false;
+        }
+        if (has_capability('mod/elang:manage', $context, $userid)) {
+            return true;
+        }
+        if ($status === self::STATUS_PUBLISHED) {
+            return true;
+        }
+        if ($status === self::STATUS_ARCHIVED) {
+            return $DB->record_exists('elang_attempt', [
+                'elangid' => $elangid,
+                'userid' => $userid,
+                'versionid' => $versionid,
+            ]);
+        }
+
+        return false;
+    }
+
+    /**
      * Publish a version: mark it published, archive whichever version was
      * previously published for the same activity, and point elang.currentversionid
      * at it.
@@ -170,8 +219,10 @@ class version_manager {
      * the media columns, cues, gaps, accepted answers, grading algorithms,
      * maxlength, linkurl, transcriptformat AND the gaps' hints (level, type,
      * text, penalty) — a hint change affects how a gap is solved and scored,
-     * so it must invalidate the cache. Timestamps, row ids and the bytes of
-     * file-kind media are deliberately excluded.
+     * so it must invalidate the cache. The bytes of file-kind media and poster
+     * images are folded in via their stored content hashes, so swapping a
+     * medium changes the hash. Timestamps and row ids are deliberately
+     * excluded.
      *
      * Loads cues, gaps, answers and hints in a bounded number of queries (one
      * per table, scoped by IN-lists derived from the previous query's ids)
@@ -187,9 +238,16 @@ class version_manager {
         $media = $DB->get_record(
             'elang_version',
             ['id' => $versionid],
-            'mediakind, mediaurl, mediaprovider, mediaproviderref, mediamime, mediaduration',
+            'elangid, mediakind, mediaurl, mediaprovider, mediaproviderref, mediamime, mediaduration',
             MUST_EXIST
         );
+
+        // The content hash folds in the bytes of file-kind media and poster
+        // images via their stored content hashes, so a swapped video or poster
+        // invalidates cached worksheets and player payloads. Resolve the
+        // activity context that owns those files.
+        $cm = get_coursemodule_from_instance('elang', (int) $media->elangid, 0, false, MUST_EXIST);
+        $contextid = (int) \context_module::instance($cm->id)->id;
 
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
 
@@ -237,9 +295,9 @@ class version_manager {
         // itself contain (reviewer note 8). Hints are included — their type,
         // text and penalty all affect how a gap is solved and scored, so a
         // change to any of them must invalidate a cached worksheet or player
-        // payload. Media columns are folded in for the same reason; the bytes
-        // of file-kind media are still not hashed (see the media data model
-        // work). Timestamps and row ids are deliberately excluded.
+        // payload. Media columns and the media/poster files (by stored content
+        // hash) are folded in for the same reason. Timestamps and row ids are
+        // deliberately excluded.
         $content = [
             'media' => [
                 'kind' => (string) $media->mediakind,
@@ -248,6 +306,8 @@ class version_manager {
                 'providerref' => (string) $media->mediaproviderref,
                 'mime' => (string) $media->mediamime,
                 'duration' => (string) $media->mediaduration,
+                'files' => $this->hash_area_files($contextid, 'media', $versionid),
+                'poster' => $this->hash_area_files($contextid, 'poster', $versionid),
             ],
             'cues' => [],
         ];
@@ -301,6 +361,35 @@ class version_manager {
     }
 
     /**
+     * Normalise one file area of a version into a deterministic list of file
+     * descriptors for the content hash. Each entry carries the file's path,
+     * name, size and stored content hash — the bytes themselves are never
+     * re-read, and directory placeholders are skipped. Ordering by path then
+     * name keeps the result stable across calls and databases.
+     *
+     * @param int $contextid The activity context id owning the files
+     * @param string $filearea The file area to read (media or poster)
+     * @param int $itemid The version id used as the file itemid
+     * @return array A list of [path, name, size, contenthash] associative arrays
+     */
+    private function hash_area_files(int $contextid, string $filearea, int $itemid): array {
+        $fs = get_file_storage();
+        $files = $fs->get_area_files($contextid, 'mod_elang', $filearea, $itemid, 'filepath, filename', false);
+
+        $list = [];
+        foreach ($files as $file) {
+            $list[] = [
+                'path' => $file->get_filepath(),
+                'name' => $file->get_filename(),
+                'size' => (int) $file->get_filesize(),
+                'contenthash' => $file->get_contenthash(),
+            ];
+        }
+
+        return $list;
+    }
+
+    /**
      * Create a new draft version for an activity, assuming the caller
      * already holds the activity's lock.
      *
@@ -318,11 +407,20 @@ class version_manager {
             [$elangid]
         );
 
+        // Seed the versioned grading settings from the activity's current
+        // values: a draft starts as a copy of the activity defaults, and the
+        // authoring layer may later override them per version. elang.language
+        // and elang.jarothreshold are always populated (see elang_add_instance).
+        $elang = $DB->get_record('elang', ['id' => $elangid], 'language, jarothreshold', MUST_EXIST);
+
         $draft = new \stdClass();
         $draft->elangid = $elangid;
         $draft->versionnumber = $nextnumber;
         $draft->status = self::STATUS_DRAFT;
         $draft->contenthash = '';
+        $draft->language = $elang->language;
+        $draft->jarothreshold = $elang->jarothreshold;
+        $draft->revision = 1;
         $draft->usermodified = $userid ?? (int) $USER->id;
         $draft->timecreated = time();
         $draft->id = $DB->insert_record('elang_version', $draft);

@@ -401,6 +401,35 @@ wurde und mindestens ein Release dazwischen liegt.
 Steuerung über eine Adminseite (Status, Trockenlauf, Start, Bericht) **und** ein
 CLI-Skript für große Installationen und Wartungsfenster.
 
+**Update 24.07.2026 — Schritt 5 (Abbau) implementiert.**
+`classes/local/migration/v1_decommissioner.php::decommission()` entfernt
+`elang_cues`/`elang_users`/`elang_help`/`elang_check` und `elang.options`
+unumkehrbar — aber **niemals automatisch**: kein neuer `db/upgrade.php`-
+Schritt, sondern ausschließlich über `cli/decommission_v1.php` oder den
+neuen dritten Abschnitt auf `admin_migrate_v1.php`, jeweils mit
+ausdrücklicher Bestätigung. Begründung: jeder andere Schema-Schritt bisher
+(auch das Hinzufügen von `options` selbst, Kap. 1.3) ist unbedenklich, weil
+`ADD COLUMN`/`CREATE TABLE` niemals etwas zerstört — das Löschen der
+letzten verbliebenen Kopie der V1-Quelldaten wäre es, liefe es automatisch
+beim Upgrade jeder Installation.
+
+`blockers()` verweigert den Abbau, solange irgendeine V1-Aktivität noch
+nicht migriert **oder** eine migrierte Aktivität noch nicht freigegeben ist
+— beide Bedingungen unabhängig geprüft, nicht nur „migriert" allein.
+„Mindestens ein Release Abstand" ist bewusst **nicht** als Versionsnummern-
+Prüfung codiert — das würde genau die falsche Sicherheit erzeugen, die eine
+echte Release-Grenze verhindern soll; wie lange eine Administration über die
+erfüllten Bedingungen hinaus wartet, bleibt ihre eigene Entscheidung.
+
+`elang.migrationapproveduserid`/`.migrationapprovedtime` überleben den Abbau
+bewusst — anders als `options` sind sie ein Prüfprotokoll mit bleibendem
+Wert, kein Wegwerf-Datenblob.
+
+Fünf Tests, u. a.: unmigrierte bzw. unfreigegebene Aktivitäten blockieren
+zuverlässig; nach Abbau bleiben migrierte V2-Daten (Cues, Lücken, Attempts,
+Antworten) und das Freigabe-Protokoll vollständig erhalten; ein zweiter
+Abbau-Aufruf ist ein harmloser Leerlauf.
+
 ---
 
 ## 3. Abbildungsregeln

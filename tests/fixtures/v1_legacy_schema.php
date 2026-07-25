@@ -174,7 +174,7 @@ final class v1_legacy_schema {
         global $DB;
 
         $columns = array_keys((array) $record);
-        // chr(96) is a backtick — written this way, not as a literal
+        // Chr(96) is a backtick — written this way, not as a literal
         // character in a string, because Moodle's coding standard flags
         // backticks inside string literals (they usually signal accidental
         // shell-exec syntax elsewhere; here it is genuinely just MySQL's

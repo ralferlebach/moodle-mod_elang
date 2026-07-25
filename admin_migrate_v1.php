@@ -36,6 +36,7 @@
 require(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
+use mod_elang\local\migration\v1_decommissioner;
 use mod_elang\local\migration\v1_detector;
 use mod_elang\local\migration\v1_signoff;
 use mod_elang\local\migration\v1_verifier;
@@ -67,6 +68,32 @@ if ($action === 'migrate' && confirm_sesskey()) {
 if ($action === 'approve' && $elangid > 0 && confirm_sesskey()) {
     v1_signoff::approve($elangid, (int) $USER->id);
     redirect($pageurl, get_string('migratev1:approved', 'mod_elang', $elangid), null, \core\output\notification::NOTIFY_SUCCESS);
+}
+
+if ($action === 'decommission' && confirm_sesskey()) {
+    $blockers = v1_decommissioner::blockers();
+    if (!empty($blockers)) {
+        redirect(
+            $pageurl,
+            get_string('migratev1:decommissionblocked', 'mod_elang'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+
+    if (!$confirmed) {
+        echo $OUTPUT->header();
+        echo $OUTPUT->confirm(
+            get_string('migratev1:confirmdecommission', 'mod_elang'),
+            new moodle_url($pageurl, ['action' => 'decommission', 'confirm' => 1, 'sesskey' => sesskey()]),
+            $pageurl
+        );
+        echo $OUTPUT->footer();
+        exit;
+    }
+
+    v1_decommissioner::decommission();
+    redirect($pageurl, get_string('migratev1:decommissioned', 'mod_elang'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
@@ -155,6 +182,25 @@ if (empty($needapproval)) {
             get_string('migratev1:approvebutton', 'mod_elang')
         );
     }
+}
+
+// Section 3: decommissioning (Migration_V1_V2.md chapter 2 step 5) — only
+// ever offered once nothing blocks it; see v1_decommissioner's own
+// docblock for why this is deliberately not automatic.
+echo $OUTPUT->heading(get_string('migratev1:decommissionheading', 'mod_elang'), 3);
+
+$decommissionblockers = v1_decommissioner::blockers();
+if (!empty($decommissionblockers)) {
+    $items = array_map('s', $decommissionblockers);
+    echo html_writer::tag('p', get_string('migratev1:decommissionblockedintro', 'mod_elang'));
+    echo html_writer::alist($items);
+} else {
+    echo html_writer::tag('p', get_string('migratev1:decommissionready', 'mod_elang'));
+    echo $OUTPUT->single_button(
+        new moodle_url($pageurl, ['action' => 'decommission']),
+        get_string('migratev1:decommissionbutton', 'mod_elang'),
+        'post'
+    );
 }
 
 echo $OUTPUT->footer();

@@ -52,7 +52,7 @@ fix: clear fix-phpdoc fix-lint-php amd
 	@echo ""
 	@echo "=== All fixes complete. ==="
 
-check: clear lint-php lint-phpdoc lint-mustache lint-cpd phpunit
+check: clear lint-php lint-phpdoc lint-mustache lint-cpd amd phpunit
 	@echo ""
 	@echo "=== All checks complete. Review output above for errors. ==="
 

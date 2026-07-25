@@ -536,6 +536,44 @@ const loadStrings = async() => {
 };
 
 /**
+ * Restore the learner's own saved state into the rendered gaps: their
+ * previously typed text, tries count, hint level and the graded result — so a
+ * reload mid-attempt continues where they left off rather than starting blank.
+ *
+ * @param {Element} list The transcript list element
+ * @returns {Promise} Resolves once the saved state has been applied
+ */
+const restoreState = async(list) => {
+    const state = await callWs('mod_elang_get_attempt_state', {attemptid: attemptId});
+
+    state.responses.forEach((response) => {
+        const wrap = list.querySelector(`.mod_elang-gapwrap[data-gapid="${response.gapid}"]`);
+        if (!wrap) {
+            return;
+        }
+        const input = wrap.querySelector('.mod_elang-gap');
+        const gapstate = wrap.querySelector('.mod_elang-gapstate');
+
+        wrap.dataset.tries = String(response.tries);
+        wrap.dataset.hintlevel = String(response.hintlevel);
+        if (response.hintlevel > 0) {
+            wrap.classList.add('mod_elang-hinted');
+        }
+        if (response.responsetext !== '') {
+            input.value = response.responsetext;
+        }
+
+        if (response.tries > 0) {
+            applyResultState(wrap, gapstate, response.resultstate);
+        } else if (response.hintlevel > 0) {
+            gapstate.textContent = strings['player:statehinted'];
+        }
+    });
+
+    updateScore(state);
+};
+
+/**
  * Start or resume the attempt and render its medium, cues and controls.
  *
  * @param {Number} cmid The course module id
@@ -564,6 +602,7 @@ const bootstrap = async(cmid, player) => {
     };
 
     await loadAllCues(list, exercise.totalcues, nextLabel);
+    await restoreState(list);
     renderControls(player);
 
     if (mediaEl instanceof HTMLMediaElement) {

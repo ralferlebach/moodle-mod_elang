@@ -28,6 +28,26 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.36] - 2026-07-25
+
+Phase 3, slice 3E: resume.
+
+### Added
+- On load, after rendering the gaps, the player calls `get_attempt_state` and
+  replays the learner's own saved state into each gap — previously typed text,
+  tries count, hint level, the "hint used" marker and the graded result state —
+  and refreshes the score. A reload mid-attempt now continues where the learner
+  left off instead of starting blank. (`start_attempt` resumes an existing
+  in-progress attempt, so the state belongs to that same attempt.)
+
+### Note
+- Only in-progress work is resumed: reloading after finishing starts a fresh
+  attempt, as `start_attempt` creates a new one when none is in progress. The
+  saved hint *text* is not re-shown on resume (the state carries the hint level,
+  not the text); the gap is marked hint-used and the penalty is already in the
+  score. Media playback position is not restored. Same grunt build step for
+  `amd/build/` as the previous slices.
+
 ## [2.0.0-alpha.35] - 2026-07-25
 
 Phase 3, slice 3C: media and cue synchronisation.

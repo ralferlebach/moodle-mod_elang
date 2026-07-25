@@ -429,3 +429,76 @@ function elang_get_scale_item_count(int $scaleid): int {
 
     return count($scale->scale_items);
 }
+
+/**
+ * Return the file areas mod_elang exposes through the file browser.
+ *
+ * Both areas are versioned: a file's itemid is the elang_version id it
+ * belongs to, so each immutable version keeps its own media and poster.
+ *
+ * @param stdClass $course The course object
+ * @param cm_info|stdClass $cm The course module
+ * @param context $context The module context
+ * @return array [(string) filearea] => (string) human-readable name
+ */
+function elang_get_file_areas($course, $cm, $context): array {
+    return [
+        'media' => get_string('filearea_media', 'mod_elang'),
+        'poster' => get_string('filearea_poster', 'mod_elang'),
+    ];
+}
+
+/**
+ * Serve files from mod_elang's versioned media and poster file areas.
+ *
+ * The first path segment is the elang_version id (the area itemid). Access is
+ * granted to any user who may view the activity; the medium itself is not a
+ * solution, and which version a learner is entitled to is enforced by the
+ * attempt-bound read API (get_attempt_exercise), not here. The version is
+ * checked to belong to this activity so a crafted URL cannot borrow this
+ * context to serve another activity's files.
+ *
+ * @param stdClass $course The course object
+ * @param cm_info|stdClass $cm The course module
+ * @param context $context The module context
+ * @param string $filearea The file area (media or poster)
+ * @param array $args The remaining path segments: version id, then filepath and filename
+ * @param bool $forcedownload Whether to force download
+ * @param array $options Additional options affecting file serving
+ * @return bool False if the file could not be served; otherwise sends the file and exits
+ */
+function elang_pluginfile($course, $cm, $context, string $filearea, array $args, bool $forcedownload, array $options = []): bool {
+    global $DB;
+
+    if ($context->contextlevel !== CONTEXT_MODULE) {
+        return false;
+    }
+    if (!in_array($filearea, ['media', 'poster'], true)) {
+        return false;
+    }
+
+    require_login($course, true, $cm);
+    require_capability('mod/elang:view', $context);
+
+    $versionid = (int) array_shift($args);
+
+    // The version must belong to this activity, so the URL cannot be rewritten
+    // to serve another activity's media through this module context.
+    if (!$DB->record_exists('elang_version', ['id' => $versionid, 'elangid' => $cm->instance])) {
+        return false;
+    }
+
+    $filename = array_pop($args);
+    $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
+
+    $fs = get_file_storage();
+    $file = $fs->get_file($context->id, 'mod_elang', $filearea, $versionid, $filepath, $filename);
+    if (!$file || $file->is_directory()) {
+        return false;
+    }
+
+    // Media is immutable per version, so it is safe to let clients cache it.
+    send_stored_file($file, DAYSECS, 0, $forcedownload, $options);
+
+    return true;
+}

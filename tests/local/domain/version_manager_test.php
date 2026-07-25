@@ -213,6 +213,30 @@ final class version_manager_test extends \advanced_testcase {
     }
 
     /**
+     * Changing a version's media columns changes its content hash, so a cache
+     * keyed on the hash is invalidated when the medium changes.
+     *
+     * @return void
+     */
+    public function test_content_hash_reflects_media_columns(): void {
+        global $DB;
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $this->manager->create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Bonjour']);
+        $generator->create_gap(['cueid' => $cue->id, 'solution' => 'x']);
+        $hashbase = $this->manager->compute_content_hash($version->id);
+
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $version->id]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/a.mp4', ['id' => $version->id]);
+        $hashwithmedia = $this->manager->compute_content_hash($version->id);
+
+        $this->assertNotSame($hashbase, $hashwithmedia);
+    }
+
+    /**
      * compute_content_hash() correctly attributes gaps and answers to the
      * right cue even across several cues, since the batched queries it uses
      * group results in PHP rather than one query per cue/gap.

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/elang/db" VERSION="20260724" COMMENT="XMLDB file for Moodle mod/elang"
+<XMLDB PATH="mod/elang/db" VERSION="20260725" COMMENT="XMLDB file for Moodle mod/elang"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -40,6 +40,12 @@
         <FIELD NAME="contenthash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-256 over the normalised version content; cache key for rendered worksheets and player payloads. No schema-level DEFAULT, same rationale as elang.language above."/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="mediakind" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Media source kind for this version: file | url | provider, or NULL for a version with no medium. file = Moodle files in the 'media' file area at itemid = this version id; url = a direct media URL in mediaurl; provider = an embeddable external video described by mediaprovider + mediaproviderref. Versioned like all other content: swapping media publishes a new version, so in-progress attempts keep their original medium. Only public/embeddable access is handled in core; authenticated (login-gated) providers are a separate paid subplugin."/>
+        <FIELD NAME="mediaurl" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Direct media URL when mediakind = url; NULL otherwise."/>
+        <FIELD NAME="mediaprovider" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="External provider name when mediakind = provider, e.g. youtube, vimeo, mediasite; NULL otherwise."/>
+        <FIELD NAME="mediaproviderref" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Provider-specific video reference (id or path) when mediakind = provider; NULL otherwise."/>
+        <FIELD NAME="mediamime" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Optional MIME type hint for the medium (e.g. video/mp4, audio/mpeg), used to tell audio-only from video and pick a player; NULL if unknown."/>
+        <FIELD NAME="mediaduration" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional media duration in whole seconds; NULL if unknown."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

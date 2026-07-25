@@ -28,6 +28,39 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.28] - 2026-07-25
+
+Versioned media data model — Patch A of the media/file work (no-login scope).
+Login-gated providers (private videos, YouTube caption import) are deliberately
+out of core and will be a separate paid subplugin; no OAuth column is added.
+
+### Added
+- `elang_version` gains versioned media columns (`mediakind` file|url|provider,
+  `mediaurl`, `mediaprovider`, `mediaproviderref`, `mediamime`, `mediaduration`)
+  via `db/install.xml` and a `db/upgrade.php` step. Media belongs to the
+  version, so swapping a medium publishes a new version and in-progress
+  attempts keep the medium they started on.
+- `elang_pluginfile()` and `elang_get_file_areas()` in `lib.php` serving the
+  versioned `media` and `poster` file areas (itemid = version id) with
+  require_login + `mod/elang:view` + a check that the version belongs to the
+  activity. `filearea_media` / `filearea_poster` language strings.
+- `get_attempt_exercise` now returns a `media` block for the attempt's pinned
+  version: kind, provider/ref, direct url, mimetype, duration, the pluginfile
+  URLs of any file-kind media (several encodings supported) and a poster URL.
+  Supports file, direct url, and public provider embeds (youtube, vimeo,
+  mediasite, …) — all without login.
+- Media columns are folded into `version_manager::compute_content_hash()` so a
+  medium change invalidates the content-hash cache key. (File *bytes* are not
+  yet hashed — deferred to the media-migration work; see the method note.)
+- Tests: url/provider/file+poster media in `get_attempt_exercise_test`, and a
+  media-column hash test in `version_manager_test`.
+
+### Note
+- This is Patch A. Patch B will migrate existing version 1 media
+  (`videos`/`poster` file areas at itemid 0 in mod_elang 1.x) into the new
+  versioned areas. Patch C (a separate paid subplugin) would add login-gated
+  provider access and caption import.
+
 ## [2.0.0-alpha.27] - 2026-07-25
 
 Retry-safety for the two mutating learner functions, so a lost response on the

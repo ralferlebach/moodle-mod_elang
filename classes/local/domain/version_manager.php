@@ -183,9 +183,11 @@ class version_manager {
     public function compute_content_hash(int $versionid): string {
         global $DB;
 
+        $mediapart = $this->media_hash_part($versionid);
+
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC');
         if (empty($cues)) {
-            return hash('sha256', '');
+            return hash('sha256', $mediapart);
         }
 
         $cueids = array_keys($cues);
@@ -243,7 +245,44 @@ class version_manager {
             ]);
         }
 
-        return hash('sha256', implode("\n", $cueparts));
+        return hash('sha256', $mediapart . "\n" . implode("\n", $cueparts));
+    }
+
+    /**
+     * Build the media contribution to a version's content hash from its media
+     * columns, so that changing the medium (a different URL, provider, MIME or
+     * switching kind) invalidates any cache keyed on the content hash.
+     *
+     * Only the columns are folded in here, not the bytes of file-kind media:
+     * within a version the files are immutable, and swapping a file publishes
+     * a new version with its own id anyway. Hashing the stored files' content
+     * as well — to also distinguish two otherwise-identical versions that
+     * differ only in their uploaded media file — is left for the file/media
+     * migration work. The serialisation matches the delimiter style used for
+     * cues and gaps below; a canonical, collision-proof encoding is a separate
+     * hardening item (reviewer note 8).
+     *
+     * @param int $versionid The elang_version id
+     * @return string The media portion of the pre-hash content string
+     */
+    private function media_hash_part(int $versionid): string {
+        global $DB;
+
+        $media = $DB->get_record(
+            'elang_version',
+            ['id' => $versionid],
+            'mediakind, mediaurl, mediaprovider, mediaproviderref, mediamime, mediaduration',
+            MUST_EXIST
+        );
+
+        return implode(',', [
+            (string) $media->mediakind,
+            (string) $media->mediaurl,
+            (string) $media->mediaprovider,
+            (string) $media->mediaproviderref,
+            (string) $media->mediamime,
+            (string) $media->mediaduration,
+        ]);
     }
 
     /**

@@ -355,5 +355,32 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072414, 'elang');
     }
 
+    if ($oldversion < 2026072506) {
+        // Versioned media (Blueprint chapter on the player / media model):
+        // media belongs to elang_version so that swapping a medium publishes a
+        // new version and in-progress attempts keep the medium they started
+        // with. file-kind media lives in the 'media'/'poster' file areas at
+        // itemid = version id; url- and provider-kind media are described by
+        // the columns below. Login-gated providers are out of scope for core
+        // and become a separate paid subplugin, so no OAuth column is added.
+        $table = new xmldb_table('elang_version');
+
+        $fields = [
+            new xmldb_field('mediakind', XMLDB_TYPE_CHAR, '20', null, null, null, null, 'timecreated'),
+            new xmldb_field('mediaurl', XMLDB_TYPE_TEXT, null, null, null, null, null, 'mediakind'),
+            new xmldb_field('mediaprovider', XMLDB_TYPE_CHAR, '40', null, null, null, null, 'mediaurl'),
+            new xmldb_field('mediaproviderref', XMLDB_TYPE_TEXT, null, null, null, null, null, 'mediaprovider'),
+            new xmldb_field('mediamime', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'mediaproviderref'),
+            new xmldb_field('mediaduration', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'mediamime'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026072506, 'elang');
+    }
+
     return true;
 }

@@ -157,4 +157,96 @@ final class get_attempt_exercise_test extends \advanced_testcase {
         $this->expectException(\core\exception\required_capability_exception::class);
         get_attempt_exercise::execute($this->attemptid);
     }
+
+    /**
+     * A url-kind medium is returned as a direct URL with its MIME and
+     * duration, and no files or poster.
+     *
+     * @return void
+     */
+    public function test_returns_url_media(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/clip.mp4', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaduration', 90, ['id' => $attempt->versionid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('url', $result['media']['kind']);
+        $this->assertSame('https://example.org/clip.mp4', $result['media']['url']);
+        $this->assertSame('video/mp4', $result['media']['mimetype']);
+        $this->assertSame(90, $result['media']['duration']);
+        $this->assertSame([], $result['media']['files']);
+        $this->assertSame('', $result['media']['posterurl']);
+    }
+
+    /**
+     * A provider-kind medium is returned as provider plus reference, with no
+     * file URLs.
+     *
+     * @return void
+     */
+    public function test_returns_provider_media(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $DB->set_field('elang_version', 'mediakind', 'provider', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaprovider', 'youtube', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaproviderref', 'dQw4w9WgXcQ', ['id' => $attempt->versionid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('provider', $result['media']['kind']);
+        $this->assertSame('youtube', $result['media']['provider']);
+        $this->assertSame('dQw4w9WgXcQ', $result['media']['providerref']);
+        $this->assertSame([], $result['media']['files']);
+    }
+
+    /**
+     * A file-kind medium returns pluginfile URLs for its media files (keyed
+     * by the version id) and for the poster, which can accompany any medium.
+     *
+     * @return void
+     */
+    public function test_returns_file_media_and_poster(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $versionid = (int) $attempt->versionid;
+        $context = \context_module::instance($this->cm->id);
+
+        $fs = get_file_storage();
+        $fs->create_file_from_string([
+            'contextid' => $context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => $versionid,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'fake-video-bytes');
+        $fs->create_file_from_string([
+            'contextid' => $context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'poster',
+            'itemid' => $versionid,
+            'filepath' => '/',
+            'filename' => 'poster.jpg',
+        ], 'fake-image-bytes');
+        $DB->set_field('elang_version', 'mediakind', 'file', ['id' => $versionid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('file', $result['media']['kind']);
+        $this->assertCount(1, $result['media']['files']);
+        $this->assertSame('clip.mp4', $result['media']['files'][0]['filename']);
+        $this->assertStringContainsString('pluginfile.php', $result['media']['files'][0]['url']);
+        $this->assertStringContainsString("/media/{$versionid}/clip.mp4", $result['media']['files'][0]['url']);
+        $this->assertStringContainsString('poster.jpg', $result['media']['posterurl']);
+    }
 }

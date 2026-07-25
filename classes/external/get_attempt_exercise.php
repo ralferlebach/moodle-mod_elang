@@ -18,6 +18,7 @@ namespace mod_elang\external;
 
 use core_external\external_api;
 use core_external\external_function_parameters;
+use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
@@ -93,7 +94,83 @@ class get_attempt_exercise extends external_api {
             'totalcues' => $totalcues,
             'totalgaps' => $totalgaps,
             'contenthash' => (string) $version->contenthash,
+            'media' => self::build_media($context, $version),
         ];
+    }
+
+    /**
+     * Build the media descriptor for a version: its kind and, depending on
+     * kind, a direct URL, provider reference, or the pluginfile URLs of the
+     * uploaded media files (several encodings are possible). A poster image,
+     * if present, is returned for any kind. No solution data is involved, and
+     * access is already gated by the caller's ownership and capability checks.
+     *
+     * @param \context_module $context The activity context
+     * @param \stdClass $version The elang_version record this attempt is pinned to
+     * @return array The media descriptor, see execute_returns()
+     */
+    private static function build_media(\context_module $context, \stdClass $version): array {
+        $versionid = (int) $version->id;
+        $media = [
+            'kind' => (string) ($version->mediakind ?? ''),
+            'provider' => (string) ($version->mediaprovider ?? ''),
+            'providerref' => (string) ($version->mediaproviderref ?? ''),
+            'url' => (string) ($version->mediaurl ?? ''),
+            'mimetype' => (string) ($version->mediamime ?? ''),
+            'duration' => (int) ($version->mediaduration ?? 0),
+            'files' => [],
+            'posterurl' => '',
+        ];
+
+        $fs = get_file_storage();
+
+        if ($version->mediakind === 'file') {
+            $mediafiles = $fs->get_area_files(
+                $context->id,
+                'mod_elang',
+                'media',
+                $versionid,
+                'filepath, filename',
+                false
+            );
+            foreach ($mediafiles as $file) {
+                $media['files'][] = [
+                    'url' => \moodle_url::make_pluginfile_url(
+                        $context->id,
+                        'mod_elang',
+                        'media',
+                        $versionid,
+                        $file->get_filepath(),
+                        $file->get_filename()
+                    )->out(false),
+                    'filename' => $file->get_filename(),
+                    'mimetype' => (string) $file->get_mimetype(),
+                ];
+            }
+        }
+
+        // A poster image can accompany any medium (file, url or provider).
+        $posterfiles = $fs->get_area_files(
+            $context->id,
+            'mod_elang',
+            'poster',
+            $versionid,
+            'filepath, filename',
+            false
+        );
+        $poster = reset($posterfiles);
+        if ($poster) {
+            $media['posterurl'] = \moodle_url::make_pluginfile_url(
+                $context->id,
+                'mod_elang',
+                'poster',
+                $versionid,
+                $poster->get_filepath(),
+                $poster->get_filename()
+            )->out(false);
+        }
+
+        return $media;
     }
 
     /**
@@ -113,6 +190,23 @@ class get_attempt_exercise extends external_api {
                 PARAM_RAW,
                 'Content hash of the attempted version, usable as a client-side cache key'
             ),
+            'media' => new external_single_structure([
+                'kind' => new external_value(PARAM_ALPHA, 'Media kind: file, url, provider, or empty if none'),
+                'provider' => new external_value(PARAM_ALPHANUMEXT, 'Provider name when kind=provider, else empty'),
+                'providerref' => new external_value(PARAM_RAW, 'Provider video reference when kind=provider, else empty'),
+                'url' => new external_value(PARAM_RAW, 'Direct media URL when kind=url, else empty'),
+                'mimetype' => new external_value(PARAM_RAW, 'MIME type hint for the medium, or empty if unknown'),
+                'duration' => new external_value(PARAM_INT, 'Media duration in seconds, or 0 if unknown'),
+                'files' => new external_multiple_structure(
+                    new external_single_structure([
+                        'url' => new external_value(PARAM_RAW, 'pluginfile URL of a media file'),
+                        'filename' => new external_value(PARAM_RAW, 'File name'),
+                        'mimetype' => new external_value(PARAM_RAW, 'File MIME type'),
+                    ]),
+                    'Media files when kind=file (several encodings possible), otherwise empty'
+                ),
+                'posterurl' => new external_value(PARAM_RAW, 'pluginfile URL of the poster image, or empty'),
+            ]),
         ]);
     }
 }

@@ -313,6 +313,22 @@ einer sauberen Migration vornehmen (Musterlösung geändert, Cue gelöscht,
 Bewertungsalgorithmus geändert, Antwort gelöscht) und bestätigen, dass genau
 das erkannt wird — nicht nur, dass eine saubere Migration „ok" zurückgibt.
 
+**Update 25.07.2026 — echter Bug gefunden und behoben, über vier unabhängige
+CI-Umgebungen bestätigt (GitHub Actions, moodle-plugin-ci, MariaDB und
+PostgreSQL, Moodle 4.5 und 5.2).** `decommission()` hat `elang.options`
+gedroppt, sobald die Spalte existierte — unabhängig davon, ob die jeweilige
+Seite je V1-Daten hatte. Da `options` seit Entscheidung A auf **jeder**
+frischen Installation vorhanden ist, hat bereits ein einzelner Testfall ohne
+jede V1-Aktivität die Spalte aus der echten, geteilten `elang`-Tabelle
+entfernt — und da Moodles PHPUnit-Reset zwischen Tests nur Daten, nicht aber
+gedropptes Schema wiederherstellt, blieb sie für den Rest des gesamten
+Testlaufs verschwunden. Fix: `options` wird nur noch gedroppt, wenn
+mindestens eine Aktivität auf der Seite tatsächlich freigegeben wurde
+(`migrationapproveduserid` irgendwo gesetzt) — nicht schon, weil
+`blockers()` leer zurückkam. Beides ist nicht dasselbe: `blockers()` ist
+genauso leer für eine Seite, die nie V1-Daten hatte, wie für eine, die einen
+echten Migrationszyklus abgeschlossen hat.
+
 **Grundsatz:** Die Migration wird an der **Existenz der Legacy-Tabellen**
 festgemacht, nicht an Versionsnummern.
 

@@ -28,6 +28,28 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.38] - 2026-07-25
+
+Behat fix and documentation alignment (session close).
+
+### Fixed
+- Behat: the resume scenario failed at `the field "Gap 1" matches value "chat"`
+  because Moodle's field locator matches by label/name/id/placeholder, not
+  `aria-label`, and the gaps carry an aria-label (correct for an inline
+  transcript). Replaced that step with a custom `elang gap "X" should contain
+  "Y"` step that locates the input by aria-label and reads its value through
+  Mink.
+
+### Changed
+- Documentation aligned with the shipped API: `docs/materials/` now uses the
+  attempt-bound names `get_attempt_exercise` / `get_attempt_cues` throughout,
+  with a note on the attempt binding (attemptid, `mod/elang:attempt`, ownership,
+  reading strictly from `elang_attempt.versionid`); phases 2 and 3 are marked
+  complete in the roadmap.
+- `docs/prompt-templates/sessionstart.txt` updated to the alpha.37 state (Phase
+  3 done, next is Phase 4), and `docs/sessions/session-003.md` records this
+  session.
+
 ## [2.0.0-alpha.37] - 2026-07-25
 
 Phase 3: Behat coverage for the player's two most important behaviours.

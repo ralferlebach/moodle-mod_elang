@@ -122,9 +122,7 @@ amd:
 	@echo ""
 	@echo "=== AMD rebuild (skipped when amd/src/ is empty) ==="
 	@if ls $(PLUGIN_DIR)/amd/src/*.js 2>/dev/null | grep -q .; then \
-		files=$$(find $(PLUGIN_REL)/amd/src -name '*.js' \
-			| tr '\n' ',' | sed 's/,$$//'); \
-		cd $(MOODLE_ROOT) && $(NPX) grunt amd --root=. --force --files="$$files"; \
+		grunt amd --force; \
 	else \
 		echo "No AMD source files — skipped."; \
 	fi

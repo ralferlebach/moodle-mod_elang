@@ -51,17 +51,19 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.21 (2026072416) — Infrastruktur + versioniertes
-Datenmodell + zwei-Algorithmen-Bewertung (inkl. Jaro-Ähnlichkeit seit
-alpha.9) + Domänenschicht + vollständige Schreib-/Lese-API + Privacy-
-Provider + Transkript-Maskierung + Hilfestufen + Gradebook + Completion
-(Phase 2 vollständig, wie in Session 001 bestätigt) UND ZUSÄTZLICH die
-**komplette Migration V1 → V2**: Erkennung, Trockenlauf, Migration
-(Aktivität + wiederaufnehmbarer Ad-hoc-Task), Verifikation, Freigabe,
-Abbau — jeweils per CLI (`cli/migrate_v1.php`, `cli/decommission_v1.php`)
-und Adminseite (`admin_migrate_v1.php`) nutzbar. Player (Phase 3) und
-Autorenoberfläche (Phase 4) fehlen weiterhin vollständig — siehe
-„Als nächstes geplant" unten.
+**Version:** 2.0.0-alpha.37 (2026072515) — Phase 2 (Datenmodell, Domäne,
+Migration) UND Phase 3 (Lernendenoberfläche) abgeschlossen. Auf dem in
+Phase 2 gebauten Fundament kamen in Session 003 hinzu: attempt-gebundene
+Lese-API (`get_attempt_exercise`/`get_attempt_cues`, streng aus
+`elang_attempt.versionid`), Retry-Sicherheit (`expectedtries`/`expectedlevel`),
+das **versionierte Medien-Datenmodell** (Datei-/URL-/Provider-Medien auf
+`elang_version`, `elang_pluginfile`, V1-Medien-Migration) OHNE Login, sowie die
+komplette Härtungsliste (serverseitige maxlength, aktive Completion, kanonischer
+Content-Hash inkl. Hints, Link-Härtung, stabile Fehlercodes) und der
+**Player** (Shell, Antworten, Medien-/Cue-Sync, Resume) mit Behat für Resume
+und Versions-Pinning. Login-gestützte Provider (OAuth) sind bewusst als
+späteres bezahltes Subplugin ausgelagert. Autorenoberfläche (Phase 4) fehlt
+weiterhin vollständig — siehe „Als nächstes geplant" unten.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -72,60 +74,55 @@ Autorenoberfläche (Phase 4) fehlen weiterhin vollständig — siehe
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 002 — vollständige Migration V1 → V2):**
-  - Technische Review gegen echten Code verifiziert, bestätigte P0/P1-
-    Befunde behoben (Race Conditions, Gradebook-Skalenfehler, N+1-Abfragen,
-    Privacy-Lücken, Regex-Absicherung).
-  - Echter V1-Quellcode, echte Beispieldaten UND eine echte `.mbz`-
-    Sicherung vom Auftraggeber erhalten und ausgewertet — zahlreiche
-    zuvor offene Fragen abschließend geklärt (jaroDistance-Semantik,
-    gradingalgorithm-Zuordnung, keine Hilfestrafe weil kein V1-Gradebook,
-    `tries` nirgends rekonstruierbar, Gap-Zähler-Bug-Mechanismus korrekt
-    verstanden). Details: `Migration_V1_V2.md` Kap. 1.2–1.4.
-  - Komplette Migrationskette gebaut und getestet: `v1_detector`
-    (Erkennung + Trockenlauf), `v1_cue_parser` + `v1_options_mapper`
-    (mechanische Bausteine), `v1_migrator` (eine Aktivität transaktional,
-    Antworten neu über den echten `answer_evaluator` bewertet),
-    `migrate_v1_activities_task` (blockweise, wiederaufnehmbar ohne eigene
-    Fortschrittstabelle), `v1_verifier` (unabhängiger Soll-/Ist-Abgleich),
-    `v1_signoff` (Freigabe, getrennt von „migriert"), `v1_decommissioner`
-    (Abbau, NIEMALS automatisch — bewusst kein `db/upgrade.php`-Schritt).
-  - `elang.options` bleibt als echtes, nullable Schema-Feld erhalten
-    (Entscheidung A) statt einer Testfiktion — löst, wie V1-Optionen das
-    Zeitfenster zwischen Schema-Upgrade und Datenmigration übersteht.
-  - `tests/fixtures/v1_legacy_schema.php` (echtes V1-Schema + echte
-    Beispieldaten) und `tests/fixtures/v1_data_simulator.php`
-    (parametrisierbare synthetische Mengengerüste, reproduziert den
-    echten Gap-Zähler-Bug-Mechanismus statt ihn nachträglich einzustreuen).
-  - Ein echter, über vier unabhängige CI-Umgebungen bestätigter Bug in
-    `v1_decommissioner::decommission()` gefunden und behoben (siehe
-    Stolperfallen unten) — **Fix NICHT mehr durch einen erneuten CI-Lauf
-    bestätigt, erste Aufgabe der nächsten Sitzung.**
-  - Eine fremde Plugin-Kontamination (`enrol_adele`-Dateien in `mod/elang`)
-    diagnostiziert und aufgeklärt — nicht durch eigenen Code verursacht.
+**Zuletzt abgeschlossen (Session 003 — Medienmodell + Härtung + Player):**
+  - CI-Gate repariert (MariaDB-only-Rot durch `elang.options`-DROP im
+    `v1_decommissioner`-Test; tearDown stellt die Spalte wieder her).
+  - Attempt-gebundene Lese-API: `get_exercise/get_cues` -> `get_attempt_exercise/
+    get_attempt_cues` (attemptid statt cmid, `mod/elang:attempt`, Ownership,
+    Lesen streng aus `elang_attempt.versionid`). Alte Dateien sind zu loeschen
+    (`git rm classes/external/get_exercise.php get_cues.php` + deren Tests).
+  - Retry-Sicherheit: `submit_response`/`request_hint` mit optionalem
+    `expectedtries`/`expectedlevel` (optimistische Nebenlaeufigkeit, schemafrei).
+  - Versioniertes Medien-Datenmodell auf `elang_version` (mediakind
+    file|url|provider + Felder), `elang_pluginfile`/`elang_get_file_areas`,
+    Medienblock in `get_attempt_exercise`, Medien im Content-Hash; V1-Medien-
+    Migration (`v1_media_migrator`). Alles OHNE Login; OAuth = spaeteres Subplugin.
+  - Haertung: serverseitige `maxlength`-Durchsetzung, aktive Completion bei
+    `finish_attempt`, kanonischer Content-Hash inkl. Hints, Link-Haertung
+    (`PARAM_URL`, http(s)-only), stabile `moodle_exception`-Fehlercodes statt
+    `coding_exception` im Attempt-Pfad; DRY-Refactor (`attempt_helper`).
+  - Player (Phase 3): `view.php` + `templates/player.mustache` +
+    `amd/src/player.js` — Attempt-Bootstrap, Medien-/Transkriptrendering,
+    Antworten (Zustaende, Hints, Finish), Medien-/Cue-Sync (timeupdate, ms<->s),
+    Resume (`get_attempt_state`). Behat: Resume + Versions-Pinning.
+  - Offene manuelle Schritte: `amd/build/` per `grunt` bauen und committen;
+    die vier alten External-Dateien `git rm`.
 
-Details zu Session 002 vollständig in `docs/sessions/session-002.md`,
-zu Session 001 in `docs/sessions/session-001.md`.
+Details zu Session 003 vollstaendig in `docs/sessions/session-003.md`,
+zu Session 002 in `docs/sessions/session-002.md`, zu Session 001 in
+`docs/sessions/session-001.md`.
 
 **Als nächstes geplant (Priorität noch zu klären):**
-  - **Zuerst:** den `decommission()`-Fix real bestätigen (CI grün?) —
-    siehe oben, war am Ende von Session 002 nicht mehr verifiziert.
-  - **Phase 3 — Lernendenoberfläche:** Die Lese-API
-    (get_exercise/get_cues/get_attempt_state) und die Schreib-API
-    (start/submit/finish_attempt, request_hint) sind vollständig -- ein
-    Player kann jetzt tatsächlich gebaut werden.
-  - **Phase 4 — Autorenoberfläche:** `version_manager` bietet die
-    Domänenlogik zum Anlegen von Versionen/Cues/Lücken, aber keine
-    Oberfläche dafür. Ohne sie entsteht neuer V2-Inhalt aktuell nur über
-    die V1-Migration.
-  - elang.answermaxlength (aktivitätsweiter Default; pro-Lücke-Override
-    existiert bereits als elang_gap.maxlength) -- würde die aktuell harte
-    500-Zeichen-Grenze in submit_response ablösen bzw. ergänzen
-  - classes/courseformat/overview.php (wirkt ab Moodle 5.0, auf 4.5 inaktiv)
-  - Prozentbasierte Completion-Regeln (completionansweredpercent/
-    completioncorrectpercent) -- V1-Formel bereits aus dem Quellcode
-    dokumentiert (Migration_V1_V2.md Kap. 1.2), nur `completionfinishattempt`
-    bisher implementiert
+  - **Zuerst (Housekeeping):** die vier alten External-Dateien `git rm`
+    (`get_exercise.php`, `get_cues.php` + deren Tests) und `amd/build/` per
+    `grunt` bauen/committen — sonst laufen phpcpd-Klone bzw. der Player im
+    Browser nicht. Danach CI (`lint-js`, `behat`) grün bestätigen.
+  - **Phase 4 — Autorenoberfläche (größter offener Brocken):** visueller Editor
+    (`edit.php`, `amd/src/editor/{timeline,gapeditor,preview}.js`),
+    Importvalidierung (VTT/SRT/Legacy-Markup mit Vorschau), Autoren-WS
+    (`mod_elang_save_draft_version`, `mod_elang_publish_version`,
+    `mod_elang_preview_import`). Ohne sie entsteht neuer V2-Inhalt nur über die
+    Migration bzw. Behat-Steps. Sinnvoll in Slices: Import+Vorschau →
+    Segment-/Lückeneditor → Publish-UI.
+  - **Phase 4 — Reporting/Export:** Lehrer-Auswertung, Arbeitsblatt-/Daten-
+    export (Capabilities existieren bereits).
+  - **Optional/später:** Provider-Sync via YouTube-/Vimeo-Player-APIs
+    (native file/url-Sync steht); bezahltes OAuth-Login-Subplugin für private
+    Provider; `db/mobile.php` (App-Support); `elang.answermaxlength`
+    (aktivitätsweiter Default — pro-Lücke-Override und die harte 500er-Grenze
+    sind bereits serverseitig durchgesetzt); `classes/courseformat/overview.php`
+    (ab Moodle 5.0); prozentbasierte Completion-Regeln
+    (`completionansweredpercent`/`completioncorrectpercent`).
   - Reporting/CSV-Export, PDF-/VTT-Arbeitsblattexport, V2-eigenes
     Backup/Restore, globale Plugin-Einstellungsseite mit echten
     Konfigurationswerten (bisher nur der Migrations-Adminlink)

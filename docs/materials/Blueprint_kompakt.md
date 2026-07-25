@@ -79,7 +79,7 @@ Details, Beispiele und Referenzfälle: Blueprint Kap. 10.
 | Domain | `attempt_manager`, `version_manager` — **implementiert seit alpha.3** |
 | Grading | `answer_evaluator`, `script_handler(_manager)`, `latin_script_handler` — **implementiert** |
 | Persistenz | kleine Repository-Klassen mit gezielten Queries |
-| API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` — **7 implementiert seit alpha.6** (get_exercise, get_cues, get_attempt_state, start/submit/finish_attempt, request_hint); save/publish_draft_version, preview_import, queue_worksheet offen |
+| API | External Functions in `classes/external/`, `db/services.php`, `core/ajax` — **7 implementiert seit alpha.6** (get_attempt_exercise, get_attempt_cues, get_attempt_state, start/submit/finish_attempt, request_hint); save/publish_draft_version, preview_import, queue_worksheet offen |
 | Ausgabe | Renderables, Renderer, Mustache |
 | JavaScript | native ES-Module unter `amd/src/` |
 | Reporting | Report Builder (Entities + System Reports) |

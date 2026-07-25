@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+use Behat\Mink\Exception\ExpectationException;
+
 /**
  * Behat step definitions for mod_elang.
  *
@@ -81,6 +83,30 @@ class behat_mod_elang extends behat_base {
 })();
 JS;
         $this->execute_script($js);
+    }
+
+    /**
+     * Assert a gap input holds a given value, located by its accessible label.
+     *
+     * The gaps carry an aria-label rather than an associated <label>, which
+     * Moodle's built-in "the field ... matches value" locator does not match,
+     * so this reads the value directly by aria-label.
+     *
+     * @Then /^elang gap "(?P<label>[^"]*)" should contain "(?P<text>[^"]*)"$/
+     *
+     * @param string $label The gap input's accessible label, e.g. "Gap 1"
+     * @param string $text The value the input is expected to hold
+     * @return void
+     */
+    public function elang_gap_should_contain(string $label, string $text): void {
+        $node = $this->find('css', 'input[aria-label="' . $label . '"]');
+        $actual = (string) $node->getValue();
+        if ($actual !== $text) {
+            throw new ExpectationException(
+                "The elang gap \"{$label}\" contains \"{$actual}\", expected \"{$text}\".",
+                $this->getSession()
+            );
+        }
     }
 
     /**

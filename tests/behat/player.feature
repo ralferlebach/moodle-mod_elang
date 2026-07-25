@@ -31,7 +31,7 @@ Feature: Attempt a language exercise in the player
     Then I should see "Correct"
     When I reload the page
     Then I should see "Exercise ready."
-    And the field "Gap 1" matches value "chat"
+    And elang gap "Gap 1" should contain "chat"
     And I should see "Correct"
 
   Scenario: An in-progress attempt keeps reading the version it started on

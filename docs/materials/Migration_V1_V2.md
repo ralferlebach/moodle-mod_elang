@@ -147,7 +147,7 @@ Funde, mit Fundstelle:
   `title`-Felds, danach mit „…" gekürzt (`locallib.php:348-352`); `limit` —
   Seitengröße für die Cue-Liste im Player (`server.php:254-266`, „Listing
   limit"), fachlich identisch zum `$limit`-Parameter von V2s eigenem
-  `get_cues`; `left`/`top`/`size` — Randabstände und Schriftgröße des
+  `get_attempt_cues`; `left`/`top`/`size` — Randabstände und Schriftgröße des
   PDF-Arbeitsblattexports (TCPDF, `lib.php:646-651`), keine Player-Layout-
   Einstellungen wie zunächst vermutet.
 - **Zitate aus der technischen Review bestätigt, nicht revidiert:** der

@@ -1,0 +1,29 @@
+/* Player layout only — colours, dark mode and RTL are left to the theme. */
+
+.mod_elang-player .mod_elang-media video,
+.mod_elang-player .mod_elang-media iframe {
+    max-width: 100%;
+    width: 100%;
+}
+
+.mod_elang-player .mod_elang-media iframe.mod_elang-embed {
+    aspect-ratio: 16 / 9;
+    border: 0;
+}
+
+.mod_elang-player .mod_elang-cues {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mod_elang-player .mod_elang-cue {
+    padding: 0.25rem 0;
+    line-height: 1.8;
+}
+
+.mod_elang-player .mod_elang-gap {
+    display: inline-block;
+    width: 8em;
+    max-width: 100%;
+}

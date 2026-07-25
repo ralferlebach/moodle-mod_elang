@@ -17,8 +17,11 @@
 /**
  * Main activity page for mod_elang.
  *
- * Version 2.0 skeleton: renders inside the standard Moodle page frame. The player,
- * transcript and answering area are added in phase 3.
+ * Renders the Moodle-native player shell inside the standard page frame and
+ * hands off to the mod_elang/player AMD module, which drives the attempt
+ * lifecycle (start/resume the attempt, load the pinned version's media and
+ * cues) entirely through the external API. Answering, media/cue
+ * synchronisation and resume are layered on in later phase 3 slices.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -54,6 +57,8 @@ $event->trigger();
 $completion = new completion_info($course);
 $completion->set_module_viewed($cm);
 
+$PAGE->requires->js_call_amd('mod_elang/player', 'init', [(int) $cm->id]);
+
 echo $OUTPUT->header();
-echo $OUTPUT->notification(get_string('skeletonnotice', 'mod_elang'), \core\output\notification::NOTIFY_INFO);
+echo $OUTPUT->render_from_template('mod_elang/player', []);
 echo $OUTPUT->footer();

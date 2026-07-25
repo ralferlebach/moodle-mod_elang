@@ -77,6 +77,11 @@ $string['modulename_help'] = 'Die Aktivität Sprachübung lässt Lernende Lücke
 Lehrende importieren eine WebVTT- oder SubRip-Datei, markieren Wörter oder Wendungen als Lücken und legen fest, wie streng Antworten verglichen werden. Lernende arbeiten das Transkript Segment für Segment durch, können abgestufte Hilfen anfordern und erhalten unmittelbare Rückmeldung.';
 $string['modulenameplural'] = 'Sprachübungen';
 $string['noinstances'] = 'In diesem Kurs gibt es keine Sprachübungen.';
+$string['player:gaplabel'] = 'Lücke {$a}';
+$string['player:loaderror'] = 'Die Übung konnte nicht geladen werden. Bitte laden Sie die Seite neu.';
+$string['player:loading'] = 'Übung wird geladen …';
+$string['player:ready'] = 'Übung bereit.';
+$string['player:transcriptheading'] = 'Transkript';
 $string['pluginadministration'] = 'Sprachübung-Administration';
 $string['pluginname'] = 'Sprachübung';
 $string['privacy:metadata:elang_attempt'] = 'Für jeden Versuch an einer Übung speichert die Aktivität, wer ihn unternommen hat, wann, wie weit er kam und wie er bewertet wurde.';

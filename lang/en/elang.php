@@ -81,9 +81,11 @@ $string['modulename_help'] = 'The language exercise activity lets learners fill 
 Teachers import a WebVTT or SubRip subtitle file, mark words or phrases as gaps, and configure how strictly answers are compared. Learners work through the transcript segment by segment, request graded hints and receive immediate feedback.';
 $string['modulenameplural'] = 'Language exercises';
 $string['noinstances'] = 'There are no language exercises in this course.';
+$string['player:check'] = 'Check answer';
 $string['player:finish'] = 'Finish attempt';
 $string['player:finished'] = 'Attempt finished. Score: %score%%';
 $string['player:gaplabel'] = 'Gap %gap%';
+$string['player:gaplink'] = 'Open link';
 $string['player:hint'] = 'Show a hint';
 $string['player:loaderror'] = 'The exercise could not be loaded. Please reload the page.';
 $string['player:loading'] = 'Loading the exercise…';

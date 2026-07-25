@@ -86,31 +86,11 @@ class request_hint extends external_api {
         [$attempt] = self::require_inprogress_attempt($attemptid);
         self::require_gap_in_attempt_version($gapid, $attempt);
 
-        $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
-        $currentlevel = $existing ? (int) $existing->hintlevel : 0;
-
-        // Optimistic-concurrency retry guard. The caller passes the hint level
-        // it last saw revealed; the only benign disagreement is being exactly
-        // one level behind — the previous reveal committed but its response was
-        // lost, so replay the hint already revealed at $currentlevel without
-        // advancing (and re-penalising) again. Any other disagreement is a
-        // stale client that must reload first. expectedlevel === -1 opts out
-        // and reveals unconditionally.
-        if ($expectedlevel >= 0 && $expectedlevel !== $currentlevel) {
-            if ($expectedlevel === $currentlevel - 1 && $currentlevel >= 1) {
-                $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $currentlevel], '*', MUST_EXIST);
-                $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-                return self::format_hint($hint, $updated);
-            }
-            throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
-        }
-
-        $nextlevel = $currentlevel + 1;
-        if (!$DB->record_exists('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel])) {
-            throw new \moodle_exception('error:nomorehints', 'mod_elang');
-        }
-
-        $hint = self::get_attempt_manager()->request_hint($attemptid, $gapid);
+        // The optimistic-concurrency retry guard — idempotent replay of the
+        // level last revealed, and rejection of a stale client — now lives in
+        // the domain manager, where it runs inside the write lock; expectedlevel
+        // is passed straight through (-1 reveals unconditionally).
+        $hint = self::get_attempt_manager()->request_hint($attemptid, $gapid, $expectedlevel);
         $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
         return self::format_hint($hint, $updated);

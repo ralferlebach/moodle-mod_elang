@@ -28,6 +28,72 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.40] - 2026-07-25
+
+### Fixed
+- Player: finishing an attempt now waits for any in-flight answer submissions
+  before calling `finish_attempt`, so an answer typed immediately before
+  pressing "Finish attempt" can no longer lose a race and be rejected as
+  belonging to an already-finished attempt (`amd/src/player.js`).
+- The optimistic-concurrency retry guards for submitting a response and
+  requesting a hint now run inside the attempt write lock, in
+  `attempt_manager::submit_response()` and `::request_hint()`, instead of in a
+  pre-lock read in the External Function layer. Two genuinely concurrent
+  retries can no longer both pass the check and each count a try or advance a
+  hint level. The External Functions pass `expectedtries` / `expectedlevel`
+  straight through; the observable web-service contract is unchanged.
+
+### Added
+- Player: an explicit "Check answer" submit button on each gap, alongside the
+  existing submit-on-Enter and submit-on-blur, giving an unambiguous submit
+  action (`player:check`).
+- Player: gaps that carry an associated link (`elang_gap.linkurl`, already
+  returned by `get_attempt_cues`) now render an "Open link" anchor
+  (`player:gaplink`); previously the value was fetched but never shown.
+- Domain tests for the moved concurrency guards: stale/ahead `expectedtries`
+  on submit, and replay/stale `expectedlevel` on hint request.
+
+### Changed
+- New language strings `player:check` and `player:gaplink` (en, de).
+
+### Note
+- `amd/src/player.js` changed but `amd/build/` is **not** included in this
+  patch: run `grunt amd` (e.g. `make amd`) to regenerate
+  `amd/build/player.min.js` and its source map. CI regenerates AMD builds; the
+  previous minified player runs until the rebuild happens.
+
+## [2.0.0-alpha.39] - 2026-07-25
+
+### Security
+- `elang_pluginfile()` now enforces version status when serving media and poster
+  files, not just activity membership. Previously any user with `mod/elang:view`
+  could fetch a file from *any* of the activity's versions — including an
+  unpublished draft — if they knew the version id and file name, which would have
+  let draft media uploaded by the upcoming authoring tool leak to learners. The
+  file API now mirrors the attempt-bound read API's version protection: a learner
+  may fetch the published version's files, or an archived version's files only
+  while one of their own attempts is pinned to it; draft media is reserved for
+  users with `mod/elang:manage`.
+
+### Added
+- `version_manager::user_can_access_version_file()`: the reusable access decision
+  behind the `elang_pluginfile()` hardening (manager → any version; learner →
+  published, or own-pinned archived; never a draft), confined to the owning
+  activity so a crafted URL cannot borrow one module context for another
+  activity's files. Covered by four new `version_manager_test` cases.
+
+### Changed
+- `make check` is now a real local gate instead of an advisory run: `lint-js` is
+  part of the suite; `lint-php`, `lint-phpdoc` and `lint-mustache` fail the target
+  on findings instead of swallowing their exit status; `grunt amd --force` is
+  reduced to `grunt amd` so a broken build surfaces; and the build step is dropped
+  from `check` (the source is still linted) so `check` stays a pure verification
+  gate. `lint-cpd` remains informational. This matches the stricter GitHub CI.
+- `README.md` rewritten to the moodle-an-hochschulen README template layout and
+  corrected: it no longer claims the player, migration and authoring UI are
+  unimplemented — the player and the version 1 migration ship, and the authoring
+  studio is the current work in progress.
+
 ## [2.0.0-alpha.38] - 2026-07-25
 
 Behat fix and documentation alignment (session close).

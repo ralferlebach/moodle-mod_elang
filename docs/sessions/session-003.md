@@ -79,31 +79,36 @@
 
 ### Offene Punkte für die nächste Session
 
-- [ ] **`git rm`** der vier alten External-Dateien (get_exercise.php, get_cues.php + Tests) —
-      beseitigt die phpcpd-Klone #1/#2.
-- [ ] **`grunt`** laufen lassen und `amd/build/player.min.js` committen — sonst lädt der Player nicht.
-- [ ] **CI bestätigen:** `lint-js` (Moodle-ESLint über `player.js` — hier nicht ausführbar) und
-      `behat` nach dem Fix; phpcs für die neue Behat-Datei.
-- [ ] **Phase 4 — Autorenoberfläche** (größter Brocken): `edit.php`, `amd/src/editor/*`,
-      Importvalidierung, Autoren-WS. In Slices schneiden.
-- [ ] Phase 4 — Reporting/Export; optional Provider-Sync, OAuth-Subplugin, `db/mobile.php`.
+- [x] **`grunt`-Build** — erledigt (durch grünes @javascript-Behat bestätigt;
+      `amd/build/player.min.js` liegt vor).
+- [x] **CI bestätigen** — erledigt: `lint-js`, `behat`, PHPUnit, PHPCS, PHPDoc
+      grün auf Moodle 4.5 und 5.2.
+- [ ] **`git rm`** der vier alten External-Dateien (get_exercise.php,
+      get_cues.php + Tests), sofern noch nicht geschehen — beseitigt die
+      phpcpd-Klone #1/#2 (phpcpd ist nicht CI-blockierend, daher kein Rot,
+      aber reine Altlast).
+- [ ] **Phase 4 — Autorenoberfläche** (größter Brocken): `edit.php`,
+      `amd/src/editor/*`, Importvalidierung, Autoren-WS. In Slices schneiden.
+- [ ] Phase 4 — Reporting/Export; optional Provider-Sync, OAuth-Subplugin,
+      `db/mobile.php`.
 
 ---
 
 ### Testlauf-Ergebnis
 
 ```
-PHPUnit: OK  (PHP-Arbeit per Nutzer-CI grün bestätigt; hier nicht ausführbar)
-PHPCS:   OK  (per Nutzer-CI; einzelne phpcs-Runden während der Session behoben)
-PHPDoc:  OK  (per Nutzer-CI)
-Behat:   FIX (1 Szenario „Resume" schlug fehl: Feld per aria-label nicht gefunden;
-              behoben durch Custom-Step `elang gap "X" should contain "Y"`.
-              Erneuter Behat-Lauf steht aus. JS/lint-js hier grundsätzlich nicht ausführbar.)
+PHPUnit:  OK
+PHPCS:    OK
+PHPDoc:   OK
+Behat:    OK   (nach dem aria-label-Fix; alle Szenarien grün)
+lint-js:  OK
 ```
 
-Hinweis: Die gesamte Frontend-Arbeit (JS/Mustache/CSS/Behat) konnte in dieser Umgebung
-weder gebaut noch getestet werden (kein grunt, kein Browser). Verifikation nur strukturell
-(Node-Syntax, Balance, Zeilenlängen, Selektor-/Feldnamen-Abgleich gegen `services.php`).
+**Vom Auftraggeber bestätigt: CI vollständig grün** (Moodle 4.5 und 5.2,
+Chrome). Damit ist auch der `grunt`-Build gelaufen (der Player lädt im
+Browser, sonst wären die @javascript-Behat-Szenarien nicht grün) und die
+gesamte Frontend-Arbeit (player.js, Templates, CSS, Behat) ist erstmals real
+verifiziert — nicht mehr nur strukturell.
 
 ---
 
@@ -135,9 +140,10 @@ docs/materials/*  docs/prompt-templates/sessionstart.txt  docs/sessions/session-
 ### Für die nächste Session einfügen in sessionstart.txt
 
 **Aktueller Entwicklungsstand:**
-> Phase 2 und Phase 3 abgeschlossen (Version alpha.37). Player läuft auf der
-> attempt-gebundenen, gehärteten API mit versioniertem Medienmodell. Offen: die
-> zwei manuellen Schritte (git rm, grunt build) und die CI-Bestätigung von lint-js/behat.
+> Phase 2 und Phase 3 abgeschlossen (Version alpha.38), **CI vollständig grün**
+> (Moodle 4.5/5.2, lint-js + behat). Player läuft real auf der attempt-gebundenen,
+> gehärteten API mit versioniertem Medienmodell. Nur noch Altlast offen: `git rm`
+> der vier alten External-Dateien.
 
 **Zuletzt abgeschlossen:**
 > Medien-Datenmodell + V1-Medien-Migration (ohne Login), Härtungsliste (§6–§11),

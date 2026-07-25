@@ -158,68 +158,100 @@ class attempt_manager {
      * CLI script, a future importer) would otherwise be able to record a
      * response against a gap from an unrelated version.
      *
+     * Optimistic-concurrency retry guard: the caller may pass the tries count
+     * it last saw for this gap in $expectedtries. If the stored count has
+     * already moved past it, a prior request committed and this is a
+     * lost-response retry (or stale duplicate), so the stored outcome is
+     * returned without counting another try; a count ahead of the server is
+     * rejected as a stale client. The check runs here, inside the write lock,
+     * so two genuinely concurrent retries cannot both read the same old state
+     * and each count a try. $expectedtries of -1 (the default) submits
+     * unconditionally.
+     *
      * @param int $attemptid The elang_attempt id
      * @param int $gapid The elang_gap id being answered
      * @param string $responsetext The learner's raw response
+     * @param int $expectedtries The tries count the caller last saw, or -1 to submit unconditionally
      * @return grading_result The evaluation outcome
      */
-    public function submit_response(int $attemptid, int $gapid, string $responsetext): grading_result {
+    public function submit_response(
+        int $attemptid,
+        int $gapid,
+        string $responsetext,
+        int $expectedtries = -1
+    ): grading_result {
         global $DB;
 
-        return $this->with_lock("attempt_write_{$attemptid}", function () use ($DB, $attemptid, $gapid, $responsetext) {
-            $transaction = $DB->start_delegated_transaction();
+        return $this->with_lock(
+            "attempt_write_{$attemptid}",
+            function () use ($DB, $attemptid, $gapid, $responsetext, $expectedtries) {
+                $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+                if ($attempt->state !== self::STATE_INPROGRESS) {
+                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                }
 
-            $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-            if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
+                $currenttries = $existing ? (int) $existing->tries : 0;
+
+                // Optimistic-concurrency retry guard, atomic under the write lock.
+                if ($expectedtries >= 0 && $expectedtries < $currenttries) {
+                    // A prior submission already committed: replay its stored
+                    // outcome without counting another try.
+                    return new grading_result($existing->resultstate, (bool) $existing->accepted);
+                }
+                if ($expectedtries > $currenttries) {
+                    // The caller claims more tries than exist: its view is ahead
+                    // of the server, which should be impossible. Make it refetch.
+                    throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
+                }
+
+                $transaction = $DB->start_delegated_transaction();
+
+                $elang = $DB->get_record('elang', ['id' => $attempt->elangid], '*', MUST_EXIST);
+                $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
+                $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
+                if ((int) $cue->versionid !== (int) $attempt->versionid) {
+                    throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+                }
+
+                $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
+
+                $result = $this->evaluator->evaluate(
+                    $gap->solution,
+                    $gap->gradingalgorithm,
+                    $gapanswers,
+                    $elang->language,
+                    $responsetext,
+                    isset($elang->jarothreshold) ? (float) $elang->jarothreshold : answer_evaluator::DEFAULT_JARO_THRESHOLD
+                );
+
+                $hintlevel = $existing ? (int) $existing->hintlevel : 0;
+
+                $response = $existing ?: new \stdClass();
+                $response->attemptid = $attemptid;
+                $response->gapid = $gapid;
+                $response->responsetext = $responsetext;
+                $response->resultstate = $result->resultstate;
+                $response->accepted = $result->accepted ? 1 : 0;
+                $response->tries = $currenttries + 1;
+                $response->hintlevel = $hintlevel;
+                $response->timemodified = time();
+
+                if ($existing) {
+                    $DB->update_record('elang_response', $response);
+                } else {
+                    $response->score = 0;
+                    $response->timecreated = time();
+                    $response->id = $DB->insert_record('elang_response', $response);
+                }
+
+                $this->recalculate_attempt_aggregates($attemptid);
+
+                $transaction->allow_commit();
+
+                return $result;
             }
-
-            $elang = $DB->get_record('elang', ['id' => $attempt->elangid], '*', MUST_EXIST);
-            $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
-            $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
-            if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
-            }
-
-            $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
-
-            $result = $this->evaluator->evaluate(
-                $gap->solution,
-                $gap->gradingalgorithm,
-                $gapanswers,
-                $elang->language,
-                $responsetext,
-                isset($elang->jarothreshold) ? (float) $elang->jarothreshold : answer_evaluator::DEFAULT_JARO_THRESHOLD
-            );
-
-            $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
-            $tries = $existing ? ((int) $existing->tries + 1) : 1;
-            $hintlevel = $existing ? (int) $existing->hintlevel : 0;
-
-            $response = $existing ?: new \stdClass();
-            $response->attemptid = $attemptid;
-            $response->gapid = $gapid;
-            $response->responsetext = $responsetext;
-            $response->resultstate = $result->resultstate;
-            $response->accepted = $result->accepted ? 1 : 0;
-            $response->tries = $tries;
-            $response->hintlevel = $hintlevel;
-            $response->timemodified = time();
-
-            if ($existing) {
-                $DB->update_record('elang_response', $response);
-            } else {
-                $response->score = 0;
-                $response->timecreated = time();
-                $response->id = $DB->insert_record('elang_response', $response);
-            }
-
-            $this->recalculate_attempt_aggregates($attemptid);
-
-            $transaction->allow_commit();
-
-            return $result;
-        });
+        );
     }
 
     /**
@@ -237,64 +269,93 @@ class attempt_manager {
      * Also verifies that $gapid belongs to the attempt's version, for the
      * same reason submit_response() does — see its docblock.
      *
+     * Optimistic-concurrency retry guard: the caller may pass the hint level
+     * it last saw revealed in $expectedlevel. The only benign disagreement is
+     * being exactly one level behind — the previous reveal committed but its
+     * response was lost — in which case the hint already revealed at the
+     * current level is replayed without advancing (and re-penalising) again.
+     * Any other disagreement is a stale client and is rejected. The check runs
+     * here, inside the write lock, so two genuinely concurrent retries cannot
+     * both advance. $expectedlevel of -1 (the default) reveals unconditionally.
+     *
      * @param int $attemptid The elang_attempt id
      * @param int $gapid The elang_gap id to reveal a hint for
+     * @param int $expectedlevel The hint level the caller last saw, or -1 to reveal unconditionally
      * @return \stdClass The revealed elang_gaphint record
      */
-    public function request_hint(int $attemptid, int $gapid): \stdClass {
+    public function request_hint(int $attemptid, int $gapid, int $expectedlevel = -1): \stdClass {
         global $DB;
 
-        return $this->with_lock("attempt_write_{$attemptid}", function () use ($DB, $attemptid, $gapid) {
-            $transaction = $DB->start_delegated_transaction();
+        return $this->with_lock(
+            "attempt_write_{$attemptid}",
+            function () use ($DB, $attemptid, $gapid, $expectedlevel) {
+                $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+                if ($attempt->state !== self::STATE_INPROGRESS) {
+                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                }
 
-            $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-            if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
+                $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
+                if ((int) $cue->versionid !== (int) $attempt->versionid) {
+                    throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+                }
+
+                $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
+                $currentlevel = $existing ? (int) $existing->hintlevel : 0;
+
+                // Optimistic-concurrency retry guard, atomic under the write lock.
+                if ($expectedlevel >= 0 && $expectedlevel !== $currentlevel) {
+                    if ($expectedlevel === $currentlevel - 1 && $currentlevel >= 1) {
+                        // Lost-response replay: return the hint already revealed
+                        // at the current level without advancing or re-penalising.
+                        return $DB->get_record(
+                            'elang_gaphint',
+                            ['gapid' => $gapid, 'level' => $currentlevel],
+                            '*',
+                            MUST_EXIST
+                        );
+                    }
+                    throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
+                }
+
+                $nextlevel = $currentlevel + 1;
+
+                $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel]);
+                if (!$hint) {
+                    throw new \moodle_exception('error:nomorehints', 'mod_elang');
+                }
+
+                $transaction = $DB->start_delegated_transaction();
+
+                $response = $existing ?: new \stdClass();
+                $response->attemptid = $attemptid;
+                $response->gapid = $gapid;
+                $response->hintlevel = $nextlevel;
+                $response->timemodified = time();
+
+                if ($existing) {
+                    $DB->update_record('elang_response', $response);
+                } else {
+                    // No answer submitted yet: the response row exists solely to
+                    // hold the hint level. responsetext has no schema-level default
+                    // (see version_manager's equivalent note for elang.language),
+                    // so it must be supplied explicitly.
+                    $response->responsetext = '';
+                    $response->resultstate = grading_result::RESULTSTATE_EMPTY;
+                    $response->accepted = 0;
+                    $response->tries = 0;
+                    $response->score = 0;
+                    $response->timecreated = time();
+                    $response->id = $DB->insert_record('elang_response', $response);
+                }
+
+                $this->recalculate_attempt_aggregates($attemptid);
+
+                $transaction->allow_commit();
+
+                return $hint;
             }
-
-            $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
-            $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
-            if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
-            }
-
-            $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
-            $currentlevel = $existing ? (int) $existing->hintlevel : 0;
-            $nextlevel = $currentlevel + 1;
-
-            $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel]);
-            if (!$hint) {
-                throw new \moodle_exception('error:nomorehints', 'mod_elang');
-            }
-
-            $response = $existing ?: new \stdClass();
-            $response->attemptid = $attemptid;
-            $response->gapid = $gapid;
-            $response->hintlevel = $nextlevel;
-            $response->timemodified = time();
-
-            if ($existing) {
-                $DB->update_record('elang_response', $response);
-            } else {
-                // No answer submitted yet: the response row exists solely to
-                // hold the hint level. responsetext has no schema-level default
-                // (see version_manager's equivalent note for elang.language),
-                // so it must be supplied explicitly.
-                $response->responsetext = '';
-                $response->resultstate = grading_result::RESULTSTATE_EMPTY;
-                $response->accepted = 0;
-                $response->tries = 0;
-                $response->score = 0;
-                $response->timecreated = time();
-                $response->id = $DB->insert_record('elang_response', $response);
-            }
-
-            $this->recalculate_attempt_aggregates($attemptid);
-
-            $transaction->allow_commit();
-
-            return $hint;
-        });
+        );
     }
 
     /**

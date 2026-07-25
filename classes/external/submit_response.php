@@ -100,34 +100,11 @@ class submit_response extends external_api {
             throw new \moodle_exception('error:responsetoolong', 'mod_elang', '', $effectivelimit);
         }
 
-        // Optimistic-concurrency retry guard. The caller passes the tries
-        // count it last saw for this gap; if the server has already moved
-        // past it, the prior request committed and this is a lost-response
-        // retry (or a stale duplicate), so return the stored outcome verbatim
-        // instead of counting another try. A network hiccup must never turn
-        // one submission into two failed tries. expectedtries === -1 means the
-        // caller opted out and wants an unconditional submit.
-        $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
-        $currenttries = $existing ? (int) $existing->tries : 0;
-
-        if ($expectedtries >= 0 && $expectedtries < $currenttries) {
-            $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-            return [
-                'resultstate' => $existing->resultstate,
-                'accepted' => (bool) $existing->accepted,
-                'answeredgaps' => (int) $updated->answeredgaps,
-                'correctgaps' => (int) $updated->correctgaps,
-                'exactgaps' => (int) $updated->exactgaps,
-                'score' => (float) $updated->score,
-            ];
-        }
-        if ($expectedtries > $currenttries) {
-            // The caller claims more tries than exist: its view is ahead of the
-            // server, which should be impossible. Make it refetch, don't guess.
-            throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
-        }
-
-        $result = self::get_attempt_manager()->submit_response($attemptid, $gapid, $responsetext);
+        // The optimistic-concurrency retry guard now lives in the domain
+        // manager, where it runs inside the write lock so two concurrent
+        // retries cannot both count a try; expectedtries is passed straight
+        // through (-1 submits unconditionally).
+        $result = self::get_attempt_manager()->submit_response($attemptid, $gapid, $responsetext, $expectedtries);
         $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
         return [

@@ -481,4 +481,75 @@ final class attempt_manager_test extends \advanced_testcase {
 
         $this->assertEqualsWithDelta(1.0, $this->manager->get_best_score($this->elang->id, $this->student->id), 0.00001);
     }
+
+    /**
+     * A retry that passes the tries count seen before the original submit
+     * committed replays the stored outcome without counting a second try. The
+     * optimistic-concurrency guard now lives here, under the write lock.
+     *
+     * @return void
+     */
+    public function test_submit_response_replays_stored_outcome_on_stale_expected_tries(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+
+        $retry = $this->manager->submit_response($attempt->id, $this->gap->id, 'chat', 0);
+
+        $this->assertSame(grading_result::RESULTSTATE_EXACT, $retry->resultstate);
+        $this->assertTrue($retry->accepted);
+
+        $response = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $this->gap->id], '*', MUST_EXIST);
+        $this->assertSame(1, (int) $response->tries);
+    }
+
+    /**
+     * A submit whose expected tries count is ahead of the server is rejected
+     * as a stale client rather than silently accepted.
+     *
+     * @return void
+     */
+    public function test_submit_response_rejects_expected_tries_ahead_of_the_server(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+
+        $this->expectException(\moodle_exception::class);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat', 5);
+    }
+
+    /**
+     * A hint retry that passes the level seen before the previous reveal
+     * committed replays that level without advancing or re-penalising again.
+     *
+     * @return void
+     */
+    public function test_request_hint_replays_current_level_on_previous_expected_level(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $replay = $this->manager->request_hint($attempt->id, $this->gap->id, 0);
+
+        $this->assertSame(1, (int) $replay->level);
+
+        $response = $DB->get_record('elang_response', ['attemptid' => $attempt->id, 'gapid' => $this->gap->id], '*', MUST_EXIST);
+        $this->assertSame(1, (int) $response->hintlevel);
+    }
+
+    /**
+     * A hint request whose expected level is neither the current level nor
+     * exactly one behind is rejected as a stale client.
+     *
+     * @return void
+     */
+    public function test_request_hint_rejects_a_stale_expected_level(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+        $this->manager->request_hint($attempt->id, $this->gap->id);
+
+        $this->expectException(\moodle_exception::class);
+        $this->manager->request_hint($attempt->id, $this->gap->id, 0);
+    }
 }

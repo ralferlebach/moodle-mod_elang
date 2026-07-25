@@ -95,18 +95,18 @@ weiterhin vollständig — siehe „Als nächstes geplant" unten.
     `amd/src/player.js` — Attempt-Bootstrap, Medien-/Transkriptrendering,
     Antworten (Zustaende, Hints, Finish), Medien-/Cue-Sync (timeupdate, ms<->s),
     Resume (`get_attempt_state`). Behat: Resume + Versions-Pinning.
-  - Offene manuelle Schritte: `amd/build/` per `grunt` bauen und committen;
-    die vier alten External-Dateien `git rm`.
+  - CI vollständig grün (Moodle 4.5/5.2, lint-js + behat) — der Player ist real
+    verifiziert, `amd/build/` ist gebaut. Einzige Altlast: die vier alten
+    External-Dateien noch `git rm` (phpcpd-Klone, nicht CI-blockierend).
 
 Details zu Session 003 vollstaendig in `docs/sessions/session-003.md`,
 zu Session 002 in `docs/sessions/session-002.md`, zu Session 001 in
 `docs/sessions/session-001.md`.
 
 **Als nächstes geplant (Priorität noch zu klären):**
-  - **Zuerst (Housekeeping):** die vier alten External-Dateien `git rm`
-    (`get_exercise.php`, `get_cues.php` + deren Tests) und `amd/build/` per
-    `grunt` bauen/committen — sonst laufen phpcpd-Klone bzw. der Player im
-    Browser nicht. Danach CI (`lint-js`, `behat`) grün bestätigen.
+  - **Housekeeping (nur Altlast):** die vier alten External-Dateien `git rm`
+    (`get_exercise.php`, `get_cues.php` + deren Tests) — beseitigt die
+    phpcpd-Klone (nicht CI-blockierend). CI ist bereits grün, Phase 3 vollständig.
   - **Phase 4 — Autorenoberfläche (größter offener Brocken):** visueller Editor
     (`edit.php`, `amd/src/editor/{timeline,gapeditor,preview}.js`),
     Importvalidierung (VTT/SRT/Legacy-Markup mit Vorschau), Autoren-WS

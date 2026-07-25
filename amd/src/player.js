@@ -65,6 +65,10 @@ const STATE_CLASSES = ['mod_elang-correct', 'mod_elang-accepted', 'mod_elang-inc
 let attemptId = null;
 const strings = {};
 
+// In-flight submit_response promises, so finishing the attempt can wait for a
+// just-typed answer that is still being sent instead of racing it.
+const pendingSubmits = new Set();
+
 /**
  * Call a single external function and return its promise.
  *
@@ -201,35 +205,41 @@ const applyResultState = (wrap, state, resultstate) => {
 
 /**
  * Submit a gap's current value, unless it is empty, and reflect the result.
- * Sends the tries count last seen so a lost-response retry is idempotent.
+ * Sends the tries count last seen so a lost-response retry is idempotent. The
+ * in-flight promise is tracked so finishing the attempt can wait for it.
  *
  * @param {Element} wrap The gap wrapper
  * @param {Element} input The gap input
  * @param {Element} state The gap's status element
  * @returns {Promise} Resolves once the result has been applied
  */
-const submitGap = async(wrap, input, state) => {
+const submitGap = (wrap, input, state) => {
     const value = input.value.trim();
     if (value === '' || wrap.dataset.submitting === '1') {
-        return;
+        return Promise.resolve();
     }
     wrap.dataset.submitting = '1';
-    try {
-        const result = await callWs('mod_elang_submit_response', {
-            attemptid: attemptId,
-            gapid: parseInt(wrap.dataset.gapid, 10),
-            responsetext: value,
-            expectedtries: parseInt(wrap.dataset.tries, 10),
-        });
-        wrap.dataset.tries = String(parseInt(wrap.dataset.tries, 10) + 1);
-        applyResultState(wrap, state, result.resultstate);
-        updateScore(result);
-    } catch (error) {
-        Log.error(error);
-        state.textContent = error.message || strings['player:submitfailed'];
-    } finally {
-        wrap.dataset.submitting = '0';
-    }
+    const promise = (async() => {
+        try {
+            const result = await callWs('mod_elang_submit_response', {
+                attemptid: attemptId,
+                gapid: parseInt(wrap.dataset.gapid, 10),
+                responsetext: value,
+                expectedtries: parseInt(wrap.dataset.tries, 10),
+            });
+            wrap.dataset.tries = String(parseInt(wrap.dataset.tries, 10) + 1);
+            applyResultState(wrap, state, result.resultstate);
+            updateScore(result);
+        } catch (error) {
+            Log.error(error);
+            state.textContent = error.message || strings['player:submitfailed'];
+        } finally {
+            wrap.dataset.submitting = '0';
+        }
+    })();
+    pendingSubmits.add(promise);
+    promise.finally(() => pendingSubmits.delete(promise));
+    return promise;
 };
 
 /**
@@ -273,6 +283,25 @@ const updateScore = (payload) => {
 };
 
 /**
+ * Build the explicit submit ("check answer") button for a gap. Pressing Enter
+ * and leaving the field still submit; this adds the visible, unambiguous submit
+ * action the blueprint requires.
+ *
+ * @param {Element} wrap The gap wrapper
+ * @param {Element} input The gap input
+ * @param {Element} state The gap's status element
+ * @returns {Element} The submit button
+ */
+const buildSubmitButton = (wrap, input, state) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mod_elang-gapsubmit btn btn-link btn-sm';
+    button.textContent = strings['player:check'];
+    button.addEventListener('click', () => submitGap(wrap, input, state));
+    return button;
+};
+
+/**
  * Build the hint button for a gap.
  *
  * @param {Element} wrap The gap wrapper
@@ -290,8 +319,9 @@ const buildHintButton = (wrap, input, state) => {
 };
 
 /**
- * Build a gap: a wrapper holding the input, an aria-live status and a hint
- * button, wired to submit on Enter or on leaving the field.
+ * Build a gap: a wrapper holding the input, an aria-live status, an explicit
+ * submit button and a hint button, plus an optional associated link. Answers
+ * are sent on Enter, via the submit button, or on leaving the field.
  *
  * @param {Object|undefined} gap The gap record, if the token resolved to one
  * @param {String} label The accessible label for the input
@@ -334,8 +364,12 @@ const buildGap = (gap, label) => {
         }
     });
     input.addEventListener('blur', (event) => {
-        // Leaving the field to click the hint button is not a submit.
-        if (event.relatedTarget && event.relatedTarget.classList.contains('mod_elang-hintbtn')) {
+        // Leaving the field to click this gap's own submit or hint button is
+        // not a separate submit — that button's own handler covers it.
+        const related = event.relatedTarget;
+        const isowncontrol = !!related && (related.classList.contains('mod_elang-hintbtn')
+            || related.classList.contains('mod_elang-gapsubmit'));
+        if (isowncontrol) {
             return;
         }
         submitGap(wrap, input, state);
@@ -343,7 +377,18 @@ const buildGap = (gap, label) => {
 
     wrap.appendChild(input);
     wrap.appendChild(state);
+    wrap.appendChild(buildSubmitButton(wrap, input, state));
     wrap.appendChild(buildHintButton(wrap, input, state));
+    if (gap.linkurl) {
+        const link = document.createElement('a');
+        link.className = 'mod_elang-gaplink';
+        link.href = gap.linkurl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = strings['player:gaplink'];
+        link.setAttribute('aria-label', `${strings['player:gaplink']}: ${label}`);
+        wrap.appendChild(link);
+    }
     return wrap;
 };
 
@@ -475,6 +520,13 @@ const attachSync = (mediaEl, list) => {
  * @returns {Promise} Resolves once the attempt is finished
  */
 const finishAttempt = async(player) => {
+    // Wait for any in-flight answer submissions first, so an answer the learner
+    // just typed and is still sending cannot lose a race with finishing and be
+    // rejected as "attempt already finished".
+    if (pendingSubmits.size > 0) {
+        await Promise.allSettled([...pendingSubmits]);
+    }
+
     const result = await callWs('mod_elang_finish_attempt', {attemptid: attemptId});
 
     player.querySelectorAll('.mod_elang-gap, .mod_elang-hintbtn, .mod_elang-finishbtn')
@@ -525,7 +577,7 @@ const renderControls = (player) => {
  */
 const loadStrings = async() => {
     const keys = [
-        'player:gaplabel', 'player:hint', 'player:finish', 'player:finished',
+        'player:gaplabel', 'player:gaplink', 'player:check', 'player:hint', 'player:finish', 'player:finished',
         'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
         'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
     ];

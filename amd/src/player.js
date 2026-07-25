@@ -16,12 +16,15 @@
 /**
  * Language-exercise player.
  *
- * Drives the learner-facing attempt lifecycle through the external API: it
- * starts or resumes the attempt, then renders the medium and the first page of
- * cues for the version the attempt is pinned to. The transcript is plain text
- * carrying {{gap:key}} tokens (solution-masked server-side); this module
- * replaces each token with a text input rather than injecting any markup, so
- * transcript text is only ever added as text nodes. Answering, media/cue
+ * Drives the learner-facing attempt lifecycle through the external API: starts
+ * or resumes the attempt, renders the medium and cues for the pinned version,
+ * and handles answering, hints and finishing. The transcript is plain text
+ * carrying solution-masked {{gap:key}} tokens; each token becomes a text
+ * input, and transcript text is only ever added as text nodes, never markup.
+ *
+ * Answers are sent on explicit submit only (Enter or leaving the field), never
+ * on every keystroke, and each submit carries the tries count the client last
+ * saw so a lost-response retry is idempotent server-side. Media/cue
  * synchronisation and resume of prior input are added in later slices.
  *
  * @module     mod_elang/player
@@ -30,7 +33,7 @@
  */
 
 import Ajax from 'core/ajax';
-import {getString} from 'core/str';
+import {getString, getStrings} from 'core/str';
 import Log from 'core/log';
 
 const SELECTORS = {
@@ -38,6 +41,8 @@ const SELECTORS = {
     MEDIA: '[data-region="media"]',
     STATUS: '[data-region="status"]',
     TRANSCRIPT: '[data-region="transcript"]',
+    CONTROLS: '[data-region="controls"]',
+    SCORE: '[data-region="score"]',
 };
 
 const GAP_TOKEN = /\{\{gap:([^}]+)\}\}/g;
@@ -46,6 +51,19 @@ const PROVIDER_EMBEDS = {
     youtube: (ref) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(ref)}`,
     vimeo: (ref) => `https://player.vimeo.com/video/${encodeURIComponent(ref)}`,
 };
+
+const RESULT_STATES = {
+    exact: {cls: 'mod_elang-correct', key: 'player:statecorrect'},
+    wordrecognized: {cls: 'mod_elang-accepted', key: 'player:stateaccepted'},
+    incorrect: {cls: 'mod_elang-incorrect', key: 'player:stateincorrect'},
+    empty: {cls: 'mod_elang-empty', key: null},
+};
+
+const STATE_CLASSES = ['mod_elang-correct', 'mod_elang-accepted', 'mod_elang-incorrect', 'mod_elang-empty'];
+
+// Module-level state for the single player on the page.
+let attemptId = null;
+const strings = {};
 
 /**
  * Call a single external function and return its promise.
@@ -85,7 +103,7 @@ const buildProviderEmbed = (media) => {
 };
 
 /**
- * Build an audio or video element and attach a poster and preload hint.
+ * Build an audio or video element with a poster and preload hint.
  *
  * @param {Boolean} audio Whether to build an audio element
  * @param {String} posterurl The poster URL, used for video only
@@ -157,30 +175,180 @@ const renderMedia = (region, media) => {
 };
 
 /**
- * Build a text input for a gap.
+ * Reflect a graded result on a gap: its state class and the accessible status
+ * text, keeping any "hint used" marker.
+ *
+ * @param {Element} wrap The gap wrapper
+ * @param {Element} state The gap's status element
+ * @param {String} resultstate One of exact, wordrecognized, incorrect, empty
+ * @returns {void}
+ */
+const applyResultState = (wrap, state, resultstate) => {
+    const info = RESULT_STATES[resultstate] || RESULT_STATES.empty;
+    STATE_CLASSES.forEach((cls) => wrap.classList.remove(cls));
+    wrap.classList.add(info.cls);
+
+    const parts = [];
+    if (info.key) {
+        parts.push(strings[info.key]);
+    }
+    if (wrap.dataset.hintlevel !== '0') {
+        parts.push(strings['player:statehinted']);
+    }
+    state.textContent = parts.join(' — ');
+};
+
+/**
+ * Submit a gap's current value, unless it is empty, and reflect the result.
+ * Sends the tries count last seen so a lost-response retry is idempotent.
+ *
+ * @param {Element} wrap The gap wrapper
+ * @param {Element} input The gap input
+ * @param {Element} state The gap's status element
+ * @returns {Promise} Resolves once the result has been applied
+ */
+const submitGap = async(wrap, input, state) => {
+    const value = input.value.trim();
+    if (value === '' || wrap.dataset.submitting === '1') {
+        return;
+    }
+    wrap.dataset.submitting = '1';
+    try {
+        const result = await callWs('mod_elang_submit_response', {
+            attemptid: attemptId,
+            gapid: parseInt(wrap.dataset.gapid, 10),
+            responsetext: value,
+            expectedtries: parseInt(wrap.dataset.tries, 10),
+        });
+        wrap.dataset.tries = String(parseInt(wrap.dataset.tries, 10) + 1);
+        applyResultState(wrap, state, result.resultstate);
+        updateScore(result);
+    } catch (error) {
+        Log.error(error);
+        state.textContent = error.message || strings['player:submitfailed'];
+    } finally {
+        wrap.dataset.submitting = '0';
+    }
+};
+
+/**
+ * Reveal the next hint level for a gap and mark it hint-used.
+ *
+ * @param {Element} wrap The gap wrapper
+ * @param {Element} input The gap input
+ * @param {Element} state The gap's status element
+ * @returns {Promise} Resolves once the hint has been shown
+ */
+const requestHint = async(wrap, input, state) => {
+    try {
+        const hint = await callWs('mod_elang_request_hint', {
+            attemptid: attemptId,
+            gapid: parseInt(wrap.dataset.gapid, 10),
+            expectedlevel: parseInt(wrap.dataset.hintlevel, 10),
+        });
+        wrap.dataset.hintlevel = String(hint.level);
+        wrap.classList.add('mod_elang-hinted');
+        state.textContent = `${strings['player:statehinted']}: ${hint.hinttext}`;
+        updateScore(hint);
+        input.focus();
+    } catch (error) {
+        Log.error(error);
+        state.textContent = error.message || strings['player:submitfailed'];
+    }
+};
+
+/**
+ * Update the score region from an attempt aggregate payload that carries a
+ * score fraction.
+ *
+ * @param {Object} payload A payload with a score field (0..1)
+ * @returns {void}
+ */
+const updateScore = (payload) => {
+    const region = document.querySelector(SELECTORS.SCORE);
+    if (region && typeof payload.score === 'number') {
+        region.textContent = strings['player:scorelabel'].replace('%score%', Math.round(payload.score * 100));
+    }
+};
+
+/**
+ * Build the hint button for a gap.
+ *
+ * @param {Element} wrap The gap wrapper
+ * @param {Element} input The gap input
+ * @param {Element} state The gap's status element
+ * @returns {Element} The hint button
+ */
+const buildHintButton = (wrap, input, state) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mod_elang-hintbtn btn btn-link btn-sm';
+    button.textContent = strings['player:hint'];
+    button.addEventListener('click', () => requestHint(wrap, input, state));
+    return button;
+};
+
+/**
+ * Build a gap: a wrapper holding the input, an aria-live status and a hint
+ * button, wired to submit on Enter or on leaving the field.
  *
  * @param {Object|undefined} gap The gap record, if the token resolved to one
  * @param {String} label The accessible label for the input
- * @returns {Element} The input element
+ * @returns {Element} The gap wrapper
  */
-const buildGapInput = (gap, label) => {
+const buildGap = (gap, label) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'mod_elang-gapwrap';
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'mod_elang-gap';
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('aria-label', label);
-    if (gap) {
-        input.dataset.gapid = gap.id;
-        if (gap.maxlength > 0) {
-            input.maxLength = gap.maxlength;
-        }
+
+    const state = document.createElement('span');
+    state.className = 'mod_elang-gapstate';
+    state.setAttribute('role', 'status');
+    state.setAttribute('aria-live', 'polite');
+
+    if (!gap) {
+        input.disabled = true;
+        wrap.appendChild(input);
+        wrap.appendChild(state);
+        return wrap;
     }
-    return input;
+
+    wrap.dataset.gapid = gap.id;
+    wrap.dataset.tries = '0';
+    wrap.dataset.hintlevel = '0';
+    wrap.dataset.submitting = '0';
+    if (gap.maxlength > 0) {
+        input.maxLength = gap.maxlength;
+    }
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitGap(wrap, input, state);
+        }
+    });
+    input.addEventListener('blur', (event) => {
+        // Leaving the field to click the hint button is not a submit.
+        if (event.relatedTarget && event.relatedTarget.classList.contains('mod_elang-hintbtn')) {
+            return;
+        }
+        submitGap(wrap, input, state);
+    });
+
+    wrap.appendChild(input);
+    wrap.appendChild(state);
+    wrap.appendChild(buildHintButton(wrap, input, state));
+    return wrap;
 };
 
 /**
  * Append a cue's transcript to a list item, replacing each {{gap:key}} token
- * with a gap input and everything else with text nodes.
+ * with a gap and everything else with text nodes.
  *
  * @param {Element} item The list item to append into
  * @param {String} transcript The masked transcript text
@@ -197,7 +365,7 @@ const appendTranscript = (item, transcript, gapsByKey, nextLabel) => {
         if (before) {
             item.appendChild(document.createTextNode(before));
         }
-        item.appendChild(buildGapInput(gapsByKey[match[1]], nextLabel()));
+        item.appendChild(buildGap(gapsByKey[match[1]], nextLabel()));
         lastindex = GAP_TOKEN.lastIndex;
     }
     const rest = transcript.slice(lastindex);
@@ -207,15 +375,13 @@ const appendTranscript = (item, transcript, gapsByKey, nextLabel) => {
 };
 
 /**
- * Render a page of cues as a transcript list with gap inputs in place.
+ * Render a page of cues as a transcript list with gaps in place.
  *
  * @param {Element} region The transcript region
  * @param {Array} cues The cues from get_attempt_cues
- * @returns {Promise} Resolves once the transcript is rendered
+ * @returns {void}
  */
-const renderTranscript = async(region, cues) => {
-    const labeltemplate = await getString('player:gaplabel', 'mod_elang', '%gap%');
-
+const renderTranscript = (region, cues) => {
     region.textContent = '';
     const list = document.createElement('ol');
     list.className = 'mod_elang-cues';
@@ -223,7 +389,7 @@ const renderTranscript = async(region, cues) => {
     let gapnumber = 0;
     const nextLabel = () => {
         gapnumber += 1;
-        return labeltemplate.replace('%gap%', gapnumber);
+        return strings['player:gaplabel'].replace('%gap%', gapnumber);
     };
 
     cues.forEach((cue) => {
@@ -246,30 +412,95 @@ const renderTranscript = async(region, cues) => {
 };
 
 /**
- * Start or resume the attempt and render its medium and first page of cues.
+ * Finish the attempt, lock the player and show the final score.
+ *
+ * @param {Element} player The player container
+ * @returns {Promise} Resolves once the attempt is finished
+ */
+const finishAttempt = async(player) => {
+    const result = await callWs('mod_elang_finish_attempt', {attemptid: attemptId});
+
+    player.querySelectorAll('.mod_elang-gap, .mod_elang-hintbtn, .mod_elang-finishbtn')
+        .forEach((element) => {
+            element.disabled = true;
+        });
+
+    const score = Math.round(result.score * 100);
+    const status = player.querySelector(SELECTORS.STATUS);
+    if (status) {
+        status.textContent = strings['player:finished'].replace('%score%', score);
+    }
+    updateScore(result);
+};
+
+/**
+ * Build the finish button and place it in the controls region.
+ *
+ * @param {Element} player The player container
+ * @returns {void}
+ */
+const renderControls = (player) => {
+    const controls = player.querySelector(SELECTORS.CONTROLS);
+    if (!controls) {
+        return;
+    }
+    controls.textContent = '';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mod_elang-finishbtn btn btn-primary';
+    button.textContent = strings['player:finish'];
+    button.addEventListener('click', () => {
+        finishAttempt(player).catch((error) => {
+            Log.error(error);
+            const status = player.querySelector(SELECTORS.STATUS);
+            if (status) {
+                status.textContent = error.message || strings['player:submitfailed'];
+            }
+        });
+    });
+    controls.appendChild(button);
+};
+
+/**
+ * Load and cache the player's UI strings.
+ *
+ * @returns {Promise} Resolves once strings are cached
+ */
+const loadStrings = async() => {
+    const keys = [
+        'player:gaplabel', 'player:hint', 'player:finish', 'player:finished',
+        'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
+        'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
+    ];
+    const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
+    keys.forEach((key, index) => {
+        strings[key] = values[index];
+    });
+};
+
+/**
+ * Start or resume the attempt and render its medium, cues and controls.
  *
  * @param {Number} cmid The course module id
  * @param {Element} player The player container
  * @returns {Promise} Resolves when the initial render is complete
  */
 const bootstrap = async(cmid, player) => {
-    const status = player.querySelector(SELECTORS.STATUS);
-    const mediaregion = player.querySelector(SELECTORS.MEDIA);
-    const transcriptregion = player.querySelector(SELECTORS.TRANSCRIPT);
+    await loadStrings();
 
     const attempt = await callWs('mod_elang_start_attempt', {cmid});
-    const exercise = await callWs('mod_elang_get_attempt_exercise', {attemptid: attempt.attemptid});
-    renderMedia(mediaregion, exercise.media);
+    attemptId = attempt.attemptid;
 
-    const page = await callWs('mod_elang_get_attempt_cues', {
-        attemptid: attempt.attemptid,
-        offset: 0,
-        limit: 50,
-    });
-    await renderTranscript(transcriptregion, page.cues);
+    const exercise = await callWs('mod_elang_get_attempt_exercise', {attemptid: attemptId});
+    renderMedia(player.querySelector(SELECTORS.MEDIA), exercise.media);
 
+    const page = await callWs('mod_elang_get_attempt_cues', {attemptid: attemptId, offset: 0, limit: 50});
+    renderTranscript(player.querySelector(SELECTORS.TRANSCRIPT), page.cues);
+    renderControls(player);
+
+    const status = player.querySelector(SELECTORS.STATUS);
     if (status) {
-        status.textContent = await getString('player:ready', 'mod_elang');
+        status.textContent = strings['player:ready'];
     }
 };
 

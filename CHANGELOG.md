@@ -28,6 +28,34 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.34] - 2026-07-25
+
+Phase 3, slice 3D: answering. The player is now interactive.
+
+### Added
+- Gap answering in `amd/src/player.js`: each gap submits on explicit action
+  only (Enter, or leaving the field — never per keystroke), sending the tries
+  count last seen as `expectedtries` so a lost-response retry is idempotent.
+  The graded result is shown as an accessible, colour-independent state — the
+  status text (Correct / Accepted / Incorrect) plus a distinct border style
+  (solid / dotted / dashed) — announced through an aria-live region.
+- Hints: a per-gap hint button calls `request_hint` with `expectedlevel`,
+  reveals the hint text, marks the gap hint-used, and refreshes the score.
+- Finish: a finish button calls `finish_attempt`, locks every input, hint and
+  finish control, and shows the final score. A live score region updates as
+  answers and hints come in.
+- Template gains `score` and `controls` regions; `styles.css` gains the
+  colour-independent gap-state styling; `player:*` strings for the finish,
+  hint, state and score labels in English and German. `player:gaplabel` now
+  uses a `%gap%` marker (the module prefetches strings and substitutes
+  client-side), consistent with the new `%score%` marker.
+
+### Note
+- Same grunt build step as slice 3B applies: regenerate and commit
+  `amd/build/player.min.js` (or let the `lint-js` CI job build it). Behat for
+  the end-to-end scenarios (resume, publish-during-attempt) still follows slice
+  3E as planned.
+
 ## [2.0.0-alpha.33] - 2026-07-25
 
 Phase 3, slice 3B: the Moodle-native player shell. First learner-facing UI on

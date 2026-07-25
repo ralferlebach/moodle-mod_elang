@@ -27,3 +27,29 @@
     width: 8em;
     max-width: 100%;
 }
+
+.mod_elang-player .mod_elang-gapwrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.mod_elang-player .mod_elang-gapstate {
+    font-size: 0.85em;
+    white-space: normal;
+}
+
+/* State is shown by border style (not colour alone) plus the status text, so
+   it survives dark mode, RTL and colour-vision differences. */
+.mod_elang-player .mod_elang-correct .mod_elang-gap {
+    border-bottom: 3px solid;
+}
+
+.mod_elang-player .mod_elang-accepted .mod_elang-gap {
+    border-bottom: 3px dotted;
+}
+
+.mod_elang-player .mod_elang-incorrect .mod_elang-gap {
+    border-bottom: 3px dashed;
+}

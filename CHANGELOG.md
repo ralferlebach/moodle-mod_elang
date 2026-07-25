@@ -28,6 +28,85 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.32] - 2026-07-25
+
+DRY refactor of duplicated code flagged by phpcpd. No behaviour change.
+
+### Changed
+- `attempt_helper` trait gains `require_owned_attempt()`,
+  `require_inprogress_attempt()` and `require_gap_in_attempt_version()`,
+  collapsing the load-attempt/verify-ownership/require-capability(/in-progress)
+  (/gap-belongs-to-version) preamble that was repeated across
+  `submit_response`, `request_hint`, `finish_attempt`, `get_attempt_state`,
+  `get_attempt_exercise` and `get_attempt_cues`. Each function now opens with a
+  one- or two-line helper call instead of the full block. This removes the
+  submit_response/request_hint clone phpcpd reported and the same pattern
+  elsewhere; the exact sequence of checks, order and thrown errors is
+  unchanged.
+- `tests/lib_test.php`: the identical full-attempt-then-read-grade block shared
+  by the point-grade and scale-grade `update_grades` tests is extracted into a
+  `finalgrade_after_perfect_attempt()` helper; each test now differs only in
+  its grade setup and expected value.
+
+### Note
+- Two of the four phpcpd clones (get_attempt_cues ↔ get_cues, and their tests,
+  132 of the 185 duplicated lines) come from the superseded `get_exercise.php`,
+  `get_cues.php` and their test files never being removed from the working
+  tree. They carry no registered service and are dead code; deleting them (the
+  `git rm` noted with alpha.25) clears those clones entirely:
+  `git rm mod/elang/classes/external/get_exercise.php mod/elang/classes/external/get_cues.php mod/elang/tests/external/get_exercise_test.php mod/elang/tests/external/get_cues_test.php`
+
+## [2.0.0-alpha.31] - 2026-07-25
+
+Completion notification and canonical content hash (reviewer items 7, 8).
+
+### Changed
+- **Active completion update (item 7):** `finish_attempt` now calls
+  `completion_info::update_state()` for the learner after finishing (guarded by
+  `is_enabled()`), so a finished attempt is reflected in the course page and
+  any downstream availability immediately instead of on the next page load or
+  cron run.
+- **Canonical content hash including hints (item 8):**
+  `version_manager::compute_content_hash()` now hashes the JSON encoding of a
+  single canonical structure rather than fields concatenated with chosen
+  delimiters (which content could itself contain), and folds in each gap's
+  hints (level, type, text, penalty). A hint change now invalidates the cache
+  key, and the pre-hash string is no longer ambiguous. Media columns remain
+  included; timestamps, row ids and file-kind media bytes remain excluded.
+
+### Added
+- Tests: activity completion after `finish_attempt` in `finish_attempt_test`,
+  and a hint-changes-the-hash test in `version_manager_test`.
+
+## [2.0.0-alpha.30] - 2026-07-25
+
+Attempt-API hardening (reviewer items 6, 10, 11).
+
+### Changed
+- **Stable error codes (item 11):** the runtime-conflict states in
+  `attempt_manager` that a player legitimately hits through parallel tabs or
+  retries — submitting or requesting a hint or finishing an attempt that is no
+  longer in progress, a gap from the wrong version, and no further hint level —
+  now throw `moodle_exception` with the existing stable string keys
+  (`attemptnotinprogress`, `gapnotinattemptversion`, `nomorehints`) instead of
+  `coding_exception`. The two genuine invariant violations in `start_attempt`
+  (a version that is not this activity's, or not published) stay
+  `coding_exception`, since the external API can never reach them. Six
+  `attempt_manager_test` expectations updated accordingly.
+- **Server-side maxlength (item 6):** `submit_response` now enforces the
+  effective per-gap response-length limit — the gap's `maxlength` override when
+  set, otherwise the hard system cap — matching the limit `get_attempt_cues`
+  already advertises to the player, rather than only the global ceiling. Over
+  the limit raises the new `error:responsetoolong` (with the limit as `{$a}`).
+- **Link hardening (item 10):** `get_attempt_cues` only returns a gap link when
+  it is a plain http(s) URL (via a new `safe_linkurl()`), dropping
+  javascript:/data:/relative/malformed values, and the return type is now
+  `PARAM_URL` instead of `PARAM_RAW`.
+
+### Added
+- Tests: per-gap maxlength enforcement in `submit_response_test`, unsafe-link
+  dropping in `get_attempt_cues_test`.
+
 ## [2.0.0-alpha.29] - 2026-07-25
 
 Version 1 media migration — Patch B of the media/file work. A migrated V1

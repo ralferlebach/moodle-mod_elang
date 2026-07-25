@@ -163,109 +163,25 @@ class version_manager {
      * accepted answers and grading algorithms.
      *
      * Used as the cache key for rendered worksheets and player payloads
-     * (see Blueprint chapter 12/16); intentionally excludes elang_gaphint
-     * rows and timestamps, since neither affects what a learner is shown to
-     * solve or how a response is scored against the gap itself. Does
-     * include maxlength, linkurl and transcriptformat — all three affect
-     * either what is rendered or how a response is validated, and their
-     * earlier absence from the hash meant a change to any of them would not
-     * have invalidated a cached worksheet or player payload.
+     * (see Blueprint chapter 12/16). Hashes the JSON encoding of a single
+     * canonical structure rather than fields concatenated with chosen
+     * delimiters, so content that happens to contain those delimiters can no
+     * longer produce an ambiguous pre-hash string (reviewer note 8). Includes
+     * the media columns, cues, gaps, accepted answers, grading algorithms,
+     * maxlength, linkurl, transcriptformat AND the gaps' hints (level, type,
+     * text, penalty) — a hint change affects how a gap is solved and scored,
+     * so it must invalidate the cache. Timestamps, row ids and the bytes of
+     * file-kind media are deliberately excluded.
      *
-     * Loads cues, gaps and answers in three queries total (one per table,
-     * scoped by IN-lists derived from the previous query's ids) rather than
-     * one query per cue and one per gap, which used to make this method's
-     * cost grow with the number of cues in the version rather than being
-     * closer to constant in the number of queries.
+     * Loads cues, gaps, answers and hints in a bounded number of queries (one
+     * per table, scoped by IN-lists derived from the previous query's ids)
+     * rather than one query per cue or gap, so the cost stays closer to
+     * constant in the number of queries rather than growing with the cue count.
      *
      * @param int $versionid The elang_version id
      * @return string A SHA-256 hash of the normalised content
      */
     public function compute_content_hash(int $versionid): string {
-        global $DB;
-
-        $mediapart = $this->media_hash_part($versionid);
-
-        $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC');
-        if (empty($cues)) {
-            return hash('sha256', $mediapart);
-        }
-
-        $cueids = array_keys($cues);
-        [$cueinsql, $cueinparams] = $DB->get_in_or_equal($cueids);
-        $gaps = $DB->get_records_select('elang_gap', "cueid $cueinsql", $cueinparams, 'cueid ASC, sortorder ASC');
-
-        $gapsbycue = [];
-        foreach ($gaps as $gap) {
-            $gapsbycue[$gap->cueid][] = $gap;
-        }
-
-        $answersbygap = [];
-        if (!empty($gaps)) {
-            $gapids = array_keys($gaps);
-            [$gapinsql, $gapinparams] = $DB->get_in_or_equal($gapids);
-            $answers = $DB->get_records_select(
-                'elang_gapanswer',
-                "gapid $gapinsql",
-                $gapinparams,
-                'gapid ASC, sortorder ASC'
-            );
-            foreach ($answers as $answer) {
-                $answersbygap[$answer->gapid][] = $answer;
-            }
-        }
-
-        $cueparts = [];
-        foreach ($cues as $cue) {
-            $gapparts = [];
-            foreach ($gapsbycue[$cue->id] ?? [] as $gap) {
-                $answerparts = [];
-                foreach ($answersbygap[$gap->id] ?? [] as $answer) {
-                    $answerparts[] = $answer->answer . '|' . $answer->isregex;
-                }
-
-                $gapparts[] = implode(',', [
-                    $gap->gapkey,
-                    $gap->charstart,
-                    $gap->charlength,
-                    $gap->solution,
-                    $gap->gradingalgorithm,
-                    (string) $gap->maxlength,
-                    (string) $gap->linkurl,
-                    implode(';', $answerparts),
-                ]);
-            }
-
-            $cueparts[] = implode(',', [
-                $cue->cuekey,
-                $cue->starttime,
-                $cue->endtime,
-                $cue->transcript,
-                (string) $cue->transcriptformat,
-                implode('|', $gapparts),
-            ]);
-        }
-
-        return hash('sha256', $mediapart . "\n" . implode("\n", $cueparts));
-    }
-
-    /**
-     * Build the media contribution to a version's content hash from its media
-     * columns, so that changing the medium (a different URL, provider, MIME or
-     * switching kind) invalidates any cache keyed on the content hash.
-     *
-     * Only the columns are folded in here, not the bytes of file-kind media:
-     * within a version the files are immutable, and swapping a file publishes
-     * a new version with its own id anyway. Hashing the stored files' content
-     * as well — to also distinguish two otherwise-identical versions that
-     * differ only in their uploaded media file — is left for the file/media
-     * migration work. The serialisation matches the delimiter style used for
-     * cues and gaps below; a canonical, collision-proof encoding is a separate
-     * hardening item (reviewer note 8).
-     *
-     * @param int $versionid The elang_version id
-     * @return string The media portion of the pre-hash content string
-     */
-    private function media_hash_part(int $versionid): string {
         global $DB;
 
         $media = $DB->get_record(
@@ -275,14 +191,113 @@ class version_manager {
             MUST_EXIST
         );
 
-        return implode(',', [
-            (string) $media->mediakind,
-            (string) $media->mediaurl,
-            (string) $media->mediaprovider,
-            (string) $media->mediaproviderref,
-            (string) $media->mediamime,
-            (string) $media->mediaduration,
-        ]);
+        $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
+
+        $gapsbycue = [];
+        $answersbygap = [];
+        $hintsbygap = [];
+        if (!empty($cues)) {
+            [$cueinsql, $cueinparams] = $DB->get_in_or_equal(array_keys($cues));
+            $gaps = $DB->get_records_select(
+                'elang_gap',
+                "cueid $cueinsql",
+                $cueinparams,
+                'cueid ASC, sortorder ASC, id ASC'
+            );
+            foreach ($gaps as $gap) {
+                $gapsbycue[$gap->cueid][] = $gap;
+            }
+
+            if (!empty($gaps)) {
+                [$gapinsql, $gapinparams] = $DB->get_in_or_equal(array_keys($gaps));
+                $answers = $DB->get_records_select(
+                    'elang_gapanswer',
+                    "gapid $gapinsql",
+                    $gapinparams,
+                    'gapid ASC, sortorder ASC, id ASC'
+                );
+                foreach ($answers as $answer) {
+                    $answersbygap[$answer->gapid][] = $answer;
+                }
+
+                $hints = $DB->get_records_select(
+                    'elang_gaphint',
+                    "gapid $gapinsql",
+                    $gapinparams,
+                    'gapid ASC, level ASC, id ASC'
+                );
+                foreach ($hints as $hint) {
+                    $hintsbygap[$hint->gapid][] = $hint;
+                }
+            }
+        }
+
+        // Build a single canonical structure and hash its JSON encoding, rather
+        // than concatenating fields with chosen delimiters that content could
+        // itself contain (reviewer note 8). Hints are included — their type,
+        // text and penalty all affect how a gap is solved and scored, so a
+        // change to any of them must invalidate a cached worksheet or player
+        // payload. Media columns are folded in for the same reason; the bytes
+        // of file-kind media are still not hashed (see the media data model
+        // work). Timestamps and row ids are deliberately excluded.
+        $content = [
+            'media' => [
+                'kind' => (string) $media->mediakind,
+                'url' => (string) $media->mediaurl,
+                'provider' => (string) $media->mediaprovider,
+                'providerref' => (string) $media->mediaproviderref,
+                'mime' => (string) $media->mediamime,
+                'duration' => (string) $media->mediaduration,
+            ],
+            'cues' => [],
+        ];
+
+        foreach ($cues as $cue) {
+            $cueentry = [
+                'cuekey' => (string) $cue->cuekey,
+                'starttime' => (int) $cue->starttime,
+                'endtime' => (int) $cue->endtime,
+                'transcript' => (string) $cue->transcript,
+                'transcriptformat' => (int) $cue->transcriptformat,
+                'gaps' => [],
+            ];
+
+            foreach ($gapsbycue[$cue->id] ?? [] as $gap) {
+                $gapentry = [
+                    'gapkey' => (string) $gap->gapkey,
+                    'charstart' => (int) $gap->charstart,
+                    'charlength' => (int) $gap->charlength,
+                    'solution' => (string) $gap->solution,
+                    'gradingalgorithm' => (string) $gap->gradingalgorithm,
+                    'maxlength' => $gap->maxlength === null ? null : (int) $gap->maxlength,
+                    'linkurl' => (string) $gap->linkurl,
+                    'answers' => [],
+                    'hints' => [],
+                ];
+
+                foreach ($answersbygap[$gap->id] ?? [] as $answer) {
+                    $gapentry['answers'][] = [
+                        'answer' => (string) $answer->answer,
+                        'isregex' => (int) $answer->isregex,
+                    ];
+                }
+
+                foreach ($hintsbygap[$gap->id] ?? [] as $hint) {
+                    $gapentry['hints'][] = [
+                        'level' => (int) $hint->level,
+                        'hinttype' => (string) $hint->hinttype,
+                        'hinttext' => (string) $hint->hinttext,
+                        'penalty' => (float) $hint->penalty,
+                    ];
+                }
+
+                $cueentry['gaps'][] = $gapentry;
+            }
+
+            $content['cues'][] = $cueentry;
+        }
+
+        return hash('sha256', json_encode($content));
     }
 
     /**

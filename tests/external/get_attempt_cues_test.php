@@ -119,6 +119,23 @@ final class get_attempt_cues_test extends \advanced_testcase {
     }
 
     /**
+     * A gap link that is not a plain http(s) URL is never handed to the
+     * player: it is returned as an empty string.
+     *
+     * @return void
+     */
+    public function test_unsafe_link_urls_are_dropped(): void {
+        global $DB;
+
+        $DB->set_field('elang_gap', 'linkurl', 'javascript:alert(1)', ['linkurl' => 'https://example.org/chat']);
+
+        $result = get_attempt_cues::execute($this->attemptid, 0, 1);
+        $result = external_api::clean_returnvalue(get_attempt_cues::execute_returns(), $result);
+
+        $this->assertSame('', $result['cues'][0]['gaps'][0]['linkurl']);
+    }
+
+    /**
      * offset/limit correctly page through the cues, and totalcues always
      * reflects the full count regardless of the page requested.
      *

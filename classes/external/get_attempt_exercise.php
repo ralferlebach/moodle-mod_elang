@@ -70,9 +70,7 @@ class get_attempt_exercise extends external_api {
             'attemptid' => $attemptid,
         ]);
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
+        [$attempt, $context] = self::require_owned_attempt($attemptid);
 
         $elang = $DB->get_record('elang', ['id' => $attempt->elangid], '*', MUST_EXIST);
         $version = $DB->get_record('elang_version', ['id' => $attempt->versionid], '*', MUST_EXIST);

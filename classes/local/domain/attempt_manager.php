@@ -171,14 +171,14 @@ class attempt_manager {
 
             $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
             if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \coding_exception('Cannot submit a response to an attempt that is not in progress');
+                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
             }
 
             $elang = $DB->get_record('elang', ['id' => $attempt->elangid], '*', MUST_EXIST);
             $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
             $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
             if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                throw new \coding_exception('Gap does not belong to the version this attempt is on');
+                throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
             }
 
             $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
@@ -249,13 +249,13 @@ class attempt_manager {
 
             $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
             if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \coding_exception('Cannot request a hint for an attempt that is not in progress');
+                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
             }
 
             $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
             $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
             if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                throw new \coding_exception('Gap does not belong to the version this attempt is on');
+                throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
             }
 
             $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
@@ -264,7 +264,7 @@ class attempt_manager {
 
             $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel]);
             if (!$hint) {
-                throw new \coding_exception("No hint at level $nextlevel is defined for gap $gapid");
+                throw new \moodle_exception('error:nomorehints', 'mod_elang');
             }
 
             $response = $existing ?: new \stdClass();
@@ -323,7 +323,7 @@ class attempt_manager {
                 return $attempt;
             }
             if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \coding_exception('Cannot finish an attempt that is not in progress');
+                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
             }
 
             $attempt->state = self::STATE_FINISHED;

@@ -100,4 +100,39 @@ final class finish_attempt_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         finish_attempt::execute($this->attemptid);
     }
+
+    /**
+     * Finishing an attempt marks the activity complete for the learner when
+     * automatic completion with the completionfinishattempt rule is on, so the
+     * course page reflects it immediately.
+     *
+     * @return void
+     */
+    public function test_finishing_updates_activity_completion(): void {
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionfinishattempt' => 1,
+        ]);
+        $cm = get_coursemodule_from_instance('elang', $elang->id);
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $versionmanager = new \mod_elang\local\domain\version_manager();
+        $draft = $versionmanager->create_draft($elang->id, $student->id);
+        $cue = $generator->create_cue(['versionid' => $draft->id]);
+        $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $versionmanager->publish($draft->id, $student->id);
+
+        $this->setUser($student);
+        $started = start_attempt::execute($cm->id);
+        finish_attempt::execute($started['attemptid']);
+
+        $completion = new \completion_info($course);
+        $data = $completion->get_data($cm, false, $student->id);
+        $this->assertEquals(COMPLETION_COMPLETE, $data->completionstate);
+    }
 }

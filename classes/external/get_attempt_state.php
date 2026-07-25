@@ -63,10 +63,7 @@ class get_attempt_state extends external_api {
             'attemptid' => $attemptid,
         ]);
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
+        [$attempt] = self::require_owned_attempt($attemptid);
 
         $responses = $DB->get_records('elang_response', ['attemptid' => $attemptid], 'gapid ASC');
 

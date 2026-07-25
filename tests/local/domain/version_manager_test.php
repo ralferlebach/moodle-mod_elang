@@ -237,6 +237,34 @@ final class version_manager_test extends \advanced_testcase {
     }
 
     /**
+     * Adding a hint to a gap changes the version's content hash — a hint's
+     * type, text and penalty affect how a gap is solved and scored, so the
+     * cache key must reflect it (reviewer note 8).
+     *
+     * @return void
+     */
+    public function test_content_hash_reflects_hints(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $this->manager->create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Bonjour']);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'x']);
+        $hashwithouthint = $this->manager->compute_content_hash($version->id);
+
+        $generator->create_gaphint([
+            'gapid' => $gap->id,
+            'level' => 1,
+            'hinttype' => 'firstletter',
+            'hinttext' => 'x',
+            'penalty' => 0.1,
+        ]);
+        $hashwithhint = $this->manager->compute_content_hash($version->id);
+
+        $this->assertNotSame($hashwithouthint, $hashwithhint);
+    }
+
+    /**
      * compute_content_hash() correctly attributes gaps and answers to the
      * right cue even across several cues, since the batched queries it uses
      * group results in PHP rather than one query per cue/gap.

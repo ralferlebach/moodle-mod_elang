@@ -84,26 +84,20 @@ class submit_response extends external_api {
             'expectedtries' => $expectedtries,
         ]);
 
-        if (\core_text::strlen($responsetext) > self::MAX_RESPONSE_LENGTH) {
-            throw new \invalid_parameter_exception('responsetext exceeds the maximum accepted length');
-        }
+        [$attempt] = self::require_inprogress_attempt($attemptid);
+        $gap = self::require_gap_in_attempt_version($gapid, $attempt);
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
-
-        if ($attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS) {
-            throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
-        }
-
-        $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
-        $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
-        if ((int) $cue->versionid !== (int) $attempt->versionid) {
-            // The gap belongs to a different version than the one this
-            // attempt is on — never let a caller answer against a gap
-            // outside the attempted exercise.
-            throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+        // Enforce the effective response-length limit: the gap's own override
+        // when it has one, otherwise the hard system cap. get_attempt_cues
+        // advertises exactly this per-gap limit to the player, so the server
+        // must hold callers to the same limit rather than only to the global
+        // ceiling. (A site-wide activity default could sit between the two
+        // later; there is no such column yet.)
+        $effectivelimit = ($gap->maxlength !== null && (int) $gap->maxlength > 0)
+            ? min((int) $gap->maxlength, self::MAX_RESPONSE_LENGTH)
+            : self::MAX_RESPONSE_LENGTH;
+        if (\core_text::strlen($responsetext) > $effectivelimit) {
+            throw new \moodle_exception('error:responsetoolong', 'mod_elang', '', $effectivelimit);
         }
 
         // Optimistic-concurrency retry guard. The caller passes the tries

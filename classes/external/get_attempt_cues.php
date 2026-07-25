@@ -96,9 +96,7 @@ class get_attempt_cues extends external_api {
             throw new \invalid_parameter_exception('limit must be between 1 and ' . self::MAX_LIMIT);
         }
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
+        [$attempt] = self::require_owned_attempt($attemptid);
 
         $versionid = (int) $attempt->versionid;
 
@@ -144,7 +142,7 @@ class get_attempt_cues extends external_api {
                     'sortorder' => (int) $gaprecord->sortorder,
                     'gradingalgorithm' => $gaprecord->gradingalgorithm,
                     'maxlength' => $gaprecord->maxlength !== null ? (int) $gaprecord->maxlength : 0,
-                    'linkurl' => $gaprecord->linkurl ?? '',
+                    'linkurl' => self::safe_linkurl($gaprecord->linkurl),
                 ];
             }
 
@@ -166,6 +164,29 @@ class get_attempt_cues extends external_api {
             'offset' => $offset,
             'limit' => $limit,
         ];
+    }
+
+    /**
+     * Return a gap's link only when it is a plain http(s) URL, otherwise an
+     * empty string.
+     *
+     * The player renders this as a clickable link, so anything that is not an
+     * ordinary web link — javascript:, data:, relative or malformed values —
+     * is dropped here rather than handed to the client, regardless of how it
+     * came to be stored. The migration already restricts imported links to
+     * http(s); this is the matching output-side guard for links created by any
+     * other path. PARAM_URL on the return type is a further net.
+     *
+     * @param string|null $linkurl The stored link, or null
+     * @return string The link if it is an http(s) URL, otherwise ''
+     */
+    private static function safe_linkurl(?string $linkurl): string {
+        $linkurl = (string) ($linkurl ?? '');
+        if ($linkurl === '' || preg_match('#^https?://#i', $linkurl) !== 1) {
+            return '';
+        }
+
+        return $linkurl;
     }
 
     /**
@@ -195,8 +216,8 @@ class get_attempt_cues extends external_api {
                             'gradingalgorithm' => new external_value(PARAM_ALPHA, 'exact or wordrecognized'),
                             'maxlength' => new external_value(PARAM_INT, 'Per-gap response length override, or 0 if unset'),
                             'linkurl' => new external_value(
-                                PARAM_RAW,
-                                'Optional link URL associated with the gap, or empty if unset'
+                                PARAM_URL,
+                                'Optional http(s) link URL associated with the gap, or empty if unset or unsafe'
                             ),
                         ])
                     ),

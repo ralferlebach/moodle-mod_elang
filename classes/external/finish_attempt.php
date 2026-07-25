@@ -55,10 +55,7 @@ class finish_attempt extends external_api {
             'attemptid' => $attemptid,
         ]);
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
+        [$attempt] = self::require_owned_attempt($attemptid);
 
         // Only a genuinely wrong state (abandoned) is rejected here — an
         // attempt that is already finished is deliberately let through to
@@ -82,6 +79,21 @@ class finish_attempt extends external_api {
         require_once($CFG->dirroot . '/mod/elang/lib.php');
         $elang = $DB->get_record('elang', ['id' => $finished->elangid], '*', MUST_EXIST);
         elang_update_grades($elang, (int) $finished->userid);
+
+        // Tell Moodle to re-evaluate this activity's completion for the learner
+        // now, so the course page and any downstream availability reflect the
+        // finished attempt immediately rather than on the next page load or
+        // cron run. update_state() calls custom_completion::get_state()
+        // (classes/completion/custom_completion.php) to decide the actual
+        // state; the COMPLETION_COMPLETE argument is only the hint Moodle's API
+        // expects. Guarded by is_enabled() so it is a no-op when completion is
+        // off for this activity.
+        require_once($CFG->libdir . '/completionlib.php');
+        $cm = get_coursemodule_from_instance('elang', $finished->elangid, 0, false, MUST_EXIST);
+        $completion = new \completion_info(get_course($cm->course));
+        if ($completion->is_enabled($cm)) {
+            $completion->update_state($cm, COMPLETION_COMPLETE, (int) $finished->userid);
+        }
 
         return [
             'attemptid' => (int) $finished->id,

@@ -180,7 +180,7 @@ final class attempt_manager_test extends \advanced_testcase {
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
         $this->manager->finish_attempt($attempt->id);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
     }
 
@@ -237,7 +237,7 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->manager->request_hint($attempt->id, $this->gap->id);
         $this->manager->request_hint($attempt->id, $this->gap->id);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->request_hint($attempt->id, $this->gap->id);
     }
 
@@ -250,7 +250,7 @@ final class attempt_manager_test extends \advanced_testcase {
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
         $this->manager->finish_attempt($attempt->id);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->request_hint($attempt->id, $this->gap->id);
     }
 
@@ -362,7 +362,7 @@ final class attempt_manager_test extends \advanced_testcase {
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
         $DB->set_field('elang_attempt', 'state', attempt_manager::STATE_ABANDONED, ['id' => $attempt->id]);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->finish_attempt($attempt->id);
     }
 
@@ -384,7 +384,7 @@ final class attempt_manager_test extends \advanced_testcase {
 
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->submit_response($attempt->id, $othergap->id, 'chien');
     }
 
@@ -405,7 +405,7 @@ final class attempt_manager_test extends \advanced_testcase {
 
         $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
 
-        $this->expectException(\coding_exception::class);
+        $this->expectException(\moodle_exception::class);
         $this->manager->request_hint($attempt->id, $othergap->id);
     }
 

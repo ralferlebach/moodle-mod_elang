@@ -83,20 +83,8 @@ class request_hint extends external_api {
             'expectedlevel' => $expectedlevel,
         ]);
 
-        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
-
-        $context = self::require_attempt_ownership($attempt);
-        require_capability('mod/elang:attempt', $context);
-
-        if ($attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS) {
-            throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
-        }
-
-        $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
-        $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
-        if ((int) $cue->versionid !== (int) $attempt->versionid) {
-            throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
-        }
+        [$attempt] = self::require_inprogress_attempt($attemptid);
+        self::require_gap_in_attempt_version($gapid, $attempt);
 
         $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
         $currentlevel = $existing ? (int) $existing->hintlevel : 0;

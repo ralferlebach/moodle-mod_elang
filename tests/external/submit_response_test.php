@@ -150,8 +150,30 @@ final class submit_response_test extends \advanced_testcase {
     public function test_rejects_an_excessively_long_response(): void {
         $toolong = str_repeat('a', 501);
 
-        $this->expectException(\invalid_parameter_exception::class);
+        $this->expectException(\moodle_exception::class);
         submit_response::execute($this->attemptid, $this->gap->id, $toolong);
+    }
+
+    /**
+     * The gap's own maxlength override is enforced server-side, matching the
+     * per-gap limit get_attempt_cues advertises to the player — not only the
+     * global safety cap.
+     *
+     * @return void
+     */
+    public function test_enforces_the_per_gap_maxlength_override(): void {
+        global $DB;
+
+        $DB->set_field('elang_gap', 'maxlength', 5, ['id' => $this->gap->id]);
+
+        // Four characters are within the limit and evaluate normally.
+        $ok = submit_response::execute($this->attemptid, $this->gap->id, 'chat');
+        $this->assertSame('exact', $ok['resultstate']);
+
+        // Six characters exceed the per-gap limit and are rejected, even though
+        // they are far below the global safety cap.
+        $this->expectException(\moodle_exception::class);
+        submit_response::execute($this->attemptid, $this->gap->id, 'chatte');
     }
 
     /**

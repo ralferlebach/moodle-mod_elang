@@ -42,6 +42,7 @@ $string['error:invalidv1cuejson'] = 'This version 1 cue could not be parsed.';
 $string['error:noaccesstoattempt'] = 'You do not have access to this attempt.';
 $string['error:nomorehints'] = 'No further hints are available for this gap.';
 $string['error:nopublishedversion'] = 'This exercise has no published content yet.';
+$string['error:responsetoolong'] = 'Your response is too long. The maximum for this gap is {$a} characters.';
 $string['error:staleattemptstate'] = 'Your view of this attempt is out of date. Please reload the current state and try again.';
 $string['filearea_media'] = 'Media';
 $string['filearea_poster'] = 'Poster image';

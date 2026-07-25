@@ -90,21 +90,29 @@ jobs:
         run: moodle-plugin-ci phpmd plugin || true
 
   # ── 1b. JS / Mustache / PHPDoc Lint (against the 4.5 LTS baseline) ───────
+  #
+  # This job needs a database only as a throwaway target for the one-off
+  # `moodle-plugin-ci install --no-init` below — grunt/phpdoc/mustache/validate/
+  # savepoints all run against the installed code tree, never against real data,
+  # so the DB engine is irrelevant here. It therefore uses the MySQL that ships
+  # preinstalled on the ubuntu-24.04 runner (started in a step below) rather than
+  # a mariadb:10.11 Docker service.
+  #
+  # Why: a `services:` container image is pulled from Docker Hub BEFORE any step
+  # runs, with no retry the workflow can influence. A transient Hub timeout
+  # (`context deadline exceeded` on registry-1.docker.io) then fails the whole
+  # job at container-start — which reads as a lint failure even though no lint
+  # ran. Using the preinstalled DB removes that Docker Hub dependency for this
+  # job entirely (and starts in ~3s instead of a pull).
+  #
+  # The blocking phpunit/behat jobs deliberately KEEP their Docker service
+  # containers: they must test against real MariaDB AND PostgreSQL engines
+  # (the MariaDB-only options-column bug is exactly why that coverage matters),
+  # so they stay dependent on Docker Hub by design. A transient Hub pull failure
+  # there is infrastructure, not a plugin fault — the remedy is to re-run the job.
   lint-js:
     name: "JS / Mustache / PHPDoc Lint"
     runs-on: ubuntu-24.04
-
-    services:
-      mariadb:
-        image: mariadb:10.11
-        env:
-          MYSQL_ROOT_PASSWORD: root
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
@@ -132,20 +140,29 @@ jobs:
           echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
+      - name: Start preinstalled MySQL (no Docker Hub pull)
+        run: |
+          sudo systemctl start mysql.service
+          until sudo mysqladmin ping --silent; do sleep 1; done
+          sudo mysql --user=root --password=root -e "
+            CREATE USER IF NOT EXISTS 'moodle'@'%' IDENTIFIED WITH mysql_native_password BY 'moodle';
+            GRANT ALL PRIVILEGES ON *.* TO 'moodle'@'%' WITH GRANT OPTION;
+            FLUSH PRIVILEGES;"
+
       - name: Install Moodle 4.5 baseline (no test init)
         run: |
           moodle-plugin-ci install \
             --plugin ./plugin \
             --branch MOODLE_405_STABLE \
-            --db-type mariadb \
+            --db-type mysqli \
             --db-host 127.0.0.1 \
             --db-port 3306 \
-            --db-user root \
-            --db-pass root \
+            --db-user moodle \
+            --db-pass moodle \
             --db-name moodle \
             --no-init
         env:
-          DB: mariadb
+          DB: mysqli
           MOODLE_BRANCH: MOODLE_405_STABLE
 
       - name: Install Node dependencies

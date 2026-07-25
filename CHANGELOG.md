@@ -11,6 +11,23 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed
+- `.github/workflows/moodle-ci.yml`: the `lint-js` job no longer uses a
+  `mariadb:10.11` Docker service; it starts the MySQL that ships preinstalled
+  on the ubuntu-24.04 runner instead (`sudo systemctl start mysql.service`,
+  `mysqli` driver). That job needs a database only as a throwaway install
+  target, so the engine is irrelevant, and this removes its dependence on a
+  Docker Hub image pull. A `services:` image is pulled before any step runs
+  with no retry, so a transient Hub timeout (`context deadline exceeded` on
+  registry-1.docker.io) was failing the whole job at container-start and
+  reading as a lint failure though no lint ran. The blocking `phpunit`/`behat`
+  jobs keep their Docker service containers deliberately — they must exercise
+  real MariaDB *and* PostgreSQL — and so remain reliant on Docker Hub by
+  design; a transient Hub pull failure there is infrastructure, cleared by
+  re-running the job. No installed plugin file changed, so `version.php` is
+  intentionally not bumped.
+
+
 ## [2.0.0-alpha.24] - 2026-07-25
 
 ### Fixed

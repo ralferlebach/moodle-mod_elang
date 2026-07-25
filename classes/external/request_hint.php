@@ -32,8 +32,9 @@ use core_external\external_value;
  * 'solution', its hinttext IS the solution: that is by design (a learner
  * who deliberately exhausts every hint level up to and including a
  * solution-type one has explicitly asked for it, penalty and all) and is
- * not the same thing as leaking a solution through get_exercise/get_cues,
- * which never happens regardless of hint state.
+ * not the same thing as leaking a solution through
+ * get_attempt_exercise/get_attempt_cues, which never happens regardless of
+ * hint state.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

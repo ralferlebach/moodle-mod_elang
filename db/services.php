@@ -29,22 +29,22 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
-    'mod_elang_get_exercise' => [
-        'classname' => 'mod_elang\external\get_exercise',
+    'mod_elang_get_attempt_exercise' => [
+        'classname' => 'mod_elang\external\get_attempt_exercise',
         'methodname' => 'execute',
-        'description' => 'Return the published version shape: counts and identifiers, no content or solutions.',
+        'description' => 'Return the attempt version shape: counts and identifiers, no content or solutions.',
         'type' => 'read',
         'ajax' => true,
-        'capabilities' => 'mod/elang:view',
+        'capabilities' => 'mod/elang:attempt',
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
-    'mod_elang_get_cues' => [
-        'classname' => 'mod_elang\external\get_cues',
+    'mod_elang_get_attempt_cues' => [
+        'classname' => 'mod_elang\external\get_attempt_cues',
         'methodname' => 'execute',
-        'description' => 'Return a page of cues and gaps for the published exercise version, transcript solution-masked.',
+        'description' => 'Return a page of cues and gaps for the attempt\'s pinned version, transcript solution-masked.',
         'type' => 'read',
         'ajax' => true,
-        'capabilities' => 'mod/elang:view',
+        'capabilities' => 'mod/elang:attempt',
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
     'mod_elang_get_attempt_state' => [

@@ -28,6 +28,50 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.26] - 2026-07-25
+
+### Fixed
+- `tests/external/get_attempt_exercise_test.php`,
+  `tests/external/get_attempt_cues_test.php`: the capability-test comment
+  opened with the lowercase token `mod/elang:attempt`, tripping phpcs
+  `InlineComment.NotCapital`. Reworded to start with "The mod/elang:attempt
+  capability ...". No functional change.
+
+## [2.0.0-alpha.25] - 2026-07-25
+
+Phase 3 groundwork: bind the learner read API to the attempt's pinned version
+so the player can never render a different version than the one a learner's
+saved responses belong to.
+
+### Changed
+- **BREAKING (alpha):** the learner read API is now attempt-scoped, not
+  activity-scoped. `mod_elang_get_exercise(cmid)` → `mod_elang_get_attempt_exercise(attemptid)`
+  and `mod_elang_get_cues(cmid, ...)` → `mod_elang_get_attempt_cues(attemptid, ...)`.
+  Both now take an `attemptid`, require `mod/elang:attempt` (was
+  `mod/elang:view`), verify the attempt belongs to the calling user via the
+  existing `attempt_helper::require_attempt_ownership()`, and read content
+  strictly from `elang_attempt.versionid` instead of
+  `version_manager::get_published()`. This matches the pattern the five other
+  attempt functions already use and makes the previously possible mismatch
+  (read side serving a newly published version while the write side rejects
+  its gaps as not belonging to the attempt's version) structurally
+  impossible. `get_attempt_exercise` additionally returns `attemptid`. A
+  teacher-facing preview API for arbitrary versions is intentionally deferred.
+
+### Removed
+- `classes/external/get_exercise.php`, `classes/external/get_cues.php` and
+  their tests `tests/external/get_exercise_test.php`,
+  `tests/external/get_cues_test.php`, replaced by the attempt-bound
+  functions and tests above. (Delete these four files from the working tree —
+  see the session note; a patch archive cannot remove files on its own.)
+
+### Added
+- `tests/external/get_attempt_exercise_test.php`,
+  `tests/external/get_attempt_cues_test.php`, including the key V2 regression
+  test — start an attempt on version A, publish a structurally different
+  version B, and assert both read functions still return version A — plus
+  cross-user ownership rejection.
+
 ## [2.0.0-alpha.24] - 2026-07-25
 
 ### Fixed

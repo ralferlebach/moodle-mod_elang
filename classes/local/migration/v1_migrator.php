@@ -135,6 +135,8 @@ final class v1_migrator {
             'hintcount' => 0,
             'attemptcount' => 0,
             'responsecount' => 0,
+            'mediafilecount' => 0,
+            'posterfilecount' => 0,
             'parseerrors' => [],
             'invalidlinks' => [],
             'orphanedresponses' => [],
@@ -144,6 +146,15 @@ final class v1_migrator {
 
         $draft = $this->versionmanager->create_draft($elangid);
         $cuemap = $this->migrate_cues($draft->id, $elangid, $gradingalgorithm, $report);
+
+        // Copy the V1 video/poster files into the new version's media areas
+        // before publishing, so the published version's content hash already
+        // reflects that it is file-kind media (see v1_media_migrator and
+        // version_manager::compute_content_hash()).
+        $mediaresult = (new v1_media_migrator())->migrate($elangid, $draft->id);
+        $report->mediafilecount = $mediaresult->mediafiles;
+        $report->posterfilecount = $mediaresult->posterfiles;
+
         $version = $this->versionmanager->publish($draft->id);
         $this->migrate_learners($elang, $version->id, $cuemap, $gradingalgorithm, $jarothreshold, $report);
 

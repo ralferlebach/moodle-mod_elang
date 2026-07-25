@@ -28,6 +28,34 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.29] - 2026-07-25
+
+Version 1 media migration — Patch B of the media/file work. A migrated V1
+activity now keeps its video and poster after the upgrade.
+
+### Added
+- `classes/local/migration/v1_media_migrator.php`: copies a V1 activity's
+  media files into the versioned V2 areas — V1 `videos` (itemid 0, one or more
+  encodings) → V2 `media`, V1 `poster` → V2 `poster`, both at itemid = the
+  migrated version id — and marks the version `mediakind = 'file'` when a video
+  was copied. The copy is non-destructive (V1 originals stay until the legacy
+  data is decommissioned). The V1 `subtitle` area is intentionally not copied:
+  its VTT/SRT is already the source the cue migration turned into cues/gaps.
+  V1 file-area names were read from the uploaded mod_elang 2018091012 source.
+- `v1_migrator::migrate_activity()` runs the media migration between cue
+  migration and publish (so the published content hash already reflects
+  file-kind media), and reports `mediafilecount` / `posterfilecount`, which the
+  scheduled migration task now logs.
+- `v1_media_migrator_test`: copy of several video encodings + poster into the
+  versioned areas with non-destructive originals, a poster-without-video case
+  (no file kind set), and a no-course-module no-op.
+
+### Note
+- An activity with no real course module (a DB-only simulated activity, as in
+  some migration fixtures) has no file areas and is a harmless no-op, so the
+  existing DB-only migrator tests are unaffected. Patch C (login-gated provider
+  access and caption import) remains a separate paid subplugin.
+
 ## [2.0.0-alpha.28] - 2026-07-25
 
 Versioned media data model — Patch A of the media/file work (no-login scope).

@@ -120,6 +120,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
                 mtrace(
                     "  elang {$elangid}: migrated ({$report->cuecount} cues, {$report->gapcount} gaps, "
                         . "{$report->attemptcount} attempts, {$report->responsecount} responses, "
+                        . "{$report->mediafilecount} media files, {$report->posterfilecount} poster files, "
                         . count($report->parseerrors) . ' parse errors, '
                         . count($report->invalidlinks) . ' invalid links, '
                         . count($report->orphanedresponses) . ' orphaned responses)'

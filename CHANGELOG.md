@@ -28,6 +28,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.27] - 2026-07-25
+
+Retry-safety for the two mutating learner functions, so a lost response on the
+network can no longer turn one action into two.
+
+### Added
+- `submit_response` gains an optional `expectedtries` parameter and
+  `request_hint` an optional `expectedlevel` parameter (both default `-1` =
+  unconditional / legacy behaviour). When supplied, the function uses
+  optimistic concurrency against the gap's stored `tries` / `hintlevel`: a
+  request whose expected value is exactly one step behind the server is treated
+  as a lost-response retry and replays the stored outcome without counting
+  another try or advancing (and re-penalising) another hint level; a value
+  further out of step raises the new `error:staleattemptstate` so the client
+  reloads rather than the server guessing. `request_hint`'s fresh and
+  replayed returns are unified through a private `format_hint()` helper.
+- `error:staleattemptstate` language string.
+- Retry-safety tests in `submit_response_test` and `request_hint_test`
+  covering idempotent replay, a genuine next step still counting, the
+  unconditional `-1` default, and rejection of an ahead-of-server caller.
+
+### Note
+- This deliberately departs from the reviewer's `requestid`/mutation-id
+  suggestion for `submit_response`: optimistic concurrency needs no new schema
+  column, is symmetric with the hint path, and directly implements the
+  reviewer's own `expectedhintlevel` idea. The guard currently lives in the
+  external layer, which is sufficient for sequential network retries; making it
+  atomic against two *simultaneously* in-flight duplicate requests would mean
+  pushing the compare-and-act inside `attempt_manager`'s existing per-attempt
+  lock, and is left as a later hardening.
+
 ## [2.0.0-alpha.26] - 2026-07-25
 
 ### Fixed

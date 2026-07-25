@@ -159,6 +159,106 @@ final class request_hint_test extends \advanced_testcase {
     }
 
     /**
+     * Passing the hint level the caller last saw makes a lost-response retry
+     * idempotent: it replays the already-revealed hint without advancing to
+     * the next level or applying a second penalty.
+     *
+     * @return void
+     */
+    public function test_retry_with_expected_level_does_not_advance(): void {
+        // Add a second level so advancing again would be observable.
+        $this->add_second_hint_level();
+
+        // Reveal level 1 (the caller believed it was at level 0).
+        $first = request_hint::execute($this->attemptid, $this->gap->id, 0);
+        $this->assertSame(1, $first['level']);
+        $this->assertSame(1, $this->hint_level());
+
+        // Retry: the caller still believes it is at level 0. This replays
+        // level 1 and must leave the stored level at 1, not advance to 2.
+        $retry = request_hint::execute($this->attemptid, $this->gap->id, 0);
+        $this->assertSame(1, $retry['level']);
+        $this->assertSame('firstletter', $retry['hinttype']);
+        $this->assertSame(1, $this->hint_level());
+    }
+
+    /**
+     * With the up-to-date level, a fresh request advances to the next level.
+     *
+     * @return void
+     */
+    public function test_a_fresh_request_with_the_current_level_advances(): void {
+        $this->add_second_hint_level();
+
+        request_hint::execute($this->attemptid, $this->gap->id, 0);
+        $second = request_hint::execute($this->attemptid, $this->gap->id, 1);
+
+        $this->assertSame(2, $second['level']);
+        $this->assertSame(2, $this->hint_level());
+    }
+
+    /**
+     * Omitting expectedlevel (the -1 default) keeps the unconditional legacy
+     * reveal behaviour.
+     *
+     * @return void
+     */
+    public function test_without_expected_level_advances_unconditionally(): void {
+        $this->add_second_hint_level();
+
+        request_hint::execute($this->attemptid, $this->gap->id);
+        request_hint::execute($this->attemptid, $this->gap->id);
+
+        $this->assertSame(2, $this->hint_level());
+    }
+
+    /**
+     * A caller whose level disagrees with the server by more than one step is
+     * told to reload rather than having the server guess.
+     *
+     * @return void
+     */
+    public function test_rejects_a_stale_expected_level(): void {
+        $this->expectException(\moodle_exception::class);
+        request_hint::execute($this->attemptid, $this->gap->id, 5);
+    }
+
+    /**
+     * Add a second, solution-type hint level to this test's single gap.
+     *
+     * @return void
+     */
+    private function add_second_hint_level(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $generator->create_gaphint([
+            'gapid' => $this->gap->id,
+            'level' => 2,
+            'hinttype' => 'solution',
+            'hinttext' => 'chat',
+            'penalty' => 1.0,
+        ]);
+    }
+
+    /**
+     * Fetch the stored hint level for this attempt's single gap.
+     *
+     * @return int
+     */
+    private function hint_level(): int {
+        global $DB;
+
+        $response = $DB->get_record(
+            'elang_response',
+            ['attemptid' => $this->attemptid, 'gapid' => $this->gap->id],
+            'hintlevel',
+            MUST_EXIST
+        );
+
+        return (int) $response->hintlevel;
+    }
+
+    /**
      * Fetch the raw elang_attempt record backing $this->attemptid.
      *
      * @return \stdClass

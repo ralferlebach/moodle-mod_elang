@@ -50,6 +50,13 @@ class submit_response extends external_api {
             'attemptid' => new external_value(PARAM_INT, 'Attempt id'),
             'gapid' => new external_value(PARAM_INT, 'Gap id being answered'),
             'responsetext' => new external_value(PARAM_RAW, "The learner's raw response"),
+            'expectedtries' => new external_value(
+                PARAM_INT,
+                'The tries count the caller last saw for this gap, for idempotent retries; '
+                    . '-1 (default) submits unconditionally',
+                VALUE_DEFAULT,
+                -1
+            ),
         ]);
     }
 
@@ -59,19 +66,22 @@ class submit_response extends external_api {
      * @param int $attemptid Attempt id
      * @param int $gapid Gap id being answered
      * @param string $responsetext The learner's raw response
+     * @param int $expectedtries The tries count the caller last saw, or -1 to submit unconditionally
      * @return array The evaluation outcome and updated aggregates, see execute_returns()
      */
-    public static function execute(int $attemptid, int $gapid, string $responsetext): array {
+    public static function execute(int $attemptid, int $gapid, string $responsetext, int $expectedtries = -1): array {
         global $DB;
 
         [
             'attemptid' => $attemptid,
             'gapid' => $gapid,
             'responsetext' => $responsetext,
+            'expectedtries' => $expectedtries,
         ] = self::validate_parameters(self::execute_parameters(), [
             'attemptid' => $attemptid,
             'gapid' => $gapid,
             'responsetext' => $responsetext,
+            'expectedtries' => $expectedtries,
         ]);
 
         if (\core_text::strlen($responsetext) > self::MAX_RESPONSE_LENGTH) {
@@ -94,6 +104,33 @@ class submit_response extends external_api {
             // attempt is on — never let a caller answer against a gap
             // outside the attempted exercise.
             throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+        }
+
+        // Optimistic-concurrency retry guard. The caller passes the tries
+        // count it last saw for this gap; if the server has already moved
+        // past it, the prior request committed and this is a lost-response
+        // retry (or a stale duplicate), so return the stored outcome verbatim
+        // instead of counting another try. A network hiccup must never turn
+        // one submission into two failed tries. expectedtries === -1 means the
+        // caller opted out and wants an unconditional submit.
+        $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
+        $currenttries = $existing ? (int) $existing->tries : 0;
+
+        if ($expectedtries >= 0 && $expectedtries < $currenttries) {
+            $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+            return [
+                'resultstate' => $existing->resultstate,
+                'accepted' => (bool) $existing->accepted,
+                'answeredgaps' => (int) $updated->answeredgaps,
+                'correctgaps' => (int) $updated->correctgaps,
+                'exactgaps' => (int) $updated->exactgaps,
+                'score' => (float) $updated->score,
+            ];
+        }
+        if ($expectedtries > $currenttries) {
+            // The caller claims more tries than exist: its view is ahead of the
+            // server, which should be impossible. Make it refetch, don't guess.
+            throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
         }
 
         $result = self::get_attempt_manager()->submit_response($attemptid, $gapid, $responsetext);

@@ -153,4 +153,77 @@ final class submit_response_test extends \advanced_testcase {
         $this->expectException(\invalid_parameter_exception::class);
         submit_response::execute($this->attemptid, $this->gap->id, $toolong);
     }
+
+    /**
+     * Passing the tries count the caller last saw makes a lost-response retry
+     * idempotent: it returns the same outcome and does not count a second try.
+     *
+     * @return void
+     */
+    public function test_retry_with_expected_tries_does_not_double_count(): void {
+        $first = submit_response::execute($this->attemptid, $this->gap->id, 'chat', 0);
+        $this->assertSame('exact', $first['resultstate']);
+        $this->assertSame(1, $this->response_tries());
+
+        // The retry still believes tries is 0 (its response was lost). It must
+        // return the same outcome and leave tries at 1, not 2.
+        $retry = submit_response::execute($this->attemptid, $this->gap->id, 'chat', 0);
+        $this->assertSame('exact', $retry['resultstate']);
+        $this->assertTrue($retry['accepted']);
+        $this->assertSame(1, $this->response_tries());
+    }
+
+    /**
+     * A genuinely new answer passing the up-to-date tries count still counts.
+     *
+     * @return void
+     */
+    public function test_a_fresh_answer_with_the_current_tries_still_counts(): void {
+        submit_response::execute($this->attemptid, $this->gap->id, 'chien', 0);
+        submit_response::execute($this->attemptid, $this->gap->id, 'chat', 1);
+
+        $this->assertSame(2, $this->response_tries());
+    }
+
+    /**
+     * Omitting expectedtries (the -1 default) keeps the unconditional legacy
+     * behaviour: every call counts a try.
+     *
+     * @return void
+     */
+    public function test_without_expected_tries_every_call_counts(): void {
+        submit_response::execute($this->attemptid, $this->gap->id, 'chat');
+        submit_response::execute($this->attemptid, $this->gap->id, 'chat');
+
+        $this->assertSame(2, $this->response_tries());
+    }
+
+    /**
+     * A caller whose view is ahead of the server (claims more tries than
+     * exist) is told to reload rather than having the server guess.
+     *
+     * @return void
+     */
+    public function test_rejects_an_expected_tries_ahead_of_the_server(): void {
+        $this->expectException(\moodle_exception::class);
+        submit_response::execute($this->attemptid, $this->gap->id, 'chat', 5);
+    }
+
+    /**
+     * Fetch the stored tries count for this attempt's single gap.
+     *
+     * @return int
+     */
+    private function response_tries(): int {
+        global $DB;
+
+        $response = $DB->get_record(
+            'elang_response',
+            ['attemptid' => $this->attemptid, 'gapid' => $this->gap->id],
+            'tries',
+            MUST_EXIST
+        );
+
+        return (int) $response->tries;
+    }
 }

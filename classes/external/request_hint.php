@@ -52,6 +52,13 @@ class request_hint extends external_api {
         return new external_function_parameters([
             'attemptid' => new external_value(PARAM_INT, 'Attempt id'),
             'gapid' => new external_value(PARAM_INT, 'Gap id to request a hint for'),
+            'expectedlevel' => new external_value(
+                PARAM_INT,
+                'The hint level the caller last saw revealed for this gap, for idempotent retries; '
+                    . '-1 (default) reveals unconditionally',
+                VALUE_DEFAULT,
+                -1
+            ),
         ]);
     }
 
@@ -60,17 +67,20 @@ class request_hint extends external_api {
      *
      * @param int $attemptid Attempt id
      * @param int $gapid Gap id to request a hint for
+     * @param int $expectedlevel The hint level the caller last saw, or -1 to reveal unconditionally
      * @return array See execute_returns()
      */
-    public static function execute(int $attemptid, int $gapid): array {
+    public static function execute(int $attemptid, int $gapid, int $expectedlevel = -1): array {
         global $DB;
 
         [
             'attemptid' => $attemptid,
             'gapid' => $gapid,
+            'expectedlevel' => $expectedlevel,
         ] = self::validate_parameters(self::execute_parameters(), [
             'attemptid' => $attemptid,
             'gapid' => $gapid,
+            'expectedlevel' => $expectedlevel,
         ]);
 
         $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
@@ -89,7 +99,25 @@ class request_hint extends external_api {
         }
 
         $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
-        $nextlevel = ($existing ? (int) $existing->hintlevel : 0) + 1;
+        $currentlevel = $existing ? (int) $existing->hintlevel : 0;
+
+        // Optimistic-concurrency retry guard. The caller passes the hint level
+        // it last saw revealed; the only benign disagreement is being exactly
+        // one level behind — the previous reveal committed but its response was
+        // lost, so replay the hint already revealed at $currentlevel without
+        // advancing (and re-penalising) again. Any other disagreement is a
+        // stale client that must reload first. expectedlevel === -1 opts out
+        // and reveals unconditionally.
+        if ($expectedlevel >= 0 && $expectedlevel !== $currentlevel) {
+            if ($expectedlevel === $currentlevel - 1 && $currentlevel >= 1) {
+                $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $currentlevel], '*', MUST_EXIST);
+                $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+                return self::format_hint($hint, $updated);
+            }
+            throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
+        }
+
+        $nextlevel = $currentlevel + 1;
         if (!$DB->record_exists('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel])) {
             throw new \moodle_exception('error:nomorehints', 'mod_elang');
         }
@@ -97,6 +125,19 @@ class request_hint extends external_api {
         $hint = self::get_attempt_manager()->request_hint($attemptid, $gapid);
         $updated = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
+        return self::format_hint($hint, $updated);
+    }
+
+    /**
+     * Shape a revealed hint plus the attempt's updated aggregates into the
+     * external return array. Shared by a fresh reveal and an idempotent retry
+     * replay so both return byte-for-byte the same structure.
+     *
+     * @param \stdClass $hint An elang_gaphint record (level, hinttype, hinttext, penalty)
+     * @param \stdClass $updated The attempt record after any aggregate recalculation
+     * @return array See execute_returns()
+     */
+    private static function format_hint(\stdClass $hint, \stdClass $updated): array {
         return [
             'level' => (int) $hint->level,
             'hinttype' => $hint->hinttype,

@@ -41,6 +41,29 @@ final class v1_decommissioner_test extends \advanced_testcase {
     }
 
     protected function tearDown(): void {
+        global $DB;
+
+        // The decommission() method removes elang.options with a DROP
+        // COLUMN statement. On MySQL/MariaDB that DDL auto-commits and is
+        // NOT reverted by resetAfterTest(), which resets table data only,
+        // never the schema (a real, install.xml-declared table is involved
+        // here, not one of this fixture's own legacy tables). Left alone,
+        // the column would stay gone for every following test in the whole
+        // process — the real (native V2) elang table would then reject any
+        // insert naming options with "Unknown column 'options'", so this
+        // one test would break the entire remaining run. On PostgreSQL the
+        // same DROP is transactional and never leaks, making this restore a
+        // no-op there. Re-add the field exactly as db/install.xml declares
+        // it (nullable text, positioned after jarothreshold) so the
+        // restored schema matches the baseline the next reset validates
+        // against.
+        $dbman = $DB->get_manager();
+        $elangtable = new \xmldb_table('elang');
+        $optionsfield = new \xmldb_field('options', XMLDB_TYPE_TEXT, null, null, null, null, null, 'jarothreshold');
+        if (!$dbman->field_exists($elangtable, $optionsfield)) {
+            $dbman->add_field($elangtable, $optionsfield);
+        }
+
         v1_legacy_schema::drop_tables();
 
         parent::tearDown();

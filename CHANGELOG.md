@@ -11,7 +11,46 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
-## [2.0.0-alpha.8] - 2026-07-23
+## [2.0.0-alpha.24] - 2026-07-25
+
+### Fixed
+- `tests/local/migration/v1_decommissioner_test.php`: alpha.23 capitalised
+  the wrong line — the phpcs `InlineComment.NotCapital` warning was on the
+  comment's actual first line, which opened with the lowercase identifier
+  `decommission()`, not the later "(a real, ..." continuation line edited
+  previously. Reworded the opening sentence to "The decommission()
+  method..." and rewrapped the whole block to fit the line-length limit.
+  No functional change.
+
+## [2.0.0-alpha.23] - 2026-07-25
+
+### Fixed
+- `tests/local/migration/v1_decommissioner_test.php`: capitalised an inline
+  comment introduced in alpha.22 (phpcs `InlineComment.NotCapital`
+  warning), no functional change.
+
+## [2.0.0-alpha.22] - 2026-07-25
+
+CI-stabilisation gate ahead of Phase 3: the PHPUnit matrix was red on every
+MariaDB/MySQL job (Moodle 4.5/5.0/5.2) while every PostgreSQL job stayed green.
+Root cause was a test-isolation defect, not a plugin or portability bug — the
+production `v1_decommissioner::decommission()` behaviour is unchanged and
+correct.
+
+### Fixed
+- `tests/local/migration/v1_decommissioner_test.php`: restore the
+  `elang.options` column in `tearDown()` after any test method that exercises
+  a successful `decommission()`. `decommission()` drops that column with a
+  `DROP COLUMN` statement; on MySQL/MariaDB DDL auto-commits and is never
+  reverted by `resetAfterTest()` (data-only reset), so the column stayed gone
+  for the rest of the process and every subsequent test inserting into `elang`
+  failed with "Unknown column 'options'" (~29–30 cascading errors). On
+  PostgreSQL the same DDL is transactional and never leaked, which is why only
+  the MariaDB/MySQL jobs were red. The restore re-adds the field exactly as
+  `db/install.xml` declares it (nullable text, after `jarothreshold`) and is a
+  harmless no-op on PostgreSQL.
+
+
 
 Phase 2, seventh and final content increment: custom completion. With this,
 Phase 2's actively developable scope (schema, grading, domain, all seven

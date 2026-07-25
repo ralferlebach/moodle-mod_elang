@@ -28,6 +28,27 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.37] - 2026-07-25
+
+Phase 3: Behat coverage for the player's two most important behaviours.
+
+### Added
+- `tests/behat/player.feature` (@javascript): the player renders the transcript
+  with a gap; a learner's submitted answer and graded state survive a page
+  reload (resume); and an in-progress attempt keeps reading the version it
+  started on after a newer version is published (version pinning). The pinning
+  scenario distinguishes versions by the words left visible around the gap
+  ("dort" for the started version vs "court" for the one published mid-attempt).
+- `tests/behat/behat_mod_elang.php`: custom steps to publish a version with one
+  cue and gap (through the domain layer, since there is no authoring UI yet) and
+  to answer a gap by driving the player's own Enter-to-submit path.
+
+### Note
+- These scenarios need the built `amd/build/` player (grunt) and a real browser,
+  so unlike the PHP work they could not be exercised here at all — the `behat`
+  CI job is their first real run, and step/selector adjustments are more likely
+  than with the PHPUnit suites.
+
 ## [2.0.0-alpha.36] - 2026-07-25
 
 Phase 3, slice 3E: resume.

@@ -28,6 +28,22 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.50] - 2026-07-26
+
+### Added
+- Activity-level content settings in the module form: a **Content language**
+  field (`language`) and a **Fuzzy-match threshold** field (`jarothreshold`),
+  each with help text, under a new "Answer grading" section. These were
+  previously only reachable through the database — the form defaulted language
+  to empty and the threshold to 1. They are the activity defaults new draft
+  versions inherit (see `version_manager::create_draft`); grading a published
+  version still uses that version's own pinned copy. The threshold is validated
+  to the 0–1 range (`jarothresholdrange`).
+
+### Tests
+- The submitted language and threshold are stored on create and update
+  (`elang_add_instance` / `elang_update_instance`).
+
 ## [2.0.0-alpha.49] - 2026-07-26
 
 ### Added

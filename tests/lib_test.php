@@ -127,6 +127,46 @@ final class lib_test extends \advanced_testcase {
     }
 
     /**
+     * The activity-level content language and Jaro threshold submitted through
+     * the settings form are stored on create and update; new versions inherit
+     * them (see version_manager::create_draft).
+     *
+     * @return void
+     */
+    public function test_instance_stores_language_and_jarothreshold(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'language' => 'de',
+            'jarothreshold' => 0.85,
+        ]);
+
+        $this->assertSame('de', $DB->get_field('elang', 'language', ['id' => $elang->id]));
+        $this->assertEqualsWithDelta(
+            0.85,
+            (float) $DB->get_field('elang', 'jarothreshold', ['id' => $elang->id]),
+            0.00001
+        );
+
+        $record = $DB->get_record('elang', ['id' => $elang->id]);
+        $record->instance = $record->id;
+        $record->language = 'fr';
+        $record->jarothreshold = 0.6;
+        elang_update_instance($record);
+
+        $this->assertSame('fr', $DB->get_field('elang', 'language', ['id' => $elang->id]));
+        $this->assertEqualsWithDelta(
+            0.6,
+            (float) $DB->get_field('elang', 'jarothreshold', ['id' => $elang->id]),
+            0.00001
+        );
+    }
+
+    /**
      * Deleting an instance removes every dependent record in the versioned
      * schema: version, cue, gap, gapanswer, gaphint, attempt and response.
      *

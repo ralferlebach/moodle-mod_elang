@@ -56,10 +56,39 @@ class mod_elang_mod_form extends moodleform_mod {
 
         $this->standard_intro_elements();
 
+        $mform->addElement('header', 'elanggrading', get_string('gradingheading', 'mod_elang'));
+
+        $mform->addElement('text', 'language', get_string('language', 'mod_elang'), ['size' => 12]);
+        $mform->setType('language', PARAM_ALPHANUMEXT);
+        $mform->setDefault('language', '');
+        $mform->addHelpButton('language', 'language', 'mod_elang');
+
+        $mform->addElement('text', 'jarothreshold', get_string('jarothreshold', 'mod_elang'), ['size' => 6]);
+        $mform->setType('jarothreshold', PARAM_FLOAT);
+        $mform->setDefault('jarothreshold', 1.0);
+        $mform->addHelpButton('jarothreshold', 'jarothreshold', 'mod_elang');
+
         $this->standard_grading_coursemodule_elements();
 
         $this->standard_coursemodule_elements();
         $this->add_action_buttons();
+    }
+
+    /**
+     * Validate the submitted form data.
+     *
+     * @param array $data The submitted form data
+     * @param array $files The submitted files
+     * @return array Any validation errors, keyed by form element name
+     */
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+
+        if (isset($data['jarothreshold']) && ((float) $data['jarothreshold'] < 0 || (float) $data['jarothreshold'] > 1)) {
+            $errors['jarothreshold'] = get_string('jarothresholdrange', 'mod_elang');
+        }
+
+        return $errors;
     }
 
     /**

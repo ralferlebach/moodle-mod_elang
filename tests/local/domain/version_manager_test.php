@@ -620,4 +620,49 @@ final class version_manager_test extends \advanced_testcase {
 
         $this->assertSame(version_manager::STATUS_PUBLISHED, $published->status);
     }
+
+    /**
+     * load_version_content returns the full authoring view — every cue with its
+     * gaps, and each gap with its solution, accepted answers and hints.
+     *
+     * @return void
+     */
+    public function test_load_version_content_returns_the_full_authoring_view(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $version = $this->manager->create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue([
+            'versionid' => $version->id,
+            'cuekey' => 'cue-a',
+            'transcript' => 'Le chat dort',
+            'sortorder' => 1,
+        ]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'gapkey' => 'gap-a', 'solution' => 'chat', 'sortorder' => 1]);
+        $generator->create_gapanswer(['gapid' => $gap->id, 'answer' => 'chatte']);
+        $generator->create_gaphint(['gapid' => $gap->id, 'level' => 1, 'hinttext' => 'c']);
+
+        $content = $this->manager->load_version_content($version->id);
+
+        $this->assertCount(1, $content);
+        $this->assertSame('cue-a', $content[0]['cuekey']);
+        $this->assertCount(1, $content[0]['gaps']);
+
+        $gapview = $content[0]['gaps'][0];
+        $this->assertSame('gap-a', $gapview['gapkey']);
+        $this->assertSame('chat', $gapview['solution']);
+        $this->assertSame('chatte', $gapview['answers'][0]['answer']);
+        $this->assertSame(1, $gapview['hints'][0]['level']);
+    }
+
+    /**
+     * A version with no cues loads as an empty content list.
+     *
+     * @return void
+     */
+    public function test_load_version_content_of_an_empty_version_is_empty(): void {
+        $version = $this->manager->create_draft($this->elang->id, 2);
+
+        $this->assertSame([], $this->manager->load_version_content($version->id));
+    }
 }

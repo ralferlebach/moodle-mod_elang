@@ -108,4 +108,20 @@ $functions = [
         'ajax' => true,
         'capabilities' => 'mod/elang:manage',
     ],
+    'mod_elang_get_version_content' => [
+        'classname' => 'mod_elang\external\get_version_content',
+        'methodname' => 'execute',
+        'description' => 'Read a version\'s full authoring content, including solutions.',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
+    'mod_elang_preview_import' => [
+        'classname' => 'mod_elang\external\preview_import',
+        'methodname' => 'execute',
+        'description' => 'Parse a WebVTT or SubRip subtitle file into cue segments for the editor.',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
 ];

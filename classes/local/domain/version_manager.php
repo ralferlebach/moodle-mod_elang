@@ -370,6 +370,86 @@ class version_manager {
     }
 
     /**
+     * Assemble a version's full authoring content — every cue with its gaps,
+     * and each gap with its accepted answers and hints, INCLUDING solutions.
+     * This is the manager-facing editor view and must never be sent to a
+     * learner (get_attempt_cues is the masked, attempt-bound counterpart). The
+     * shape mirrors save_draft_content()'s input exactly, so the editor can
+     * load, edit and save the same structure round-trip. Rows are loaded in a
+     * bounded number of queries (one per table) rather than one per cue or gap.
+     *
+     * @param int $versionid The elang_version id to read
+     * @return array A list of cues, each with nested gaps, answers and hints
+     */
+    public function load_version_content(int $versionid): array {
+        global $DB;
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
+        if (empty($cues)) {
+            return [];
+        }
+
+        [$cuein, $cueparams] = $DB->get_in_or_equal(array_keys($cues));
+        $gaps = $DB->get_records_select('elang_gap', "cueid $cuein", $cueparams, 'cueid ASC, sortorder ASC, id ASC');
+
+        $answersbygap = [];
+        $hintsbygap = [];
+        if (!empty($gaps)) {
+            [$gapin, $gapparams] = $DB->get_in_or_equal(array_keys($gaps));
+
+            $answers = $DB->get_records_select('elang_gapanswer', "gapid $gapin", $gapparams, 'gapid ASC, sortorder ASC, id ASC');
+            foreach ($answers as $answer) {
+                $answersbygap[$answer->gapid][] = [
+                    'sortorder' => (int) $answer->sortorder,
+                    'answer' => (string) $answer->answer,
+                    'isregex' => (int) $answer->isregex,
+                ];
+            }
+
+            $hints = $DB->get_records_select('elang_gaphint', "gapid $gapin", $gapparams, 'gapid ASC, level ASC, id ASC');
+            foreach ($hints as $hint) {
+                $hintsbygap[$hint->gapid][] = [
+                    'level' => (int) $hint->level,
+                    'hinttype' => (string) $hint->hinttype,
+                    'hinttext' => (string) ($hint->hinttext ?? ''),
+                    'penalty' => (float) $hint->penalty,
+                ];
+            }
+        }
+
+        $gapsbycue = [];
+        foreach ($gaps as $gap) {
+            $gapsbycue[$gap->cueid][] = [
+                'gapkey' => (string) $gap->gapkey,
+                'sortorder' => (int) $gap->sortorder,
+                'charstart' => (int) $gap->charstart,
+                'charlength' => (int) $gap->charlength,
+                'solution' => (string) $gap->solution,
+                'gradingalgorithm' => (string) $gap->gradingalgorithm,
+                'maxlength' => $gap->maxlength !== null ? (int) $gap->maxlength : 0,
+                'linkurl' => (string) ($gap->linkurl ?? ''),
+                'answers' => $answersbygap[$gap->id] ?? [],
+                'hints' => $hintsbygap[$gap->id] ?? [],
+            ];
+        }
+
+        $result = [];
+        foreach ($cues as $cue) {
+            $result[] = [
+                'cuekey' => (string) $cue->cuekey,
+                'sortorder' => (int) $cue->sortorder,
+                'starttime' => (int) $cue->starttime,
+                'endtime' => (int) $cue->endtime,
+                'transcript' => (string) $cue->transcript,
+                'transcriptformat' => (int) $cue->transcriptformat,
+                'gaps' => $gapsbycue[$cue->id] ?? [],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * Compute a deterministic content hash over a version's cues, gaps,
      * accepted answers and grading algorithms.
      *

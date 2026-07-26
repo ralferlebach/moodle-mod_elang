@@ -28,6 +28,52 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.47] - 2026-07-26
+
+### Added
+- Subtitle import (preview). A new `subtitle_parser` reads WebVTT and SubRip
+  (.srt) files in a single lenient pass: it splits on blank lines, treats the
+  line containing `-->` as the timing line (ignoring a SubRip index or a WebVTT
+  cue identifier before it and any cue settings after it), skips the WEBVTT
+  header and NOTE/STYLE/REGION sections, and accepts timestamps with either a
+  comma or a dot before the milliseconds and an optional hours component. Blocks
+  with an unparseable timing line or no transcript text are skipped and
+  reported as warnings (`import:badtiming`, `import:emptytranscript`).
+- `mod_elang_preview_import` exposes the parser to the editor (gated on
+  `mod/elang:manage`): it returns the parsed cues, a count and any warnings
+  without writing anything, so the teacher previews the result, marks gaps and
+  then persists the draft through `save_draft_version`.
+
+### Tests
+- subtitle_parser: WebVTT and SubRip parsing, hours-optional timestamps, cue
+  settings ignored, header/NOTE blocks skipped, and unparseable-timing and
+  empty-transcript blocks skipped with a warning. preview_import: a manager
+  previews parsed cues and a non-manager is denied.
+
+## [2.0.0-alpha.46] - 2026-07-26
+
+### Added
+- Authoring read endpoint. `mod_elang_get_version_content` returns a version's
+  metadata (status, revision, language, Jaro threshold, media columns) and its
+  full content — every cue, gap, accepted answer and hint, INCLUDING solutions.
+  It is the manager-facing counterpart to `get_attempt_cues` (which masks
+  solutions for learners), gated on `mod/elang:manage`, and its shape mirrors
+  `save_draft_version`'s input exactly so the editor can load, edit and save the
+  same structure round-trip. Backed by a new
+  `version_manager::load_version_content()` that assembles the view in a bounded
+  number of queries.
+
+### Changed
+- The cue/gap/answer/hint external structure builders now live once on the
+  `authoring_helper` trait and are shared by the read endpoint's return and the
+  save endpoint's parameters, keeping the two contracts in lockstep.
+
+### Tests
+- get_version_content: a manager reads content with solutions, content saved
+  through save_draft_version reads back unchanged (round-trip), and a
+  non-manager is denied. load_version_content returns the full nested view and
+  is empty for a version with no cues.
+
 ## [2.0.0-alpha.45] - 2026-07-26
 
 ### Added

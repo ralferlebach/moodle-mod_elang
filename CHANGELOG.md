@@ -28,43 +28,45 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
-## [2.0.0-alpha.57] - 2026-07-26
+## [2.0.0-alpha.58] - 2026-07-26
 
-### Added
-- Timeline editor (first increment). The content editor now shows a media
-  preview (a native player) when the version has a playable file or url medium,
-  and a timeline strip where each cue is positioned by its time. During playback
-  a playhead moves along the strip and the current cue's block highlights;
-  clicking a block scrolls to that cue and seeks the media there. Each cue row
-  gained "Set start from playback" and "Set end from playback" buttons that
-  capture the media's current position into the cue's timing. New editor strings
-  (en, de) and timeline styles.
+### Fixed
+- The authoring tools are now reachable directly from the activity page: for
+  users with the capability, `view.php` shows an action bar with "Edit content"
+  (manage), "Reports" (viewreports) and "Export transcript" (exporttranscript)
+  buttons. This no longer depends solely on the secondary-navigation "More"
+  menu, which needs a navigation-cache purge to pick up new nodes.
+- Reverted `makefile` to its committed state (a hard-gate refactor had made
+  `lint-mustache` fail on the tool's "Total errors: 0" summary line).
+
+### Tests
+- Behat: a teacher reaches the editor, the report and the transcript export from
+  the activity page, and the settings form shows the "Answer grading" section.
 
 ### Note
-- `amd/src/editor.js` changed but `amd/build/` is not included: run `grunt amd`
-  (e.g. `make amd`) to rebuild the module.
-- The preview and playback sync use a native player, so they cover file and
-  direct-url media; provider media (e.g. YouTube) and drag-to-resize timing are
-  later timeline increments.
+- After deploying, visit Site administration -> Notifications to run the upgrade
+  (this purges the navigation cache), or purge all caches, so the "More" menu
+  items also appear. The bundled `amd/build/editor.min.js` is a hand-built AMD
+  wrapper; `grunt amd` regenerates it canonically.
 
 ## [2.0.0-alpha.57] - 2026-07-26
 
 ### Added
-- Media upload. A new `media.php` page (a Moodle form with two file managers,
-  gated on `mod/elang:manage`, linked from the editor's media panel as "Upload
-  media files") lets a manager upload the video/audio and an optional poster for
-  the draft version through Moodle's file picker; on save it stores them via
-  `version_manager::set_draft_media()` and switches the version to file-kind
-  media. New `media_form`, plus `editor:poster`/`editor:uploadmedia` strings
-  (en, de).
+- Content editor timeline and media upload. The editor shows a media preview (a
+  native player) for a playable file or url medium and a timeline strip where
+  each cue sits at its time; during playback a playhead moves and the current
+  cue highlights, clicking a cue's block seeks the media there, and each cue row
+  has "Set start/end from playback" buttons. A new `media.php` page (a Moodle
+  form with two file managers, gated on `mod/elang:manage`, linked from the
+  editor's media panel as "Upload media files") uploads the video/audio and an
+  optional poster through Moodle's file picker and stores them via
+  `version_manager::set_draft_media()`. New `media_form`, editor/timeline strings
+  and styles.
 
-### Changed
-- Consolidated the content editor so all of its parts ship together: the
-  timeline strip and inline media preview (`amd/src/editor.js`,
-  `templates/editor.mustache`, `styles.css`) that let a manager scrub the medium
-  and capture each cue's start/end time from playback ("Set start/end from
-  playback"), seek to a cue by clicking its block on the timeline, and see a
-  live playhead. Run `grunt amd` (e.g. `make amd`) to (re)build the AMD module.
+### Note
+- `amd/build/editor.min.js` ships as a hand-built AMD wrapper; `grunt amd`
+  (e.g. `make amd`) regenerates it canonically. Provider media (e.g. YouTube)
+  and drag-to-resize timing are later timeline increments.
 
 ## [2.0.0-alpha.56] - 2026-07-26
 

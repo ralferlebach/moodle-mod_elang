@@ -60,5 +60,32 @@ $completion->set_module_viewed($cm);
 $PAGE->requires->js_call_amd('mod_elang/player', 'init', [(int) $cm->id]);
 
 echo $OUTPUT->header();
+
+$actions = '';
+if (has_capability('mod/elang:manage', $context)) {
+    $actions .= $OUTPUT->single_button(
+        new moodle_url('/mod/elang/edit.php', ['id' => $cm->id]),
+        get_string('editcontent', 'mod_elang'),
+        'get'
+    );
+}
+if (has_capability('mod/elang:viewreports', $context)) {
+    $actions .= $OUTPUT->single_button(
+        new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
+        get_string('reports', 'mod_elang'),
+        'get'
+    );
+}
+if (has_capability('mod/elang:exporttranscript', $context)) {
+    $actions .= $OUTPUT->single_button(
+        new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id]),
+        get_string('exporttranscript', 'mod_elang'),
+        'get'
+    );
+}
+if ($actions !== '') {
+    echo html_writer::div($actions, 'mod_elang-actions mb-3');
+}
+
 echo $OUTPUT->render_from_template('mod_elang/player', []);
 echo $OUTPUT->footer();

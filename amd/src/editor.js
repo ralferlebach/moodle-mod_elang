@@ -104,6 +104,9 @@ const loadStrings = async() => {
         'editor:transcript', 'editor:starttime', 'editor:endtime', 'editor:gaps', 'editor:nogaps',
         'editor:nocues', 'editor:deletecue', 'editor:loaderror', 'editor:saved', 'editor:saveerror',
         'editor:published', 'editor:currentmedia', 'editor:nomedia', 'editor:mediafile', 'editor:mediasaved',
+        'editor:solution', 'editor:algorithm', 'editor:algoexact', 'editor:algowordrecognized', 'editor:answers',
+        'editor:addvariant', 'editor:removevariant', 'editor:addgap', 'editor:deletegap', 'editor:gaprange',
+        'editor:selecttext',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -142,16 +145,183 @@ const buildNumberField = (labeltext, value, onchange) => {
 };
 
 /**
- * Summarise a cue's gaps as a short read-only line.
+ * Build one accepted-answer variant row, wired to mutate the answer in place.
  *
- * @param {Array} gaps The cue's gaps
- * @returns {String} A human-readable summary
+ * @param {Object} gap The parent gap
+ * @param {Object} answer The answer model object
+ * @param {Element} container The answers container, for re-rendering on removal
+ * @returns {Element} The variant row
  */
-const summariseGaps = (gaps) => {
-    if (!gaps || gaps.length === 0) {
-        return strings['editor:nogaps'];
+const buildAnswerRow = (gap, answer, container) => {
+    const row = document.createElement('div');
+    row.className = 'mb-1';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control d-inline-block w-75 mr-2';
+    input.value = answer.answer;
+    input.addEventListener('input', () => {
+        answer.answer = input.value;
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-link text-danger p-0';
+    remove.textContent = strings['editor:removevariant'];
+    remove.addEventListener('click', () => {
+        gap.answers = gap.answers.filter((candidate) => candidate !== answer);
+        renderAnswers(gap, container);
+    });
+
+    row.appendChild(input);
+    row.appendChild(remove);
+    return row;
+};
+
+/**
+ * Render a gap's accepted-answer variants into a container.
+ *
+ * @param {Object} gap The gap whose answers are rendered
+ * @param {Element} container The target container
+ * @returns {void}
+ */
+const renderAnswers = (gap, container) => {
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
     }
-    return strings['editor:gaps'] + ': ' + gaps.map((gap) => gap.solution).join(', ');
+    gap.answers.forEach((answer) => container.appendChild(buildAnswerRow(gap, answer, container)));
+};
+
+/**
+ * Build the editable row for one gap: its position, solution, matching
+ * algorithm and accepted variants. Existing hints are preserved untouched.
+ *
+ * @param {Object} cue The parent cue
+ * @param {Object} gap The gap model object
+ * @param {Function} rerenderGaps Re-renders the cue's gap list after removal
+ * @returns {Element} The gap row
+ */
+const buildGapRow = (cue, gap, rerenderGaps) => {
+    const row = document.createElement('div');
+    row.className = 'mod_elang-editor-gap border rounded p-2 mt-2';
+
+    const range = document.createElement('div');
+    range.className = 'text-muted small';
+    range.textContent = strings['editor:gaprange'] + ': ' + gap.charstart + '–' + (gap.charstart + gap.charlength);
+
+    const sollabel = document.createElement('label');
+    sollabel.className = 'd-block';
+    sollabel.textContent = strings['editor:solution'];
+    const solinput = document.createElement('input');
+    solinput.type = 'text';
+    solinput.className = 'form-control';
+    solinput.value = gap.solution;
+    solinput.addEventListener('input', () => {
+        gap.solution = solinput.value;
+    });
+    sollabel.appendChild(solinput);
+
+    const algolabel = document.createElement('label');
+    algolabel.className = 'd-block';
+    algolabel.textContent = strings['editor:algorithm'];
+    const algoselect = document.createElement('select');
+    algoselect.className = 'form-control';
+    [['exact', strings['editor:algoexact']], ['wordrecognized', strings['editor:algowordrecognized']]].forEach((pair) => {
+        const option = document.createElement('option');
+        option.value = pair[0];
+        option.textContent = pair[1];
+        option.selected = gap.gradingalgorithm === pair[0];
+        algoselect.appendChild(option);
+    });
+    algoselect.addEventListener('change', () => {
+        gap.gradingalgorithm = algoselect.value;
+    });
+    algolabel.appendChild(algoselect);
+
+    const answerslabel = document.createElement('p');
+    answerslabel.className = 'mb-1 mt-2';
+    answerslabel.textContent = strings['editor:answers'];
+    const answers = document.createElement('div');
+    renderAnswers(gap, answers);
+
+    const addvariant = document.createElement('button');
+    addvariant.type = 'button';
+    addvariant.className = 'btn btn-link p-0';
+    addvariant.textContent = strings['editor:addvariant'];
+    addvariant.addEventListener('click', () => {
+        gap.answers.push({sortorder: gap.answers.length + 1, answer: '', isregex: 0});
+        renderAnswers(gap, answers);
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-link text-danger p-0 d-block';
+    remove.textContent = strings['editor:deletegap'];
+    remove.addEventListener('click', () => {
+        cue.gaps = cue.gaps.filter((candidate) => candidate !== gap);
+        rerenderGaps();
+    });
+
+    row.appendChild(range);
+    row.appendChild(sollabel);
+    row.appendChild(algolabel);
+    row.appendChild(answerslabel);
+    row.appendChild(answers);
+    row.appendChild(addvariant);
+    row.appendChild(remove);
+    return row;
+};
+
+/**
+ * Render a cue's gaps into a container, or an empty note when it has none.
+ *
+ * @param {Object} cue The cue whose gaps are rendered
+ * @param {Element} container The target container
+ * @returns {void}
+ */
+const renderGaps = (cue, container) => {
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+    if (cue.gaps.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'text-muted small mb-0';
+        empty.textContent = strings['editor:nogaps'];
+        container.appendChild(empty);
+        return;
+    }
+    cue.gaps.forEach((gap) => container.appendChild(buildGapRow(cue, gap, () => renderGaps(cue, container))));
+};
+
+/**
+ * Create a gap from the current selection in a cue's transcript, defaulting the
+ * solution to the selected text.
+ *
+ * @param {Object} cue The cue being edited
+ * @param {Element} textarea The cue's transcript textarea
+ * @param {Function} rerenderGaps Re-renders the cue's gap list afterwards
+ * @returns {void}
+ */
+const addGapFromSelection = (cue, textarea, rerenderGaps) => {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end) {
+        setStatus(strings['editor:selecttext']);
+        return;
+    }
+    cue.gaps.push({
+        gapkey: newKey('g'),
+        sortorder: cue.gaps.length + 1,
+        charstart: start,
+        charlength: end - start,
+        solution: textarea.value.substring(start, end),
+        gradingalgorithm: 'exact',
+        maxlength: 0,
+        linkurl: '',
+        answers: [],
+        hints: [],
+    });
+    rerenderGaps();
 };
 
 /**
@@ -189,9 +359,17 @@ const buildCueRow = (cue) => {
     });
     label.appendChild(textarea);
 
-    const gaps = document.createElement('p');
-    gaps.className = 'text-muted mt-2 mb-1';
-    gaps.textContent = summariseGaps(cue.gaps);
+    const gapscontainer = document.createElement('div');
+    gapscontainer.className = 'mod_elang-editor-gaps mt-2';
+    renderGaps(cue, gapscontainer);
+
+    const addgap = document.createElement('button');
+    addgap.type = 'button';
+    addgap.className = 'btn btn-link p-0 d-block';
+    addgap.textContent = strings['editor:addgap'];
+    addgap.addEventListener('click', () => {
+        addGapFromSelection(cue, textarea, () => renderGaps(cue, gapscontainer));
+    });
 
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -204,7 +382,8 @@ const buildCueRow = (cue) => {
 
     body.appendChild(timing);
     body.appendChild(label);
-    body.appendChild(gaps);
+    body.appendChild(gapscontainer);
+    body.appendChild(addgap);
     body.appendChild(remove);
     row.appendChild(body);
     return row;

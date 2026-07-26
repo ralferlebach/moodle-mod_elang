@@ -28,6 +28,27 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.52] - 2026-07-26
+
+### Added
+- Gap editing in the content editor — the core authoring step. Each cue now
+  shows its gaps as editable rows instead of a read-only summary: a manager can
+  mark a new gap by selecting the word to blank out in the transcript (the
+  selection becomes the gap's character range and default solution), edit each
+  gap's solution and matching algorithm (exact or recognise-close-answers), add
+  and remove accepted answer variants, and delete gaps. All of this round-trips
+  through `save_draft_version`; existing hints on a gap are preserved untouched
+  (hint editing is a later increment). New editor UI strings (en, de).
+
+### Note
+- `amd/src/editor.js` changed but `amd/build/` is not included: run `grunt amd`
+  (e.g. `make amd`) to rebuild the module.
+- Gap ranges are captured from the transcript textarea selection (UTF-16
+  offsets), which match character offsets for the common (BMP) case; editing a
+  transcript after marking gaps can move their ranges, which publish-time
+  validation catches. Re-syncing on transcript edits comes with the timeline
+  editor.
+
 ## [2.0.0-alpha.51] - 2026-07-26
 
 ### Added

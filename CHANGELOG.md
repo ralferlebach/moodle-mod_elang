@@ -28,6 +28,23 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.54] - 2026-07-26
+
+### Added
+- Teacher attempt report. A new `report.php` (gated on `mod/elang:viewreports`,
+  linked from the activity's settings navigation as "Reports") lists every
+  learner attempt with its state, score and gap aggregates, and drills into one
+  attempt to show it gap by gap — each gap's solution, the learner's response,
+  the result, the number of tries and the hint level reached. It is read only;
+  grade overrides remain in the Moodle gradebook. Backed by a new
+  `attempt_report` domain class (server-rendered, no JavaScript build needed).
+  New report UI strings (en, de).
+
+### Tests
+- attempt_report: a finished attempt is listed and its detail pairs each gap
+  with the learner's response and result in order; an activity with no attempts
+  lists nothing.
+
 ## [2.0.0-alpha.53] - 2026-07-26
 
 ### Added

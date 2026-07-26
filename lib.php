@@ -532,17 +532,26 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
     }
 
     $context = context_module::instance($PAGE->cm->id);
-    if (!has_capability('mod/elang:manage', $context)) {
-        return;
+
+    if (has_capability('mod/elang:manage', $context)) {
+        $elangnode->add_node(navigation_node::create(
+            get_string('editcontent', 'mod_elang'),
+            new moodle_url('/mod/elang/edit.php', ['id' => $PAGE->cm->id]),
+            navigation_node::TYPE_SETTING,
+            null,
+            'mod_elang_editcontent',
+            new pix_icon('t/edit', '')
+        ));
     }
 
-    $node = navigation_node::create(
-        get_string('editcontent', 'mod_elang'),
-        new moodle_url('/mod/elang/edit.php', ['id' => $PAGE->cm->id]),
-        navigation_node::TYPE_SETTING,
-        null,
-        'mod_elang_editcontent',
-        new pix_icon('t/edit', '')
-    );
-    $elangnode->add_node($node);
+    if (has_capability('mod/elang:viewreports', $context)) {
+        $elangnode->add_node(navigation_node::create(
+            get_string('reports', 'mod_elang'),
+            new moodle_url('/mod/elang/report.php', ['id' => $PAGE->cm->id]),
+            navigation_node::TYPE_SETTING,
+            null,
+            'mod_elang_reports',
+            new pix_icon('i/report', '')
+        ));
+    }
 }

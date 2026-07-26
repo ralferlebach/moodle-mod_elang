@@ -554,4 +554,15 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
             new pix_icon('i/report', '')
         ));
     }
+
+    if (has_capability('mod/elang:exporttranscript', $context)) {
+        $elangnode->add_node(navigation_node::create(
+            get_string('exporttranscript', 'mod_elang'),
+            new moodle_url('/mod/elang/transcript.php', ['id' => $PAGE->cm->id]),
+            navigation_node::TYPE_SETTING,
+            null,
+            'mod_elang_exporttranscript',
+            new pix_icon('i/export', '')
+        ));
+    }
 }

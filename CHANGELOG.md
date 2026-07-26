@@ -28,6 +28,32 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.56] - 2026-07-26
+
+### Added
+- Transcript export. A new `transcript.php` (gated on
+  `mod/elang:exporttranscript`, which learners hold too, linked from the
+  settings navigation as "Export transcript") streams the published version's
+  transcript as a PDF (Moodle's bundled TCPDF) or a plain-text file, or shows a
+  small format chooser. Backed by a new `transcript_exporter` domain class that
+  assembles the transcript from the version's cues. New export strings (en, de).
+
+### Changed
+- The teacher attempt report now honours the activity's group mode: it shows the
+  standard group selector and lists only the chosen group's attempts, and under
+  separate groups a teacher without access-all-groups can only open an attempt
+  by a learner who shares one of their groups. `attempt_report::list_for_activity`
+  gained an optional group filter.
+
+### Tests
+- transcript_exporter joins cue transcripts in order and is empty for a version
+  with no cues; the attempt listing filters to a group's members.
+
+### Note
+- Export currently produces PDF and text. Word (.docx) and OpenDocument (.odt)
+  need a document writer that Moodle core does not provide and are a planned
+  follow-up format; the PDF covers the formatted-document need in the meantime.
+
 ## [2.0.0-alpha.55] - 2026-07-26
 
 ### Changed

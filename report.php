@@ -43,6 +43,8 @@ $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+$groupmode = groups_get_activity_groupmode($cm, $course);
+
 $statelabel = function (string $state): string {
     $labels = [
         'inprogress' => get_string('report:state_inprogress', 'mod_elang'),
@@ -74,6 +76,20 @@ if ($attemptid) {
     $detail = $report->detail($attemptid);
     if ((int) $detail['attempt']['elangid'] !== (int) $elang->id) {
         throw new moodle_exception('invalidrecord', 'error');
+    }
+
+    if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
+        $allowedgroups = groups_get_activity_allowed_groups($cm);
+        $shared = false;
+        foreach (array_keys($allowedgroups) as $groupid) {
+            if (groups_is_member($groupid, (int) $detail['attempt']['userid'])) {
+                $shared = true;
+                break;
+            }
+        }
+        if (!$shared) {
+            throw new moodle_exception('nopermissions', 'error', '', get_string('report:heading', 'mod_elang'));
+        }
     }
 
     $attempt = $detail['attempt'];
@@ -110,7 +126,12 @@ if ($attemptid) {
         get_string('report:back', 'mod_elang')
     ));
 } else {
-    $attempts = $report->list_for_activity((int) $elang->id);
+    $currentgroup = 0;
+    if ($groupmode != NOGROUPS) {
+        $currentgroup = groups_get_activity_group($cm, true);
+        echo groups_print_activity_menu($cm, $PAGE->url, true);
+    }
+    $attempts = $report->list_for_activity((int) $elang->id, (int) $currentgroup);
     if (empty($attempts)) {
         echo html_writer::div(get_string('report:noattempts', 'mod_elang'));
     } else {

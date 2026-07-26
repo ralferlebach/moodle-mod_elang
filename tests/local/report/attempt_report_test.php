@@ -93,4 +93,35 @@ final class attempt_report_test extends \advanced_testcase {
 
         $this->assertSame([], (new attempt_report())->list_for_activity((int) $elang->id));
     }
+
+    /**
+     * Passing a group id restricts the listing to that group's members.
+     *
+     * @return void
+     */
+    public function test_list_filters_by_group(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $insider = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $outsider = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $group = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
+        $this->getDataGenerator()->create_group_member(['groupid' => $group->id, 'userid' => $insider->id]);
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
+        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
+
+        $report = new attempt_report();
+        $this->assertCount(2, $report->list_for_activity((int) $elang->id));
+
+        $grouponly = $report->list_for_activity((int) $elang->id, (int) $group->id);
+        $this->assertCount(1, $grouponly);
+        $this->assertSame((int) $insider->id, $grouponly[0]['userid']);
+    }
 }

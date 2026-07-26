@@ -29,15 +29,26 @@ namespace mod_elang\local\report;
  */
 final class attempt_report {
     /**
-     * List every attempt for an activity, newest first.
+     * List every attempt for an activity, newest first, optionally restricted
+     * to the members of one group.
      *
      * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
      * @return array A list of attempt summary arrays
      */
-    public function list_for_activity(int $elangid): array {
+    public function list_for_activity(int $elangid, int $groupid = 0): array {
         global $DB;
 
-        $rows = $DB->get_records('elang_attempt', ['elangid' => $elangid], 'timestart DESC, id DESC');
+        if ($groupid > 0) {
+            $sql = "SELECT a.*
+                      FROM {elang_attempt} a
+                      JOIN {groups_members} gm ON gm.userid = a.userid
+                     WHERE a.elangid = :elangid AND gm.groupid = :groupid
+                  ORDER BY a.timestart DESC, a.id DESC";
+            $rows = $DB->get_records_sql($sql, ['elangid' => $elangid, 'groupid' => $groupid]);
+        } else {
+            $rows = $DB->get_records('elang_attempt', ['elangid' => $elangid], 'timestart DESC, id DESC');
+        }
 
         $summaries = [];
         foreach ($rows as $row) {

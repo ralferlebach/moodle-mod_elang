@@ -59,7 +59,10 @@ class get_version_content extends external_api {
             'versionid' => $versionid,
         ]);
 
-        [$version] = self::require_manage_version($versionid);
+        [$version, $context] = self::require_manage_version($versionid);
+
+        $mediafile = self::first_file((int) $context->id, 'media', $versionid);
+        $posterfile = self::first_file((int) $context->id, 'poster', $versionid);
 
         return [
             'versionid' => (int) $version->id,
@@ -74,8 +77,40 @@ class get_version_content extends external_api {
             'mediaproviderref' => (string) ($version->mediaproviderref ?? ''),
             'mediamime' => (string) ($version->mediamime ?? ''),
             'mediaduration' => $version->mediaduration !== null ? (int) $version->mediaduration : 0,
+            'mediafilename' => $mediafile['name'],
+            'mediafileurl' => $mediafile['url'],
+            'posterfilename' => $posterfile['name'],
+            'posterfileurl' => $posterfile['url'],
             'cues' => self::get_version_manager()->load_version_content($versionid),
         ];
+    }
+
+    /**
+     * Return the first file in a version's file area as a name/URL pair, or
+     * empty strings when the area holds no file.
+     *
+     * @param int $contextid The activity context id
+     * @param string $area The file area (media or poster)
+     * @param int $versionid The version id used as the file itemid
+     * @return array A ['name' => ..., 'url' => ...] pair
+     */
+    private static function first_file(int $contextid, string $area, int $versionid): array {
+        $files = get_file_storage()->get_area_files($contextid, 'mod_elang', $area, $versionid, 'filepath, filename', false);
+        $file = reset($files);
+        if (!$file) {
+            return ['name' => '', 'url' => ''];
+        }
+
+        $url = \moodle_url::make_pluginfile_url(
+            $contextid,
+            'mod_elang',
+            $area,
+            $versionid,
+            $file->get_filepath(),
+            $file->get_filename()
+        );
+
+        return ['name' => $file->get_filename(), 'url' => $url->out(false)];
     }
 
     /**
@@ -97,6 +132,10 @@ class get_version_content extends external_api {
             'mediaproviderref' => new external_value(PARAM_RAW, 'Provider-specific reference, empty otherwise'),
             'mediamime' => new external_value(PARAM_RAW, 'Optional MIME type hint for the medium, empty if unknown'),
             'mediaduration' => new external_value(PARAM_INT, 'Optional media duration in whole seconds, 0 if unknown'),
+            'mediafilename' => new external_value(PARAM_RAW, 'Media file name when kind is file, empty otherwise'),
+            'mediafileurl' => new external_value(PARAM_RAW, 'Media file URL when kind is file, empty otherwise'),
+            'posterfilename' => new external_value(PARAM_RAW, 'Poster file name when present, empty otherwise'),
+            'posterfileurl' => new external_value(PARAM_RAW, 'Poster file URL when present, empty otherwise'),
             'cues' => new external_multiple_structure(self::cue_structure(), 'The version\'s cues, with solutions'),
         ]);
     }

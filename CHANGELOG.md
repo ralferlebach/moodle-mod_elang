@@ -28,6 +28,53 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.49] - 2026-07-26
+
+### Added
+- Content editor foundation (frontend). A new authoring page `edit.php`
+  (gated on `mod/elang:manage`) ensures the activity has a draft to edit
+  (branching a copy from the published version) and hands off to a new
+  `mod_elang/editor` AMD module, which loads the draft through
+  `get_version_content` and renders its cues as an editable list. Cue timings
+  and transcripts can be edited, cues added, removed and imported from
+  WebVTT/SubRip (via `preview_import`), and the draft saved (with its revision
+  as an optimistic-concurrency token) or validated and published (via
+  `save_draft_version` / `publish_version`). Existing gaps are preserved and
+  round-tripped untouched; gap authoring, the media panel and the full timeline
+  are layered on in later slices.
+- An "Edit content" link in the activity's settings navigation for managers
+  (`elang_extend_settings_navigation`), a `mod_elang/editor` Mustache shell and
+  the editor's UI strings (en, de).
+
+### Note
+- `amd/src/editor.js` is new but `amd/build/` is not included: run `grunt amd`
+  (e.g. `make amd`) to build `amd/build/editor.min.js` and its source map. CI
+  builds AMD; the editor page needs the built module to run.
+
+## [2.0.0-alpha.48] - 2026-07-26
+
+### Added
+- Authoring media handling. `version_manager::set_draft_media()` sets a draft's
+  medium — an uploaded file (video/audio plus optional poster), a direct url, an
+  embeddable provider reference, or none — versioned like all other content:
+  file uploads are saved into the version's own 'media'/'poster' areas (itemid =
+  the version id), and whichever columns and file areas do not belong to the
+  chosen kind are cleared, so switching medium never leaves a stale upload
+  behind. Only a draft can be changed; an unknown kind is rejected
+  (`error:invalidmediakind`).
+- `mod_elang_set_draft_media` exposes this to the editor (gated on
+  `mod/elang:manage`), taking the ids of prepared draft file areas for file
+  media and returning the resulting media descriptor.
+- `mod_elang_get_version_content` now also returns the current media and poster
+  file name and pluginfile URL, so the editor can display an existing upload.
+
+### Tests
+- set_draft_media: url and provider media set the right columns, an uploaded
+  file is saved and marks the version file-kind, switching medium clears the old
+  files, and a published version is immutable. The external function sets url
+  media, round-trips a file upload out through get_version_content, and denies a
+  non-manager.
+
 ## [2.0.0-alpha.47] - 2026-07-26
 
 ### Added

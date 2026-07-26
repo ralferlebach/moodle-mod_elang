@@ -451,12 +451,15 @@ function elang_get_file_areas($course, $cm, $context): array {
 /**
  * Serve files from mod_elang's versioned media and poster file areas.
  *
- * The first path segment is the elang_version id (the area itemid). Access is
- * granted to any user who may view the activity; the medium itself is not a
- * solution, and which version a learner is entitled to is enforced by the
- * attempt-bound read API (get_attempt_exercise), not here. The version is
- * checked to belong to this activity so a crafted URL cannot borrow this
- * context to serve another activity's files.
+ * The first path segment is the elang_version id (the area itemid). Viewing the
+ * activity (mod/elang:view) is necessary but not sufficient: which version a
+ * user may receive is decided by version_manager::user_can_access_version_file()
+ * — the published version and a user's own pinned archived versions for
+ * learners, any version for managers, never a draft for a non-manager. This is
+ * the same version protection the attempt-bound read API (get_attempt_exercise)
+ * enforces, so an unpublished authoring upload cannot leak through a guessed
+ * URL. The version is also confined to this activity so a crafted URL cannot
+ * borrow this context to serve another activity's files.
  *
  * @param stdClass $course The course object
  * @param cm_info|stdClass $cm The course module
@@ -468,7 +471,7 @@ function elang_get_file_areas($course, $cm, $context): array {
  * @return bool False if the file could not be served; otherwise sends the file and exits
  */
 function elang_pluginfile($course, $cm, $context, string $filearea, array $args, bool $forcedownload, array $options = []): bool {
-    global $DB;
+    global $USER;
 
     if ($context->contextlevel !== CONTEXT_MODULE) {
         return false;
@@ -482,9 +485,19 @@ function elang_pluginfile($course, $cm, $context, string $filearea, array $args,
 
     $versionid = (int) array_shift($args);
 
-    // The version must belong to this activity, so the URL cannot be rewritten
-    // to serve another activity's media through this module context.
-    if (!$DB->record_exists('elang_version', ['id' => $versionid, 'elangid' => $cm->instance])) {
+    // Serving a file needs more than :view. A learner may only receive the
+    // published version's media, or an archived version their own attempt is
+    // pinned to; draft media stays invisible to non-managers so an unpublished
+    // upload cannot leak through a guessed URL. Managers may fetch any of this
+    // activity's versions. The helper also confines the version to this activity.
+    if (
+        !\mod_elang\local\domain\version_manager::user_can_access_version_file(
+            $versionid,
+            (int) $cm->instance,
+            $context,
+            (int) $USER->id
+        )
+    ) {
         return false;
     }
 
@@ -501,4 +514,35 @@ function elang_pluginfile($course, $cm, $context, string $filearea, array $args,
     send_stored_file($file, DAYSECS, 0, $forcedownload, $options);
 
     return true;
+}
+
+/**
+ * Add an "Edit content" link to the activity's settings navigation for users
+ * who may author it.
+ *
+ * @param settings_navigation $settingsnav The settings navigation tree
+ * @param navigation_node $elangnode The activity's node within it
+ * @return void
+ */
+function elang_extend_settings_navigation(settings_navigation $settingsnav, navigation_node $elangnode): void {
+    global $PAGE;
+
+    if (empty($PAGE->cm) || $PAGE->cm->modname !== 'elang') {
+        return;
+    }
+
+    $context = context_module::instance($PAGE->cm->id);
+    if (!has_capability('mod/elang:manage', $context)) {
+        return;
+    }
+
+    $node = navigation_node::create(
+        get_string('editcontent', 'mod_elang'),
+        new moodle_url('/mod/elang/edit.php', ['id' => $PAGE->cm->id]),
+        navigation_node::TYPE_SETTING,
+        null,
+        'mod_elang_editcontent',
+        new pix_icon('t/edit', '')
+    );
+    $elangnode->add_node($node);
 }

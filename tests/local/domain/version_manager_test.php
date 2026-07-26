@@ -665,4 +665,121 @@ final class version_manager_test extends \advanced_testcase {
 
         $this->assertSame([], $this->manager->load_version_content($version->id));
     }
+
+    /**
+     * Setting url media records the url and marks the version url-kind.
+     *
+     * @return void
+     */
+    public function test_set_draft_media_to_url(): void {
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $version = $this->manager->set_draft_media($draft->id, [
+            'kind' => 'url',
+            'url' => 'https://example.org/video.mp4',
+            'mime' => 'video/mp4',
+            'duration' => 120,
+        ]);
+
+        $this->assertSame('url', $version->mediakind);
+        $this->assertSame('https://example.org/video.mp4', $version->mediaurl);
+        $this->assertSame('video/mp4', $version->mediamime);
+        $this->assertSame(120, (int) $version->mediaduration);
+    }
+
+    /**
+     * Setting provider media records the provider and reference.
+     *
+     * @return void
+     */
+    public function test_set_draft_media_to_provider(): void {
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $version = $this->manager->set_draft_media($draft->id, [
+            'kind' => 'provider',
+            'provider' => 'youtube',
+            'providerref' => 'abc123',
+        ]);
+
+        $this->assertSame('provider', $version->mediakind);
+        $this->assertSame('youtube', $version->mediaprovider);
+        $this->assertSame('abc123', $version->mediaproviderref);
+    }
+
+    /**
+     * Setting file media saves the uploaded draft file into the version's media
+     * area and marks the version file-kind.
+     *
+     * @return void
+     */
+    public function test_set_draft_media_to_file_saves_and_marks_file_kind(): void {
+        global $USER;
+
+        $this->setAdminUser();
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $draftitemid = file_get_unused_draft_itemid();
+        get_file_storage()->create_file_from_string([
+            'contextid' => \context_user::instance($USER->id)->id,
+            'component' => 'user',
+            'filearea' => 'draft',
+            'itemid' => $draftitemid,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'video-bytes');
+
+        $version = $this->manager->set_draft_media($draft->id, [
+            'kind' => 'file',
+            'mediadraftitemid' => $draftitemid,
+            'posterdraftitemid' => 0,
+            'mime' => 'video/mp4',
+        ]);
+
+        $this->assertSame('file', $version->mediakind);
+        $files = get_file_storage()->get_area_files($this->context->id, 'mod_elang', 'media', $draft->id, 'id', false);
+        $this->assertCount(1, $files);
+    }
+
+    /**
+     * Switching a version away from file media clears its uploaded files, so no
+     * stale medium is left behind.
+     *
+     * @return void
+     */
+    public function test_switching_media_kind_clears_previous_files(): void {
+        global $USER;
+
+        $this->setAdminUser();
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $draftitemid = file_get_unused_draft_itemid();
+        get_file_storage()->create_file_from_string([
+            'contextid' => \context_user::instance($USER->id)->id,
+            'component' => 'user',
+            'filearea' => 'draft',
+            'itemid' => $draftitemid,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'video-bytes');
+        $this->manager->set_draft_media($draft->id, ['kind' => 'file', 'mediadraftitemid' => $draftitemid]);
+
+        $version = $this->manager->set_draft_media($draft->id, ['kind' => 'url', 'url' => 'https://example.org/video.mp4']);
+
+        $this->assertSame('url', $version->mediakind);
+        $files = get_file_storage()->get_area_files($this->context->id, 'mod_elang', 'media', $draft->id, 'id', false);
+        $this->assertEmpty($files);
+    }
+
+    /**
+     * A published version's medium is immutable.
+     *
+     * @return void
+     */
+    public function test_set_draft_media_rejects_a_published_version(): void {
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+        $this->manager->publish($draft->id, 2);
+
+        $this->expectException(\moodle_exception::class);
+        $this->manager->set_draft_media($draft->id, ['kind' => 'url', 'url' => 'https://example.org/video.mp4']);
+    }
 }

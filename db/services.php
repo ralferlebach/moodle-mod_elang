@@ -124,4 +124,12 @@ $functions = [
         'ajax' => true,
         'capabilities' => 'mod/elang:manage',
     ],
+    'mod_elang_set_draft_media' => [
+        'classname' => 'mod_elang\external\set_draft_media',
+        'methodname' => 'execute',
+        'description' => 'Set a draft version\'s medium: an uploaded file, a url, a provider, or none.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
 ];

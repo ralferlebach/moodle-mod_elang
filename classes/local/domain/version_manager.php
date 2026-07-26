@@ -370,6 +370,114 @@ class version_manager {
     }
 
     /**
+     * Set a draft version's medium: file (uploaded video/audio plus optional
+     * poster), a direct url, an embeddable provider reference, or none.
+     *
+     * Only a draft can be changed. The medium is versioned like all other
+     * content, so this writes to the version's own file areas (itemid = the
+     * version id) and media columns, leaving other versions and their
+     * in-progress attempts untouched. Whichever columns and file areas do not
+     * belong to the chosen kind are cleared, so switching from a file to a url
+     * (or to no medium) never leaves a stale upload behind. For file media the
+     * caller supplies the ids of prepared draft file areas, which are saved
+     * into the version's 'media' and 'poster' areas; the version is only marked
+     * file-kind if a media file actually landed.
+     *
+     * @param int $versionid The draft elang_version id
+     * @param array $media The medium: kind, url, provider, providerref, mime,
+     *        duration, and the mediadraftitemid/posterdraftitemid draft areas
+     * @return \stdClass The updated elang_version record
+     */
+    public function set_draft_media(int $versionid, array $media): \stdClass {
+        global $DB;
+
+        $kind = (string) $media['kind'];
+        if (!in_array($kind, ['file', 'url', 'provider', ''], true)) {
+            throw new \moodle_exception('error:invalidmediakind', 'mod_elang');
+        }
+
+        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+
+        return $this->with_activity_lock(
+            (int) $version->elangid,
+            function () use ($DB, $versionid, $media, $kind) {
+                $transaction = $DB->start_delegated_transaction();
+
+                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                if ($version->status !== self::STATUS_DRAFT) {
+                    throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
+                }
+
+                $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
+                $contextid = (int) \context_module::instance($cm->id)->id;
+
+                // Start from a clean slate, then fill in only what the chosen
+                // kind needs.
+                $version->mediakind = null;
+                $version->mediaurl = null;
+                $version->mediaprovider = null;
+                $version->mediaproviderref = null;
+                $version->mediamime = ((string) ($media['mime'] ?? '')) !== '' ? $media['mime'] : null;
+                $version->mediaduration = (int) ($media['duration'] ?? 0) > 0 ? (int) $media['duration'] : null;
+
+                if ($kind === 'file') {
+                    file_save_draft_area_files(
+                        (int) ($media['mediadraftitemid'] ?? 0),
+                        $contextid,
+                        'mod_elang',
+                        'media',
+                        $versionid
+                    );
+                    file_save_draft_area_files(
+                        (int) ($media['posterdraftitemid'] ?? 0),
+                        $contextid,
+                        'mod_elang',
+                        'poster',
+                        $versionid
+                    );
+
+                    $mediafiles = get_file_storage()->get_area_files($contextid, 'mod_elang', 'media', $versionid, 'id', false);
+                    $version->mediakind = !empty($mediafiles) ? 'file' : null;
+                } else if ($kind === 'url') {
+                    $this->clear_version_files($contextid, $versionid);
+                    $version->mediakind = 'url';
+                    $version->mediaurl = ((string) ($media['url'] ?? '')) !== '' ? $media['url'] : null;
+                } else if ($kind === 'provider') {
+                    $this->clear_version_files($contextid, $versionid);
+                    $version->mediakind = 'provider';
+                    $version->mediaprovider = ((string) ($media['provider'] ?? '')) !== '' ? $media['provider'] : null;
+                    $version->mediaproviderref = ((string) ($media['providerref'] ?? '')) !== '' ? $media['providerref'] : null;
+                } else {
+                    // No medium at all: clear the files and every media column.
+                    $this->clear_version_files($contextid, $versionid);
+                    $version->mediamime = null;
+                    $version->mediaduration = null;
+                }
+
+                $DB->update_record('elang_version', $version);
+
+                $transaction->allow_commit();
+
+                return $version;
+            }
+        );
+    }
+
+    /**
+     * Remove every media and poster file from a version's file areas. Used when
+     * a version switches away from file-kind media so no stale upload remains.
+     *
+     * @param int $contextid The activity context id
+     * @param int $versionid The version whose files (itemid) are removed
+     * @return void
+     */
+    private function clear_version_files(int $contextid, int $versionid): void {
+        $fs = get_file_storage();
+        $fs->delete_area_files($contextid, 'mod_elang', 'media', $versionid);
+        $fs->delete_area_files($contextid, 'mod_elang', 'poster', $versionid);
+    }
+
+    /**
      * Assemble a version's full authoring content — every cue with its gaps,
      * and each gap with its accepted answers and hints, INCLUDING solutions.
      * This is the manager-facing editor view and must never be sent to a

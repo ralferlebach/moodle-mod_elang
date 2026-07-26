@@ -1,0 +1,59 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/editor
+
+    Moodle-native shell for the exercise content editor. The mod_elang/editor
+    AMD module loads the draft through the external API and renders the cue rows
+    into the cues region; the status region is an aria-live area the module
+    writes progress and errors into.
+
+    Example context (json):
+    {
+    }
+}}
+<div class="mod_elang-editor" data-region="mod_elang/editor">
+    <h3>{{#str}} editor:heading, mod_elang {{/str}}</h3>
+
+    <p class="mod_elang-status" data-region="status" role="status" aria-live="polite">
+        {{#str}} editor:loading, mod_elang {{/str}}
+    </p>
+
+    <div class="mod_elang-editor-toolbar mb-3">
+        <button type="button" class="btn btn-primary" data-action="save">
+            {{#str}} editor:save, mod_elang {{/str}}
+        </button>
+        <button type="button" class="btn btn-success" data-action="publish">
+            {{#str}} editor:publish, mod_elang {{/str}}
+        </button>
+        <button type="button" class="btn btn-secondary" data-action="addcue">
+            {{#str}} editor:addcue, mod_elang {{/str}}
+        </button>
+    </div>
+
+    <details class="mod_elang-editor-import mb-3">
+        <summary>{{#str}} editor:import, mod_elang {{/str}}</summary>
+        <p class="text-muted">{{#str}} editor:importhint, mod_elang {{/str}}</p>
+        <textarea class="form-control" rows="4" data-region="importtext"
+                  aria-label="{{#str}} editor:import, mod_elang {{/str}}"></textarea>
+        <button type="button" class="btn btn-secondary mt-2" data-action="import">
+            {{#str}} editor:import, mod_elang {{/str}}
+        </button>
+    </details>
+
+    <div class="mod_elang-editor-cues" data-region="cues"></div>
+</div>

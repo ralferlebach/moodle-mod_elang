@@ -491,4 +491,87 @@ final class version_manager_test extends \advanced_testcase {
 
         $this->assertNotSame($hashbase, $hashwithfile);
     }
+
+    /**
+     * Creating a draft for an activity that already has a published version
+     * branches from it: content, version-stable keys, grading settings and
+     * media files are deep-copied, the source version is left intact, and the
+     * two versions are independent.
+     *
+     * @return void
+     */
+    public function test_create_draft_branches_from_the_published_version(): void {
+        global $DB;
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $source = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue([
+            'versionid' => $source->id,
+            'cuekey' => 'cue-a',
+            'transcript' => 'Le chat dort',
+        ]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'gapkey' => 'gap-a', 'solution' => 'chat']);
+        $generator->create_gapanswer(['gapid' => $gap->id, 'answer' => 'chatte']);
+        $generator->create_gaphint(['gapid' => $gap->id, 'level' => 1, 'hinttext' => 'c']);
+        get_file_storage()->create_file_from_string([
+            'contextid' => $this->context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => $source->id,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'video-bytes');
+        $DB->set_field('elang_version', 'mediakind', 'file', ['id' => $source->id]);
+        $DB->set_field('elang_version', 'jarothreshold', 0.7, ['id' => $source->id]);
+        $this->manager->publish($source->id, 2);
+
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $this->assertNotSame((int) $source->id, (int) $draft->id);
+        $this->assertSame(version_manager::STATUS_DRAFT, $draft->status);
+
+        // Content copied, keys preserved, row ids remapped to the new version.
+        $draftcue = $DB->get_record('elang_cue', ['versionid' => $draft->id], '*', MUST_EXIST);
+        $this->assertSame('cue-a', $draftcue->cuekey);
+        $this->assertSame('Le chat dort', $draftcue->transcript);
+        $this->assertNotSame((int) $cue->id, (int) $draftcue->id);
+
+        $draftgap = $DB->get_record('elang_gap', ['cueid' => $draftcue->id], '*', MUST_EXIST);
+        $this->assertSame('gap-a', $draftgap->gapkey);
+        $this->assertSame('chat', $draftgap->solution);
+        $this->assertSame(1, $DB->count_records('elang_gapanswer', ['gapid' => $draftgap->id]));
+        $this->assertSame(1, $DB->count_records('elang_gaphint', ['gapid' => $draftgap->id]));
+
+        // Grading settings and media carried over from the source version.
+        $this->assertEqualsWithDelta(0.7, (float) $draft->jarothreshold, 0.00001);
+        $this->assertSame('file', $DB->get_field('elang_version', 'mediakind', ['id' => $draft->id]));
+        $draftfiles = get_file_storage()->get_area_files(
+            $this->context->id,
+            'mod_elang',
+            'media',
+            $draft->id,
+            'id',
+            false
+        );
+        $this->assertCount(1, $draftfiles);
+
+        // The source version keeps its own content: the copy is not a move.
+        $this->assertSame(1, $DB->count_records('elang_cue', ['versionid' => $source->id]));
+    }
+
+    /**
+     * With no published version to branch from, a draft starts empty — the
+     * behaviour the first version of an activity and V1 migration rely on.
+     *
+     * @return void
+     */
+    public function test_create_draft_without_a_published_version_starts_empty(): void {
+        global $DB;
+
+        $draft = $this->manager->create_draft($this->elang->id, 2);
+
+        $this->assertSame(0, $DB->count_records('elang_cue', ['versionid' => $draft->id]));
+    }
 }

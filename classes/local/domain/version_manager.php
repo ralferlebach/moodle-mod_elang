@@ -396,6 +396,17 @@ class version_manager {
      * Create a new draft version for an activity, assuming the caller
      * already holds the activity's lock.
      *
+     * Copy-on-write: when the activity already has a published version, the
+     * draft branches from it — its grading settings, media columns, cues,
+     * gaps, accepted answers, hints and media/poster files are deep-copied so
+     * that editing produces a new version that starts as a faithful copy of
+     * what learners currently see, while their in-progress attempts stay on
+     * the version they began. Version-stable keys (cuekey/gapkey) are
+     * preserved, so the same logical cue or gap keeps its identity across
+     * versions. When there is no published version yet (a brand-new activity,
+     * or the first version built during V1 migration) the draft starts empty
+     * and its grading settings come from the activity defaults instead.
+     *
      * @param int $elangid The activity id
      * @param int|null $userid Id to record as usermodified; defaults to the current user
      * @return \stdClass The created elang_version record, including its new id
@@ -410,27 +421,125 @@ class version_manager {
             [$elangid]
         );
 
-        // Seed the versioned grading settings from the activity's current
-        // values: a draft starts as a copy of the activity defaults, and the
-        // authoring layer may later override them per version. elang.language
-        // and elang.jarothreshold are always populated (see elang_add_instance).
-        $elang = $DB->get_record('elang', ['id' => $elangid], 'language, jarothreshold', MUST_EXIST);
+        $source = $this->get_published($elangid);
 
         $draft = new \stdClass();
         $draft->elangid = $elangid;
         $draft->versionnumber = $nextnumber;
         $draft->status = self::STATUS_DRAFT;
         $draft->contenthash = '';
-        $draft->language = $elang->language;
-        $draft->jarothreshold = $elang->jarothreshold;
         $draft->revision = 1;
+        if ($source) {
+            // Branch from the published version: carry over its grading
+            // settings and media description. The content and files are copied
+            // below, after the row exists to own them.
+            $draft->language = $source->language;
+            $draft->jarothreshold = $source->jarothreshold;
+            $draft->mediakind = $source->mediakind;
+            $draft->mediaurl = $source->mediaurl;
+            $draft->mediaprovider = $source->mediaprovider;
+            $draft->mediaproviderref = $source->mediaproviderref;
+            $draft->mediamime = $source->mediamime;
+            $draft->mediaduration = $source->mediaduration;
+        } else {
+            // No version to branch from: seed the grading settings from the
+            // activity's current values (see elang_add_instance) and leave the
+            // draft empty for the caller to fill.
+            $elang = $DB->get_record('elang', ['id' => $elangid], 'language, jarothreshold', MUST_EXIST);
+            $draft->language = $elang->language;
+            $draft->jarothreshold = $elang->jarothreshold;
+        }
         $draft->usermodified = $userid ?? (int) $USER->id;
         $draft->timecreated = time();
         $draft->id = $DB->insert_record('elang_version', $draft);
 
+        if ($source) {
+            $this->copy_version_content((int) $source->id, (int) $draft->id);
+            $this->copy_version_files($elangid, (int) $source->id, (int) $draft->id);
+        }
+
         $transaction->allow_commit();
 
         return $draft;
+    }
+
+    /**
+     * Deep-copy every cue, gap, accepted answer and hint from one version to
+     * another, preserving all content fields including the version-stable
+     * cuekey/gapkey identities. Only row ids and the parent foreign keys are
+     * reassigned; the source version is left untouched.
+     *
+     * @param int $sourceversionid The version to copy content from
+     * @param int $draftversionid The draft version to copy content into
+     * @return void
+     */
+    private function copy_version_content(int $sourceversionid, int $draftversionid): void {
+        global $DB;
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $sourceversionid], 'sortorder ASC, id ASC');
+        foreach ($cues as $cue) {
+            $sourcecueid = (int) $cue->id;
+            unset($cue->id);
+            $cue->versionid = $draftversionid;
+            $newcueid = $DB->insert_record('elang_cue', $cue);
+
+            $gaps = $DB->get_records('elang_gap', ['cueid' => $sourcecueid], 'sortorder ASC, id ASC');
+            foreach ($gaps as $gap) {
+                $sourcegapid = (int) $gap->id;
+                unset($gap->id);
+                $gap->cueid = $newcueid;
+                $newgapid = $DB->insert_record('elang_gap', $gap);
+
+                $answers = $DB->get_records('elang_gapanswer', ['gapid' => $sourcegapid], 'sortorder ASC, id ASC');
+                foreach ($answers as $answer) {
+                    unset($answer->id);
+                    $answer->gapid = $newgapid;
+                    $DB->insert_record('elang_gapanswer', $answer);
+                }
+
+                $hints = $DB->get_records('elang_gaphint', ['gapid' => $sourcegapid], 'level ASC, id ASC');
+                foreach ($hints as $hint) {
+                    unset($hint->id);
+                    $hint->gapid = $newgapid;
+                    $DB->insert_record('elang_gaphint', $hint);
+                }
+            }
+        }
+    }
+
+    /**
+     * Copy a version's media and poster files into another version's file
+     * areas at itemid = the target version id, in the same activity context.
+     * Mirrors v1_media_migrator: with no course module there is no file
+     * context, so there is nothing to copy.
+     *
+     * @param int $elangid The activity that owns the file context
+     * @param int $sourceversionid The version whose files are copied (source itemid)
+     * @param int $draftversionid The draft version the files are copied to (target itemid)
+     * @return void
+     */
+    private function copy_version_files(int $elangid, int $sourceversionid, int $draftversionid): void {
+        $cm = get_coursemodule_from_instance('elang', $elangid, 0, false, IGNORE_MISSING);
+        if (!$cm) {
+            return;
+        }
+
+        $contextid = (int) \context_module::instance($cm->id)->id;
+        $fs = get_file_storage();
+
+        foreach (['media', 'poster'] as $area) {
+            $files = $fs->get_area_files($contextid, 'mod_elang', $area, $sourceversionid, 'id', false);
+            foreach ($files as $file) {
+                $fs->create_file_from_storedfile([
+                    'contextid' => $contextid,
+                    'component' => 'mod_elang',
+                    'filearea' => $area,
+                    'itemid' => $draftversionid,
+                    'filepath' => $file->get_filepath(),
+                    'filename' => $file->get_filename(),
+                ], $file);
+            }
+        }
     }
 
     /**

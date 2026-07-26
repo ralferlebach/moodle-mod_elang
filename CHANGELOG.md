@@ -28,6 +28,25 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.43] - 2026-07-26
+
+### Added
+- Authoring foundation — copy-on-write draft creation. When an activity already
+  has a published version, `version_manager::create_draft()` now branches from
+  it: the grading settings, media columns, cues, gaps, accepted answers, hints
+  and media/poster files are deep-copied into the new draft, preserving the
+  version-stable `cuekey`/`gapkey` identities and remapping only row ids and
+  parent keys. Editing therefore produces a new version that starts as a
+  faithful copy of what learners currently see, while their in-progress
+  attempts stay on the version they began. With no published version yet (a
+  brand-new activity, or the first version built during V1 migration) the draft
+  still starts empty and seeds its grading settings from the activity defaults.
+
+### Tests
+- A draft branched from a published version copies content, keys, grading
+  settings and media files while leaving the source intact; a draft with no
+  published version to branch from starts empty.
+
 ## [2.0.0-alpha.42] - 2026-07-26
 
 ### Fixed

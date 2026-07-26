@@ -106,7 +106,10 @@ const loadStrings = async() => {
         'editor:published', 'editor:currentmedia', 'editor:nomedia', 'editor:mediafile', 'editor:mediasaved',
         'editor:solution', 'editor:algorithm', 'editor:algoexact', 'editor:algowordrecognized', 'editor:answers',
         'editor:addvariant', 'editor:removevariant', 'editor:addgap', 'editor:deletegap', 'editor:gaprange',
-        'editor:selecttext',
+        'editor:selecttext', 'editor:hints', 'editor:addhint', 'editor:removehint', 'editor:hinttype',
+        'editor:hinttext', 'editor:penalty', 'editor:hinttype_text', 'editor:hinttype_firstletter',
+        'editor:hinttype_wordlength', 'editor:hinttype_partial', 'editor:hinttype_solution',
+        'editor:hinttype_translation',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -192,9 +195,100 @@ const renderAnswers = (gap, container) => {
     gap.answers.forEach((answer) => container.appendChild(buildAnswerRow(gap, answer, container)));
 };
 
+// The hint types the editor offers; the player shows each hint's text.
+const HINT_TYPES = ['text', 'firstletter', 'wordlength', 'partial', 'solution', 'translation'];
+
+/**
+ * Build one hint row: its level, type, text and penalty, wired to mutate the
+ * hint in place.
+ *
+ * @param {Object} gap The parent gap
+ * @param {Object} hint The hint model object
+ * @param {Element} container The hints container, for re-rendering on removal
+ * @returns {Element} The hint row
+ */
+const buildHintRow = (gap, hint, container) => {
+    const row = document.createElement('div');
+    row.className = 'mod_elang-editor-hint border rounded p-2 mt-1';
+
+    const level = document.createElement('span');
+    level.className = 'badge badge-secondary mr-2';
+    level.textContent = String(hint.level);
+
+    const type = document.createElement('select');
+    type.className = 'form-control d-inline-block w-auto mr-2';
+    type.setAttribute('aria-label', strings['editor:hinttype']);
+    HINT_TYPES.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = strings['editor:hinttype_' + value];
+        option.selected = hint.hinttype === value;
+        type.appendChild(option);
+    });
+    type.addEventListener('change', () => {
+        hint.hinttype = type.value;
+    });
+
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'form-control d-inline-block w-50 mr-2';
+    text.value = hint.hinttext;
+    text.placeholder = strings['editor:hinttext'];
+    text.setAttribute('aria-label', strings['editor:hinttext']);
+    text.addEventListener('input', () => {
+        hint.hinttext = text.value;
+    });
+
+    const penalty = document.createElement('input');
+    penalty.type = 'number';
+    penalty.className = 'form-control d-inline-block mr-2';
+    penalty.style.width = '6rem';
+    penalty.step = '0.1';
+    penalty.min = '0';
+    penalty.value = String(hint.penalty);
+    penalty.setAttribute('aria-label', strings['editor:penalty']);
+    penalty.addEventListener('input', () => {
+        hint.penalty = parseFloat(penalty.value) || 0;
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-link text-danger p-0';
+    remove.textContent = strings['editor:removehint'];
+    remove.addEventListener('click', () => {
+        gap.hints = gap.hints.filter((candidate) => candidate !== hint);
+        renderHints(gap, container);
+    });
+
+    row.appendChild(level);
+    row.appendChild(type);
+    row.appendChild(text);
+    row.appendChild(penalty);
+    row.appendChild(remove);
+    return row;
+};
+
+/**
+ * Render a gap's hints into a container, re-sequencing their levels to a
+ * contiguous 1..n so a published version always passes validation.
+ *
+ * @param {Object} gap The gap whose hints are rendered
+ * @param {Element} container The target container
+ * @returns {void}
+ */
+const renderHints = (gap, container) => {
+    gap.hints.forEach((hint, index) => {
+        hint.level = index + 1;
+    });
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+    gap.hints.forEach((hint) => container.appendChild(buildHintRow(gap, hint, container)));
+};
+
 /**
  * Build the editable row for one gap: its position, solution, matching
- * algorithm and accepted variants. Existing hints are preserved untouched.
+ * algorithm, accepted variants and hints.
  *
  * @param {Object} cue The parent cue
  * @param {Object} gap The gap model object
@@ -253,6 +347,21 @@ const buildGapRow = (cue, gap, rerenderGaps) => {
         renderAnswers(gap, answers);
     });
 
+    const hintslabel = document.createElement('p');
+    hintslabel.className = 'mb-1 mt-2';
+    hintslabel.textContent = strings['editor:hints'];
+    const hints = document.createElement('div');
+    renderHints(gap, hints);
+
+    const addhint = document.createElement('button');
+    addhint.type = 'button';
+    addhint.className = 'btn btn-link p-0';
+    addhint.textContent = strings['editor:addhint'];
+    addhint.addEventListener('click', () => {
+        gap.hints.push({level: gap.hints.length + 1, hinttype: 'text', hinttext: '', penalty: 0});
+        renderHints(gap, hints);
+    });
+
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'btn btn-link text-danger p-0 d-block';
@@ -268,6 +377,9 @@ const buildGapRow = (cue, gap, rerenderGaps) => {
     row.appendChild(answerslabel);
     row.appendChild(answers);
     row.appendChild(addvariant);
+    row.appendChild(hintslabel);
+    row.appendChild(hints);
+    row.appendChild(addhint);
     row.appendChild(remove);
     return row;
 };

@@ -28,6 +28,20 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.53] - 2026-07-26
+
+### Added
+- Hint editing in the content editor, completing gap authoring. Each gap now
+  lists its graded hints as editable rows: a manager can add and remove hints
+  and set each one's type (free text, first letter, word length, partial,
+  solution or translation), its text and its score penalty. Hint levels are
+  kept as a contiguous 1..n sequence automatically, so a published version
+  always satisfies the validator. New editor UI strings (en, de).
+
+### Note
+- `amd/src/editor.js` changed but `amd/build/` is not included: run `grunt amd`
+  (e.g. `make amd`) to rebuild the module.
+
 ## [2.0.0-alpha.52] - 2026-07-26
 
 ### Added

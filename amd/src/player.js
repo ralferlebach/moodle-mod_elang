@@ -219,7 +219,7 @@ const submitGap = (wrap, input, state) => {
         return Promise.resolve();
     }
     wrap.dataset.submitting = '1';
-    const promise = (async() => {
+    const run = async() => {
         try {
             const result = await callWs('mod_elang_submit_response', {
                 attemptid: attemptId,
@@ -236,10 +236,10 @@ const submitGap = (wrap, input, state) => {
         } finally {
             wrap.dataset.submitting = '0';
         }
-    })();
-    pendingSubmits.add(promise);
-    promise.finally(() => pendingSubmits.delete(promise));
-    return promise;
+    };
+    const tracked = run();
+    pendingSubmits.add(tracked);
+    return tracked.finally(() => pendingSubmits.delete(tracked));
 };
 
 /**

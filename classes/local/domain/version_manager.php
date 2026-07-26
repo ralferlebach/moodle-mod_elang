@@ -245,9 +245,12 @@ class version_manager {
         // The content hash folds in the bytes of file-kind media and poster
         // images via their stored content hashes, so a swapped video or poster
         // invalidates cached worksheets and player payloads. Resolve the
-        // activity context that owns those files.
-        $cm = get_coursemodule_from_instance('elang', (int) $media->elangid, 0, false, MUST_EXIST);
-        $contextid = (int) \context_module::instance($cm->id)->id;
+        // activity context that owns those files. The activity may have no
+        // course module yet (for example a migration that inserts an elang row
+        // directly, as v1_media_migrator also tolerates); with no module there
+        // is no file context and hence no files to fold in.
+        $cm = get_coursemodule_from_instance('elang', (int) $media->elangid, 0, false, IGNORE_MISSING);
+        $contextid = $cm ? (int) \context_module::instance($cm->id)->id : 0;
 
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
 
@@ -306,8 +309,8 @@ class version_manager {
                 'providerref' => (string) $media->mediaproviderref,
                 'mime' => (string) $media->mediamime,
                 'duration' => (string) $media->mediaduration,
-                'files' => $this->hash_area_files($contextid, 'media', $versionid),
-                'poster' => $this->hash_area_files($contextid, 'poster', $versionid),
+                'files' => $contextid ? $this->hash_area_files($contextid, 'media', $versionid) : [],
+                'poster' => $contextid ? $this->hash_area_files($contextid, 'poster', $versionid) : [],
             ],
             'cues' => [],
         ];

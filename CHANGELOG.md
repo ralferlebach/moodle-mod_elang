@@ -28,6 +28,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.42] - 2026-07-26
+
+### Fixed
+- `version_manager::compute_content_hash()` no longer requires the activity to
+  have a course module: it resolves the file context with `IGNORE_MISSING`
+  (mirroring `v1_media_migrator`) and skips media/poster file hashing when
+  there is no module — where there is no module there are no files anyway. This
+  restores publishing during V1 migration, which builds a version before a
+  course module context is available in the test fixtures, fixing the migrator,
+  verifier, decommissioner, sign-off and migration-task test failures
+  introduced in alpha.41.
+- Player: the in-flight submit tracking no longer leaves a floating
+  `Promise.finally()` (ESLint `promise/catch-or-return`); the tracked promise's
+  cleanup is now returned, keeping `grunt` green (`amd/src/player.js`).
+
 ## [2.0.0-alpha.41] - 2026-07-25
 
 ### Added

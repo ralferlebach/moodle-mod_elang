@@ -92,4 +92,20 @@ $functions = [
         'capabilities' => 'mod/elang:attempt',
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'mod_elang_save_draft_version' => [
+        'classname' => 'mod_elang\external\save_draft_version',
+        'methodname' => 'execute',
+        'description' => 'Overwrite a draft version\'s content with the editor\'s current state.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
+    'mod_elang_publish_version' => [
+        'classname' => 'mod_elang\external\publish_version',
+        'methodname' => 'execute',
+        'description' => 'Validate and publish a draft version.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
 ];

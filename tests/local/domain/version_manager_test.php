@@ -574,4 +574,50 @@ final class version_manager_test extends \advanced_testcase {
 
         $this->assertSame(0, $DB->count_records('elang_cue', ['versionid' => $draft->id]));
     }
+
+    /**
+     * Publishing with validation refuses a draft whose content is not
+     * publishable (here, an empty draft with no cues).
+     *
+     * @return void
+     */
+    public function test_publish_with_validation_rejects_an_invalid_version(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+
+        $this->expectException(\moodle_exception::class);
+        $this->manager->publish($draft->id, 2, true);
+    }
+
+    /**
+     * Publishing with validation lets a well-formed draft through.
+     *
+     * @return void
+     */
+    public function test_publish_with_validation_accepts_a_valid_version(): void {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $cue = $generator->create_cue(['versionid' => $draft->id, 'transcript' => 'Le chat dort']);
+        $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+
+        $published = $this->manager->publish($draft->id, 2, true);
+
+        $this->assertSame(version_manager::STATUS_PUBLISHED, $published->status);
+    }
+
+    /**
+     * The default publish path performs no content validation, so it stays a
+     * pure lifecycle operation — the behaviour V1 migration relies on when it
+     * publishes versions built from imperfect legacy data.
+     *
+     * @return void
+     */
+    public function test_publish_without_validation_allows_an_empty_version(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+
+        $published = $this->manager->publish($draft->id, 2);
+
+        $this->assertSame(version_manager::STATUS_PUBLISHED, $published->status);
+    }
 }

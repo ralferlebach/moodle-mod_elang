@@ -28,6 +28,55 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.45] - 2026-07-26
+
+### Added
+- Authoring web services. `mod_elang_save_draft_version` overwrites a draft's
+  content (cues, gaps, accepted answers, hints) with the editor's current state
+  in one transaction under the activity lock, taking the version-stable
+  cuekey/gapkey identities from the payload and advancing the draft's `revision`
+  counter. It carries an optimistic-concurrency token (`expectedrevision`): a
+  save whose expected revision no longer matches the stored one is refused
+  (`error:draftrevisionmismatch`) so a concurrent edit is not clobbered, and a
+  non-draft version is immutable (`error:versionnotadraft`). No content
+  validation happens on save — a half-finished draft is a legitimate state.
+- `mod_elang_publish_version` validates and publishes a draft, calling
+  `version_manager::publish()` with validation on, so an incoherent draft is
+  refused with its problems rather than shipped.
+- Both services require `mod/elang:manage` in the activity context (new
+  `version_manager::save_draft_content()` and an `authoring_helper` trait that
+  resolves the context and authorises the caller).
+
+### Tests
+- publish_version: a manager publishes a valid draft, an invalid draft is
+  refused, and a non-manager is denied. save_draft_version: saving persists the
+  nested content and bumps the revision, a second save replaces the content, a
+  stale expected revision and a published version are both refused, and a
+  non-manager is denied.
+
+## [2.0.0-alpha.44] - 2026-07-26
+
+### Added
+- Authoring foundation — a `version_validator` that inspects a draft's content
+  and reports every problem that would make it unsafe to publish: no cues, no
+  gaps to answer, empty solutions, gaps whose character range falls outside or
+  overlaps within a transcript, unknown grading algorithms, and hint levels
+  that are not a contiguous sequence from 1. It is read-only and never changes
+  content.
+- `version_manager::publish()` gained an opt-in `$validate` flag: when true it
+  runs the validator first and refuses to publish an incoherent draft with the
+  collected problems (`error:versionnotpublishable`). The default stays false,
+  so the existing publish lifecycle and V1 migration — which migrates imperfect
+  legacy data as-is and reports issues through `v1_verifier` — are unchanged;
+  the forthcoming authoring web services will pass true.
+
+### Tests
+- Validator coverage for each rule (valid version, no cues, no gaps, empty
+  solution, out-of-bounds gap, overlapping gaps, unknown algorithm,
+  non-contiguous vs contiguous hint levels); publish rejects an invalid draft
+  when validation is requested, accepts a valid one, and still publishes an
+  empty version when validation is off.
+
 ## [2.0.0-alpha.43] - 2026-07-26
 
 ### Added

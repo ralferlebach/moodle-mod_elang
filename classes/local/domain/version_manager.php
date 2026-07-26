@@ -172,21 +172,40 @@ class version_manager {
      * transition per version, not an operation that can be repeated or run
      * against an unexpected state.
      *
+     * When $validate is true the draft's content is checked first (see
+     * version_validator) and publishing is refused with the collected problems
+     * if it is not coherent. The authoring layer passes true; V1 migration
+     * leaves it false, migrating imperfect legacy data as-is and reporting
+     * issues through v1_verifier instead.
+     *
      * @param int $versionid The elang_version id to publish
      * @param int|null $userid Id to record as usermodified; defaults to the current user
+     * @param bool $validate Whether to reject the draft if its content is not publishable
      * @return \stdClass The published elang_version record
      */
-    public function publish(int $versionid, ?int $userid = null): \stdClass {
+    public function publish(int $versionid, ?int $userid = null, bool $validate = false): \stdClass {
         global $DB, $USER;
 
         $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
 
-        return $this->with_activity_lock((int) $version->elangid, function () use ($DB, $USER, $versionid, $userid) {
+        return $this->with_activity_lock((int) $version->elangid, function () use ($DB, $USER, $versionid, $userid, $validate) {
             $transaction = $DB->start_delegated_transaction();
 
             $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
             if ($version->status !== self::STATUS_DRAFT) {
                 throw new \coding_exception('Only a draft version can be published');
+            }
+
+            if ($validate) {
+                $problems = (new version_validator())->validate($versionid);
+                if (!empty($problems)) {
+                    throw new \moodle_exception(
+                        'error:versionnotpublishable',
+                        'mod_elang',
+                        '',
+                        implode(' ', $problems)
+                    );
+                }
             }
 
             $previous = $this->get_published($version->elangid);
@@ -205,6 +224,149 @@ class version_manager {
 
             return $version;
         });
+    }
+
+    /**
+     * Replace a draft version's content wholesale with the supplied cues,
+     * gaps, accepted answers and hints, and bump its revision counter.
+     *
+     * The authoring editor sends the draft's full current state, so the
+     * existing content is deleted and re-inserted inside one transaction under
+     * the activity lock. Only a draft can be edited; a published or archived
+     * version is immutable. The caller may pass the revision it last saw in
+     * $expectedrevision (a per-draft optimistic-concurrency token): if the
+     * stored revision has moved on, another save committed in the meantime and
+     * this one is refused so the editor reloads rather than silently clobbering
+     * the other change. $expectedrevision of -1 (the default) saves
+     * unconditionally. Version-stable cuekey/gapkey identities are taken as
+     * given from the payload; the editor generates them for new content and
+     * echoes them back for existing content. No content validation happens
+     * here — a half-finished draft is a legitimate save; validity is only
+     * required at publish time (see publish() / version_validator).
+     *
+     * @param int $versionid The draft elang_version id to overwrite
+     * @param array $cues The full cue list, each with nested gaps/answers/hints
+     * @param int $expectedrevision The revision the caller last saw, or -1 to save unconditionally
+     * @return \stdClass The updated elang_version record, with its new revision
+     */
+    public function save_draft_content(int $versionid, array $cues, int $expectedrevision = -1): \stdClass {
+        global $DB, $USER;
+
+        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+
+        return $this->with_activity_lock(
+            (int) $version->elangid,
+            function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
+                $transaction = $DB->start_delegated_transaction();
+
+                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                if ($version->status !== self::STATUS_DRAFT) {
+                    throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
+                }
+                if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
+                    throw new \moodle_exception('error:draftrevisionmismatch', 'mod_elang');
+                }
+
+                $this->delete_version_content($versionid);
+                $this->insert_version_content($versionid, $cues);
+
+                $version->revision = (int) $version->revision + 1;
+                $version->usermodified = (int) $USER->id;
+                $DB->update_record('elang_version', $version);
+
+                $transaction->allow_commit();
+
+                return $version;
+            }
+        );
+    }
+
+    /**
+     * Delete every cue, gap, accepted answer and hint belonging to a version,
+     * children first so no foreign key is ever left dangling. Used when a draft
+     * is overwritten; a draft has no attempts, so no learner response can
+     * reference the rows being removed.
+     *
+     * @param int $versionid The version whose content is removed
+     * @return void
+     */
+    private function delete_version_content(int $versionid): void {
+        global $DB;
+
+        $cueids = $DB->get_fieldset_select('elang_cue', 'id', 'versionid = ?', [$versionid]);
+        if (empty($cueids)) {
+            return;
+        }
+
+        [$cuein, $cueparams] = $DB->get_in_or_equal($cueids);
+        $gapids = $DB->get_fieldset_select('elang_gap', 'id', "cueid $cuein", $cueparams);
+        if (!empty($gapids)) {
+            [$gapin, $gapparams] = $DB->get_in_or_equal($gapids);
+            $DB->delete_records_select('elang_gapanswer', "gapid $gapin", $gapparams);
+            $DB->delete_records_select('elang_gaphint', "gapid $gapin", $gapparams);
+        }
+        $DB->delete_records_select('elang_gap', "cueid $cuein", $cueparams);
+        $DB->delete_records('elang_cue', ['versionid' => $versionid]);
+    }
+
+    /**
+     * Insert a full cue list (with nested gaps, accepted answers and hints)
+     * into a version from the shaped array the external layer provides. A gap's
+     * maxlength of 0 and empty linkurl are stored as NULL, matching how the
+     * rest of the plugin represents "unset" for those optional columns.
+     *
+     * @param int $versionid The version the content is attached to
+     * @param array $cues The cue list, each with nested gaps/answers/hints
+     * @return void
+     */
+    private function insert_version_content(int $versionid, array $cues): void {
+        global $DB;
+
+        foreach ($cues as $cue) {
+            $cueid = $DB->insert_record('elang_cue', (object) [
+                'versionid' => $versionid,
+                'cuekey' => $cue['cuekey'],
+                'sortorder' => $cue['sortorder'],
+                'starttime' => $cue['starttime'],
+                'endtime' => $cue['endtime'],
+                'transcript' => $cue['transcript'],
+                'transcriptformat' => $cue['transcriptformat'],
+            ]);
+
+            foreach ($cue['gaps'] as $gap) {
+                $gapid = $DB->insert_record('elang_gap', (object) [
+                    'cueid' => $cueid,
+                    'gapkey' => $gap['gapkey'],
+                    'sortorder' => $gap['sortorder'],
+                    'charstart' => $gap['charstart'],
+                    'charlength' => $gap['charlength'],
+                    'solution' => $gap['solution'],
+                    'gradingalgorithm' => $gap['gradingalgorithm'],
+                    'maxlength' => (int) $gap['maxlength'] > 0 ? (int) $gap['maxlength'] : null,
+                    'linkurl' => $gap['linkurl'] !== '' ? $gap['linkurl'] : null,
+                ]);
+
+                foreach ($gap['answers'] as $answer) {
+                    $DB->insert_record('elang_gapanswer', (object) [
+                        'gapid' => $gapid,
+                        'sortorder' => $answer['sortorder'],
+                        'answer' => $answer['answer'],
+                        'isregex' => $answer['isregex'],
+                    ]);
+                }
+
+                foreach ($gap['hints'] as $hint) {
+                    $DB->insert_record('elang_gaphint', (object) [
+                        'gapid' => $gapid,
+                        'level' => $hint['level'],
+                        'hinttype' => $hint['hinttype'],
+                        'hinttext' => $hint['hinttext'],
+                        'penalty' => $hint['penalty'],
+                        'timecreated' => time(),
+                    ]);
+                }
+            }
+        }
     }
 
     /**

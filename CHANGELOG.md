@@ -28,6 +28,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.51] - 2026-07-26
+
+### Added
+- Editor media panel (first increment). The content editor now shows the
+  draft's current medium — including an existing uploaded file, as a link — and
+  lets a manager set a direct URL medium, an embeddable provider medium, or none
+  through `set_draft_media`. The type selector reveals only the relevant fields,
+  and saving refreshes the current-medium line. New editor UI strings (en, de).
+
+### Note
+- `amd/src/editor.js` changed but `amd/build/` is not included: run `grunt amd`
+  (e.g. `make amd`) to rebuild the module.
+- File upload (video/poster) needs Moodle's file picker wired into the page and
+  is the next media increment; URL and provider media are fully functional now.
+
 ## [2.0.0-alpha.50] - 2026-07-26
 
 ### Added

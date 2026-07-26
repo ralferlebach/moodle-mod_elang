@@ -55,5 +55,35 @@
         </button>
     </details>
 
+    <details class="mod_elang-editor-media mb-3">
+        <summary>{{#str}} editor:media, mod_elang {{/str}}</summary>
+        <p class="text-muted" data-region="currentmedia"></p>
+        <div class="form-group">
+            <label class="d-block">{{#str}} editor:mediakind, mod_elang {{/str}}
+                <select class="form-control" data-region="mediakind">
+                    <option value="">{{#str}} editor:medianone, mod_elang {{/str}}</option>
+                    <option value="url">{{#str}} editor:mediaurl, mod_elang {{/str}}</option>
+                    <option value="provider">{{#str}} editor:mediaprovider, mod_elang {{/str}}</option>
+                </select>
+            </label>
+        </div>
+        <div class="form-group" data-region="mediaurlfield">
+            <label class="d-block">{{#str}} editor:mediaurl, mod_elang {{/str}}
+                <input type="url" class="form-control" data-region="mediaurlinput">
+            </label>
+        </div>
+        <div class="form-group" data-region="mediaproviderfields">
+            <label class="d-block">{{#str}} editor:mediaprovider, mod_elang {{/str}}
+                <input type="text" class="form-control" data-region="mediaproviderinput">
+            </label>
+            <label class="d-block">{{#str}} editor:mediaproviderref, mod_elang {{/str}}
+                <input type="text" class="form-control" data-region="mediaproviderrefinput">
+            </label>
+        </div>
+        <button type="button" class="btn btn-secondary" data-action="savemedia">
+            {{#str}} editor:savemedia, mod_elang {{/str}}
+        </button>
+    </details>
+
     <div class="mod_elang-editor-cues" data-region="cues"></div>
 </div>

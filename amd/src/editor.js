@@ -42,6 +42,14 @@ const SELECTORS = {
     PUBLISH: '[data-action="publish"]',
     ADDCUE: '[data-action="addcue"]',
     IMPORT: '[data-action="import"]',
+    CURRENTMEDIA: '[data-region="currentmedia"]',
+    MEDIAKIND: '[data-region="mediakind"]',
+    MEDIAURLFIELD: '[data-region="mediaurlfield"]',
+    MEDIAURLINPUT: '[data-region="mediaurlinput"]',
+    MEDIAPROVIDERFIELDS: '[data-region="mediaproviderfields"]',
+    MEDIAPROVIDERINPUT: '[data-region="mediaproviderinput"]',
+    MEDIAPROVIDERREFINPUT: '[data-region="mediaproviderrefinput"]',
+    SAVEMEDIA: '[data-action="savemedia"]',
 };
 
 // Moodle FORMAT_PLAIN, used for cues the editor creates.
@@ -95,7 +103,7 @@ const loadStrings = async() => {
     const keys = [
         'editor:transcript', 'editor:starttime', 'editor:endtime', 'editor:gaps', 'editor:nogaps',
         'editor:nocues', 'editor:deletecue', 'editor:loaderror', 'editor:saved', 'editor:saveerror',
-        'editor:published',
+        'editor:published', 'editor:currentmedia', 'editor:nomedia', 'editor:mediafile', 'editor:mediasaved',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -333,6 +341,128 @@ const handleImport = async() => {
 };
 
 /**
+ * Render the current-medium line, with a link when there is a file or url.
+ *
+ * @param {Object} media A media descriptor (mediakind, mediaurl, media file fields, ...)
+ * @returns {void}
+ */
+const renderCurrentMedia = (media) => {
+    const region = document.querySelector(SELECTORS.CURRENTMEDIA);
+    if (!region) {
+        return;
+    }
+    while (region.firstChild) {
+        region.removeChild(region.firstChild);
+    }
+
+    const prefix = document.createElement('span');
+    prefix.textContent = strings['editor:currentmedia'] + ' ';
+    region.appendChild(prefix);
+
+    if (media.mediakind === 'file' && media.mediafileurl) {
+        const link = document.createElement('a');
+        link.href = media.mediafileurl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = strings['editor:mediafile'] + ' (' + media.mediafilename + ')';
+        region.appendChild(link);
+    } else if (media.mediakind === 'url' && media.mediaurl) {
+        const link = document.createElement('a');
+        link.href = media.mediaurl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = media.mediaurl;
+        region.appendChild(link);
+    } else if (media.mediakind === 'provider') {
+        const text = document.createElement('span');
+        text.textContent = media.mediaprovider + ' (' + media.mediaproviderref + ')';
+        region.appendChild(text);
+    } else {
+        const text = document.createElement('span');
+        text.textContent = strings['editor:nomedia'];
+        region.appendChild(text);
+    }
+};
+
+/**
+ * Show only the media fields relevant to the selected medium type.
+ *
+ * @returns {void}
+ */
+const toggleMediaFields = () => {
+    const select = document.querySelector(SELECTORS.MEDIAKIND);
+    if (!select) {
+        return;
+    }
+    const urlfield = document.querySelector(SELECTORS.MEDIAURLFIELD);
+    if (urlfield) {
+        urlfield.style.display = select.value === 'url' ? '' : 'none';
+    }
+    const providerfields = document.querySelector(SELECTORS.MEDIAPROVIDERFIELDS);
+    if (providerfields) {
+        providerfields.style.display = select.value === 'provider' ? '' : 'none';
+    }
+};
+
+/**
+ * Fill the media panel from a loaded version's descriptor. A file medium is
+ * shown in the current-medium line but not offered in the type selector, which
+ * only sets url, provider or none until the upload panel is added.
+ *
+ * @param {Object} content The version content returned by get_version_content
+ * @returns {void}
+ */
+const populateMedia = (content) => {
+    const select = document.querySelector(SELECTORS.MEDIAKIND);
+    if (select) {
+        select.value = (content.mediakind === 'url' || content.mediakind === 'provider') ? content.mediakind : '';
+    }
+    const urlinput = document.querySelector(SELECTORS.MEDIAURLINPUT);
+    if (urlinput) {
+        urlinput.value = content.mediaurl || '';
+    }
+    const providerinput = document.querySelector(SELECTORS.MEDIAPROVIDERINPUT);
+    if (providerinput) {
+        providerinput.value = content.mediaprovider || '';
+    }
+    const providerrefinput = document.querySelector(SELECTORS.MEDIAPROVIDERREFINPUT);
+    if (providerrefinput) {
+        providerrefinput.value = content.mediaproviderref || '';
+    }
+    renderCurrentMedia(content);
+    toggleMediaFields();
+};
+
+/**
+ * Set the draft's medium from the media panel.
+ *
+ * @returns {Promise} Resolves once the save attempt has settled
+ */
+const handleSaveMedia = async() => {
+    const select = document.querySelector(SELECTORS.MEDIAKIND);
+    if (!select) {
+        return;
+    }
+    const urlinput = document.querySelector(SELECTORS.MEDIAURLINPUT);
+    const providerinput = document.querySelector(SELECTORS.MEDIAPROVIDERINPUT);
+    const providerrefinput = document.querySelector(SELECTORS.MEDIAPROVIDERREFINPUT);
+    try {
+        const media = await callWs('mod_elang_set_draft_media', {
+            versionid: versionid,
+            kind: select.value,
+            url: urlinput ? urlinput.value : '',
+            provider: providerinput ? providerinput.value : '',
+            providerref: providerrefinput ? providerrefinput.value : '',
+        });
+        renderCurrentMedia(media);
+        setStatus(strings['editor:mediasaved']);
+    } catch (error) {
+        Log.error(error);
+        setStatus(error.message || strings['editor:saveerror']);
+    }
+};
+
+/**
  * Wire the toolbar buttons to their handlers.
  *
  * @param {Element} editor The editor root element
@@ -361,6 +491,18 @@ const wireToolbar = (editor) => {
     if (importbtn) {
         importbtn.addEventListener('click', () => {
             handleImport();
+        });
+    }
+    const mediakind = editor.querySelector(SELECTORS.MEDIAKIND);
+    if (mediakind) {
+        mediakind.addEventListener('change', () => {
+            toggleMediaFields();
+        });
+    }
+    const savemedia = editor.querySelector(SELECTORS.SAVEMEDIA);
+    if (savemedia) {
+        savemedia.addEventListener('click', () => {
+            handleSaveMedia();
         });
     }
 };
@@ -392,6 +534,7 @@ export const init = async(draftVersionId) => {
         state.revision = content.revision;
         state.cues = content.cues;
         renderCues();
+        populateMedia(content);
         setStatus('');
     } catch (error) {
         Log.error(error);

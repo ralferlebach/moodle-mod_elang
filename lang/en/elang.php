@@ -112,6 +112,7 @@ $string['jarothreshold_help'] = 'For gaps that recognise close answers (the "wor
 $string['jarothresholdrange'] = 'The threshold must be between 0 and 1.';
 $string['language'] = 'Content language';
 $string['language_help'] = 'The language or script code of the exercise content, for example de, fr, zh-Hans or ja. It controls how answers are compared, including case folding and transliteration. Leave it empty for generic handling. New versions of this activity start from this value.';
+$string['language_none'] = 'Generic (not specified)';
 $string['migratev1:approvalheading'] = 'Migrated, awaiting review';
 $string['migratev1:approvebutton'] = 'Approve this migration';
 $string['migratev1:approved'] = 'elang {$a} has been marked as approved.';

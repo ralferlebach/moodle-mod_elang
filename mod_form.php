@@ -58,7 +58,8 @@ class mod_elang_mod_form extends moodleform_mod {
 
         $mform->addElement('header', 'elanggrading', get_string('gradingheading', 'mod_elang'));
 
-        $mform->addElement('text', 'language', get_string('language', 'mod_elang'), ['size' => 12]);
+        $languageoptions = ['' => get_string('language_none', 'mod_elang')] + get_string_manager()->get_list_of_languages();
+        $mform->addElement('select', 'language', get_string('language', 'mod_elang'), $languageoptions);
         $mform->setType('language', PARAM_ALPHANUMEXT);
         $mform->setDefault('language', '');
         $mform->addHelpButton('language', 'language', 'mod_elang');

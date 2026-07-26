@@ -108,6 +108,7 @@ $string['jarothreshold_help'] = 'Für Lücken, die ähnliche Antworten anerkenne
 $string['jarothresholdrange'] = 'Der Schwellwert muss zwischen 0 und 1 liegen.';
 $string['language'] = 'Inhaltssprache';
 $string['language_help'] = 'Der Sprach- oder Skriptcode des Übungsinhalts, zum Beispiel de, fr, zh-Hans oder ja. Er steuert, wie Antworten verglichen werden, einschließlich Groß-/Kleinschreibung und Transliteration. Für generische Behandlung leer lassen. Neue Versionen dieser Aktivität übernehmen diesen Wert.';
+$string['language_none'] = 'Generisch (nicht angegeben)';
 $string['migratev1:approvalheading'] = 'Migriert, wartet auf Prüfung';
 $string['migratev1:approvebutton'] = 'Diese Migration freigeben';
 $string['migratev1:approved'] = 'elang {$a} wurde als freigegeben markiert.';

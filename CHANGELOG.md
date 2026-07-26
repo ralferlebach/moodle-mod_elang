@@ -28,6 +28,15 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.55] - 2026-07-26
+
+### Changed
+- The content language in the settings form is now a dropdown of the languages
+  Moodle knows (`get_string_manager()->get_list_of_languages()`), with a
+  "Generic (not specified)" first option, instead of a free-text field. Unknown
+  or generic codes still fall back to the default (Latin) script handling, so
+  grading behaviour is unchanged. New string `language_none` (en, de).
+
 ## [2.0.0-alpha.54] - 2026-07-26
 
 ### Added

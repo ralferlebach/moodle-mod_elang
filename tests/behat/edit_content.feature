@@ -24,6 +24,12 @@ Feature: Reach the content authoring tools from the activity
     When I press "Edit content"
     Then I should see "Exercise content editor"
 
+  @javascript
+  Scenario: The editor loads the draft without a load error
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    When I press "Edit content"
+    Then I should not see "The editor could not be loaded"
+
   Scenario: A teacher reaches the attempt report from the activity page
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     Then I should see "Reports"

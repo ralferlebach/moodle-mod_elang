@@ -28,6 +28,29 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   intentionally not bumped.
 
 
+## [2.0.0-alpha.60] - 2026-07-26
+
+### Fixed
+- The content editor could not load its draft: `edit.php` passed the course
+  module id and the draft version id to the AMD module, but `init()` takes only
+  the version id, so it queried `elang_version` with the cmid and got "record
+  not found". It now passes only the draft version id. Added a `@javascript`
+  Behat scenario that opens the editor and asserts it loads without the error.
+
+## [2.0.0-alpha.59] - 2026-07-26
+
+### Changed
+- The content editor now appends the real error to its "could not be loaded"
+  status (e.g. a missing web service or a server error), so a failed
+  `get_version_content` call is diagnosable without the browser console. Bumping
+  the version also re-runs `external_update_services` on upgrade, which
+  registers the authoring web services the editor calls.
+
+### Note
+- After deploying, run Site administration -> Notifications (registers the web
+  services and purges the navigation cache). If the editor still shows an error,
+  the bracketed message now names the cause.
+
 ## [2.0.0-alpha.58] - 2026-07-26
 
 ### Fixed

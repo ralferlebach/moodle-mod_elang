@@ -47,7 +47,7 @@ $PAGE->set_activity_record($elang);
 
 $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((int) $elang->id);
 
-$PAGE->requires->js_call_amd('mod_elang/editor', 'init', [(int) $cm->id, (int) $draft->id]);
+$PAGE->requires->js_call_amd('mod_elang/editor', 'init', [(int) $draft->id]);
 
 echo $OUTPUT->header();
 echo $OUTPUT->render_from_template('mod_elang/editor', [

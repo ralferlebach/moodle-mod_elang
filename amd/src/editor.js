@@ -995,6 +995,7 @@ export const init = async(draftVersionId) => {
         setStatus('');
     } catch (error) {
         Log.error(error);
-        setStatus(strings['editor:loaderror'] || '');
+        const detail = error && error.message ? (' [' + error.message + ']') : '';
+        setStatus((strings['editor:loaderror'] || '') + detail);
     }
 };

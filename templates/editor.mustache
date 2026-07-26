@@ -45,6 +45,11 @@
         </button>
     </div>
 
+    <div class="mod_elang-editor-timeline-wrap mb-3" data-region="timelinewrap">
+        <video class="mod_elang-editor-media-preview" data-region="mediapreview" controls preload="metadata" hidden></video>
+        <div class="mod_elang-editor-timeline" data-region="timeline"></div>
+    </div>
+
     <details class="mod_elang-editor-import mb-3">
         <summary>{{#str}} editor:import, mod_elang {{/str}}</summary>
         <p class="text-muted">{{#str}} editor:importhint, mod_elang {{/str}}</p>
@@ -83,6 +88,11 @@
         <button type="button" class="btn btn-secondary" data-action="savemedia">
             {{#str}} editor:savemedia, mod_elang {{/str}}
         </button>
+        {{#mediauploadurl}}
+            <p class="mt-2">
+                <a href="{{mediauploadurl}}">{{#str}} editor:uploadmedia, mod_elang {{/str}}</a>
+            </p>
+        {{/mediauploadurl}}
     </details>
 
     <div class="mod_elang-editor-cues" data-region="cues"></div>

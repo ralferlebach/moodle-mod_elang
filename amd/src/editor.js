@@ -50,6 +50,8 @@ const SELECTORS = {
     MEDIAPROVIDERINPUT: '[data-region="mediaproviderinput"]',
     MEDIAPROVIDERREFINPUT: '[data-region="mediaproviderrefinput"]',
     SAVEMEDIA: '[data-action="savemedia"]',
+    MEDIAPREVIEW: '[data-region="mediapreview"]',
+    TIMELINE: '[data-region="timeline"]',
 };
 
 // Moodle FORMAT_PLAIN, used for cues the editor creates.
@@ -59,6 +61,12 @@ const FORMAT_PLAIN = 2;
 let versionid = null;
 const state = {revision: 0, cues: []};
 const strings = {};
+
+// The media preview element (when the version has a playable direct medium),
+// the timeline's total duration in ms, and the current cue blocks on it.
+let mediaEl = null;
+let timelineTotal = 1;
+let timelineBlocks = [];
 
 /**
  * Call an external function and return its promise.
@@ -109,7 +117,7 @@ const loadStrings = async() => {
         'editor:selecttext', 'editor:hints', 'editor:addhint', 'editor:removehint', 'editor:hinttype',
         'editor:hinttext', 'editor:penalty', 'editor:hinttype_text', 'editor:hinttype_firstletter',
         'editor:hinttype_wordlength', 'editor:hinttype_partial', 'editor:hinttype_solution',
-        'editor:hinttype_translation',
+        'editor:hinttype_translation', 'editor:capturestart', 'editor:captureend',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -118,33 +126,54 @@ const loadStrings = async() => {
 };
 
 /**
- * Build a labelled number field wired to update the model on input.
+ * Build a number input wired to update the model on input.
  *
- * @param {String} labeltext The field label
  * @param {Number} value The initial value
  * @param {Function} onchange Called with the parsed integer whenever it changes
- * @returns {Element} The field wrapper
+ * @returns {Element} The input element
  */
-const buildNumberField = (labeltext, value, onchange) => {
-    const wrap = document.createElement('span');
-    wrap.className = 'mr-3';
-
-    const label = document.createElement('label');
-    label.className = 'mr-1';
-    label.textContent = labeltext;
-
+const numberInput = (value, onchange) => {
     const input = document.createElement('input');
     input.type = 'number';
-    input.className = 'form-control';
+    input.className = 'form-control d-inline-block';
+    input.style.width = '8rem';
     input.min = '0';
     input.value = String(value);
     input.addEventListener('input', () => {
         onchange(parseInt(input.value, 10) || 0);
     });
+    return input;
+};
 
-    label.appendChild(input);
-    wrap.appendChild(label);
-    return wrap;
+/**
+ * Wrap an element in a label carrying the given text.
+ *
+ * @param {String} text The label text
+ * @param {Element} element The element to label
+ * @returns {Element} The label element
+ */
+const labelled = (text, element) => {
+    const label = document.createElement('label');
+    label.className = 'mr-2';
+    label.appendChild(document.createTextNode(text + ' '));
+    label.appendChild(element);
+    return label;
+};
+
+/**
+ * Build a small link-styled button.
+ *
+ * @param {String} text The button label
+ * @param {Function} onclick The click handler
+ * @returns {Element} The button element
+ */
+const linkButton = (text, onclick) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-link btn-sm p-0 mr-3';
+    button.textContent = text;
+    button.addEventListener('click', onclick);
+    return button;
 };
 
 /**
@@ -437,6 +466,121 @@ const addGapFromSelection = (cue, textarea, rerenderGaps) => {
 };
 
 /**
+ * Scroll a cue's editor row into view and flash it.
+ *
+ * @param {Object} cue The cue to focus
+ * @returns {void}
+ */
+const focusCue = (cue) => {
+    const row = document.querySelector('[data-cuekey="' + cue.cuekey + '"]');
+    if (!row) {
+        return;
+    }
+    row.scrollIntoView({behavior: 'smooth', block: 'center'});
+    row.classList.add('focused');
+    window.setTimeout(() => {
+        row.classList.remove('focused');
+    }, 1500);
+};
+
+/**
+ * Rebuild the timeline strip from the current cues, positioning each cue by its
+ * time. Clicking a block focuses its cue and seeks the media there.
+ *
+ * @returns {void}
+ */
+const renderTimeline = () => {
+    const container = document.querySelector(SELECTORS.TIMELINE);
+    if (!container) {
+        return;
+    }
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+
+    let maxend = 0;
+    state.cues.forEach((cue) => {
+        if (cue.endtime > maxend) {
+            maxend = cue.endtime;
+        }
+    });
+    const duration = (mediaEl && mediaEl.duration) ? Math.round(mediaEl.duration * 1000) : 0;
+    timelineTotal = Math.max(maxend, duration, 1);
+    timelineBlocks = [];
+
+    state.cues.forEach((cue) => {
+        const block = document.createElement('div');
+        block.className = 'mod_elang-editor-timeline-cue';
+        block.style.left = (cue.starttime / timelineTotal * 100) + '%';
+        block.style.width = (Math.max(cue.endtime - cue.starttime, 0) / timelineTotal * 100) + '%';
+        block.textContent = cue.transcript.slice(0, 20);
+        block.addEventListener('click', () => {
+            focusCue(cue);
+            if (mediaEl) {
+                mediaEl.currentTime = cue.starttime / 1000;
+            }
+        });
+        container.appendChild(block);
+        timelineBlocks.push({el: block, start: cue.starttime, end: cue.endtime});
+    });
+
+    const playhead = document.createElement('div');
+    playhead.className = 'mod_elang-editor-timeline-playhead';
+    playhead.setAttribute('data-region', 'playhead');
+    container.appendChild(playhead);
+};
+
+/**
+ * Move the playhead and highlight the cue block(s) under the current playback
+ * position.
+ *
+ * @returns {void}
+ */
+const updatePlayhead = () => {
+    if (!mediaEl) {
+        return;
+    }
+    const currentms = mediaEl.currentTime * 1000;
+    const container = document.querySelector(SELECTORS.TIMELINE);
+    if (container) {
+        const playhead = container.querySelector('[data-region="playhead"]');
+        if (playhead) {
+            playhead.style.left = (currentms / timelineTotal * 100) + '%';
+        }
+    }
+    timelineBlocks.forEach((block) => {
+        block.el.classList.toggle('active', currentms >= block.start && currentms < block.end);
+    });
+};
+
+/**
+ * Show the media preview when the version has a playable direct medium (a file
+ * or url), and keep the timeline in sync with its playback.
+ *
+ * @param {Object} content The version content returned by get_version_content
+ * @returns {void}
+ */
+const loadMediaPreview = (content) => {
+    const video = document.querySelector(SELECTORS.MEDIAPREVIEW);
+    if (!video) {
+        return;
+    }
+    const src = content.mediafileurl || content.mediaurl || '';
+    if ((content.mediakind !== 'file' && content.mediakind !== 'url') || src === '') {
+        return;
+    }
+    video.src = src;
+    video.hidden = false;
+    mediaEl = video;
+    video.addEventListener('timeupdate', () => {
+        updatePlayhead();
+    });
+    video.addEventListener('loadedmetadata', () => {
+        renderTimeline();
+    });
+};
+
+/**
  * Build the editable row for one cue, wired to mutate the cue in place.
  *
  * @param {Object} cue The cue model object
@@ -445,17 +589,37 @@ const addGapFromSelection = (cue, textarea, rerenderGaps) => {
 const buildCueRow = (cue) => {
     const row = document.createElement('div');
     row.className = 'mod_elang-editor-cue card mb-2';
+    row.dataset.cuekey = cue.cuekey;
 
     const body = document.createElement('div');
     body.className = 'card-body';
 
+    const startinput = numberInput(cue.starttime, (value) => {
+        cue.starttime = value;
+        renderTimeline();
+    });
+    const endinput = numberInput(cue.endtime, (value) => {
+        cue.endtime = value;
+        renderTimeline();
+    });
+
     const timing = document.createElement('div');
     timing.className = 'mb-2';
-    timing.appendChild(buildNumberField(strings['editor:starttime'], cue.starttime, (value) => {
-        cue.starttime = value;
+    timing.appendChild(labelled(strings['editor:starttime'], startinput));
+    timing.appendChild(linkButton(strings['editor:capturestart'], () => {
+        if (mediaEl) {
+            cue.starttime = Math.round(mediaEl.currentTime * 1000);
+            startinput.value = String(cue.starttime);
+            renderTimeline();
+        }
     }));
-    timing.appendChild(buildNumberField(strings['editor:endtime'], cue.endtime, (value) => {
-        cue.endtime = value;
+    timing.appendChild(labelled(strings['editor:endtime'], endinput));
+    timing.appendChild(linkButton(strings['editor:captureend'], () => {
+        if (mediaEl) {
+            cue.endtime = Math.round(mediaEl.currentTime * 1000);
+            endinput.value = String(cue.endtime);
+            renderTimeline();
+        }
     }));
 
     const label = document.createElement('label');
@@ -520,10 +684,11 @@ const renderCues = () => {
         empty.className = 'text-muted';
         empty.textContent = strings['editor:nocues'];
         container.appendChild(empty);
-        return;
+    } else {
+        state.cues.forEach((cue) => container.appendChild(buildCueRow(cue)));
     }
 
-    state.cues.forEach((cue) => container.appendChild(buildCueRow(cue)));
+    renderTimeline();
 };
 
 /**
@@ -824,6 +989,7 @@ export const init = async(draftVersionId) => {
         const content = await callWs('mod_elang_get_version_content', {versionid: versionid});
         state.revision = content.revision;
         state.cues = content.cues;
+        loadMediaPreview(content);
         renderCues();
         populateMedia(content);
         setStatus('');

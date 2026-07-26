@@ -61,3 +61,53 @@
 .mod_elang-player .mod_elang-incorrect .mod_elang-gap {
     border-bottom: 3px dashed;
 }
+
+/* Content editor timeline (mod_elang/editor). */
+.mod_elang-editor-media-preview {
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.mod_elang-editor-timeline {
+    position: relative;
+    height: 40px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.mod_elang-editor-timeline-cue {
+    position: absolute;
+    top: 4px;
+    height: 32px;
+    min-width: 2px;
+    padding: 0 4px;
+    overflow: hidden;
+    background: #4a90d9;
+    opacity: 0.6;
+    border-radius: 3px;
+    color: #fff;
+    font-size: 11px;
+    line-height: 32px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mod_elang-editor-timeline-cue.active {
+    opacity: 1;
+    background: #d9534f;
+}
+
+.mod_elang-editor-timeline-playhead {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #000;
+    pointer-events: none;
+}
+
+.mod_elang-editor-cue.focused {
+    box-shadow: 0 0 0 2px #d9534f;
+}

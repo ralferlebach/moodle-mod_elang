@@ -50,5 +50,7 @@ $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((i
 $PAGE->requires->js_call_amd('mod_elang/editor', 'init', [(int) $cm->id, (int) $draft->id]);
 
 echo $OUTPUT->header();
-echo $OUTPUT->render_from_template('mod_elang/editor', []);
+echo $OUTPUT->render_from_template('mod_elang/editor', [
+    'mediauploadurl' => (new moodle_url('/mod/elang/media.php', ['id' => $cm->id]))->out(false),
+]);
 echo $OUTPUT->footer();

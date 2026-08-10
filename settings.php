@@ -43,3 +43,21 @@ if ($hassiteconfig) {
         )
     );
 }
+
+if ($ADMIN->fulltree) {
+    // Which content languages the activity settings form offers. An empty
+    // setting (the default) means "no restriction": the form offers the full
+    // Moodle language list. Restricting it here narrows the dropdown to the
+    // languages actually taught on this site. The list is built from Moodle's
+    // own language names, so it stays in step with installed language packs.
+    $languagechoices = get_string_manager()->get_list_of_languages();
+    \core_collator::asort($languagechoices);
+
+    $settings->add(new admin_setting_configmultiselect(
+        'mod_elang/allowedlanguages',
+        get_string('allowedlanguages', 'mod_elang'),
+        get_string('allowedlanguages_desc', 'mod_elang'),
+        [],
+        $languagechoices
+    ));
+}

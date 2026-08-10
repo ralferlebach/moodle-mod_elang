@@ -51,19 +51,17 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.37 (2026072515) — Phase 2 (Datenmodell, Domäne,
-Migration) UND Phase 3 (Lernendenoberfläche) abgeschlossen. Auf dem in
-Phase 2 gebauten Fundament kamen in Session 003 hinzu: attempt-gebundene
-Lese-API (`get_attempt_exercise`/`get_attempt_cues`, streng aus
-`elang_attempt.versionid`), Retry-Sicherheit (`expectedtries`/`expectedlevel`),
-das **versionierte Medien-Datenmodell** (Datei-/URL-/Provider-Medien auf
-`elang_version`, `elang_pluginfile`, V1-Medien-Migration) OHNE Login, sowie die
-komplette Härtungsliste (serverseitige maxlength, aktive Completion, kanonischer
-Content-Hash inkl. Hints, Link-Härtung, stabile Fehlercodes) und der
-**Player** (Shell, Antworten, Medien-/Cue-Sync, Resume) mit Behat für Resume
-und Versions-Pinning. Login-gestützte Provider (OAuth) sind bewusst als
-späteres bezahltes Subplugin ausgelagert. Autorenoberfläche (Phase 4) fehlt
-weiterhin vollständig — siehe „Als nächstes geplant" unten.
+**Version:** 2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
+Migration), Phase 3 (Lernendenoberfläche/Player) UND der Kern von Phase 4
+(Autorenoberfläche) samt Reporting/Export abgeschlossen. In Session 004 kam der
+versionierte Autoren-Workflow hinzu: Copy-on-Write-Drafts, version_validator +
+Publish-Guard, Authoring-WS (save_draft_version, publish_version,
+get_version_content, preview_import, set_draft_media), ein Editor (edit.php +
+templates/editor.mustache + amd/src/editor.js: Cues/Import/Lücken/Hints/Medien +
+Timeline-Increment), Medien-Upload (media.php), Aktivitäts-Einstellungen
+(Sprache-Dropdown + Jaro-Schwellwert), Attempt-Report (report.php, gruppenbewusst)
+und Transkript-Export (transcript.php, PDF/Text). Der Editor lädt (P0-Argument-Bug
+behoben). Details in docs/sessions/session-004.md.
 
 **Grundsätze (nicht ohne explizite Diskussion ändern):**
   A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
@@ -74,58 +72,48 @@ weiterhin vollständig — siehe „Als nächstes geplant" unten.
       Absicherung aller schreibenden Operationen, ohne verlustfreie
       Inhaltsbearbeitung.
 
-**Zuletzt abgeschlossen (Session 003 — Medienmodell + Härtung + Player):**
-  - CI-Gate repariert (MariaDB-only-Rot durch `elang.options`-DROP im
-    `v1_decommissioner`-Test; tearDown stellt die Spalte wieder her).
-  - Attempt-gebundene Lese-API: `get_exercise/get_cues` -> `get_attempt_exercise/
-    get_attempt_cues` (attemptid statt cmid, `mod/elang:attempt`, Ownership,
-    Lesen streng aus `elang_attempt.versionid`). Alte Dateien sind zu loeschen
-    (`git rm classes/external/get_exercise.php get_cues.php` + deren Tests).
-  - Retry-Sicherheit: `submit_response`/`request_hint` mit optionalem
-    `expectedtries`/`expectedlevel` (optimistische Nebenlaeufigkeit, schemafrei).
-  - Versioniertes Medien-Datenmodell auf `elang_version` (mediakind
-    file|url|provider + Felder), `elang_pluginfile`/`elang_get_file_areas`,
-    Medienblock in `get_attempt_exercise`, Medien im Content-Hash; V1-Medien-
-    Migration (`v1_media_migrator`). Alles OHNE Login; OAuth = spaeteres Subplugin.
-  - Haertung: serverseitige `maxlength`-Durchsetzung, aktive Completion bei
-    `finish_attempt`, kanonischer Content-Hash inkl. Hints, Link-Haertung
-    (`PARAM_URL`, http(s)-only), stabile `moodle_exception`-Fehlercodes statt
-    `coding_exception` im Attempt-Pfad; DRY-Refactor (`attempt_helper`).
-  - Player (Phase 3): `view.php` + `templates/player.mustache` +
-    `amd/src/player.js` — Attempt-Bootstrap, Medien-/Transkriptrendering,
-    Antworten (Zustaende, Hints, Finish), Medien-/Cue-Sync (timeupdate, ms<->s),
-    Resume (`get_attempt_state`). Behat: Resume + Versions-Pinning.
-  - CI vollständig grün (Moodle 4.5/5.2, lint-js + behat) — der Player ist real
-    verifiziert, `amd/build/` ist gebaut. Einzige Altlast: die vier alten
-    External-Dateien noch `git rm` (phpcpd-Klone, nicht CI-blockierend).
+**Zuletzt abgeschlossen (Session 004 — Autorenoberfläche + Reporting/Export):**
+  - Datenmodell versioniert (language/jarothreshold/revision auf elang_version;
+    Grading aus gepinnter Version; Content-Hash inkl. Medien-Bytes) +
+    Copy-on-Write-Drafts (create_draft_locked, stabile cuekey/gapkey).
+  - version_validator + optionaler Publish-Guard (publish($id,$user,$validate));
+    Migration bleibt tolerant.
+  - Authoring-WS: save_draft_version (Replace-all + Revision +
+    Optimistic-Concurrency), publish_version, get_version_content (inkl. Lösungen
+    + Medien-URLs), preview_import (subtitle_parser, VTT/SRT), set_draft_media
+    (Datei/URL/Provider/keins). Gemeinsamer authoring_helper-Trait.
+  - Editor: Cues/Transkripte, Import, Lücken per Auswahl (Lösung/Algorithmus/
+    Varianten), Hinweise (Typ/Text/Penalty, Level auto-1..n), Medien-Panel,
+    Timeline-Increment (Vorschau + Playhead + Zeit-Capture + Klick-Seek),
+    speichern/publizieren; Medien-Upload via moodleform-Filepicker (media.php).
+  - mod_form „Antwortbewertung": Inhaltssprache (Dropdown) + Jaro-Schwellwert.
+  - report.php + attempt_report (Übersicht + gap-für-gap Detail, Gruppenmodus);
+    transcript.php + transcript_exporter (PDF via TCPDF + Text).
+  - Erreichbarkeit: Aktionsleiste auf view.php (unabhängig von der Sekundärnav);
+    makefile exakt zurückgerollt; P0-Editor-Ladefehler (js_call_amd-Argument)
+    behoben; E2E-Behat (edit_content.feature).
+  - amd/build/editor.min.js beigelegt (Hand-Build); kanonisch via grunt amd.
 
-Details zu Session 003 vollstaendig in `docs/sessions/session-003.md`,
-zu Session 002 in `docs/sessions/session-002.md`, zu Session 001 in
-`docs/sessions/session-001.md`.
+Details zu Session 004 in `docs/sessions/session-004.md`, ältere Sessions
+(001–003) im selben Verzeichnis.
 
-**Als nächstes geplant (Priorität noch zu klären):**
-  - **Housekeeping (nur Altlast):** die vier alten External-Dateien `git rm`
-    (`get_exercise.php`, `get_cues.php` + deren Tests) — beseitigt die
-    phpcpd-Klone (nicht CI-blockierend). CI ist bereits grün, Phase 3 vollständig.
-  - **Phase 4 — Autorenoberfläche (größter offener Brocken):** visueller Editor
-    (`edit.php`, `amd/src/editor/{timeline,gapeditor,preview}.js`),
-    Importvalidierung (VTT/SRT/Legacy-Markup mit Vorschau), Autoren-WS
-    (`mod_elang_save_draft_version`, `mod_elang_publish_version`,
-    `mod_elang_preview_import`). Ohne sie entsteht neuer V2-Inhalt nur über die
-    Migration bzw. Behat-Steps. Sinnvoll in Slices: Import+Vorschau →
-    Segment-/Lückeneditor → Publish-UI.
-  - **Phase 4 — Reporting/Export:** Lehrer-Auswertung, Arbeitsblatt-/Daten-
-    export (Capabilities existieren bereits).
-  - **Optional/später:** Provider-Sync via YouTube-/Vimeo-Player-APIs
-    (native file/url-Sync steht); bezahltes OAuth-Login-Subplugin für private
-    Provider; `db/mobile.php` (App-Support); `elang.answermaxlength`
-    (aktivitätsweiter Default — pro-Lücke-Override und die harte 500er-Grenze
-    sind bereits serverseitig durchgesetzt); `classes/courseformat/overview.php`
-    (ab Moodle 5.0); prozentbasierte Completion-Regeln
-    (`completionansweredpercent`/`completioncorrectpercent`).
-  - Reporting/CSV-Export, PDF-/VTT-Arbeitsblattexport, V2-eigenes
-    Backup/Restore, globale Plugin-Einstellungsseite mit echten
-    Konfigurationswerten (bisher nur der Migrations-Adminlink)
+**Als nächstes geplant (siehe docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md):**
+  - **P1** Anbieter-Dropdown im Medien-Panel (kuratierte Liste) + Anbieter-
+    Referenz als ID ODER URL (Provider-spezifisches Parsing für Player-Embed);
+    Sprach-Dropdown auf Instanz-Sprache/Default vorauswählen.
+  - **P2** Admin-Einstellung „erlaubte Inhaltssprachen" (settings.php) zur
+    Eingrenzung der im mod_form angebotenen Sprachen.
+  - **P3** Word/ODF-Transkript-Export (minimaler, eigen-erzeugter DOCX/ODT-
+    Container ohne Fremdlib; PhpWord nur falls reiche Formatierung nötig).
+    PDF + Text sind bereits vorhanden.
+  - **AP-D — Subtitle Studio & Authoring-UX (eigenes, größeres Paket):**
+    end-to-end entlang der Workflows (Medium -> Transkript -> Timing an Waveform/
+    Timeline mit Drag/Snap -> Lücken mit Live-Vorschau & Re-Sync -> Hinweise/
+    Bewertung -> Vorschau -> Publish). Bausteine: Waveform (Web Audio API),
+    Drag-Resize, Live-Re-Sync der Lücken-Offsets, geführtes Onboarding,
+    Barrierefreiheit, Autosave.
+  - Kleinreste: Player-Meldung „kein Inhalt veröffentlicht" statt loaderror;
+    Gruppen-Sichtprüfung im Report-UI.
 
 **Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
   2.1-1 regelbasierte Lückenerzeugung
@@ -137,8 +125,48 @@ zu Session 002 in `docs/sessions/session-002.md`, zu Session 001 in
   dauerhaft gespeicherter Antworttext, zustandsfreie Bewertungsfunktion.
 
 ---
+### E) Verifikationsumgebung ZUERST aufsetzen (verpflichtend)
 
-### E) Ziel dieser Sitzung
+Bevor du inhaltlich arbeitest, richtest du eine echte, lauffähige
+Moodle-4.5-Umgebung ein und verifizierst den mitgelieferten Code REAL
+(nicht nur statisch). Das ist Pflicht, weil mehrere Fehlerklassen
+(PHPUnit-Fails, AMD-Grunt-Diff, Editor-Loading, Backup/Restore) sich
+ausschließlich in einer laufenden Instanz zeigen.
+
+Folge dabei Schritt für Schritt der Anleitung im Repo:
+  docs/dev/moodle-test-environment-setup.md
+
+Kurzfassung des Ablaufs (Details in der Anleitung):
+  1. Systempakete (php-pgsql/mbstring/curl/intl/zip/gd/soap, postgresql, locales)
+  2. PHP konfigurieren (max_input_vars=5000, locale en_AU.UTF-8)
+  3. PostgreSQL starten + Moodle-DB/-User anlegen
+  4. Moodle klonen (git, MOODLE_405_STABLE) und Plugin nach mod/vimipad spiegeln
+  5. config.php mit PHPUnit- und Behat-Blöcken schreiben
+  6. PHPUnit-Env initialisieren -> vendor/bin/phpunit --filter mod_vimipad
+  7. moodle-cs (aktuell) via Composer -> phpcs --severity=1 (Ziel 0/0)
+  8. moodle-plugin-ci PHAR -> phplint/phpmd/phpcpd/phpdoc/validate/savepoints/mustache
+  9. Moodles Grunt-Toolchain (npm ci) -> npx grunt amd (AMD reproduzierbar bauen)
+ 10. Behat init + dry-run (Steps validieren; @javascript nur in CI)
+ 11. Frontend: ./node_modules/.bin/tsc --noEmit, node build.mjs, ./node_modules/.bin/jest
+
+WICHTIGE FALLSTRICKE (siehe Anleitung, Abschnitt 0):
+  - PostgreSQL schläft ein -> vor JEDEM DB-Kommando: service postgresql start; sleep 3
+  - Nach Plugin-Sync mit NEUEN Dateien: PHPUnit-Env re-initialisieren (init.php)
+  - NIE 'npx tsc' (zieht Fremdpaket tsc@2.0.4) -> immer ./node_modules/.bin/tsc
+  - php -S ist instabil -> @javascript-Behat nur in der Projekt-CI, nicht hier
+  - AMD-Build MUSS reproduzierbar sein (zweiter grunt-Lauf == erster), sonst CI rot
+
+Zielzustand vor Beginn der eigentlichen Arbeit:
+  PHPUnit grün, phpcs 0/0, AMD identisch, tsc/Jest grün,
+  phpdoc/validate/savepoints/mustache ohne Fehlerzeilen.
+
+Wenn ein Schritt in der Sandbox nicht stabil läuft (z. B. voller Site-Install
+wegen instabilem PostgreSQL), dokumentiere das ehrlich und stütze die
+Verifikation auf die stabile PHPUnit-Env, statt Erfolg vorzutäuschen.
+
+---
+
+### F) Ziel dieser Sitzung
 
 Wir knüpfen an die Arbeiten an, die im aktuellen Kontext-Dokument
 und in der angehängten Code-Base vorliegen, und gehen, wenn der letzte

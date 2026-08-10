@@ -81,6 +81,10 @@ class provider implements
             'timemodified' => 'privacy:metadata:elang_response:timemodified',
         ], 'privacy:metadata:elang_response');
 
+        $collection->add_database_table('elang_version', [
+            'usermodified' => 'privacy:metadata:elang_version:usermodified',
+        ], 'privacy:metadata:elang_version');
+
         return $collection;
     }
 

@@ -47,6 +47,10 @@ const SELECTORS = {
 
 const GAP_TOKEN = /\{\{gap:([^}]+)\}\}/g;
 
+// Provider refs arrive already normalised to the canonical video id by the
+// server-side provider_registry (set_draft_media), so these builders only
+// need to url-encode the id into the provider's embed URL. Keep this table in
+// step with classes/local/media/provider_registry.php.
 const PROVIDER_EMBEDS = {
     youtube: (ref) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(ref)}`,
     vimeo: (ref) => `https://player.vimeo.com/video/${encodeURIComponent(ref)}`,

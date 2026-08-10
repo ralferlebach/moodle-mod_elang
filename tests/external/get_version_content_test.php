@@ -109,6 +109,10 @@ final class get_version_content_test extends \advanced_testcase {
         $this->assertSame('chat', $result['cues'][0]['gaps'][0]['solution']);
         $this->assertSame('chatte', $result['cues'][0]['gaps'][0]['answers'][0]['answer']);
         $this->assertSame(1, $result['cues'][0]['gaps'][0]['hints'][0]['level']);
+        $this->assertSame(
+            [['key' => 'youtube', 'name' => 'YouTube'], ['key' => 'vimeo', 'name' => 'Vimeo']],
+            $result['mediaproviders']
+        );
     }
 
     /**

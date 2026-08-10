@@ -21,6 +21,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use mod_elang\local\media\provider_registry;
 
 /**
  * Read a version's full authoring content — including solutions — for the editor.
@@ -81,6 +82,9 @@ class get_version_content extends external_api {
             'mediafileurl' => $mediafile['url'],
             'posterfilename' => $posterfile['name'],
             'posterfileurl' => $posterfile['url'],
+            'mediaproviders' => array_map(static function (string $key): array {
+                return ['key' => $key, 'name' => get_string('provider:' . $key, 'mod_elang')];
+            }, provider_registry::providers()),
             'cues' => self::get_version_manager()->load_version_content($versionid),
         ];
     }
@@ -136,6 +140,10 @@ class get_version_content extends external_api {
             'mediafileurl' => new external_value(PARAM_RAW, 'Media file URL when kind is file, empty otherwise'),
             'posterfilename' => new external_value(PARAM_RAW, 'Poster file name when present, empty otherwise'),
             'posterfileurl' => new external_value(PARAM_RAW, 'Poster file URL when present, empty otherwise'),
+            'mediaproviders' => new external_multiple_structure(new external_single_structure([
+                'key' => new external_value(PARAM_ALPHANUMEXT, 'Provider key, e.g. youtube'),
+                'name' => new external_value(PARAM_RAW, 'Localised provider display name'),
+            ]), 'The curated media providers the player can embed', VALUE_DEFAULT, []),
             'cues' => new external_multiple_structure(self::cue_structure(), 'The version\'s cues, with solutions'),
         ]);
     }

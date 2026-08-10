@@ -45,6 +45,8 @@ class mod_elang_mod_form extends moodleform_mod {
      * @return void
      */
     public function definition() {
+        global $CFG;
+
         $mform = $this->_form;
 
         $mform->addElement('header', 'general', get_string('general', 'form'));
@@ -58,10 +60,19 @@ class mod_elang_mod_form extends moodleform_mod {
 
         $mform->addElement('header', 'elanggrading', get_string('gradingheading', 'mod_elang'));
 
-        $languageoptions = ['' => get_string('language_none', 'mod_elang')] + get_string_manager()->get_list_of_languages();
+        // The offered content languages honour the site's mod_elang/
+        // allowedlanguages restriction and always keep this instance's stored
+        // value. New instances default to the course language (falling back to
+        // the site language, mapped to its base code) when that language is
+        // offered; editing keeps the stored value via set_data.
+        $current = (string) ($this->current->language ?? '');
+        $languageoptions = \mod_elang\local\settings\language_options::form_options($current);
         $mform->addElement('select', 'language', get_string('language', 'mod_elang'), $languageoptions);
         $mform->setType('language', PARAM_ALPHANUMEXT);
-        $mform->setDefault('language', '');
+        $candidate = \mod_elang\local\settings\language_options::base_code(
+            (string) ($this->get_course()->lang ?: ($CFG->lang ?? ''))
+        );
+        $mform->setDefault('language', isset($languageoptions[$candidate]) ? $candidate : '');
         $mform->addHelpButton('language', 'language', 'mod_elang');
 
         $mform->addElement('text', 'jarothreshold', get_string('jarothreshold', 'mod_elang'), ['size' => 6]);

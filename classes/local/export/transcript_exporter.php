@@ -29,13 +29,14 @@ namespace mod_elang\local\export;
  */
 final class transcript_exporter {
     /**
-     * Build the plain-text transcript of a version: every non-empty cue
-     * transcript in order, separated by blank lines.
+     * Build the transcript of a version as an ordered list of paragraphs: every
+     * non-empty cue transcript, in order. This is the shared basis for every
+     * output format.
      *
      * @param int $versionid The version to export
-     * @return string The transcript as plain text
+     * @return string[] The transcript paragraphs, in order
      */
-    public function plain_text(int $versionid): string {
+    public function paragraphs(int $versionid): array {
         global $DB;
 
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC', 'id, transcript');
@@ -48,6 +49,17 @@ final class transcript_exporter {
             }
         }
 
-        return implode("\n\n", $paragraphs);
+        return $paragraphs;
+    }
+
+    /**
+     * Build the plain-text transcript of a version: every non-empty cue
+     * transcript in order, separated by blank lines.
+     *
+     * @param int $versionid The version to export
+     * @return string The transcript as plain text
+     */
+    public function plain_text(int $versionid): string {
+        return implode("\n\n", $this->paragraphs($versionid));
     }
 }

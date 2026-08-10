@@ -21,6 +21,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use mod_elang\local\import\gap_syntax_parser;
 use mod_elang\local\import\subtitle_parser;
 
 /**
@@ -46,6 +47,13 @@ class preview_import extends external_api {
         return new external_function_parameters([
             'versionid' => new external_value(PARAM_INT, 'Id of the draft version being edited, for authorisation'),
             'subtitles' => new external_value(PARAM_RAW, 'Raw WebVTT or SubRip file content'),
+            'parsegaps' => new external_value(
+                PARAM_BOOL,
+                'When true, mod_elang 1.x inline gap markers ([word] with help, {word} without) are stripped from each '
+                    . 'transcript and returned as gaps instead of being kept as literal text',
+                VALUE_DEFAULT,
+                false
+            ),
         ]);
     }
 
@@ -54,28 +62,48 @@ class preview_import extends external_api {
      *
      * @param int $versionid Id of the draft version being edited
      * @param string $subtitles Raw WebVTT or SubRip file content
+     * @param bool $parsegaps Whether to recognise V1 inline gap markers
      * @return array The parsed cues, a count and any warnings, see execute_returns()
      */
-    public static function execute(int $versionid, string $subtitles): array {
+    public static function execute(int $versionid, string $subtitles, bool $parsegaps = false): array {
         [
             'versionid' => $versionid,
             'subtitles' => $subtitles,
+            'parsegaps' => $parsegaps,
         ] = self::validate_parameters(self::execute_parameters(), [
             'versionid' => $versionid,
             'subtitles' => $subtitles,
+            'parsegaps' => $parsegaps,
         ]);
 
         self::require_manage_version($versionid);
 
         $parsed = (new subtitle_parser())->parse($subtitles);
 
-        $cues = array_map(static function (\stdClass $cue): array {
+        $cues = array_map(static function (\stdClass $cue) use ($parsegaps): array {
+            $transcript = (string) $cue->transcript;
+            $gaps = [];
+
+            if ($parsegaps) {
+                $marked = gap_syntax_parser::parse($transcript);
+                $transcript = $marked->transcript;
+                $gaps = array_map(static function (\stdClass $gap): array {
+                    return [
+                        'charstart' => (int) $gap->charstart,
+                        'charlength' => (int) $gap->charlength,
+                        'solution' => (string) $gap->solution,
+                        'hintsallowed' => (bool) $gap->hintsallowed,
+                    ];
+                }, $marked->gaps);
+            }
+
             return [
                 'sortorder' => (int) $cue->sortorder,
                 'starttime' => (int) $cue->starttime,
                 'endtime' => (int) $cue->endtime,
-                'transcript' => (string) $cue->transcript,
+                'transcript' => $transcript,
                 'transcriptformat' => FORMAT_PLAIN,
+                'gaps' => $gaps,
             ];
         }, $parsed->cues);
 
@@ -99,6 +127,12 @@ class preview_import extends external_api {
                 'endtime' => new external_value(PARAM_INT, 'End time in milliseconds'),
                 'transcript' => new external_value(PARAM_RAW, 'Transcript text parsed from the cue'),
                 'transcriptformat' => new external_value(PARAM_INT, 'Moodle text format constant, always plain text'),
+                'gaps' => new external_multiple_structure(new external_single_structure([
+                    'charstart' => new external_value(PARAM_INT, 'Codepoint offset of the gap in the cleaned transcript'),
+                    'charlength' => new external_value(PARAM_INT, 'Codepoint length of the gap'),
+                    'solution' => new external_value(PARAM_RAW, 'Solution text found inside the marker'),
+                    'hintsallowed' => new external_value(PARAM_BOOL, 'True for a [help-allowed] marker, false for {no-help}'),
+                ]), 'Gaps recognised from V1 inline markers; empty unless parsegaps was set', VALUE_DEFAULT, []),
             ]), 'The parsed cues, in file order'),
             'cuecount' => new external_value(PARAM_INT, 'Number of cues parsed'),
             'warnings' => new external_multiple_structure(

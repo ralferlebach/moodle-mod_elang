@@ -11,7 +11,109 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.64] - 2026-08-10
+
+### Added
+- Transcript export now offers Word (DOCX) and OpenDocument (ODT) alongside the
+  existing PDF and plain text, from the chooser on `transcript.php` and via
+  `?format=docx` / `?format=odt`.
+- `classes/local/export/docx_writer.php`: builds a minimal, valid OOXML
+  WordprocessingML container (content types, package/document relationships,
+  document body, styles) with no third-party library, packing through Moodle's
+  core `zip_packer`. Title as Heading 1, one paragraph per cue, text
+  XML-escaped.
+- `classes/local/export/odt_writer.php`: builds a minimal, valid OpenDocument
+  Text container with no third-party library, using PHP's core `ZipArchive` so
+  the `mimetype` part is stored uncompressed and first (verified externally:
+  `file` identifies the result as "OpenDocument Text").
+- `transcript_exporter` gained `paragraphs()` (ordered non-empty cue
+  transcripts), the shared basis for every output format; `plain_text()` now
+  builds on it. New language strings `export:docx` / `export:odt` (en/de).
+- PHPUnit coverage for both writers (container parts, escaping, empty
+  transcript; ODT mimetype stored-first) and for `paragraphs()`.
+
+### Docs
+- `docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`: P3 marked
+  done (minimal self-built DOCX/ODT, no external library).
+
+## [2.0.0-alpha.63] - 2026-08-10
+
+### Added
+- Admin setting `mod_elang/allowedlanguages` (Site administration > Plugins >
+  Activity modules > eLang): a multiselect that narrows the content languages
+  the activity settings form offers. Empty (the default) means no restriction.
+- `classes/local/settings/language_options.php`: the single place that builds
+  the offered language list, honouring the admin restriction, mapping lang-pack
+  variants to their base code, and always keeping an activity's stored language
+  in the dropdown even after the admin tightens the list. PHPUnit-covered.
+
 ### Changed
+- `mod_form.php` now builds its language dropdown through `language_options`
+  instead of inline logic, so the restriction and base-code mapping are shared
+  and tested.
+
+### Docs
+- `docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`: P2 marked
+  done.
+
+## [2.0.0-alpha.62] - 2026-08-10
+
+### Added
+- Curated media provider registry (`classes/local/media/provider_registry.php`):
+  the single source of truth for which external providers the player embeds
+  (YouTube, Vimeo — OAuth-free only, by design) and for normalising a
+  teacher-supplied reference to the canonical video id. It accepts a bare id or
+  any common URL shape: watch URLs with tracking parameters, `youtu.be` short
+  links, `/shorts/`, `/embed/`, `/live/`, `player.vimeo.com`, channel paths,
+  with or without scheme/`www`. Covered by a 27-case PHPUnit matrix.
+- `set_draft_media` now validates a provider medium against the registry and
+  stores the normalised id, rejecting unknown providers
+  (`error:unknownmediaprovider`) and unparseable references
+  (`error:invalidproviderref`).
+- `get_version_content` returns the curated `mediaproviders` list, so the
+  editor's media panel offers a provider dropdown (localised
+  `provider:youtube`/`provider:vimeo`) instead of a free-text field, with a
+  reference hint (`editor:mediaproviderref` / `editor:mediaproviderrefhint`).
+  New Jest test `media_panel.test.tsx`.
+
+### Changed
+- Activity settings: the language field now defaults to the course language
+  (falling back to the site language, mapping lang-pack variants like `de_du`
+  onto their base code) for new instances, when that language is offered;
+  editing an existing instance keeps its stored value.
+- `amd/src/player.js`: comment clarifying that provider refs arrive already
+  normalised, keeping the embed table in step with the registry (minified
+  output unchanged).
+
+### Docs
+- `docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`: records the
+  P1 provider-registry / reference-normalisation and language pre-selection.
+
+## [2.0.0-alpha.61] - 2026-08-10
+
+### Added
+- React/TypeScript authoring frontend (adopted from mod_vimipad): sources in
+  `js/src` (typed API client with injectable transport, `EditorApp` with cue/
+  gap/hint/media/import/timeline components), bundled by esbuild (`build.mjs`)
+  into the committed AMD artefact `amd/build/editor_lazy.min.js` (React 18.3.1,
+  ReactDOM, Scheduler — declared in the new `thirdpartylibs.xml`). The learner
+  player stays framework-free. Jest/jsdom test suite in `js/tests` (service
+  payload shape, full mount/import/save flow); `package.json`/`tsconfig.json`
+  for the development-only toolchain.
+- Subtitle import can recognise the mod_elang 1.x inline gap syntax: the new
+  `gap_syntax_parser` turns `[word]` into a gap with hints allowed (seeding
+  one solution hint, matching the V1 migration semantics) and `{word}` into a
+  gap without hints; unusable markers stay literal. `preview_import` gained an
+  optional `parsegaps` parameter and a per-cue `gaps` return structure
+  (backwards compatible); the editor's import panel offers it as a checkbox.
+  New language string `editor:parsegaps` (en/de).
+
+### Changed
+- `amd/src/editor.js` is now a thin bootstrap (strings via core/str, transport
+  via core/ajax, mounts the bundled React editor); `templates/editor.mustache`
+  reduced to a server-rendered shell (heading + loading status + mount region).
+- `.phpcsignore`/`phpcs.xml` exclude `js/` (TypeScript sources are linted by
+  tsc/ESLint, not PHPCS).
 - `.github/workflows/moodle-ci.yml`: the `lint-js` job no longer uses a
   `mariadb:10.11` Docker service; it starts the MySQL that ships preinstalled
   on the ubuntu-24.04 runner instead (`sudo systemctl start mysql.service`,
@@ -27,6 +129,24 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   re-running the job. No installed plugin file changed, so `version.php` is
   intentionally not bumped.
 
+### Fixed
+- `db/install.xml`: removed the empty `<INDEXES>` block on `elang_gapanswer`
+  (rejected by core's XMLDB normalisation check `plugin_checks_test`).
+- Privacy metadata now covers `elang_version.usermodified` (core
+  `provider_test::test_table_coverage`); new `privacy:metadata:elang_version*`
+  strings (en/de).
+
+### Docs
+- Session 004 closed: `docs/sessions/session-004.md` (end-of-session log),
+  `docs/prompt-templates/sessionstart.txt` (current state updated to alpha.60),
+  and `docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md` (work
+  plan: current-package remainder P1-P3 and the new "Subtitle Studio &
+  Authoring-UX" work package). No installed plugin file changed, so
+  `version.php` is intentionally not bumped.
+- `docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`: records
+  the approved AP-D technology decision (bundled React/TS authoring tool,
+  framework-free player, migration path to core React once 4.5 support
+  ends) and the implemented V1 gap-syntax import option.
 
 ## [2.0.0-alpha.60] - 2026-07-26
 

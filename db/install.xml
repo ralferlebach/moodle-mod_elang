@@ -118,8 +118,6 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="gapid" TYPE="foreign" FIELDS="gapid" REFTABLE="elang_gap" REFFIELDS="id"/>
       </KEYS>
-      <INDEXES>
-      </INDEXES>
     </TABLE>
 
     <TABLE NAME="elang_gaphint" COMMENT="Graded hint levels for a gap">

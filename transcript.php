@@ -41,16 +41,50 @@ require_capability('mod/elang:exporttranscript', $context);
 $version = (new \mod_elang\local\domain\version_manager())->get_published((int) $elang->id);
 $name = clean_filename(format_string($elang->name));
 
-if ($format === 'pdf' || $format === 'txt') {
+if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 'odt') {
     if ($version === null) {
         throw new moodle_exception('error:nopublishedversion', 'mod_elang');
     }
 
-    $text = (new \mod_elang\local\export\transcript_exporter())->plain_text((int) $version->id);
+    $exporter = new \mod_elang\local\export\transcript_exporter();
 
     if ($format === 'txt') {
-        send_file($text, $name . '.txt', 0, 0, true, true, 'text/plain; charset=utf-8');
+        send_file(
+            $exporter->plain_text((int) $version->id),
+            $name . '.txt',
+            0,
+            0,
+            true,
+            true,
+            'text/plain; charset=utf-8'
+        );
     }
+
+    if ($format === 'docx') {
+        $bytes = (new \mod_elang\local\export\docx_writer())->build(
+            format_string($elang->name),
+            $exporter->paragraphs((int) $version->id)
+        );
+        send_file(
+            $bytes,
+            $name . '.docx',
+            0,
+            0,
+            true,
+            true,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+    }
+
+    if ($format === 'odt') {
+        $bytes = (new \mod_elang\local\export\odt_writer())->build(
+            format_string($elang->name),
+            $exporter->paragraphs((int) $version->id)
+        );
+        send_file($bytes, $name . '.odt', 0, 0, true, true, 'application/vnd.oasis.opendocument.text');
+    }
+
+    $text = $exporter->plain_text((int) $version->id);
 
     require_once($CFG->libdir . '/pdflib.php');
     $pdf = new pdf();
@@ -81,8 +115,14 @@ if ($version === null) {
 } else {
     $pdfurl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'pdf']);
     $txturl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'txt']);
+    $docxurl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'docx']);
+    $odturl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'odt']);
     echo html_writer::div(
         html_writer::link($pdfurl, get_string('export:pdf', 'mod_elang'))
+        . ' · '
+        . html_writer::link($docxurl, get_string('export:docx', 'mod_elang'))
+        . ' · '
+        . html_writer::link($odturl, get_string('export:odt', 'mod_elang'))
         . ' · '
         . html_writer::link($txturl, get_string('export:text', 'mod_elang'))
     );

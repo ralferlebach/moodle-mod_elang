@@ -14,988 +14,124 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Exercise content editor.
+ * Editor bootstrap for mod_elang.
  *
- * Loads the draft version through the external API, renders its cues as an
- * editable list, and drives subtitle import, saving and publishing. This is the
- * editor foundation: cue timings and transcripts can be edited, cues added,
- * removed and imported from WebVTT/SubRip, and the draft saved (with its
- * revision as an optimistic-concurrency token) or validated and published.
- * Existing gaps are preserved and round-tripped untouched; gap authoring and
- * the media panel are layered on in later slices.
+ * This is the idiomatic Moodle (AMD/ES6) entry point. It is deliberately thin:
+ * it resolves the language strings via core/str, builds an AJAX transport via
+ * core/ajax, and then loads the separately bundled React editor
+ * (mod_elang/editor_lazy, built from js/src by build.mjs) and hands it a mount
+ * target plus the injected dependencies.
+ *
+ * React itself cannot be built through Moodle's Grunt/AMD pipeline on 4.5-5.1
+ * (core provides no React runtime there), so the React app is bundled
+ * separately into amd/build/editor_lazy.min.js. From Moodle 5.2 onwards, where
+ * React ships in core, this module can later be simplified to mount through
+ * the core runtime instead of loading the standalone bundle.
  *
  * @module     mod_elang/editor
  * @copyright  2026 Ralf Erlebach
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import Ajax from 'core/ajax';
-import {getString, getStrings} from 'core/str';
+import {get_strings as getStrings} from 'core/str';
+import {call as fetchMany} from 'core/ajax';
 import Log from 'core/log';
 
-const SELECTORS = {
-    EDITOR: '[data-region="mod_elang/editor"]',
-    STATUS: '[data-region="status"]',
-    CUES: '[data-region="cues"]',
-    IMPORTTEXT: '[data-region="importtext"]',
-    SAVE: '[data-action="save"]',
-    PUBLISH: '[data-action="publish"]',
-    ADDCUE: '[data-action="addcue"]',
-    IMPORT: '[data-action="import"]',
-    CURRENTMEDIA: '[data-region="currentmedia"]',
-    MEDIAKIND: '[data-region="mediakind"]',
-    MEDIAURLFIELD: '[data-region="mediaurlfield"]',
-    MEDIAURLINPUT: '[data-region="mediaurlinput"]',
-    MEDIAPROVIDERFIELDS: '[data-region="mediaproviderfields"]',
-    MEDIAPROVIDERINPUT: '[data-region="mediaproviderinput"]',
-    MEDIAPROVIDERREFINPUT: '[data-region="mediaproviderrefinput"]',
-    SAVEMEDIA: '[data-action="savemedia"]',
-    MEDIAPREVIEW: '[data-region="mediapreview"]',
-    TIMELINE: '[data-region="timeline"]',
-};
-
-// Moodle FORMAT_PLAIN, used for cues the editor creates.
-const FORMAT_PLAIN = 2;
-
-// Module-level state for the single editor on the page.
-let versionid = null;
-const state = {revision: 0, cues: []};
-const strings = {};
-
-// The media preview element (when the version has a playable direct medium),
-// the timeline's total duration in ms, and the current cue blocks on it.
-let mediaEl = null;
-let timelineTotal = 1;
-let timelineBlocks = [];
+/** @type {string[]} Editor string keys, kept in sync with lang/en/elang.php. */
+const STRING_KEYS = [
+    'editor:addcue', 'editor:addgap', 'editor:addhint', 'editor:addvariant',
+    'editor:algoexact', 'editor:algorithm', 'editor:algowordrecognized', 'editor:answers',
+    'editor:captureend', 'editor:capturestart', 'editor:currentmedia', 'editor:deletecue',
+    'editor:deletegap', 'editor:endtime', 'editor:gaprange', 'editor:hints', 'editor:hinttext',
+    'editor:hinttype', 'editor:hinttype_firstletter', 'editor:hinttype_partial', 'editor:hinttype_solution',
+    'editor:hinttype_text', 'editor:hinttype_translation', 'editor:hinttype_wordlength',
+    'editor:import', 'editor:importedcues', 'editor:importhint',
+    'editor:loaderror', 'editor:loading', 'editor:media', 'editor:mediafile', 'editor:mediakind',
+    'editor:medianone', 'editor:mediaprovider', 'editor:mediaproviderref', 'editor:mediaproviderrefhint',
+    'editor:mediasaved',
+    'editor:mediaurl', 'editor:nocues', 'editor:nogaps', 'editor:nomedia', 'editor:parsegaps',
+    'editor:penalty', 'editor:publish', 'editor:published', 'editor:removehint',
+    'editor:removevariant', 'editor:save', 'editor:saved', 'editor:saveerror',
+    'editor:savemedia', 'editor:selecttext', 'editor:solution', 'editor:starttime',
+    'editor:transcript', 'editor:uploadmedia',
+];
 
 /**
- * Call an external function and return its promise.
+ * Load all editor strings and return a key → text map.
  *
- * @param {String} methodname The external function name
- * @param {Object} args The call arguments
- * @returns {Promise} The call's promise
- */
-const callWs = (methodname, args) => Ajax.call([{methodname, args}])[0];
-
-/**
- * Write a message into the status region.
- *
- * @param {String} text The message to show
- * @returns {void}
- */
-const setStatus = (text) => {
-    const region = document.querySelector(SELECTORS.STATUS);
-    if (region) {
-        region.textContent = text;
-    }
-};
-
-/**
- * Generate a version-stable key for a new cue or gap: an alphanumeric string
- * (matching PARAM_ALPHANUMEXT) of at most 40 characters.
- *
- * @param {String} prefix A short prefix identifying the kind of key
- * @returns {String} The generated key
- */
-const newKey = (prefix) => {
-    const random = Math.random().toString(36).slice(2, 10);
-    return (prefix + Date.now().toString(36) + random).slice(0, 40);
-};
-
-/**
- * Load and cache the editor's dynamic UI strings.
- *
- * @returns {Promise} Resolves once the strings are cached
+ * @returns {Promise<Object.<string, string>>} Resolved strings.
  */
 const loadStrings = async() => {
-    const keys = [
-        'editor:transcript', 'editor:starttime', 'editor:endtime', 'editor:gaps', 'editor:nogaps',
-        'editor:nocues', 'editor:deletecue', 'editor:loaderror', 'editor:saved', 'editor:saveerror',
-        'editor:published', 'editor:currentmedia', 'editor:nomedia', 'editor:mediafile', 'editor:mediasaved',
-        'editor:solution', 'editor:algorithm', 'editor:algoexact', 'editor:algowordrecognized', 'editor:answers',
-        'editor:addvariant', 'editor:removevariant', 'editor:addgap', 'editor:deletegap', 'editor:gaprange',
-        'editor:selecttext', 'editor:hints', 'editor:addhint', 'editor:removehint', 'editor:hinttype',
-        'editor:hinttext', 'editor:penalty', 'editor:hinttype_text', 'editor:hinttype_firstletter',
-        'editor:hinttype_wordlength', 'editor:hinttype_partial', 'editor:hinttype_solution',
-        'editor:hinttype_translation', 'editor:capturestart', 'editor:captureend',
-    ];
-    const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
-    keys.forEach((key, index) => {
-        strings[key] = values[index];
+    const requests = STRING_KEYS.map((key) => ({key, component: 'mod_elang'}));
+    const values = await getStrings(requests);
+    const map = {};
+    STRING_KEYS.forEach((key, index) => {
+        map[key] = values[index];
     });
+    return map;
 };
 
 /**
- * Build a number input wired to update the model on input.
+ * Build a transport bound to Moodle's core/ajax, so the React app never needs
+ * to know about Moodle's web service internals.
  *
- * @param {Number} value The initial value
- * @param {Function} onchange Called with the parsed integer whenever it changes
- * @returns {Element} The input element
+ * @returns {function(string, Object): Promise<*>} A (methodname, args) transport.
  */
-const numberInput = (value, onchange) => {
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'form-control d-inline-block';
-    input.style.width = '8rem';
-    input.min = '0';
-    input.value = String(value);
-    input.addEventListener('input', () => {
-        onchange(parseInt(input.value, 10) || 0);
-    });
-    return input;
+const buildTransport = () => (methodname, args) => {
+    const [promise] = fetchMany([{methodname, args}]);
+    return promise;
 };
 
 /**
- * Wrap an element in a label carrying the given text.
+ * Load the prebuilt React editor AMD module.
  *
- * @param {String} text The label text
- * @param {Element} element The element to label
- * @returns {Element} The label element
- */
-const labelled = (text, element) => {
-    const label = document.createElement('label');
-    label.className = 'mr-2';
-    label.appendChild(document.createTextNode(text + ' '));
-    label.appendChild(element);
-    return label;
-};
-
-/**
- * Build a small link-styled button.
+ * Using the module loader (rather than injecting a <script> tag) keeps the load
+ * inside Moodle's JS tracking, so Behat's wait_for_pending_js resolves cleanly.
  *
- * @param {String} text The button label
- * @param {Function} onclick The click handler
- * @returns {Element} The button element
+ * @returns {Promise<{mount: function(HTMLElement, Object): void}>} The editor API.
  */
-const linkButton = (text, onclick) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn btn-link btn-sm p-0 mr-3';
-    button.textContent = text;
-    button.addEventListener('click', onclick);
-    return button;
-};
-
-/**
- * Build one accepted-answer variant row, wired to mutate the answer in place.
- *
- * @param {Object} gap The parent gap
- * @param {Object} answer The answer model object
- * @param {Element} container The answers container, for re-rendering on removal
- * @returns {Element} The variant row
- */
-const buildAnswerRow = (gap, answer, container) => {
-    const row = document.createElement('div');
-    row.className = 'mb-1';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'form-control d-inline-block w-75 mr-2';
-    input.value = answer.answer;
-    input.addEventListener('input', () => {
-        answer.answer = input.value;
-    });
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn btn-link text-danger p-0';
-    remove.textContent = strings['editor:removevariant'];
-    remove.addEventListener('click', () => {
-        gap.answers = gap.answers.filter((candidate) => candidate !== answer);
-        renderAnswers(gap, container);
-    });
-
-    row.appendChild(input);
-    row.appendChild(remove);
-    return row;
-};
-
-/**
- * Render a gap's accepted-answer variants into a container.
- *
- * @param {Object} gap The gap whose answers are rendered
- * @param {Element} container The target container
- * @returns {void}
- */
-const renderAnswers = (gap, container) => {
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-    gap.answers.forEach((answer) => container.appendChild(buildAnswerRow(gap, answer, container)));
-};
-
-// The hint types the editor offers; the player shows each hint's text.
-const HINT_TYPES = ['text', 'firstletter', 'wordlength', 'partial', 'solution', 'translation'];
-
-/**
- * Build one hint row: its level, type, text and penalty, wired to mutate the
- * hint in place.
- *
- * @param {Object} gap The parent gap
- * @param {Object} hint The hint model object
- * @param {Element} container The hints container, for re-rendering on removal
- * @returns {Element} The hint row
- */
-const buildHintRow = (gap, hint, container) => {
-    const row = document.createElement('div');
-    row.className = 'mod_elang-editor-hint border rounded p-2 mt-1';
-
-    const level = document.createElement('span');
-    level.className = 'badge badge-secondary mr-2';
-    level.textContent = String(hint.level);
-
-    const type = document.createElement('select');
-    type.className = 'form-control d-inline-block w-auto mr-2';
-    type.setAttribute('aria-label', strings['editor:hinttype']);
-    HINT_TYPES.forEach((value) => {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = strings['editor:hinttype_' + value];
-        option.selected = hint.hinttype === value;
-        type.appendChild(option);
-    });
-    type.addEventListener('change', () => {
-        hint.hinttype = type.value;
-    });
-
-    const text = document.createElement('input');
-    text.type = 'text';
-    text.className = 'form-control d-inline-block w-50 mr-2';
-    text.value = hint.hinttext;
-    text.placeholder = strings['editor:hinttext'];
-    text.setAttribute('aria-label', strings['editor:hinttext']);
-    text.addEventListener('input', () => {
-        hint.hinttext = text.value;
-    });
-
-    const penalty = document.createElement('input');
-    penalty.type = 'number';
-    penalty.className = 'form-control d-inline-block mr-2';
-    penalty.style.width = '6rem';
-    penalty.step = '0.1';
-    penalty.min = '0';
-    penalty.value = String(hint.penalty);
-    penalty.setAttribute('aria-label', strings['editor:penalty']);
-    penalty.addEventListener('input', () => {
-        hint.penalty = parseFloat(penalty.value) || 0;
-    });
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn btn-link text-danger p-0';
-    remove.textContent = strings['editor:removehint'];
-    remove.addEventListener('click', () => {
-        gap.hints = gap.hints.filter((candidate) => candidate !== hint);
-        renderHints(gap, container);
-    });
-
-    row.appendChild(level);
-    row.appendChild(type);
-    row.appendChild(text);
-    row.appendChild(penalty);
-    row.appendChild(remove);
-    return row;
-};
-
-/**
- * Render a gap's hints into a container, re-sequencing their levels to a
- * contiguous 1..n so a published version always passes validation.
- *
- * @param {Object} gap The gap whose hints are rendered
- * @param {Element} container The target container
- * @returns {void}
- */
-const renderHints = (gap, container) => {
-    gap.hints.forEach((hint, index) => {
-        hint.level = index + 1;
-    });
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-    gap.hints.forEach((hint) => container.appendChild(buildHintRow(gap, hint, container)));
-};
-
-/**
- * Build the editable row for one gap: its position, solution, matching
- * algorithm, accepted variants and hints.
- *
- * @param {Object} cue The parent cue
- * @param {Object} gap The gap model object
- * @param {Function} rerenderGaps Re-renders the cue's gap list after removal
- * @returns {Element} The gap row
- */
-const buildGapRow = (cue, gap, rerenderGaps) => {
-    const row = document.createElement('div');
-    row.className = 'mod_elang-editor-gap border rounded p-2 mt-2';
-
-    const range = document.createElement('div');
-    range.className = 'text-muted small';
-    range.textContent = strings['editor:gaprange'] + ': ' + gap.charstart + '–' + (gap.charstart + gap.charlength);
-
-    const sollabel = document.createElement('label');
-    sollabel.className = 'd-block';
-    sollabel.textContent = strings['editor:solution'];
-    const solinput = document.createElement('input');
-    solinput.type = 'text';
-    solinput.className = 'form-control';
-    solinput.value = gap.solution;
-    solinput.addEventListener('input', () => {
-        gap.solution = solinput.value;
-    });
-    sollabel.appendChild(solinput);
-
-    const algolabel = document.createElement('label');
-    algolabel.className = 'd-block';
-    algolabel.textContent = strings['editor:algorithm'];
-    const algoselect = document.createElement('select');
-    algoselect.className = 'form-control';
-    [['exact', strings['editor:algoexact']], ['wordrecognized', strings['editor:algowordrecognized']]].forEach((pair) => {
-        const option = document.createElement('option');
-        option.value = pair[0];
-        option.textContent = pair[1];
-        option.selected = gap.gradingalgorithm === pair[0];
-        algoselect.appendChild(option);
-    });
-    algoselect.addEventListener('change', () => {
-        gap.gradingalgorithm = algoselect.value;
-    });
-    algolabel.appendChild(algoselect);
-
-    const answerslabel = document.createElement('p');
-    answerslabel.className = 'mb-1 mt-2';
-    answerslabel.textContent = strings['editor:answers'];
-    const answers = document.createElement('div');
-    renderAnswers(gap, answers);
-
-    const addvariant = document.createElement('button');
-    addvariant.type = 'button';
-    addvariant.className = 'btn btn-link p-0';
-    addvariant.textContent = strings['editor:addvariant'];
-    addvariant.addEventListener('click', () => {
-        gap.answers.push({sortorder: gap.answers.length + 1, answer: '', isregex: 0});
-        renderAnswers(gap, answers);
-    });
-
-    const hintslabel = document.createElement('p');
-    hintslabel.className = 'mb-1 mt-2';
-    hintslabel.textContent = strings['editor:hints'];
-    const hints = document.createElement('div');
-    renderHints(gap, hints);
-
-    const addhint = document.createElement('button');
-    addhint.type = 'button';
-    addhint.className = 'btn btn-link p-0';
-    addhint.textContent = strings['editor:addhint'];
-    addhint.addEventListener('click', () => {
-        gap.hints.push({level: gap.hints.length + 1, hinttype: 'text', hinttext: '', penalty: 0});
-        renderHints(gap, hints);
-    });
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn btn-link text-danger p-0 d-block';
-    remove.textContent = strings['editor:deletegap'];
-    remove.addEventListener('click', () => {
-        cue.gaps = cue.gaps.filter((candidate) => candidate !== gap);
-        rerenderGaps();
-    });
-
-    row.appendChild(range);
-    row.appendChild(sollabel);
-    row.appendChild(algolabel);
-    row.appendChild(answerslabel);
-    row.appendChild(answers);
-    row.appendChild(addvariant);
-    row.appendChild(hintslabel);
-    row.appendChild(hints);
-    row.appendChild(addhint);
-    row.appendChild(remove);
-    return row;
-};
-
-/**
- * Render a cue's gaps into a container, or an empty note when it has none.
- *
- * @param {Object} cue The cue whose gaps are rendered
- * @param {Element} container The target container
- * @returns {void}
- */
-const renderGaps = (cue, container) => {
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-    if (cue.gaps.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'text-muted small mb-0';
-        empty.textContent = strings['editor:nogaps'];
-        container.appendChild(empty);
-        return;
-    }
-    cue.gaps.forEach((gap) => container.appendChild(buildGapRow(cue, gap, () => renderGaps(cue, container))));
-};
-
-/**
- * Create a gap from the current selection in a cue's transcript, defaulting the
- * solution to the selected text.
- *
- * @param {Object} cue The cue being edited
- * @param {Element} textarea The cue's transcript textarea
- * @param {Function} rerenderGaps Re-renders the cue's gap list afterwards
- * @returns {void}
- */
-const addGapFromSelection = (cue, textarea, rerenderGaps) => {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    if (start === end) {
-        setStatus(strings['editor:selecttext']);
-        return;
-    }
-    cue.gaps.push({
-        gapkey: newKey('g'),
-        sortorder: cue.gaps.length + 1,
-        charstart: start,
-        charlength: end - start,
-        solution: textarea.value.substring(start, end),
-        gradingalgorithm: 'exact',
-        maxlength: 0,
-        linkurl: '',
-        answers: [],
-        hints: [],
-    });
-    rerenderGaps();
-};
-
-/**
- * Scroll a cue's editor row into view and flash it.
- *
- * @param {Object} cue The cue to focus
- * @returns {void}
- */
-const focusCue = (cue) => {
-    const row = document.querySelector('[data-cuekey="' + cue.cuekey + '"]');
-    if (!row) {
-        return;
-    }
-    row.scrollIntoView({behavior: 'smooth', block: 'center'});
-    row.classList.add('focused');
-    window.setTimeout(() => {
-        row.classList.remove('focused');
-    }, 1500);
-};
-
-/**
- * Rebuild the timeline strip from the current cues, positioning each cue by its
- * time. Clicking a block focuses its cue and seeks the media there.
- *
- * @returns {void}
- */
-const renderTimeline = () => {
-    const container = document.querySelector(SELECTORS.TIMELINE);
-    if (!container) {
-        return;
-    }
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-
-    let maxend = 0;
-    state.cues.forEach((cue) => {
-        if (cue.endtime > maxend) {
-            maxend = cue.endtime;
+const loadEditor = () => new Promise((resolve, reject) => {
+    require(['mod_elang/editor_lazy'], (module) => {
+        const editor = module && module.default ? module.default : module;
+        if (editor && typeof editor.mount === 'function') {
+            resolve(editor);
+        } else {
+            reject(new Error('eLang editor module did not expose mount().'));
         }
-    });
-    const duration = (mediaEl && mediaEl.duration) ? Math.round(mediaEl.duration * 1000) : 0;
-    timelineTotal = Math.max(maxend, duration, 1);
-    timelineBlocks = [];
-
-    state.cues.forEach((cue) => {
-        const block = document.createElement('div');
-        block.className = 'mod_elang-editor-timeline-cue';
-        block.style.left = (cue.starttime / timelineTotal * 100) + '%';
-        block.style.width = (Math.max(cue.endtime - cue.starttime, 0) / timelineTotal * 100) + '%';
-        block.textContent = cue.transcript.slice(0, 20);
-        block.addEventListener('click', () => {
-            focusCue(cue);
-            if (mediaEl) {
-                mediaEl.currentTime = cue.starttime / 1000;
-            }
-        });
-        container.appendChild(block);
-        timelineBlocks.push({el: block, start: cue.starttime, end: cue.endtime});
-    });
-
-    const playhead = document.createElement('div');
-    playhead.className = 'mod_elang-editor-timeline-playhead';
-    playhead.setAttribute('data-region', 'playhead');
-    container.appendChild(playhead);
-};
-
-/**
- * Move the playhead and highlight the cue block(s) under the current playback
- * position.
- *
- * @returns {void}
- */
-const updatePlayhead = () => {
-    if (!mediaEl) {
-        return;
-    }
-    const currentms = mediaEl.currentTime * 1000;
-    const container = document.querySelector(SELECTORS.TIMELINE);
-    if (container) {
-        const playhead = container.querySelector('[data-region="playhead"]');
-        if (playhead) {
-            playhead.style.left = (currentms / timelineTotal * 100) + '%';
-        }
-    }
-    timelineBlocks.forEach((block) => {
-        block.el.classList.toggle('active', currentms >= block.start && currentms < block.end);
-    });
-};
-
-/**
- * Show the media preview when the version has a playable direct medium (a file
- * or url), and keep the timeline in sync with its playback.
- *
- * @param {Object} content The version content returned by get_version_content
- * @returns {void}
- */
-const loadMediaPreview = (content) => {
-    const video = document.querySelector(SELECTORS.MEDIAPREVIEW);
-    if (!video) {
-        return;
-    }
-    const src = content.mediafileurl || content.mediaurl || '';
-    if ((content.mediakind !== 'file' && content.mediakind !== 'url') || src === '') {
-        return;
-    }
-    video.src = src;
-    video.hidden = false;
-    mediaEl = video;
-    video.addEventListener('timeupdate', () => {
-        updatePlayhead();
-    });
-    video.addEventListener('loadedmetadata', () => {
-        renderTimeline();
-    });
-};
-
-/**
- * Build the editable row for one cue, wired to mutate the cue in place.
- *
- * @param {Object} cue The cue model object
- * @returns {Element} The cue row element
- */
-const buildCueRow = (cue) => {
-    const row = document.createElement('div');
-    row.className = 'mod_elang-editor-cue card mb-2';
-    row.dataset.cuekey = cue.cuekey;
-
-    const body = document.createElement('div');
-    body.className = 'card-body';
-
-    const startinput = numberInput(cue.starttime, (value) => {
-        cue.starttime = value;
-        renderTimeline();
-    });
-    const endinput = numberInput(cue.endtime, (value) => {
-        cue.endtime = value;
-        renderTimeline();
-    });
-
-    const timing = document.createElement('div');
-    timing.className = 'mb-2';
-    timing.appendChild(labelled(strings['editor:starttime'], startinput));
-    timing.appendChild(linkButton(strings['editor:capturestart'], () => {
-        if (mediaEl) {
-            cue.starttime = Math.round(mediaEl.currentTime * 1000);
-            startinput.value = String(cue.starttime);
-            renderTimeline();
-        }
-    }));
-    timing.appendChild(labelled(strings['editor:endtime'], endinput));
-    timing.appendChild(linkButton(strings['editor:captureend'], () => {
-        if (mediaEl) {
-            cue.endtime = Math.round(mediaEl.currentTime * 1000);
-            endinput.value = String(cue.endtime);
-            renderTimeline();
-        }
-    }));
-
-    const label = document.createElement('label');
-    label.className = 'd-block';
-    label.textContent = strings['editor:transcript'];
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'form-control';
-    textarea.rows = 2;
-    textarea.value = cue.transcript;
-    textarea.addEventListener('input', () => {
-        cue.transcript = textarea.value;
-    });
-    label.appendChild(textarea);
-
-    const gapscontainer = document.createElement('div');
-    gapscontainer.className = 'mod_elang-editor-gaps mt-2';
-    renderGaps(cue, gapscontainer);
-
-    const addgap = document.createElement('button');
-    addgap.type = 'button';
-    addgap.className = 'btn btn-link p-0 d-block';
-    addgap.textContent = strings['editor:addgap'];
-    addgap.addEventListener('click', () => {
-        addGapFromSelection(cue, textarea, () => renderGaps(cue, gapscontainer));
-    });
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn btn-link text-danger p-0';
-    remove.textContent = strings['editor:deletecue'];
-    remove.addEventListener('click', () => {
-        state.cues = state.cues.filter((candidate) => candidate !== cue);
-        renderCues();
-    });
-
-    body.appendChild(timing);
-    body.appendChild(label);
-    body.appendChild(gapscontainer);
-    body.appendChild(addgap);
-    body.appendChild(remove);
-    row.appendChild(body);
-    return row;
-};
-
-/**
- * Render the cue list from the current model, replacing whatever was there.
- *
- * @returns {void}
- */
-const renderCues = () => {
-    const container = document.querySelector(SELECTORS.CUES);
-    if (!container) {
-        return;
-    }
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-
-    if (state.cues.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'text-muted';
-        empty.textContent = strings['editor:nocues'];
-        container.appendChild(empty);
-    } else {
-        state.cues.forEach((cue) => container.appendChild(buildCueRow(cue)));
-    }
-
-    renderTimeline();
-};
-
-/**
- * Persist the current draft, sending the last seen revision as an
- * optimistic-concurrency token and adopting the revision the save returns.
- *
- * @returns {Promise} Resolves once the draft is saved
- */
-const saveDraft = async() => {
-    state.cues.forEach((cue, index) => {
-        cue.sortorder = index + 1;
-    });
-    const result = await callWs('mod_elang_save_draft_version', {
-        versionid: versionid,
-        expectedrevision: state.revision,
-        cues: state.cues,
-    });
-    state.revision = result.revision;
-};
-
-/**
- * Save the draft in response to the toolbar button.
- *
- * @returns {Promise} Resolves once the save attempt has settled
- */
-const handleSave = async() => {
-    try {
-        await saveDraft();
-        setStatus(strings['editor:saved']);
-    } catch (error) {
-        Log.error(error);
-        setStatus(error.message || strings['editor:saveerror']);
-    }
-};
-
-/**
- * Save then validate-and-publish the draft, reloading afterwards so a fresh
- * draft is branched for further editing.
- *
- * @returns {Promise} Resolves once the publish attempt has settled
- */
-const handlePublish = async() => {
-    try {
-        await saveDraft();
-        await callWs('mod_elang_publish_version', {versionid: versionid});
-        setStatus(strings['editor:published']);
-        window.setTimeout(() => window.location.reload(), 1200);
-    } catch (error) {
-        Log.error(error);
-        setStatus(error.message || strings['editor:saveerror']);
-    }
-};
-
-/**
- * Append a fresh empty cue and re-render.
- *
- * @returns {void}
- */
-const handleAddCue = () => {
-    state.cues.push({
-        cuekey: newKey('c'),
-        sortorder: state.cues.length + 1,
-        starttime: 0,
-        endtime: 0,
-        transcript: '',
-        transcriptformat: FORMAT_PLAIN,
-        gaps: [],
-    });
-    renderCues();
-};
-
-/**
- * Parse the pasted subtitle text through the importer and append the resulting
- * cues to the draft.
- *
- * @returns {Promise} Resolves once the import attempt has settled
- */
-const handleImport = async() => {
-    const textarea = document.querySelector(SELECTORS.IMPORTTEXT);
-    if (!textarea || textarea.value.trim() === '') {
-        return;
-    }
-    try {
-        const result = await callWs('mod_elang_preview_import', {
-            versionid: versionid,
-            subtitles: textarea.value,
-        });
-        result.cues.forEach((cue) => {
-            state.cues.push({
-                cuekey: newKey('c'),
-                sortorder: state.cues.length + 1,
-                starttime: cue.starttime,
-                endtime: cue.endtime,
-                transcript: cue.transcript,
-                transcriptformat: cue.transcriptformat,
-                gaps: [],
-            });
-        });
-        textarea.value = '';
-        renderCues();
-        setStatus(await getString('editor:importedcues', 'mod_elang', result.cuecount));
-    } catch (error) {
-        Log.error(error);
-        setStatus(error.message || strings['editor:saveerror']);
-    }
-};
-
-/**
- * Render the current-medium line, with a link when there is a file or url.
- *
- * @param {Object} media A media descriptor (mediakind, mediaurl, media file fields, ...)
- * @returns {void}
- */
-const renderCurrentMedia = (media) => {
-    const region = document.querySelector(SELECTORS.CURRENTMEDIA);
-    if (!region) {
-        return;
-    }
-    while (region.firstChild) {
-        region.removeChild(region.firstChild);
-    }
-
-    const prefix = document.createElement('span');
-    prefix.textContent = strings['editor:currentmedia'] + ' ';
-    region.appendChild(prefix);
-
-    if (media.mediakind === 'file' && media.mediafileurl) {
-        const link = document.createElement('a');
-        link.href = media.mediafileurl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = strings['editor:mediafile'] + ' (' + media.mediafilename + ')';
-        region.appendChild(link);
-    } else if (media.mediakind === 'url' && media.mediaurl) {
-        const link = document.createElement('a');
-        link.href = media.mediaurl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = media.mediaurl;
-        region.appendChild(link);
-    } else if (media.mediakind === 'provider') {
-        const text = document.createElement('span');
-        text.textContent = media.mediaprovider + ' (' + media.mediaproviderref + ')';
-        region.appendChild(text);
-    } else {
-        const text = document.createElement('span');
-        text.textContent = strings['editor:nomedia'];
-        region.appendChild(text);
-    }
-};
-
-/**
- * Show only the media fields relevant to the selected medium type.
- *
- * @returns {void}
- */
-const toggleMediaFields = () => {
-    const select = document.querySelector(SELECTORS.MEDIAKIND);
-    if (!select) {
-        return;
-    }
-    const urlfield = document.querySelector(SELECTORS.MEDIAURLFIELD);
-    if (urlfield) {
-        urlfield.style.display = select.value === 'url' ? '' : 'none';
-    }
-    const providerfields = document.querySelector(SELECTORS.MEDIAPROVIDERFIELDS);
-    if (providerfields) {
-        providerfields.style.display = select.value === 'provider' ? '' : 'none';
-    }
-};
-
-/**
- * Fill the media panel from a loaded version's descriptor. A file medium is
- * shown in the current-medium line but not offered in the type selector, which
- * only sets url, provider or none until the upload panel is added.
- *
- * @param {Object} content The version content returned by get_version_content
- * @returns {void}
- */
-const populateMedia = (content) => {
-    const select = document.querySelector(SELECTORS.MEDIAKIND);
-    if (select) {
-        select.value = (content.mediakind === 'url' || content.mediakind === 'provider') ? content.mediakind : '';
-    }
-    const urlinput = document.querySelector(SELECTORS.MEDIAURLINPUT);
-    if (urlinput) {
-        urlinput.value = content.mediaurl || '';
-    }
-    const providerinput = document.querySelector(SELECTORS.MEDIAPROVIDERINPUT);
-    if (providerinput) {
-        providerinput.value = content.mediaprovider || '';
-    }
-    const providerrefinput = document.querySelector(SELECTORS.MEDIAPROVIDERREFINPUT);
-    if (providerrefinput) {
-        providerrefinput.value = content.mediaproviderref || '';
-    }
-    renderCurrentMedia(content);
-    toggleMediaFields();
-};
-
-/**
- * Set the draft's medium from the media panel.
- *
- * @returns {Promise} Resolves once the save attempt has settled
- */
-const handleSaveMedia = async() => {
-    const select = document.querySelector(SELECTORS.MEDIAKIND);
-    if (!select) {
-        return;
-    }
-    const urlinput = document.querySelector(SELECTORS.MEDIAURLINPUT);
-    const providerinput = document.querySelector(SELECTORS.MEDIAPROVIDERINPUT);
-    const providerrefinput = document.querySelector(SELECTORS.MEDIAPROVIDERREFINPUT);
-    try {
-        const media = await callWs('mod_elang_set_draft_media', {
-            versionid: versionid,
-            kind: select.value,
-            url: urlinput ? urlinput.value : '',
-            provider: providerinput ? providerinput.value : '',
-            providerref: providerrefinput ? providerrefinput.value : '',
-        });
-        renderCurrentMedia(media);
-        setStatus(strings['editor:mediasaved']);
-    } catch (error) {
-        Log.error(error);
-        setStatus(error.message || strings['editor:saveerror']);
-    }
-};
-
-/**
- * Wire the toolbar buttons to their handlers.
- *
- * @param {Element} editor The editor root element
- * @returns {void}
- */
-const wireToolbar = (editor) => {
-    const save = editor.querySelector(SELECTORS.SAVE);
-    if (save) {
-        save.addEventListener('click', () => {
-            handleSave();
-        });
-    }
-    const publish = editor.querySelector(SELECTORS.PUBLISH);
-    if (publish) {
-        publish.addEventListener('click', () => {
-            handlePublish();
-        });
-    }
-    const addcue = editor.querySelector(SELECTORS.ADDCUE);
-    if (addcue) {
-        addcue.addEventListener('click', () => {
-            handleAddCue();
-        });
-    }
-    const importbtn = editor.querySelector(SELECTORS.IMPORT);
-    if (importbtn) {
-        importbtn.addEventListener('click', () => {
-            handleImport();
-        });
-    }
-    const mediakind = editor.querySelector(SELECTORS.MEDIAKIND);
-    if (mediakind) {
-        mediakind.addEventListener('change', () => {
-            toggleMediaFields();
-        });
-    }
-    const savemedia = editor.querySelector(SELECTORS.SAVEMEDIA);
-    if (savemedia) {
-        savemedia.addEventListener('click', () => {
-            handleSaveMedia();
-        });
-    }
-};
+    }, reject);
+});
 
 /**
  * Initialise the editor for a draft version.
  *
  * @param {Number} draftVersionId The draft elang_version id to edit
- * @returns {Promise} Resolves once the draft has loaded (or failed to)
+ * @returns {Promise} Resolves once the editor is mounted (or failed to)
  */
 export const init = async(draftVersionId) => {
-    versionid = draftVersionId;
-
-    const editor = document.querySelector(SELECTORS.EDITOR);
-    if (!editor) {
+    const element = document.querySelector('[data-region="editorroot"]');
+    if (!element) {
         return;
     }
 
     try {
-        await loadStrings();
+        const [strings, editor] = await Promise.all([loadStrings(), loadEditor()]);
+        editor.mount(element, {
+            versionid: draftVersionId,
+            mediauploadurl: element.dataset.mediauploadurl || '',
+            callService: buildTransport(),
+            getString: (key) => strings[key],
+        });
     } catch (error) {
         Log.error(error);
-    }
-
-    wireToolbar(editor);
-
-    try {
-        const content = await callWs('mod_elang_get_version_content', {versionid: versionid});
-        state.revision = content.revision;
-        state.cues = content.cues;
-        loadMediaPreview(content);
-        renderCues();
-        populateMedia(content);
-        setStatus('');
-    } catch (error) {
-        Log.error(error);
-        const detail = error && error.message ? (' [' + error.message + ']') : '';
-        setStatus((strings['editor:loaderror'] || '') + detail);
+        const status = element.querySelector('[data-region="status"]');
+        if (status) {
+            try {
+                const [loaderror] = await getStrings([{key: 'editor:loaderror', component: 'mod_elang'}]);
+                status.textContent = loaderror;
+            } catch (stringerror) {
+                Log.error(stringerror);
+                status.textContent = 'The editor could not be loaded.';
+            }
+        }
     }
 };

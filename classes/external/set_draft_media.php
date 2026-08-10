@@ -20,6 +20,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use mod_elang\local\media\provider_registry;
 
 /**
  * Set a draft version's medium: an uploaded file, a url, a provider, or none.
@@ -108,6 +109,17 @@ class set_draft_media extends external_api {
         ]);
 
         self::require_manage_version($versionid);
+
+        if ($kind === 'provider') {
+            if (!provider_registry::is_known($provider)) {
+                throw new \moodle_exception('error:unknownmediaprovider', 'mod_elang', '', $provider);
+            }
+            $normalised = provider_registry::normalise_reference($provider, $providerref);
+            if ($normalised === null) {
+                throw new \moodle_exception('error:invalidproviderref', 'mod_elang', '', $providerref);
+            }
+            $providerref = $normalised;
+        }
 
         $version = self::get_version_manager()->set_draft_media($versionid, [
             'kind' => $kind,

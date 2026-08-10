@@ -23,6 +23,11 @@
 # Tests:
 #   make phpunit      — PHPUnit testsuite for this plugin
 #
+# React authoring frontend (development-only toolchain, see build.mjs):
+#   make react        — bundle the React editor (esbuild → amd/build/editor_lazy.min.js)
+#   make lint-react   — TypeScript type-check (tsc --noEmit)
+#   make test-react   — Jest unit tests for the React/TS sources
+#
 # Paths are auto-detected from the makefile's own location.
 # The plugin lives at <MOODLE_ROOT>/mod/elang/ — always two
 # levels below the Moodle root — so both PLUGIN_DIR and MOODLE_ROOT are
@@ -126,6 +131,33 @@ amd:
 	else \
 		echo "No AMD source files — skipped."; \
 	fi
+
+react:
+	@echo ""
+	@echo "=== React bundle (esbuild -> amd/build/editor_lazy.min.js) ==="
+	@if [ ! -d $(PLUGIN_DIR)/node_modules ]; then \
+		echo "Installing frontend dev dependencies..."; \
+		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	fi
+	@cd $(PLUGIN_DIR) && node build.mjs
+
+lint-react:
+	@echo ""
+	@echo "=== TypeScript type-check (tsc --noEmit) ==="
+	@if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/tsc ]; then \
+		echo "Installing frontend dev dependencies..."; \
+		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	fi
+	@cd $(PLUGIN_DIR) && ./node_modules/.bin/tsc --noEmit
+
+test-react:
+	@echo ""
+	@echo "=== Jest (React/TS unit tests) ==="
+	@if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/jest ]; then \
+		echo "Installing frontend dev dependencies..."; \
+		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	fi
+	@cd $(PLUGIN_DIR) && ./node_modules/.bin/jest
 
 phpunit:
 	@echo ""

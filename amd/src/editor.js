@@ -87,11 +87,15 @@ const buildTransport = () => (methodname, args) => {
  *
  * Using the module loader (rather than injecting a <script> tag) keeps the load
  * inside Moodle's JS tracking, so Behat's wait_for_pending_js resolves cleanly.
+ * The module id comes from the editor root's data attribute so the bundle it
+ * points at (an esbuild artefact built by build.mjs, declared in
+ * thirdpartylibs.xml) is referenced in exactly one place.
  *
+ * @param {String} moduleName The AMD module id of the bundled editor
  * @returns {Promise<{mount: function(HTMLElement, Object): void}>} The editor API.
  */
-const loadEditor = () => new Promise((resolve, reject) => {
-    require(['mod_elang/editor_lazy'], (module) => {
+const loadEditor = (moduleName) => new Promise((resolve, reject) => {
+    require([moduleName], (module) => {
         const editor = module && module.default ? module.default : module;
         if (editor && typeof editor.mount === 'function') {
             resolve(editor);
@@ -114,7 +118,11 @@ export const init = async(draftVersionId) => {
     }
 
     try {
-        const [strings, editor] = await Promise.all([loadStrings(), loadEditor()]);
+        const moduleName = element.dataset.editormodule;
+        if (!moduleName) {
+            throw new Error('eLang editor root is missing its module reference.');
+        }
+        const [strings, editor] = await Promise.all([loadStrings(), loadEditor(moduleName)]);
         editor.mount(element, {
             versionid: draftVersionId,
             mediauploadurl: element.dataset.mediauploadurl || '',

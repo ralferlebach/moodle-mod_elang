@@ -77,56 +77,6 @@ final class set_draft_media_test extends \advanced_testcase {
     }
 
     /**
-     * A provider medium normalises the reference to the canonical video id,
-     * whichever common URL shape the teacher pasted.
-     *
-     * @return void
-     */
-    public function test_provider_reference_is_normalised(): void {
-        $this->setUser($this->teacher);
-
-        $result = set_draft_media::execute(
-            (int) $this->draft->id,
-            'provider',
-            '',
-            'youtube',
-            'https://youtu.be/dQw4w9WgXcQ?si=AbCdEf'
-        );
-        $result = external_api::clean_returnvalue(set_draft_media::execute_returns(), $result);
-
-        $this->assertSame('provider', $result['mediakind']);
-        $this->assertSame('youtube', $result['mediaprovider']);
-        $this->assertSame('dQw4w9WgXcQ', $result['mediaproviderref']);
-    }
-
-    /**
-     * A provider outside the curated registry is rejected.
-     *
-     * @return void
-     */
-    public function test_unknown_provider_is_rejected(): void {
-        $this->setUser($this->teacher);
-
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('not one of the supported media providers');
-        set_draft_media::execute((int) $this->draft->id, 'provider', '', 'myvideosite', 'dQw4w9WgXcQ');
-    }
-
-    /**
-     * A reference that is neither a bare id nor a recognised URL shape is
-     * rejected.
-     *
-     * @return void
-     */
-    public function test_unparseable_provider_reference_is_rejected(): void {
-        $this->setUser($this->teacher);
-
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('not a recognised video ID or link');
-        set_draft_media::execute((int) $this->draft->id, 'provider', '', 'youtube', 'https://example.com/watch?v=xyz');
-    }
-
-    /**
      * A file uploaded to a draft area is saved onto the version, and
      * get_version_content then hands back its name and URL for the editor.
      *

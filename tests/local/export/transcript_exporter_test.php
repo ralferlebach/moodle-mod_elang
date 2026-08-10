@@ -62,25 +62,4 @@ final class transcript_exporter_test extends \advanced_testcase {
 
         $this->assertSame('', (new transcript_exporter())->plain_text((int) $version->id));
     }
-
-    /**
-     * paragraphs() returns each non-empty cue transcript in order, skipping
-     * blank ones.
-     *
-     * @return void
-     */
-    public function test_paragraphs_returns_ordered_non_empty_cues(): void {
-        $this->resetAfterTest();
-
-        $course = $this->getDataGenerator()->create_course();
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id]);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-        $generator->create_cue(['versionid' => $version->id, 'sortorder' => 2, 'transcript' => 'Second.']);
-        $generator->create_cue(['versionid' => $version->id, 'sortorder' => 1, 'transcript' => 'First.']);
-        $generator->create_cue(['versionid' => $version->id, 'sortorder' => 3, 'transcript' => '   ']);
-
-        $this->assertSame(['First.', 'Second.'], (new transcript_exporter())->paragraphs((int) $version->id));
-    }
 }

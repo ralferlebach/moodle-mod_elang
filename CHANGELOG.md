@@ -11,6 +11,18 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.65] - 2026-08-10
+
+### Fixed
+- CI JS/Mustache/PHPDoc lint job failed because Moodle's Grunt stats every
+  `amd/build/` path declared in `thirdpartylibs.xml`, and the esbuild bundle
+  `editor_lazy.min.js` could go missing from a checkout (a text patch cannot
+  carry the binary min.js). The editor bootstrap now takes the bundle's module
+  id from the editor root's `data-editormodule` attribute (set in
+  editor.mustache) instead of a JS literal, so the reference lives in one place;
+  `editor.min.js` rebuilt. Ship the plugin as a full archive (not a patch) so
+  the prebuilt bundle is always present.
+
 ## [2.0.0-alpha.64] - 2026-08-10
 
 ### Added

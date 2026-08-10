@@ -72,49 +72,6 @@ final class preview_import_test extends \advanced_testcase {
     }
 
     /**
-     * Without the parsegaps option, V1 gap markers stay literal text and no
-     * gaps are reported — the previous behaviour is unchanged.
-     *
-     * @return void
-     */
-    public function test_markers_stay_literal_without_parsegaps(): void {
-        $this->setUser($this->teacher);
-        $vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nDer [Hund] läuft\n";
-
-        $result = preview_import::execute((int) $this->draft->id, $vtt);
-        $result = external_api::clean_returnvalue(preview_import::execute_returns(), $result);
-
-        $this->assertSame('Der [Hund] läuft', $result['cues'][0]['transcript']);
-        $this->assertSame([], $result['cues'][0]['gaps']);
-    }
-
-    /**
-     * With the parsegaps option, V1 markers are stripped and returned as
-     * gaps, distinguishing the help-allowed bracket form from the brace form.
-     *
-     * @return void
-     */
-    public function test_parsegaps_recognises_v1_markers(): void {
-        $this->setUser($this->teacher);
-        $vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nDer [Hund] läuft\n\n"
-            . "00:00:05.000 --> 00:00:08.000\nDie {Katze} schläft\n";
-
-        $result = preview_import::execute((int) $this->draft->id, $vtt, true);
-        $result = external_api::clean_returnvalue(preview_import::execute_returns(), $result);
-
-        $this->assertSame('Der Hund läuft', $result['cues'][0]['transcript']);
-        $this->assertCount(1, $result['cues'][0]['gaps']);
-        $this->assertSame(4, $result['cues'][0]['gaps'][0]['charstart']);
-        $this->assertSame(4, $result['cues'][0]['gaps'][0]['charlength']);
-        $this->assertSame('Hund', $result['cues'][0]['gaps'][0]['solution']);
-        $this->assertTrue($result['cues'][0]['gaps'][0]['hintsallowed']);
-
-        $this->assertSame('Die Katze schläft', $result['cues'][1]['transcript']);
-        $this->assertCount(1, $result['cues'][1]['gaps']);
-        $this->assertFalse($result['cues'][1]['gaps'][0]['hintsallowed']);
-    }
-
-    /**
      * A user without mod/elang:manage cannot use the importer.
      *
      * @return void

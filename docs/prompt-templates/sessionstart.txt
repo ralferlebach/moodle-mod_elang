@@ -51,8 +51,25 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.71 (2026081101) — Phasen 2–4 abgeschlossen. In
-Session 006 wurde die Codehärtung aus dem technischen Review abgearbeitet
+**Version:** 2.0.0-alpha.72 (2026081102) — Phasen 2–4 abgeschlossen. Session 007
+hat die Skalierungs-/Datenintegritätsbefunde des Reviews (Punkte 4–8, 18)
+abgearbeitet: N+1 in `version_validator` (Publish) und `version_manager`
+(Draft-Copy) gebündelt; Report paginiert (`count_for_activity` +
+`list_for_activity($id,$group,$page,$perpage)`, `paging_bar`, Export bleibt
+ungeteilt); V1-Detector DB-seitig limitiert (`pending_activity_ids($limit)` +
+`count_pending_activities()`, Single-JOIN statt N+1); Draft-Invariante
+reconciliert (akkurater Klassenkommentar, `get_or_create_draft` toleriert einen
+Zweit-Draft). README nach Nutzer-Vorlage aktualisiert. +3 gezielte Tests
+(Query-Budget, Pagination, Detector-Limit). Details in
+docs/sessions/session-007.md. (Session 006 und älter unten weiter beschrieben.)
+
+**Stand Session 007 (real gegen Moodle 4.5.13):** PHPUnit 358/1123 grün, phpcs
+0/0, tsc sauber, Jest 7/7; kein JS berührt → esbuild/grunt unverändert. Die
+Review-Punkte 1–8 und 18 sind damit erledigt. Offen für Beta: E2 (Subtitle
+Studio), E3/E4 (Härtung/Behat), E5/E6 (Playwright+axe / jMeter+k6), E7
+(echtes V1→V2-Upgrade als CI-Test), sowie das Produktiv-Gate Backup/Restore.
+
+**Stand Session 006 (Codehärtung nach Review):** Version alpha.71 —
 (Reihenfolge Review-P0/P1 → E0 → E1 → Logo → Cleanup). WICHTIG: Das Review war
 gegen ein gestripptes Release-ZIP erstellt; der echte Arbeitsbaum hatte die
 P0/P1-Fixes bereits uncommittet über alpha.70 — sie waren aber UNGETESTET, ein

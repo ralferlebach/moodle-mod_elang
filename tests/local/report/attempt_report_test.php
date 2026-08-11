@@ -160,4 +160,42 @@ final class attempt_report_test extends \advanced_testcase {
         $this->assertSame(array_keys($columns), array_keys($row));
         $this->assertSame(fullname($student), $row['user']);
     }
+
+    /**
+     * The activity listing pages through attempts and reports a total count, so
+     * the report never has to load an activity's whole history at once.
+     *
+     * @return void
+     */
+    public function test_listing_pages_and_counts_attempts(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        for ($i = 0; $i < 3; $i++) {
+            $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+            $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+            $manager->submit_response($attempt->id, (int) $gap->id, 'chat');
+            $manager->finish_attempt($attempt->id);
+        }
+
+        $report = new attempt_report();
+        $this->assertSame(3, $report->count_for_activity((int) $elang->id));
+
+        $firstpage = $report->list_for_activity((int) $elang->id, 0, 0, 2);
+        $this->assertCount(2, $firstpage);
+
+        $secondpage = $report->list_for_activity((int) $elang->id, 0, 1, 2);
+        $this->assertCount(1, $secondpage);
+
+        // A perpage of 0 keeps the unpaged behaviour the export relies on.
+        $this->assertCount(3, $report->list_for_activity((int) $elang->id));
+    }
 }

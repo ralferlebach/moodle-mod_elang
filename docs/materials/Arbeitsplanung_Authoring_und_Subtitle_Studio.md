@@ -191,6 +191,17 @@ Fixes lagen bereits uncommittet über alpha.70 vor, waren aber ungetestet):
 - Tote Caps `deleteattempts`/`exportreports` implementiert (Dataformat-Export +
   bestätigter Lösch-Flow). `package-lock.json` committet, Lang 229/229.
 
+### Review-Skalierung/Datenintegrität — **[ERLEDIGT alpha.72, Session 007]**
+Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
+- N+1 beseitigt in `version_validator` (Publish, 3 Queries) und
+  `version_manager::copy_version_content` (Draft-Copy, 4 Queries).
+- Report paginiert (`count_for_activity` + `list_for_activity` page/perpage,
+  `paging_bar`); Export bleibt bewusst ungeteilt.
+- V1-Detector DB-seitig limitiert (`pending_activity_ids($limit)` + Single-JOIN)
+  + `count_pending_activities()`; Task holt einen begrenzten Block.
+- Draft-Invariante reconciliert (akkurater Klassenkommentar; `get_or_create_draft`
+  toleriert einen Zweit-Draft). Mit Query-Budget-/Pagination-/Limit-Tests.
+
 ### E0 — Werkzeug-/Infrastruktur-Nachzug — **[ERLEDIGT alpha.71]**
 - Vollständiges `makefile` von mod_vimipad übernommen und an elang-Pfade
   (`js/vendor/react/editor.bundle.js`, `mod/elang`) sowie elang-benannte

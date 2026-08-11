@@ -99,15 +99,15 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
             return;
         }
 
-        $pending = v1_detector::pending_activity_ids();
-        if (empty($pending)) {
+        $block = v1_detector::pending_activity_ids($blocksize);
+        if (empty($block)) {
             mtrace('mod_elang: no pending V1 activities, nothing to do.');
 
             return;
         }
 
-        $block = array_slice($pending, 0, $blocksize);
-        mtrace('mod_elang: migrating ' . count($block) . ' of ' . count($pending) . ' pending V1 activities.');
+        $totalpending = v1_detector::count_pending_activities();
+        mtrace('mod_elang: migrating ' . count($block) . ' of ' . $totalpending . ' pending V1 activities.');
 
         $migrator = new v1_migrator();
         $succeeded = 0;
@@ -133,7 +133,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
 
         mtrace("mod_elang: block complete, {$succeeded} succeeded, {$failed} failed.");
 
-        if (count($pending) > count($block)) {
+        if ($totalpending > count($block)) {
             mtrace('mod_elang: more pending activities remain, queueing another block.');
             self::queue($blocksize);
         }

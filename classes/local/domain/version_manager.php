@@ -36,10 +36,18 @@ namespace mod_elang\local\domain;
  * creating one, or both reading the same "currently published" version and
  * both ending up marked published.
  *
- * This class does not yet provide authoring operations (adding or editing
- * cues and gaps within a draft); those belong to the authoring tool (phase 4)
- * and operate directly on elang_cue/elang_gap via their own repositories.
- * This class only manages the version records themselves.
+ * The one-draft-per-activity invariant is maintained here rather than by a
+ * database constraint: a partial unique index (unique elangid only where
+ * status = draft) is not portable across PostgreSQL and MariaDB through XMLDB,
+ * and a full unique (elangid, status) would wrongly forbid the several archived
+ * versions an activity accumulates. Instead, get_or_create_draft() is the entry
+ * point authoring uses: under the per-activity lock it reuses the existing draft
+ * and only creates one when none exists. create_draft() is a lower-level
+ * primitive that always inserts a new draft row and is used where no draft can
+ * exist yet (V1 migration seeding the first draft, and tests); authoring flows
+ * must not call it directly. As a safety net, get_or_create_draft() tolerates a
+ * stray second draft (from a hand-crafted call) by returning the most recent one
+ * rather than failing.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -69,9 +77,20 @@ class version_manager {
         global $DB;
 
         return $this->with_activity_lock($elangid, function () use ($DB, $elangid, $userid) {
-            $draft = $DB->get_record('elang_version', ['elangid' => $elangid, 'status' => self::STATUS_DRAFT]);
-            if ($draft) {
-                return $draft;
+            // Return the most recent draft if one exists. get_records(..., 1) is
+            // used rather than get_record() so a stray second draft (only
+            // reachable by calling create_draft() directly, against this class's
+            // contract) yields the newest draft instead of throwing.
+            $drafts = $DB->get_records(
+                'elang_version',
+                ['elangid' => $elangid, 'status' => self::STATUS_DRAFT],
+                'id DESC',
+                '*',
+                0,
+                1
+            );
+            if (!empty($drafts)) {
+                return reset($drafts);
             }
 
             return $this->create_draft_locked($elangid, $userid);
@@ -886,28 +905,61 @@ class version_manager {
         global $DB;
 
         $cues = $DB->get_records('elang_cue', ['versionid' => $sourceversionid], 'sortorder ASC, id ASC');
+        if (empty($cues)) {
+            return;
+        }
+
+        // Read the whole source subtree up front — all gaps, all answers, all
+        // hints — in one query each, grouped by parent id. Copying a published
+        // version into a new draft then costs four reads regardless of size,
+        // rather than one read per cue and two per gap. The inserts stay
+        // per-row because each child needs its freshly inserted parent's id.
+        [$cuein, $cueparams] = $DB->get_in_or_equal(array_keys($cues));
+        $gapsbycue = [];
+        $gaps = $DB->get_records_select('elang_gap', "cueid $cuein", $cueparams, 'cueid ASC, sortorder ASC, id ASC');
+        foreach ($gaps as $gap) {
+            $gapsbycue[(int) $gap->cueid][] = $gap;
+        }
+
+        $answersbygap = [];
+        $hintsbygap = [];
+        if (!empty($gaps)) {
+            [$gapin, $gapparams] = $DB->get_in_or_equal(array_keys($gaps));
+            $answers = $DB->get_records_select(
+                'elang_gapanswer',
+                "gapid $gapin",
+                $gapparams,
+                'gapid ASC, sortorder ASC, id ASC'
+            );
+            foreach ($answers as $answer) {
+                $answersbygap[(int) $answer->gapid][] = $answer;
+            }
+
+            $hints = $DB->get_records_select('elang_gaphint', "gapid $gapin", $gapparams, 'gapid ASC, level ASC, id ASC');
+            foreach ($hints as $hint) {
+                $hintsbygap[(int) $hint->gapid][] = $hint;
+            }
+        }
+
         foreach ($cues as $cue) {
             $sourcecueid = (int) $cue->id;
             unset($cue->id);
             $cue->versionid = $draftversionid;
             $newcueid = $DB->insert_record('elang_cue', $cue);
 
-            $gaps = $DB->get_records('elang_gap', ['cueid' => $sourcecueid], 'sortorder ASC, id ASC');
-            foreach ($gaps as $gap) {
+            foreach ($gapsbycue[$sourcecueid] ?? [] as $gap) {
                 $sourcegapid = (int) $gap->id;
                 unset($gap->id);
                 $gap->cueid = $newcueid;
                 $newgapid = $DB->insert_record('elang_gap', $gap);
 
-                $answers = $DB->get_records('elang_gapanswer', ['gapid' => $sourcegapid], 'sortorder ASC, id ASC');
-                foreach ($answers as $answer) {
+                foreach ($answersbygap[$sourcegapid] ?? [] as $answer) {
                     unset($answer->id);
                     $answer->gapid = $newgapid;
                     $DB->insert_record('elang_gapanswer', $answer);
                 }
 
-                $hints = $DB->get_records('elang_gaphint', ['gapid' => $sourcegapid], 'level ASC, id ASC');
-                foreach ($hints as $hint) {
+                foreach ($hintsbygap[$sourcegapid] ?? [] as $hint) {
                     unset($hint->id);
                     $hint->gapid = $newgapid;
                     $DB->insert_record('elang_gaphint', $hint);

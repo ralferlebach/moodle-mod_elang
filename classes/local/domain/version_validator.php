@@ -55,10 +55,22 @@ final class version_validator {
             return $problems;
         }
 
+        // Load every gap and every hint level for the whole version in one query
+        // each, grouped in PHP, so a publish costs three queries regardless of
+        // how many cues and gaps it has rather than one per cue and one per gap.
+        $gapsbycue = $this->gaps_by_cue(array_keys($cues));
+        $gapids = [];
+        foreach ($gapsbycue as $gaps) {
+            foreach ($gaps as $gap) {
+                $gapids[] = (int) $gap->id;
+            }
+        }
+        $levelsbygap = $this->hint_levels_by_gap($gapids);
+
         $totalgaps = 0;
         foreach ($cues as $cue) {
             $transcriptlength = \core_text::strlen((string) $cue->transcript);
-            $gaps = $DB->get_records('elang_gap', ['cueid' => $cue->id], 'charstart ASC, sortorder ASC, id ASC');
+            $gaps = $gapsbycue[(int) $cue->id] ?? [];
             $totalgaps += count($gaps);
 
             $previousend = null;
@@ -88,7 +100,7 @@ final class version_validator {
                     $previousend = $charstart + $charlength;
                 }
 
-                $levels = array_map('intval', $DB->get_fieldset_select('elang_gaphint', 'level', 'gapid = ?', [$gap->id]));
+                $levels = $levelsbygap[(int) $gap->id] ?? [];
                 sort($levels);
                 foreach ($levels as $index => $level) {
                     if ($level !== $index + 1) {
@@ -104,5 +116,61 @@ final class version_validator {
         }
 
         return $problems;
+    }
+
+    /**
+     * Load every gap of the given cues in one query and group it by cue id, in
+     * the same order the per-cue validation expects (charstart, then sortorder,
+     * then id).
+     *
+     * @param int[] $cueids The cue ids to load gaps for
+     * @return array<int, \stdClass[]> Gap records keyed by cue id
+     */
+    private function gaps_by_cue(array $cueids): array {
+        global $DB;
+
+        if (empty($cueids)) {
+            return [];
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($cueids);
+        $gaps = $DB->get_records_select(
+            'elang_gap',
+            "cueid $insql",
+            $params,
+            'cueid ASC, charstart ASC, sortorder ASC, id ASC'
+        );
+
+        $grouped = [];
+        foreach ($gaps as $gap) {
+            $grouped[(int) $gap->cueid][] = $gap;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Load every hint level of the given gaps in one query and group the levels
+     * by gap id, as plain integers.
+     *
+     * @param int[] $gapids The gap ids to load hint levels for
+     * @return array<int, int[]> Hint levels keyed by gap id
+     */
+    private function hint_levels_by_gap(array $gapids): array {
+        global $DB;
+
+        if (empty($gapids)) {
+            return [];
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($gapids);
+        $hints = $DB->get_records_select('elang_gaphint', "gapid $insql", $params, '', 'id, gapid, level');
+
+        $grouped = [];
+        foreach ($hints as $hint) {
+            $grouped[(int) $hint->gapid][] = (int) $hint->level;
+        }
+
+        return $grouped;
     }
 }

@@ -36,19 +36,12 @@ final class attempt_report {
      * @param int $groupid Only attempts by members of this group, or 0 for all
      * @return array A list of attempt summary arrays
      */
-    public function list_for_activity(int $elangid, int $groupid = 0): array {
+    public function list_for_activity(int $elangid, int $groupid = 0, int $page = 0, int $perpage = 0): array {
         global $DB;
 
-        if ($groupid > 0) {
-            $sql = "SELECT a.*
-                      FROM {elang_attempt} a
-                      JOIN {groups_members} gm ON gm.userid = a.userid
-                     WHERE a.elangid = :elangid AND gm.groupid = :groupid
-                  ORDER BY a.timestart DESC, a.id DESC";
-            $rows = $DB->get_records_sql($sql, ['elangid' => $elangid, 'groupid' => $groupid]);
-        } else {
-            $rows = $DB->get_records('elang_attempt', ['elangid' => $elangid], 'timestart DESC, id DESC');
-        }
+        [$sql, , $params] = $this->build_list_query($elangid, $groupid);
+        $limitfrom = $perpage > 0 ? $page * $perpage : 0;
+        $rows = $DB->get_records_sql($sql, $params, $limitfrom, $perpage);
 
         $summaries = [];
         foreach ($rows as $row) {
@@ -68,6 +61,50 @@ final class attempt_report {
         }
 
         return $summaries;
+    }
+
+    /**
+     * Count the attempts an activity listing would return, so the report can
+     * page through them without loading the whole history into memory.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @return int The total number of matching attempts
+     */
+    public function count_for_activity(int $elangid, int $groupid = 0): int {
+        global $DB;
+
+        [, $countsql, $params] = $this->build_list_query($elangid, $groupid);
+
+        return (int) $DB->count_records_sql($countsql, $params);
+    }
+
+    /**
+     * Build the shared listing query for an activity, optionally restricted to
+     * one group, and a matching COUNT query. Both use the same WHERE clause so
+     * the paged list and its total can never disagree.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @return array{0: string, 1: string, 2: array} The list SQL, the count SQL and their shared params
+     */
+    private function build_list_query(int $elangid, int $groupid = 0): array {
+        $params = ['elangid' => $elangid];
+
+        if ($groupid > 0) {
+            $from = "{elang_attempt} a
+                       JOIN {groups_members} gm ON gm.userid = a.userid";
+            $where = "a.elangid = :elangid AND gm.groupid = :groupid";
+            $params['groupid'] = $groupid;
+        } else {
+            $from = "{elang_attempt} a";
+            $where = "a.elangid = :elangid";
+        }
+
+        $listsql = "SELECT a.* FROM $from WHERE $where ORDER BY a.timestart DESC, a.id DESC";
+        $countsql = "SELECT COUNT(1) FROM $from WHERE $where";
+
+        return [$listsql, $countsql, $params];
     }
 
     /**

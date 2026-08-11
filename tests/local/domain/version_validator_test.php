@@ -197,4 +197,50 @@ final class version_validator_test extends \advanced_testcase {
 
         $this->assertSame([], $this->validator->validate($this->version->id));
     }
+
+    /**
+     * validate() must batch its reads: the number of database reads it performs
+     * stays constant as the version grows, rather than scaling with the number
+     * of cues and gaps (which would be an N+1 query on the normal publish path).
+     *
+     * @return void
+     */
+    public function test_validation_uses_a_constant_number_of_reads(): void {
+        global $DB;
+
+        $build = function (int $cuecount): void {
+            $version = $this->generator->create_version(['elangid' => $this->version->elangid]);
+            for ($c = 0; $c < $cuecount; $c++) {
+                $cue = $this->generator->create_cue([
+                    'versionid' => $version->id,
+                    'transcript' => 'Le chat dort ici maintenant',
+                ]);
+                for ($g = 0; $g < 3; $g++) {
+                    $gap = $this->generator->create_gap([
+                        'cueid' => $cue->id,
+                        'solution' => 'chat',
+                        'charstart' => $g * 4,
+                        'charlength' => 3,
+                    ]);
+                    $this->generator->create_gaphint(['gapid' => $gap->id, 'level' => 1, 'hinttext' => 'a']);
+                }
+            }
+            $this->version = $version;
+        };
+
+        // A small version and a much larger one must cost the same number of
+        // reads. Measuring the delta between two sizes cancels out any fixed
+        // setup cost and proves the count does not grow with the content.
+        $build(2);
+        $before = $DB->perf_get_reads();
+        $this->validator->validate($this->version->id);
+        $smallreads = $DB->perf_get_reads() - $before;
+
+        $build(12);
+        $before = $DB->perf_get_reads();
+        $this->validator->validate($this->version->id);
+        $largereads = $DB->perf_get_reads() - $before;
+
+        $this->assertSame($smallreads, $largereads);
+    }
 }

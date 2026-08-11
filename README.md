@@ -11,14 +11,19 @@ words or phrases are hidden; learners type them in, may request graded hints and
 receive immediate feedback. Teachers import WebVTT or SubRip subtitles, mark the
 gaps, configure how strictly answers are compared, and follow progress in reports.
 
-> **Status:** active alpha development. The versioned exercise schema, the
-> two-algorithm-plus-Jaro answer evaluator, the attempt/version domain layer, all
-> seven External Functions, the learner **player** (transcript, answering, graded
-> hints, media/cue sync, resume), the privacy provider, gradebook integration, the
-> `completionfinishattempt` completion rule and the one-way **version&nbsp;1 → 2.0
-> migration** (including legacy-backup restore) are implemented and tested. The
-> authoring studio (visual editor and subtitle import), reporting and data exports
-> are the current work in progress.
+> **Status:** active alpha development (`2.0.0-alpha.71`). The versioned exercise
+> schema, the two-algorithm-plus-Jaro answer evaluator, the attempt/version domain
+> layer, all External Functions, the learner **player** (transcript, answering,
+> graded hints, media/cue sync, resume), the **authoring studio** (React/TypeScript
+> visual editor, WebVTT/SubRip import, media panel, timeline), the teacher
+> **reports** (attempt overview and gap-by-gap detail, group-aware, attempt
+> deletion, data export), the **transcript export** (masked worksheet plus a
+> teacher-only solution copy as PDF/Word/ODF/text), the privacy provider, gradebook
+> integration, the `completionfinishattempt` completion rule and the one-way
+> **version&nbsp;1 → 2.0 migration** (including legacy-backup restore) are
+> implemented and tested. Remaining before beta: the workflow-oriented *Subtitle
+> Studio* UX pass, broader Behat/accessibility/load coverage, a CI-verified real
+> V1→V2 upgrade test, and Moodle backup/restore.
 
 ## Requirements
 
@@ -57,9 +62,15 @@ Moodle plugins.
 
 ## Usage & Settings
 
-After installing the plugin, it is ready to use without any global configuration.
+After installing the plugin, it is ready to use without any mandatory global
+configuration. One optional site setting is available under
+*Site administration → Plugins → Activity modules → Language exercise*:
 
-Per activity, a teacher creates an *Language exercise* activity, provides the
+- **Allowed content languages** (`mod_elang/allowedlanguages`) — restrict which
+  content languages a teacher may pick in the activity form. Empty means every
+  installed language is offered.
+
+Per activity, a teacher creates a *Language exercise* activity, provides the
 medium (a Moodle file, a direct URL or an embeddable provider reference), imports
 its subtitles, marks the gaps and chooses how answers are compared. Each content
 change publishes a new immutable version; attempts already in progress stay pinned
@@ -119,8 +130,14 @@ and managers by default.
 
 ### mod/elang:exporttranscript
 
-Export the transcript / worksheet. Allowed for students, teachers, editing
-teachers and managers by default.
+Export the transcript worksheet — the transcript with every gap blanked out.
+Allowed for students, teachers, editing teachers and managers by default.
+
+### mod/elang:exportsolution
+
+Export the full solution transcript, i.e. the transcript with every gap solution
+shown. Allowed for teachers, editing teachers and managers by default — learners
+deliberately do not hold it, so they can only ever download the blanked worksheet.
 
 ## Scheduled Tasks
 
@@ -138,7 +155,13 @@ that version, so publishing new content never changes what a learner in mid-atte
 sees or how their already-stored responses are interpreted.
 
 Solutions and accepted answer variants never leave the server; grading is
-server-side only and is never placed in events. Media files and posters are stored
+server-side only and is never placed in events. The transcript export reflects
+this boundary: everyone with `mod/elang:exporttranscript` may download the masked
+*worksheet* (every gap blanked out), while the full *solution* copy requires the
+separate `mod/elang:exportsolution` capability that learners do not hold. Teacher
+reports can export attempt data through the Moodle Dataformat API (CSV, Excel,
+ODS, JSON) and delete an attempt through a confirmed, session-key-protected
+request that also re-grades the learner. Media files and posters are stored
 per version (the file area itemid is the version id) and are served through
 `elang_pluginfile()`, which applies the same version protection as the attempt-bound
 read API: a learner may fetch the published version's media, or an archived

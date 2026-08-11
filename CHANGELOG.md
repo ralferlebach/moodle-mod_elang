@@ -11,6 +11,36 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.72] - 2026-08-11
+
+### Performance (scaling on the normal author/report paths)
+- `version_validator::validate()` no longer issues one query per cue and one per
+  gap on the publish path: it loads all cues, gaps and hint levels in three
+  batched queries and groups them in memory. A query-count budget test asserts
+  the read count stays constant as the version grows.
+- Copying a published version into a new draft (`create_draft`) reads the whole
+  source subtree in four batched queries instead of one per cue and two per gap;
+  the inserts stay per-row because each child needs its new parent's id.
+- The teacher report overview is paginated (50 attempts per page, with a paging
+  bar) and backed by a `COUNT` query, so it no longer loads an activity's entire
+  attempt history into memory. Data export keeps its full, unpaged behaviour.
+- V1 migration detection resolves and bounds the pending set in the database: a
+  single left join replaces the per-id `get_field` lookup, `pending_activity_ids()`
+  accepts a limit applied server-side, and a new `count_pending_activities()`
+  reports the total without materialising the ids. The scheduled task now fetches
+  a bounded block rather than the whole pending list.
+
+### Changed
+- `version_manager`'s class documentation now states the actual one-draft-per-
+  activity invariant (maintained by `get_or_create_draft()` under a per-activity
+  lock, not by a non-portable partial unique index) instead of a stale "authoring
+  is a future phase" note. `get_or_create_draft()` tolerates a stray second draft
+  by returning the most recent one rather than failing.
+- README updated to the current feature state: the authoring studio, reports and
+  exports are documented as implemented, the `mod/elang:exportsolution`
+  capability and the `mod_elang/allowedlanguages` site setting are described, and
+  the worksheet-versus-solution export boundary is spelled out.
+
 ## [2.0.0-alpha.71] - 2026-08-11
 
 ### Security (release blockers closed with tests)

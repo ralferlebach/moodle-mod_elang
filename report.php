@@ -30,6 +30,12 @@ require(__DIR__ . '/../../config.php');
 
 $id = required_param('id', PARAM_INT);
 $attemptid = optional_param('attemptid', 0, PARAM_INT);
+$page = optional_param('page', 0, PARAM_INT);
+
+// Cap the attempt list per page so the report never loads an activity's whole
+// attempt history into memory at once.
+/** @var int The number of attempts shown per page in the report overview. */
+const ELANG_REPORT_PERPAGE = 50;
 
 [$course, $cm] = get_course_and_cm_from_cmid($id, 'elang');
 $elang = $DB->get_record('elang', ['id' => $cm->instance], '*', MUST_EXIST);
@@ -196,7 +202,8 @@ if ($attemptid) {
     if ($groupmode != NOGROUPS) {
         echo groups_print_activity_menu($cm, $PAGE->url, true);
     }
-    $attempts = $report->list_for_activity((int) $elang->id, (int) $currentgroup);
+    $totalattempts = $report->count_for_activity((int) $elang->id, (int) $currentgroup);
+    $attempts = $report->list_for_activity((int) $elang->id, (int) $currentgroup, $page, ELANG_REPORT_PERPAGE);
     if (empty($attempts)) {
         echo html_writer::div(get_string('report:noattempts', 'mod_elang'));
     } else {
@@ -255,6 +262,12 @@ if ($attemptid) {
             ];
         }
         echo html_writer::table($table);
+        echo $OUTPUT->paging_bar(
+            $totalattempts,
+            $page,
+            ELANG_REPORT_PERPAGE,
+            new moodle_url('/mod/elang/report.php', ['id' => $cm->id])
+        );
     }
 }
 

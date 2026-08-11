@@ -72,30 +72,57 @@ final class v1_detector {
      * publish step succeeded but whose own progress marker was never
      * written, for instance) — see the class docblock.
      *
+     * @param int $limit The maximum number of ids to return, or 0 for all
      * @return int[] Sorted, unique elang ids
      */
-    public static function pending_activity_ids(): array {
+    public static function pending_activity_ids(int $limit = 0): array {
         global $DB;
 
         if (!self::v1_tables_present()) {
             return [];
         }
 
-        $ids = $DB->get_fieldset_sql('SELECT DISTINCT id_elang FROM {elang_cues} ORDER BY id_elang');
-        $ids = array_map('intval', $ids);
+        // Resolve the pending set in a single query: every distinct V1 activity
+        // that has cues but whose V2 activity row is missing or has no published
+        // current version yet. A false/empty currentversionid means "not yet
+        // migrated"; a missing elang row (LEFT JOIN null) is unexpected on a real
+        // site but treated as pending rather than fatal. The optional $limit is
+        // applied in the database so the scheduled task's block size bounds the
+        // work of finding pending activities, not just the work of migrating
+        // them.
+        $sql = "SELECT DISTINCT c.id_elang
+                  FROM {elang_cues} c
+             LEFT JOIN {elang} e ON e.id = c.id_elang
+                 WHERE e.id IS NULL OR e.currentversionid IS NULL OR e.currentversionid = 0
+              ORDER BY c.id_elang";
 
-        return array_values(array_filter($ids, function (int $id): bool {
-            global $DB;
-            $currentversionid = $DB->get_field('elang', 'currentversionid', ['id' => $id], IGNORE_MISSING);
+        $records = $DB->get_records_sql($sql, null, 0, $limit > 0 ? $limit : 0);
 
-            // A false return means no elang row with this id at all — on a
-            // real site this would be unexpected (Moodle requires exactly
-            // one activity instance row per course module), but fail safe
-            // (treat as pending) rather than fatal. A non-empty
-            // currentversionid means it already has a published V2 version,
-            // treat as already migrated.
-            return $currentversionid === false || empty($currentversionid);
-        }));
+        return array_map('intval', array_column($records, 'id_elang'));
+    }
+
+    /**
+     * Count the pending V1 activities without materialising their ids, so a
+     * block-processing task can report overall progress ("migrating N of M")
+     * without loading the whole pending set into memory.
+     *
+     * @return int The number of V1 activities not yet migrated to V2
+     */
+    public static function count_pending_activities(): int {
+        global $DB;
+
+        if (!self::v1_tables_present()) {
+            return 0;
+        }
+
+        $sql = "SELECT COUNT(1) FROM (
+                    SELECT DISTINCT c.id_elang
+                      FROM {elang_cues} c
+                 LEFT JOIN {elang} e ON e.id = c.id_elang
+                     WHERE e.id IS NULL OR e.currentversionid IS NULL OR e.currentversionid = 0
+                ) pending";
+
+        return (int) $DB->count_records_sql($sql);
     }
 
     /**

@@ -201,4 +201,38 @@ final class v1_detector_test extends \advanced_testcase {
         // failing to parse.
         $this->assertSame(9, $entry->gapcount);
     }
+
+    /**
+     * pending_activity_ids() resolves and bounds the pending set in the
+     * database: it returns every pending activity in id order, honours a limit
+     * applied server-side (so a block-processing task does not load the whole
+     * pending set), and count_pending_activities() reports the full total
+     * without materialising the ids.
+     *
+     * @return void
+     */
+    public function test_pending_ids_are_limited_and_counted_in_the_database(): void {
+        $this->resetAfterTest();
+
+        v1_legacy_schema::create_tables();
+        v1_legacy_schema::insert_sample_activity();
+
+        // Seed two more pending V1 activities (id_elang 2 and 3), each just one
+        // cue, alongside the sample activity (id_elang 1).
+        foreach ([[100, 2], [101, 3]] as [$cueid, $idelang]) {
+            v1_legacy_schema::insert_row('elang_cues', (object) [
+                'id' => $cueid,
+                'id_elang' => $idelang,
+                'number' => 1,
+                'begin' => 0,
+                'end' => 1000,
+                'title' => 'A cue',
+                'json' => '[{"type":"text","content":"A cue"}]',
+            ]);
+        }
+
+        $this->assertSame(3, v1_detector::count_pending_activities());
+        $this->assertSame([1, 2, 3], v1_detector::pending_activity_ids());
+        $this->assertSame([1, 2], v1_detector::pending_activity_ids(2));
+    }
 }

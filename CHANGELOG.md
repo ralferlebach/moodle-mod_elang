@@ -11,6 +11,31 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.70] - 2026-08-11
+
+### ACTION REQUIRED (one-time git cleanup)
+- The repository still carries two stale files from before the alpha.66
+  relocation: `amd/build/editor_lazy.min.js` and
+  `amd/build/editor_lazy.min.js.map`. Extracting a release ZIP over the repo
+  adds and updates files but never deletes ones the ZIP omits, so these lingered
+  and keep breaking the CI JS lint job ("File no longer generated and likely
+  should be deleted"): moodle-plugin-ci wipes `amd/build/`, Grunt regenerates
+  editor.min.js and player.min.js from `amd/src`, but nothing regenerates
+  editor_lazy (it has no `amd/src` counterpart — it moved to
+  `js/vendor/react/editor.bundle.js` in alpha.66). Remove them once and commit:
+
+      git rm amd/build/editor_lazy.min.js amd/build/editor_lazy.min.js.map
+      git commit -m "Remove stale editor_lazy build artefacts (moved to js/vendor/react)"
+
+  A helper is included: `bash tools/cleanup_stale.sh` runs exactly those git rm
+  commands. After this, `amd/build/` contains only editor.min.js / player.min.js
+  (+ maps), and the JS lint job passes.
+
+### Fixed
+- `tools/fix_phpdoc.php` carried a copied-in `@package local_instantcoursecompletion`
+  tag and component constant from another plugin; corrected to `mod_elang` so a
+  phpcs run over the developer tools no longer reports an incorrect package tag.
+
 ## [2.0.0-alpha.69] - 2026-08-11
 
 ### Changed

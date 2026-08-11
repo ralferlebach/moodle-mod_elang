@@ -2,7 +2,7 @@
 
 **Datum:** 2026-08-10
 **Dauer:** eine lange Arbeitssitzung mit mehreren Increments und einem CI-Fix-Zyklus
-**Version am Ende:** 2.0.0-alpha.67 (2026081006)
+**Version am Ende:** 2.0.0-alpha.70 (2026081009) — CI grün
 **Ausgangspunkt:** 2.0.0-alpha.60 (Ende Session 004)
 
 ---
@@ -118,6 +118,35 @@ eigentliche Problem tiefer lag – das React-Bundle stand im FALSCHEN Verzeichni
   damit ein Rebuild oder ein Leser nie zum stillgelegten Ort zurückgeführt wird.
   Keine funktionale Codeänderung; alle mpc-Kommandos erneut exit 0 (beide
   Bundle-Szenarien, Moodle 4.5 + 5.2).
+- **alpha.68 (der eigentliche Root-Cause — warum das Bundle IMMER verschwand):**
+  Trotz korrekter ZIPs fehlte `js/vendor/react/` in jedem CI-Checkout. Ursache:
+  `.gitignore` hatte eine UNVERANKERTE Regel `vendor/`, die (für das Composer-
+  `vendor/` am Root gedacht) auch `js/vendor/` matchte. `git check-ignore`
+  bestätigte: git schloss `js/vendor/react/` samt Bundle beim `git add` still
+  aus. Fix: `vendor/` → `/vendor/` (am Root verankert). Lektion für die
+  Verifikation: Meine früheren Prüfungen kopierten Dateien direkt und umgingen
+  damit genau die git-Ignore-Logik. Erst der Test über ein echtes
+  `git init → add → commit → clone` deckte es auf — dieser Weg gehört ab jetzt
+  zur Standard-Verifikation bei allem, was committete Artefakte betrifft.
+- **alpha.69 (phpcpd-Aufräumung):** Die drei vom Copy/Paste-Detektor gemeldeten
+  Klone (identisches setUp() + payload() in fünf Authoring-External-Tests) durch
+  einen gemeinsamen `authoring_test_fixture_builder` ersetzt (Plain-Class-mit-
+  Static-Factory, nach dem etablierten Muster, das die „Trait not found"-Falle
+  auf Moodle 4.5 umgeht). phpcpd: „No clones found".
+- **alpha.70 (der letzte Blocker — stale Dateien):** Ralfs Repo war bei alpha.69
+  korrekt (js/vendor/react committet, .gitignore verankert, thirdpartylibs
+  richtig), ABER `amd/build/editor_lazy.min.js` + `.map` lagen noch im Git —
+  ein ZIP-Extrakt fügt hinzu/aktualisiert, LÖSCHT aber nie ausgelassene Dateien.
+  mpc leert `amd/build/`, Grunt regeneriert editor/player, nicht aber
+  editor_lazy → „File no longer generated". Auflösung: die zwei stale Dateien
+  per `git rm` entfernen (Helfer `tools/cleanup_stale.sh` beigelegt). Danach
+  wurde die **CI grün**. Zusätzlich `tools/fix_phpdoc.php` bereinigt (kopierter
+  `@package local_instantcoursecompletion` → `mod_elang`).
+  **Übergreifende Lektion des ganzen CI-Zyklus:** Ein ZIP kann Löschungen nicht
+  ausdrücken. Sobald ein Fix das Entfernen/Verschieben einer committeten Datei
+  bedeutet, reicht das ZIP nicht — es braucht eine explizite `git rm`-Anweisung.
+  Und: bei rotem CI zuerst den tatsächlich ausgecheckten Commit-Zustand prüfen
+  (hier über einen echten Repo-Klon), nicht blind erneut „fixen".
 - Der experimentelle `main`-Job ist laut CI-eigener Meldung „informational
   only" (non-blocking). Die phpmd-„VIOLATIONS" laufen mit `|| true`.
 - Die „PHPUnit Deprecations" auf 5.0/5.2 (PHPUnit 11) sind **kein** Blocker:

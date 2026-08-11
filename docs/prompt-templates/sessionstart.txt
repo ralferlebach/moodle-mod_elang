@@ -51,7 +51,7 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.67 (2026081006) — Phasen 2–4 abgeschlossen; in
+**Version:** 2.0.0-alpha.70 (2026081009) — Phasen 2–4 abgeschlossen; in
 Session 005 kamen das React/TS-Autorentool, der V1-Lücken-Syntax-Import, die
 Provider-Registry, die Admin-Sprachrestriktion und der DOCX/ODT-Export hinzu,
 plus ein CI-Fix. Details in docs/sessions/session-005.md. (Verlauf bis
@@ -97,6 +97,20 @@ Session 004 unten weiter beschrieben.)
     dem Fix hatte den Fix gar nicht ausgecheckt — bei rotem CI IMMER zuerst am
     `$plugin->release` bzw. am erwarteten Fix-Marker im Log prüfen, welche
     Version tatsächlich lief, bevor man erneut „fixt".
+  - **CI-Fix Fortsetzung (alpha.68→70), zwei entscheidende Root-Causes:**
+    (a) `.gitignore` hatte eine UNVERANKERTE Regel `vendor/`, die auch
+    `js/vendor/` matchte → git schloss das committete React-Bundle still aus,
+    es fehlte in jedem CI-Checkout. Fix: `/vendor/` (am Root verankert). IMMER
+    prüfen, ob eine `.gitignore`-Regel legitime Dateien mit-matcht
+    (`git check-ignore <pfad>`); unverankerte Verzeichnisnamen matchen in jeder
+    Tiefe. (b) Ein ZIP-Extrakt fügt hinzu/aktualisiert, LÖSCHT aber nie
+    ausgelassene Dateien. Als das Bundle nach `js/vendor/react/` zog, blieb
+    `amd/build/editor_lazy.min.js` in Ralfs Git liegen und brach den JS-Lint-Job
+    („File no longer generated"). Sobald ein Fix eine committete Datei
+    entfernt/verschiebt, reicht ein ZIP NICHT — es braucht eine explizite
+    `git rm`-Anweisung (hier: `tools/cleanup_stale.sh`). Verifikation solcher
+    Fixes über einen echten `git init → add → commit → clone`, nicht über
+    direktes Kopieren (das umgeht die git-Ignore-/Lösch-Logik). Danach CI grün.
 
 **(Historischer Stand — Version zu Beginn von Session 005):**
 2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
@@ -357,6 +371,24 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     (existiert immer). IMMER mit UND ohne Bundle testen: `moodle-plugin-ci grunt
     --max-lint-warnings 0` / `phpcs --max-warnings 0` / `validate` muessen in
     beiden Faellen exit 0 liefern.
+  - **Unverankerte `.gitignore`-Regel-Falle (Session 005):** Eine Regel wie
+    `vendor/` (ohne fuehrenden `/`) matcht dieses Verzeichnis in JEDER Tiefe,
+    also auch `js/vendor/`. Dadurch schloss git das committete React-Bundle
+    still aus (`git add` uebersprang es), und es fehlte in jedem CI-Checkout —
+    obwohl es in jedem ZIP lag. Fix: am Root verankern (`/vendor/`). Bei allem,
+    was committet werden MUSS (Build-Artefakte, gebuendelte Libs), mit
+    `git check-ignore <pfad>` verifizieren, dass keine Regel es faelschlich
+    erfasst. Verzeichnisnamen ohne fuehrenden `/` sind der klassische Fehler.
+  - **ZIP kann keine Loeschung ausdruecken (Session 005):** Ein ueber ein
+    bestehendes Repo extrahiertes Release-ZIP FUEGT HINZU und AKTUALISIERT, aber
+    LOESCHT nie Dateien, die im ZIP fehlen. Als das Bundle von `amd/build/` nach
+    `js/vendor/react/` zog, blieb `amd/build/editor_lazy.min.js` in Ralfs Git
+    liegen und brach den JS-Lint-Job („File no longer generated"). Sobald ein
+    Fix eine committete Datei entfernt/verschiebt, IMMER eine explizite
+    `git rm`-Anweisung mitliefern (hier: Helfer `tools/cleanup_stale.sh`), nicht
+    nur das ZIP. Solche Fixes ueber einen echten `git init → add → commit →
+    clone` verifizieren, nicht ueber direktes Kopieren (das umgeht git-Ignore-
+    und -Loeschlogik komplett).
   - Lokale Verifikation auf ZWEI Moodle-Zweigen, wenn Testinfrastruktur berührt
     wird (Session 005): 4.5 nutzt PHPUnit 9.6, 5.0/5.2 nutzen PHPUnit 11 — die
     verhalten sich bei Test-Metadaten unterschiedlich. Moodle 5.x liegt unter

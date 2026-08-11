@@ -17,6 +17,7 @@
 namespace mod_elang\external;
 
 use core_external\external_api;
+use mod_elang\fixtures\authoring_test_fixture_builder;
 use mod_elang\local\domain\version_manager;
 
 /**
@@ -44,14 +45,12 @@ final class save_draft_version_test extends \advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
 
-        $course = $this->getDataGenerator()->create_course();
-        $this->teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
-        $this->student = $this->getDataGenerator()->create_and_enrol($course, 'student');
-
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $this->elang = $generator->create_instance(['course' => $course->id]);
-        $this->draft = (new version_manager())->create_draft((int) $this->elang->id, (int) $this->teacher->id);
+        require_once(__DIR__ . '/../fixtures/authoring_test_fixture.php');
+        $fixture = authoring_test_fixture_builder::create($this);
+        $this->teacher = $fixture->teacher;
+        $this->student = $fixture->student;
+        $this->elang = $fixture->elang;
+        $this->draft = $fixture->draft;
     }
 
     /**
@@ -61,34 +60,7 @@ final class save_draft_version_test extends \advanced_testcase {
      * @return array A cue list suitable for save_draft_version::execute()
      */
     private function payload(string $solution): array {
-        return [
-            [
-                'cuekey' => 'cue-1',
-                'sortorder' => 1,
-                'starttime' => 0,
-                'endtime' => 5000,
-                'transcript' => 'Le chat dort',
-                'transcriptformat' => FORMAT_PLAIN,
-                'gaps' => [
-                    [
-                        'gapkey' => 'gap-1',
-                        'sortorder' => 1,
-                        'charstart' => 3,
-                        'charlength' => 4,
-                        'solution' => $solution,
-                        'gradingalgorithm' => 'exact',
-                        'maxlength' => 0,
-                        'linkurl' => '',
-                        'answers' => [
-                            ['sortorder' => 1, 'answer' => 'chatte', 'isregex' => 0],
-                        ],
-                        'hints' => [
-                            ['level' => 1, 'hinttype' => 'text', 'hinttext' => 'animal', 'penalty' => 0.1],
-                        ],
-                    ],
-                ],
-            ],
-        ];
+        return authoring_test_fixture_builder::payload($solution);
     }
 
     /**

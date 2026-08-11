@@ -11,6 +11,26 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.69] - 2026-08-11
+
+### Changed
+- Removed the duplicated setUp() scaffolding and `payload()` helper that the
+  copy/paste detector flagged across the authoring external-function tests
+  (get_version_content, save_draft_version, set_draft_media, preview_import).
+  A new `tests/fixtures/authoring_test_fixture.php` provides a
+  `authoring_test_fixture_builder::create()` (course + editing teacher +
+  student + fresh draft) and a shared `payload()`, following the established
+  plain-class-with-static-factory fixture pattern (loaded via require_once in
+  setUp, which avoids the "Trait not found" pitfall on Moodle 4.5). phpcpd now
+  reports no clones; the five authoring tests still pass unchanged.
+
+### Note
+- This release also carries the alpha.68 `.gitignore` fix (anchoring `/vendor/`
+  so `js/vendor/react/` is committed). If a CI run still fails on
+  `amd/build/editor_lazy.min.js` or a missing `js/vendor/react`, the checked-out
+  commit predates these fixes — verify `$plugin->release` in the checkout is
+  alpha.69 and that `js/vendor/react/editor.bundle.js` is present in git.
+
 ## [2.0.0-alpha.68] - 2026-08-11
 
 ### Fixed

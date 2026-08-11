@@ -17,7 +17,7 @@
 namespace mod_elang\external;
 
 use core_external\external_api;
-use mod_elang\local\domain\version_manager;
+use mod_elang\fixtures\authoring_test_fixture_builder;
 
 /**
  * Tests for the preview_import external function.
@@ -41,14 +41,11 @@ final class preview_import_test extends \advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
 
-        $course = $this->getDataGenerator()->create_course();
-        $this->teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
-        $this->student = $this->getDataGenerator()->create_and_enrol($course, 'student');
-
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id]);
-        $this->draft = (new version_manager())->create_draft((int) $elang->id, (int) $this->teacher->id);
+        require_once(__DIR__ . '/../fixtures/authoring_test_fixture.php');
+        $fixture = authoring_test_fixture_builder::create($this);
+        $this->teacher = $fixture->teacher;
+        $this->student = $fixture->student;
+        $this->draft = $fixture->draft;
     }
 
     /**

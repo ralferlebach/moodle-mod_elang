@@ -14,50 +14,46 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 // Development-only build script. Bundles the React/TypeScript authoring editor
-// and wraps it as the AMD module mod_elang/editor_lazy in amd/build/. Emitting
-// it as an AMD module (rather than injecting a <script> tag at runtime) keeps
-// the load inside Moodle's JS tracking, which Behat's wait_for_pending_js
-// relies on.
+// with esbuild into a single self-contained script that exposes a global,
+// window.mod_elang_editor, with a mount(element, config) method.
 //
-// Architecture: the React/TypeScript source lives in js/src and is bundled by
-// esbuild into the distribution artefact amd/build/editor_lazy.min.js (+ .map).
-// There is deliberately NO amd/src/editor_lazy.js: amd/src is Moodle's own AMD
-// source directory, and Moodle's Grunt (rollup/babel) processes everything it
-// finds there. A prebuilt esbuild bundle placed in amd/src would be fed back
-// through that pipeline (thirdpartylibs.xml only affects lint ignores, not the
-// rollup input set), which is wrong. React cannot be built through Moodle's
-// Grunt/Babel pipeline anyway; this prebuilt artefact ships as-is and the
-// production server needs no Node/npm.
-//
-// Developer mode: Moodle's lib/requirejs.php serves the minified build directly
-// when a ".map" file sits next to it (only without a map does it fall back to
-// amd/src/xxx.js). Because esbuild emits editor_lazy.min.js.map, the module
-// loads correctly in both developer and production mode from amd/build.
+// The bundle is written to js/vendor/react/editor.bundle.js, deliberately NOT
+// to amd/build/. Two Moodle tooling facts drive this:
+//   1. moodle-plugin-ci's `grunt` check WIPES amd/build/ and re-runs Grunt,
+//      then flags any file Grunt did not regenerate ("no longer generated and
+//      likely should be deleted"). React cannot be built by Moodle's Grunt
+//      (rollup/babel) pipeline, so a prebuilt bundle in amd/build/ always
+//      fails that check.
+//   2. Moodle's Grunt and moodle-plugin-ci stat every <location> declared in
+//      thirdpartylibs.xml; a build artefact that is absent from a checkout
+//      (e.g. when amd/build/ is gitignored) aborts the JS lint job.
+// Placing the bundle under js/vendor/react/ (a plain committed directory that
+// Grunt never touches) and declaring that directory in thirdpartylibs.xml
+// avoids both. edit.php loads the bundle as a regular page script via
+// $PAGE->requires->js(); amd/src/editor.js then reads the exposed global.
 import {build} from 'esbuild';
 import {writeFileSync} from 'fs';
 
-// esbuild has no native AMD format, so build an IIFE that assigns to a global,
-// then wrap it in a named define() via banner/footer (keeps the sourcemap
-// aligned with the wrapped output).
 const result = await build({
     entryPoints: ['js/src/mount.tsx'],
     bundle: true,
     format: 'iife',
-    globalName: '__elangEditor',
+    globalName: 'mod_elang_editor',
     target: ['es2018'],
     minify: true,
     sourcemap: true,
     write: false,
-    outfile: 'amd/build/editor_lazy.min.js',
+    outfile: 'js/vendor/react/editor.bundle.js',
     jsx: 'automatic',
     define: {'process.env.NODE_ENV': '"production"'},
-    banner: {js: '/*! mod_elang editor bundle (GPLv3+). Bundled third-party components: React 18.3.1 (MIT), ReactDOM 18.3.1 (MIT), Scheduler 0.23.2 (MIT); upstream https://react.dev. Built by build.mjs. */\ndefine("mod_elang/editor_lazy", [], function() {'},
-    footer: {js: 'return __elangEditor.default || __elangEditor;\n});'},
+    banner: {js: '/*! mod_elang editor bundle (GPLv3+). Bundled third-party components: React 18.3.1 (MIT), ReactDOM 18.3.1 (MIT), Scheduler 0.23.2 (MIT); upstream https://react.dev. Built by build.mjs. */'},
+    // esbuild assigns the module namespace object to the global; expose the
+    // default export's mount as window.mod_elang_editor for the page loader.
+    footer: {js: 'window.mod_elang_editor = (mod_elang_editor && mod_elang_editor.default) ? mod_elang_editor.default : mod_elang_editor;'},
     logLevel: 'info',
 });
 
-// outputFiles contains both the .js and the .js.map; write each to its path.
 for (const file of result.outputFiles) {
     writeFileSync(file.path, file.text);
 }
-console.log('Built amd/build/editor_lazy.min.js (+ .map)');
+console.log('Built js/vendor/react/editor.bundle.js (+ .map)');

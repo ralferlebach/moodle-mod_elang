@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <libraries>
     <library>
-        <location>amd/build/editor_lazy.min.js</location>
+        <location>js/vendor/react</location>
         <name>React</name>
-        <description>React is bundled into the prebuilt authoring editor AMD module (amd/build/editor_lazy.min.js) for Moodle versions without native React runtime support (4.5 to 5.1). Built from source in js/src via the development-only esbuild toolchain (build.mjs); the accompanying editor_lazy.min.js.map lets Moodle serve this artefact directly in developer mode. The bundle carries a license banner listing every third-party component it contains.</description>
+        <description>React is compiled from source (js/src) into the prebuilt authoring editor bundle js/vendor/react/editor.bundle.js, for Moodle versions without native React runtime support (4.5 to 5.1). This declaration points at the js/vendor/react directory (which documents the bundle) rather than at a build artefact under amd/build/, so Moodle's Grunt and moodle-plugin-ci do not fail: moodle-plugin-ci wipes amd/build/ before re-running Grunt and would flag a bundle Grunt cannot regenerate. See js/vendor/react/README.md.</description>
         <version>18.3.1</version>
         <license>MIT</license>
         <licenseversion></licenseversion>
     </library>
     <library>
-        <location>amd/build/editor_lazy.min.js</location>
+        <location>js/vendor/react</location>
         <name>ReactDOM</name>
         <description>ReactDOM is bundled into the prebuilt authoring editor AMD module together with React (see the React entry for build details).</description>
         <version>18.3.1</version>
@@ -17,7 +17,7 @@
         <licenseversion></licenseversion>
     </library>
     <library>
-        <location>amd/build/editor_lazy.min.js</location>
+        <location>js/vendor/react</location>
         <name>Scheduler</name>
         <description>Scheduler (a ReactDOM runtime dependency) is bundled into the prebuilt authoring editor AMD module together with React and ReactDOM.</description>
         <version>0.23.2</version>

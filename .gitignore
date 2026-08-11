@@ -45,7 +45,10 @@ behatfaildumps/
 .env.local
 
 # AMD build artefacts: these ARE committed. Moodle serves them at runtime and
-# the CI validates them from the repo (thirdpartylibs.xml references the bundled
-# editor). The amd/src sources build their .min.js via Grunt; editor_lazy.min.js
-# is the prebuilt React bundle (esbuild). Both must be present in the repository.
-# (Intentionally NOT ignoring amd/build/.)
+# the CI validates them from the repo. The amd/src sources build their .min.js
+# via Grunt (editor.min.js, player.min.js). The prebuilt React authoring bundle
+# is NOT here — it lives at js/vendor/react/editor.bundle.js (built by esbuild
+# via build.mjs) because moodle-plugin-ci wipes amd/build/ before re-running
+# Grunt and flags any file Grunt cannot regenerate. Both amd/build/ and
+# js/vendor/react/ must be committed.
+# (Intentionally NOT ignoring amd/build/ or js/vendor/.)

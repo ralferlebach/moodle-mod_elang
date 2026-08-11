@@ -24,7 +24,7 @@
 #   make phpunit      — PHPUnit testsuite for this plugin
 #
 # React authoring frontend (development-only toolchain, see build.mjs):
-#   make react        — bundle the React editor (esbuild → amd/build/editor_lazy.min.js)
+#   make react        — bundle the React editor (esbuild → js/vendor/react/editor.bundle.js)
 #   make lint-react   — TypeScript type-check (tsc --noEmit)
 #   make test-react   — Jest unit tests for the React/TS sources
 #
@@ -134,7 +134,7 @@ amd:
 
 react:
 	@echo ""
-	@echo "=== React bundle (esbuild -> amd/build/editor_lazy.min.js) ==="
+	@echo "=== React bundle (esbuild -> js/vendor/react/editor.bundle.js) ==="
 	@if [ ! -d $(PLUGIN_DIR)/node_modules ]; then \
 		echo "Installing frontend dev dependencies..."; \
 		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \

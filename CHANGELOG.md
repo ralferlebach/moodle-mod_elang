@@ -11,6 +11,41 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.67] - 2026-08-11
+
+### Changed
+- Removed the last stale references to the old `amd/build/editor_lazy.min.js`
+  path (a follow-up to the alpha.66 relocation): the `thirdpartylibs.xml`
+  description, the `.gitignore` comment and the `makefile` `react` target echo
+  now all name `js/vendor/react/editor.bundle.js`, so nothing points a rebuild
+  or a reader back at the retired location. No functional change to the built
+  code; re-verified that `moodle-plugin-ci grunt --max-lint-warnings 0`,
+  `phpcs --max-warnings 0` and `validate` all exit 0 both with the bundle
+  present and with it removed.
+
+## [2.0.0-alpha.66] - 2026-08-10
+
+### Fixed
+- CI JS lint job failed on the prebuilt React bundle in two ways that both stem
+  from `amd/build/` being the wrong home for an esbuild artefact: Moodle's Grunt
+  and moodle-plugin-ci `stat()` every `thirdpartylibs.xml` `<location>` (so an
+  absent `amd/build/editor_lazy.min.js` aborted with ENOENT / a non-existent
+  path), and moodle-plugin-ci wipes `amd/build/` before re-running Grunt and
+  then flags any file Grunt did not regenerate (so a *present* bundle failed
+  with "no longer generated"). The React bundle now lives in
+  `js/vendor/react/editor.bundle.js` (a plain directory Grunt never touches),
+  is declared in `thirdpartylibs.xml` as the `js/vendor/react` directory (with a
+  README documenting React/ReactDOM/Scheduler), and is loaded by `edit.php` as a
+  regular page script (`$PAGE->requires->js`) exposing `window.mod_elang_editor`;
+  `amd/src/editor.js` reads that global instead of `require()`-ing an AMD module.
+  Verified in both states — bundle present and bundle absent — that
+  `moodle-plugin-ci grunt --max-lint-warnings 0`, `phpcs --max-warnings 0` and
+  `validate` all exit 0.
+
+### Changed
+- `build.mjs` now emits `js/vendor/react/editor.bundle.js` exposing a global,
+  instead of an AMD-wrapped `amd/build/editor_lazy.min.js`.
+
 ## [2.0.0-alpha.65] - 2026-08-10
 
 ### Fixed

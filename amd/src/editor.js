@@ -18,15 +18,15 @@
  *
  * This is the idiomatic Moodle (AMD/ES6) entry point. It is deliberately thin:
  * it resolves the language strings via core/str, builds an AJAX transport via
- * core/ajax, and then loads the separately bundled React editor
- * (mod_elang/editor_lazy, built from js/src by build.mjs) and hands it a mount
- * target plus the injected dependencies.
+ * core/ajax, and then hands the separately bundled React editor a mount target
+ * plus the injected dependencies.
  *
  * React itself cannot be built through Moodle's Grunt/AMD pipeline on 4.5-5.1
  * (core provides no React runtime there), so the React app is bundled
- * separately into amd/build/editor_lazy.min.js. From Moodle 5.2 onwards, where
- * React ships in core, this module can later be simplified to mount through
- * the core runtime instead of loading the standalone bundle.
+ * separately by build.mjs into js/vendor/react/editor.bundle.js and loaded by
+ * edit.php as a page script exposing window.mod_elang_editor. From Moodle 5.2
+ * onwards, where React ships in core, this can later be simplified to mount
+ * through the core runtime instead of loading the standalone bundle.
  *
  * @module     mod_elang/editor
  * @copyright  2026 Ralf Erlebach
@@ -83,26 +83,32 @@ const buildTransport = () => (methodname, args) => {
 };
 
 /**
- * Load the prebuilt React editor AMD module.
+ * Resolve the prebuilt React editor from the global the page script exposes.
  *
- * Using the module loader (rather than injecting a <script> tag) keeps the load
- * inside Moodle's JS tracking, so Behat's wait_for_pending_js resolves cleanly.
- * The module id comes from the editor root's data attribute so the bundle it
- * points at (an esbuild artefact built by build.mjs, declared in
- * thirdpartylibs.xml) is referenced in exactly one place.
+ * The React editor is bundled by build.mjs into js/vendor/react/
+ * editor.bundle.js and loaded by edit.php as a regular page script (via
+ * $PAGE->requires->js), which assigns its mount API to window.mod_elang_editor.
+ * It lives outside amd/build/ on purpose: moodle-plugin-ci wipes amd/build/ and
+ * re-runs Grunt, flagging any file Grunt cannot regenerate, and React cannot be
+ * built by Moodle's Grunt pipeline. Loading through $PAGE->requires->js keeps
+ * the script inside Moodle's asset handling; a short poll waits for the global
+ * in case this AMD module initialises before the page script has executed.
  *
- * @param {String} moduleName The AMD module id of the bundled editor
  * @returns {Promise<{mount: function(HTMLElement, Object): void}>} The editor API.
  */
-const loadEditor = (moduleName) => new Promise((resolve, reject) => {
-    require([moduleName], (module) => {
-        const editor = module && module.default ? module.default : module;
+const loadEditor = () => new Promise((resolve, reject) => {
+    const deadline = Date.now() + 10000;
+    const poll = () => {
+        const editor = window.mod_elang_editor;
         if (editor && typeof editor.mount === 'function') {
             resolve(editor);
+        } else if (Date.now() > deadline) {
+            reject(new Error('eLang editor bundle did not load.'));
         } else {
-            reject(new Error('eLang editor module did not expose mount().'));
+            window.setTimeout(poll, 50);
         }
-    }, reject);
+    };
+    poll();
 });
 
 /**
@@ -118,11 +124,7 @@ export const init = async(draftVersionId) => {
     }
 
     try {
-        const moduleName = element.dataset.editormodule;
-        if (!moduleName) {
-            throw new Error('eLang editor root is missing its module reference.');
-        }
-        const [strings, editor] = await Promise.all([loadStrings(), loadEditor(moduleName)]);
+        const [strings, editor] = await Promise.all([loadStrings(), loadEditor()]);
         editor.mount(element, {
             versionid: draftVersionId,
             mediauploadurl: element.dataset.mediauploadurl || '',

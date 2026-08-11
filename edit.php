@@ -47,6 +47,17 @@ $PAGE->set_activity_record($elang);
 
 $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((int) $elang->id);
 
+// Load the prebuilt React editor bundle as a regular page script. It lives in
+// js/vendor/react/ (not amd/build/, which moodle-plugin-ci wipes and rebuilds)
+// and exposes window.mod_elang_editor; the mod_elang/editor AMD module then
+// mounts it. Loading via $PAGE->requires->js keeps it in Moodle's asset
+// handling.
+$PAGE->requires->js(new moodle_url('/mod/elang/js/vendor/react/editor.bundle.js'));
+// The React authoring bundle is a prebuilt esbuild artefact (built from js/src
+// by build.mjs) that lives outside amd/build/ — see js/vendor/react/README.md
+// for why. Load it as a regular page script so it exposes window.mod_elang_editor
+// before the thin AMD bootstrap mounts it.
+$PAGE->requires->js(new moodle_url('/mod/elang/js/vendor/react/editor.bundle.js'));
 $PAGE->requires->js_call_amd('mod_elang/editor', 'init', [(int) $draft->id]);
 
 echo $OUTPUT->header();

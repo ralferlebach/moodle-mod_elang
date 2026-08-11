@@ -51,7 +51,50 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
+**Version:** 2.0.0-alpha.66 (2026081005) — Phasen 2–4 abgeschlossen; in
+Session 005 kamen das React/TS-Autorentool, der V1-Lücken-Syntax-Import, die
+Provider-Registry, die Admin-Sprachrestriktion und der DOCX/ODT-Export hinzu,
+plus ein CI-Fix. Details in docs/sessions/session-005.md. (Verlauf bis
+Session 004 unten weiter beschrieben.)
+
+**Stand Session 005 (zusätzlich zu Session 004):**
+  - **React/TS-Autorentool** (aus mod_vimipad übernommen, Option B): Quellcode
+    unter `js/src`, per esbuild (`build.mjs`) zu `js/vendor/react/
+    editor.bundle.js` gebündelt (React/ReactDOM/Scheduler, in
+    `thirdpartylibs.xml` als Verzeichnis `js/vendor/react` deklariert);
+    `edit.php` lädt das Bundle via `$PAGE->requires->js()` als Seiten-Skript
+    (exponiert `window.mod_elang_editor`); `amd/src/editor.js` ist ein dünner
+    AMD-Loader (core/str + core/ajax), der die globale Variable liest und
+    mountet;
+    `editor.mustache` schlanke Shell. Player bleibt framework-frei.
+    Jest/jsdom-Suite unter `js/tests`, Dev-Toolchain via `package.json`/
+    `tsconfig.json`. Migrationspfad auf Core-React ab Ende des 4.5-Supports
+    dokumentiert (Grundsatz B präzisiert: React NUR im gebündelten Autorentool).
+  - **V1-Lücken-Syntax beim Import**: `gap_syntax_parser` erkennt `[Wort]`
+    (Lücke mit Hilfe + gesäter Solution-Hilfestufe) und `{Wort}` (ohne Hilfe);
+    `preview_import` mit optionaler `parsegaps`-Option (BC) und Per-Cue-`gaps`.
+  - **P1**: kuratierte `provider_registry` (YouTube/Vimeo, OAuth-frei) +
+    Referenz-Normalisierung (ID ODER gängige URL-Form → kanonische Video-ID);
+    `set_draft_media` validiert/normalisiert; `get_version_content` liefert
+    `mediaproviders`; Medien-Panel als Dropdown. `mod_form`: Sprach-Vorauswahl
+    auf Kurs-/Site-Sprache (Lang-Pack-Variante → Basiscode), Bestand bleibt.
+  - **P2**: Admin-Setting `mod_elang/allowedlanguages` (`configmultiselect`) in
+    `settings.php`; zentraler Helfer `language_options` (Restriktion +
+    Basiscode-Mapping + Bestandswert bleibt im Dropdown). `mod_form` nutzt ihn.
+  - **P3**: DOCX/ODT-Transkript-Export OHNE Fremdbibliothek (`docx_writer` via
+    Core-`zip_packer`, `odt_writer` via Core-`ZipArchive` mit mimetype-stored-
+    first); `transcript_exporter::paragraphs()` als gemeinsame Basis;
+    `transcript.php` mit DOCX/ODT-Zweigen. PDF + Text bleiben.
+  - **CI-Fix (alpha.65→66)**: JS-Lint-Blocker behoben. Zwei verkettete
+    Ursachen: (1) Grunt/mpc statten jede `thirdpartylibs.xml`-`<location>`
+    (fehlende Datei → ENOENT); (2) mpc löscht `amd/build/` vor Grunt und
+    markiert nicht-regenerierte Dateien als „no longer generated". Ein
+    React-Bundle kann daher NICHT in `amd/build/` liegen → nach
+    `js/vendor/react/editor.bundle.js` verschoben, als Seiten-Skript geladen,
+    globale Variable statt AMD-`require()`. Verifiziert mit UND ohne Bundle.
+
+**(Historischer Stand — Version zu Beginn von Session 005):**
+2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
 Migration), Phase 3 (Lernendenoberfläche/Player) UND der Kern von Phase 4
 (Autorenoberfläche) samt Reporting/Export abgeschlossen. In Session 004 kam der
 versionierte Autoren-Workflow hinzu: Copy-on-Write-Drafts, version_validator +
@@ -98,15 +141,14 @@ Details zu Session 004 in `docs/sessions/session-004.md`, ältere Sessions
 (001–003) im selben Verzeichnis.
 
 **Als nächstes geplant (siehe docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md):**
-  - **P1** Anbieter-Dropdown im Medien-Panel (kuratierte Liste) + Anbieter-
-    Referenz als ID ODER URL (Provider-spezifisches Parsing für Player-Embed);
-    Sprach-Dropdown auf Instanz-Sprache/Default vorauswählen.
-  - **P2** Admin-Einstellung „erlaubte Inhaltssprachen" (settings.php) zur
-    Eingrenzung der im mod_form angebotenen Sprachen.
-  - **P3** Word/ODF-Transkript-Export (minimaler, eigen-erzeugter DOCX/ODT-
-    Container ohne Fremdlib; PhpWord nur falls reiche Formatierung nötig).
-    PDF + Text sind bereits vorhanden.
-  - **AP-D — Subtitle Studio & Authoring-UX (eigenes, größeres Paket):**
+  - **P1 [ERLEDIGT alpha.62]** Anbieter-Dropdown (provider_registry) + Referenz-
+    Normalisierung (ID/URL → kanonische ID); Sprach-Vorauswahl. Offen bleibt
+    bewusst P1.3 (Sprache required? — Empfehlung: nicht erzwingen).
+  - **P2 [ERLEDIGT alpha.63]** Admin-Setting `mod_elang/allowedlanguages`.
+  - **P3 [ERLEDIGT alpha.64]** DOCX/ODT-Export ohne Fremdlib (docx_writer via
+    zip_packer, odt_writer via ZipArchive mit mimetype-stored-first).
+  - **NÄCHSTES GROSSES PAKET — AP-D — Subtitle Studio & Authoring-UX
+    (eigenes, größeres Paket, sinnvoller Start mit Scoping/Design-Schritt):**
     end-to-end entlang der Workflows (Medium -> Transkript -> Timing an Waveform/
     Timeline mit Drag/Snap -> Lücken mit Live-Vorschau & Re-Sync -> Hinweise/
     Bewertung -> Vorschau -> Publish). Bausteine: Waveform (Web Audio API),
@@ -226,7 +268,19 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
   - PHP 8.1 ist die Untergrenze: KEINE readonly-Klassen, KEINE DNF-Typen,
     KEINE typisierten Klassenkonstanten, KEINE Property Hooks
   - PHPUnit-Metadaten als @covers-Annotation, nicht als Attribut
-    (Attribute stehen auf Moodle 4.5 nicht zur Verfügung)
+    (Attribute stehen auf Moodle 4.5 nicht zur Verfügung). VERSTÄRKT durch
+    Session 005: (1) `#[DataProvider]` allein bricht auf PHPUnit 9.6 (Moodle
+    4.5) — der Provider wird nicht gefunden, ArgumentCountError. (2) moodle-cs
+    v3.7.0 schaltet den Coverage-Sniff erst ab meetsMinimumMoodleVersion(500)
+    in den Attribut-Modus; der CI-Lint-Job läuft aber gegen die 4.5-Baseline
+    (branch 405) → dort erzeugen Coverage-Attribute pro Testmethode phpcs-
+    WARNUNGEN, die unter `phpcs --max-warnings 0` den Lint-Job brechen. (3) Die
+    PHPUnit-11-Deprecation „Metadata in doc-comments is deprecated" auf 5.0/5.2
+    ist KEIN CI-Blocker: `moodle-plugin-ci phpunit --fail-on-warning` wertet
+    Deprecations NICHT als Fehler (Job endet exit 0, „OK, but there were
+    issues!"). Also: NIEMALS wegen dieser Deprecation auf Attribute umstellen —
+    das repariert nichts und bricht den Lint-Job neu. Bei Doc-Kommentaren
+    bleiben.
   - Mehrzeilige if-Bedingungen: öffnende Klammer allein auf der if-Zeile, erster
     Ausdruck auf der Folgezeile, schließende Klammer allein auf eigener Zeile
     vor { (phpcbf korrigiert das automatisch, aber es lohnt sich, gleich richtig
@@ -260,6 +314,42 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     das reale Moodle-debugging()-Ausgabeformat, kein Fehlalarm des Tools).
     Das ist erwartete Instabilität eines unveröffentlichten Branches, kein
     Plugin-Fehler — gehört in einen experimentellen Job, nicht gefixt
+  - CI-Logs auswerten (Session 005): Einen roten Gesamt-Lauf NICHT pauschal als
+    „alles kaputt" behandeln. Zuerst je Job auf `##[error]` prüfen und
+    experimentelle/non-blocking Jobs (continue-on-error, „informational only")
+    aussortieren. Nur Jobs, die WIRKLICH mit `##[error]` enden UND in needs:
+    der ci-complete-Gate stehen, blockieren. Rauschquellen, die NIE blockieren:
+    phpmd (`phpmd plugin || true`), phpcpd (`|| true`), PHPUnit-Deprecations
+    („OK, but there were issues!"), der experimentelle main/5.3-dev-Job. Erst
+    den echten Blocker isolieren, dann fixen — nicht am Rauschen „reparieren"
+    (das hat in Session 005 fast eine unnötige, schädliche Attribut-Umstellung
+    ausgelöst).
+  - **Prebuilt-JS-Bundle-Falle (Session 005, ZWEI verkettete Ursachen):**
+    (1) `thirdpartylibs.xml`: Moodles Grunt (`.grunt/components.js
+    getThirdPartyPaths` -> `fs.statSync`) UND moodle-plugin-ci (`Vendors.php`)
+    statten JEDE deklarierte `<location>`. Fehlt die Datei im Checkout, bricht
+    der JS-Lint-Job („ENOENT ... stat" bzw. „non-existent path"), unter
+    `--max-lint-warnings 0` fatal. (2) moodle-plugin-cis `grunt`-Check LOESCHT
+    `amd/build/` komplett vor dem Grunt-Lauf (`GruntCommand`, `buildDirectory=
+    amd/build`, `$files->remove`) und markiert danach jede von Grunt NICHT
+    regenerierte Datei als „File no longer generated ... should be deleted"
+    (exit 1). Ein esbuild/React-Bundle hat kein `amd/src`-Pendant, wird also von
+    `grunt amd` nie erzeugt -> scheitert an (1) wenn absent UND an (2) wenn
+    praesent. **Loesung (bewaehrt in alpha.66):** Bundle NICHT in `amd/build/`,
+    sondern in `js/vendor/react/editor.bundle.js` (normales Verzeichnis, das
+    Grunt nie anfasst). `build.mjs` erzeugt es dort und exponiert
+    `window.mod_elang_editor`. `edit.php` laedt es via `$PAGE->requires->js(new
+    moodle_url(/mod/elang/js/vendor/react/editor.bundle.js))` als Seiten-Skript;
+    `amd/src/editor.js` liest die globale Variable (kurzes Polling) statt
+    `require()`. `thirdpartylibs.xml` zeigt auf das VERZEICHNIS `js/vendor/react`
+    (existiert immer). IMMER mit UND ohne Bundle testen: `moodle-plugin-ci grunt
+    --max-lint-warnings 0` / `phpcs --max-warnings 0` / `validate` muessen in
+    beiden Faellen exit 0 liefern.
+  - Lokale Verifikation auf ZWEI Moodle-Zweigen, wenn Testinfrastruktur berührt
+    wird (Session 005): 4.5 nutzt PHPUnit 9.6, 5.0/5.2 nutzen PHPUnit 11 — die
+    verhalten sich bei Test-Metadaten unterschiedlich. Moodle 5.x liegt unter
+    `public/` (Web-Root verschoben: Plugins in `public/mod/…`, version.php in
+    `public/version.php`, Init via `php public/admin/tool/phpunit/cli/init.php`).
   - Vor dem Ausliefern lokal prüfen, sofern ein PHP mit intl-Extension
     verfügbar ist: php -l auf jede Datei, phpcs --standard=moodle gegen den
     ganzen Baum (moodlehq/moodle-cs via Composer installierbar)
@@ -451,6 +541,15 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
   mit korrekter Verzeichnisstruktur relativ zum Plugin-Root — also auch
   geänderte docs/-Dateien MIT im selben ZIP, nicht separat oder als lose
   Einzeldateien im Chat.
+- AUSNAHME für prebuilt Artefakte (z. B. das React-Bundle
+  `js/vendor/react/editor.bundle.js`): Wenn eine Änderung ein solches, groesses
+  prebuilt Artefakt betrifft, ein VOLL-ZIP des ganzen Plugin-Baums ausliefern
+  (kein .git/node_modules/tools/vendor, aber MIT js/vendor/react/, amd/build/
+  und js/src), damit die Datei sicher ankommt. Wichtiger als der Zustellweg ist
+  aber die Struktur: Das Bundle liegt bewusst in js/vendor/react/ und NICHT in
+  amd/build/ (siehe Prebuilt-JS-Bundle-Falle oben), damit die CI weder bei
+  fehlender noch bei vorhandener Datei bricht. Der Nutzer testet gegen seine
+  echte CI.
 - Patch-ZIPs erhalten einen durchnummerierten Namen (patch-2.0.YY.zip),
   die Version in version.php orientiert sich am aktuellen Datum und wird
   mit jeder Iteration hochgezählt (Format: YYYYMMDDNN, z.B. 2026072301)

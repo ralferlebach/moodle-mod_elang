@@ -51,7 +51,7 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.66 (2026081005) — Phasen 2–4 abgeschlossen; in
+**Version:** 2.0.0-alpha.67 (2026081006) — Phasen 2–4 abgeschlossen; in
 Session 005 kamen das React/TS-Autorentool, der V1-Lücken-Syntax-Import, die
 Provider-Registry, die Admin-Sprachrestriktion und der DOCX/ODT-Export hinzu,
 plus ein CI-Fix. Details in docs/sessions/session-005.md. (Verlauf bis
@@ -85,13 +85,18 @@ Session 004 unten weiter beschrieben.)
     Core-`zip_packer`, `odt_writer` via Core-`ZipArchive` mit mimetype-stored-
     first); `transcript_exporter::paragraphs()` als gemeinsame Basis;
     `transcript.php` mit DOCX/ODT-Zweigen. PDF + Text bleiben.
-  - **CI-Fix (alpha.65→66)**: JS-Lint-Blocker behoben. Zwei verkettete
+  - **CI-Fix (alpha.65→67)**: JS-Lint-Blocker behoben. Zwei verkettete
     Ursachen: (1) Grunt/mpc statten jede `thirdpartylibs.xml`-`<location>`
     (fehlende Datei → ENOENT); (2) mpc löscht `amd/build/` vor Grunt und
     markiert nicht-regenerierte Dateien als „no longer generated". Ein
     React-Bundle kann daher NICHT in `amd/build/` liegen → nach
     `js/vendor/react/editor.bundle.js` verschoben, als Seiten-Skript geladen,
     globale Variable statt AMD-`require()`. Verifiziert mit UND ohne Bundle.
+    alpha.67 zog die letzten veralteten Pfad-Verweise nach (makefile/.gitignore/
+    thirdpartylibs-Beschreibung). WICHTIGE LOG-LEHRE: Der erste rote Lauf nach
+    dem Fix hatte den Fix gar nicht ausgecheckt — bei rotem CI IMMER zuerst am
+    `$plugin->release` bzw. am erwarteten Fix-Marker im Log prüfen, welche
+    Version tatsächlich lief, bevor man erneut „fixt".
 
 **(Historischer Stand — Version zu Beginn von Session 005):**
 2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
@@ -324,6 +329,13 @@ Bekannte Stolperfallen (Coding-Standards und Testumgebung):
     den echten Blocker isolieren, dann fixen — nicht am Rauschen „reparieren"
     (das hat in Session 005 fast eine unnötige, schädliche Attribut-Umstellung
     ausgelöst).
+  - **Vor dem Nachfixen: prüfen, welche Version der rote Lauf ausgecheckt hat
+    (Session 005).** Ein rotes CI-Ergebnis kann schlicht bedeuten, dass der Fix
+    im getesteten Commit noch nicht drin war. Im Log am `$plugin->release` oder
+    an einem erwarteten Fix-Marker (z. B. „zeigt `thirdpartylibs.xml` schon auf
+    `js/vendor/react`?") verifizieren, ob die Änderung überhaupt lief. Zeitstempel
+    des Laufs mit dem des ausgelieferten ZIP vergleichen. Nicht denselben Fix
+    erneut bauen, wenn der alte Stand getestet wurde.
   - **Prebuilt-JS-Bundle-Falle (Session 005, ZWEI verkettete Ursachen):**
     (1) `thirdpartylibs.xml`: Moodles Grunt (`.grunt/components.js
     getThirdPartyPaths` -> `fs.statSync`) UND moodle-plugin-ci (`Vendors.php`)

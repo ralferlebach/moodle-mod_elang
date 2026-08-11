@@ -11,6 +11,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.68] - 2026-08-11
+
+### Fixed
+- The real reason the React bundle kept vanishing from CI checkouts across
+  alpha.65–67: `.gitignore` contained an unanchored `vendor/` rule (meant for
+  the Composer directory at the plugin root), which also matched `js/vendor/`,
+  so git silently refused to add `js/vendor/react/` (bundle and README). Every
+  delivery therefore shipped a directory that could never be committed, and CI
+  failed on the now-missing `thirdpartylibs.xml` location (`ENOENT` in Grunt's
+  ignorefiles task; `Vendors.php: non-existent path` in moodle-plugin-ci
+  phplint/validate). The rule is now anchored to `/vendor/`, so it ignores only
+  the root Composer directory and `js/vendor/react/` is committed. Verified with
+  `git check-ignore` that the bundle, its README and all `amd/build/` artefacts
+  are trackable, and that the root `vendor/` is still ignored.
+
 ## [2.0.0-alpha.67] - 2026-08-11
 
 ### Changed

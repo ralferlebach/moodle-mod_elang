@@ -2,7 +2,7 @@
 
 **Datum:** 2026-08-10
 **Dauer:** eine lange Arbeitssitzung mit mehreren Increments und einem CI-Fix-Zyklus
-**Version am Ende:** 2.0.0-alpha.66 (2026081005)
+**Version am Ende:** 2.0.0-alpha.67 (2026081006)
 **Ausgangspunkt:** 2.0.0-alpha.60 (Ende Session 004)
 
 ---
@@ -106,6 +106,18 @@ eigentliche Problem tiefer lag – das React-Bundle stand im FALSCHEN Verzeichni
   React/ReactDOM/Scheduler). `amd/build/` enthält nur noch Grunt-Artefakte
   (editor, player). Verifiziert MIT und OHNE Bundle: `moodle-plugin-ci grunt
   --max-lint-warnings 0`, `phpcs --max-warnings 0`, `validate` alle exit 0.
+- **alpha.67 (Nachzug + wichtige Log-Lektion):** Der erste CI-Lauf nach dem
+  alpha.66-Fix war noch rot — die Log-Analyse zeigte aber, dass dieser Lauf den
+  Fix GAR NICHT enthielt (`thirdpartylibs.xml` zeigte im Checkout noch auf
+  `amd/build/editor_lazy.min.js`, kein `js/vendor/react`/`editor.bundle.js` im
+  Log; Lauf zeitlich VOR dem alpha.66-ZIP-Build). Lehre: bei rotem CI zuerst
+  prüfen, welche Version tatsächlich ausgecheckt wurde (am `$plugin->release`
+  bzw. am erwarteten Fix-Marker im Log), bevor man erneut „fixt". In alpha.67
+  dann die letzten VERALTETEN Verweise auf den alten Pfad entfernt
+  (`makefile`-Echo, `.gitignore`-Kommentar, `thirdpartylibs.xml`-Beschreibung),
+  damit ein Rebuild oder ein Leser nie zum stillgelegten Ort zurückgeführt wird.
+  Keine funktionale Codeänderung; alle mpc-Kommandos erneut exit 0 (beide
+  Bundle-Szenarien, Moodle 4.5 + 5.2).
 - Der experimentelle `main`-Job ist laut CI-eigener Meldung „informational
   only" (non-blocking). Die phpmd-„VIOLATIONS" laufen mit `|| true`.
 - Die „PHPUnit Deprecations" auf 5.0/5.2 (PHPUnit 11) sind **kein** Blocker:

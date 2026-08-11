@@ -18,7 +18,10 @@ package-lock.json
 yarn.lock
 
 # PHP / Composer
-vendor/
+# Anchored to the plugin root so it only ignores the Composer vendor/ directory,
+# NOT js/vendor/ (the committed React bundle lives there — an unanchored
+# "vendor/" would silently exclude it from the repository and break CI).
+/vendor/
 composer.lock
 
 # moodle-plugin-ci working directories

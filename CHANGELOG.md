@@ -11,6 +11,44 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.71] - 2026-08-11
+
+### Security (release blockers closed with tests)
+- Transcript export (P0): the learner worksheet is always masked (no gap
+  solution in any of TXT/PDF/DOCX/ODT); the full solution transcript now
+  requires the new `mod/elang:exportsolution` capability, which learners do not
+  hold. Regression tests assert no accepted-answer text can leak through the
+  default or worksheet export, and that the solution copy still carries it.
+- Regex answer variants (P0): saving a draft that stores an `isregex` variant
+  now enforces `mod/elang:useregex` server-side (not just in the React UI). An
+  editing teacher without the capability is refused; a manager is allowed.
+- Domain validation (P1): `save_draft_version` now rejects a hand-crafted
+  payload with a hint penalty outside `[0, 1]`, an `isregex` flag other than 0/1,
+  an uncompilable regex variant, or an unknown grading algorithm or hint type.
+  Attempt and rawgrade scores are additionally clamped to `[0, 1]` defensively.
+
+### Added
+- `mod/elang:deleteattempts` and `mod/elang:exportreports` are implemented, not
+  just declared: the teacher report can export attempts through the Dataformat
+  API (CSV/Excel/ODS/JSON, honouring the group filter) and delete an attempt
+  through a confirmed, sesskey-protected POST that also regrades the learner.
+- New unbranded activity monologo plus a colour plugin logo (`pix/logo.svg`,
+  `pix/logo.png`), referenced from the README.
+- `package-lock.json` is now committed so `npm ci` reproduces the exact
+  esbuild/grunt toolchain that builds the shipped bundles.
+
+### Fixed
+- `view.php` referenced `player:nocontent`, which did not exist in either
+  language pack; the string is now present in English and German.
+- `report.php` referenced `report:score` and `report:answered`, which were never
+  defined; both strings are now present, closing a latent debugging() call.
+
+### Changed
+- The `makefile` is replaced with the fuller mod_vimipad suite, adapted to the
+  elang paths (`js/vendor/react/editor.bundle.js`, `mod/elang`) and elang-named
+  Playwright/JMeter/k6 load targets ready for the E5/E6 work packages.
+- English and German language packs are back at full parity (229/229).
+
 ## [2.0.0-alpha.70] - 2026-08-11
 
 ### ACTION REQUIRED (one-time git cleanup)

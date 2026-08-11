@@ -1,5 +1,7 @@
 # moodle-mod_elang
 
+<img src="pix/logo.svg" alt="eLang logo" width="72" align="right">
+
 [![Moodle Plugin CI](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml/badge.svg?branch=development)](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml)
 
 Video-based gap-fill language exercises with time-coded subtitles for Moodle.

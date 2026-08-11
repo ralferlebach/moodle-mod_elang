@@ -71,6 +71,67 @@ final class attempt_report {
     }
 
     /**
+     * The export column headings, keyed by the stable machine name each
+     * export_rows() row uses. Kept next to export_rows() so the two never drift
+     * apart, and passed straight to \core\dataformat::download_data().
+     *
+     * @return array<string, string> Column machine name mapped to its localised heading
+     */
+    public function export_columns(): array {
+        return [
+            'user' => get_string('report:user', 'mod_elang'),
+            'attemptnumber' => get_string('report:attemptnumber', 'mod_elang'),
+            'state' => get_string('report:state', 'mod_elang'),
+            'score' => get_string('report:score', 'mod_elang'),
+            'answered' => get_string('report:answered', 'mod_elang'),
+            'correct' => get_string('report:correct', 'mod_elang'),
+            'exact' => get_string('report:exact', 'mod_elang'),
+            'hinted' => get_string('report:hinted', 'mod_elang'),
+            'finished' => get_string('report:finished', 'mod_elang'),
+        ];
+    }
+
+    /**
+     * Flatten an activity's attempt summaries into export rows keyed by the
+     * stable column names of export_columns(), ready to stream through the
+     * Moodle Dataformat API (CSV/Excel/ODS/JSON). Learner names are resolved in
+     * a single query rather than one per row. The caller is responsible for the
+     * mod/elang:exportreports capability check.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @return array<int, array<string, string|int|float>> One associative row per attempt
+     */
+    public function export_rows(int $elangid, int $groupid = 0): array {
+        global $DB;
+
+        $summaries = $this->list_for_activity($elangid, $groupid);
+        if (empty($summaries)) {
+            return [];
+        }
+
+        $users = $DB->get_records_list('user', 'id', array_unique(array_column($summaries, 'userid')));
+
+        $rows = [];
+        foreach ($summaries as $summary) {
+            $user = $users[$summary['userid']] ?? null;
+            $rows[] = [
+                'user' => $user ? fullname($user) : (string) $summary['userid'],
+                'attemptnumber' => $summary['attemptnumber'],
+                'state' => $summary['state'],
+                'score' => format_float($summary['score'], 5),
+                'answered' => $summary['answeredgaps'],
+                'correct' => $summary['correctgaps'],
+                'exact' => $summary['exactgaps'],
+                'hinted' => $summary['hintedgaps'],
+                'finished' => $summary['timefinish'] ? userdate($summary['timefinish']) : '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * Assemble the full detail of one attempt: its aggregates and every gap of
      * the attempt's version paired with the learner's response, in cue then gap
      * order.

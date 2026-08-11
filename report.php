@@ -38,12 +38,79 @@ require_login($course, false, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/elang:viewreports', $context);
 
+$action = optional_param('action', '', PARAM_ALPHA);
+$dataformat = optional_param('dataformat', '', PARAM_ALPHA);
+$candelete = has_capability('mod/elang:deleteattempts', $context);
+$canexport = has_capability('mod/elang:exportreports', $context);
+
 $PAGE->set_url('/mod/elang/report.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 $groupmode = groups_get_activity_groupmode($cm, $course);
+$currentgroup = $groupmode != NOGROUPS ? groups_get_activity_group($cm, true) : 0;
+
+// Streaming a data export must happen before any page output is sent. The
+// group filter in force on the overview is honoured so a teacher restricted to
+// separate groups only ever exports the attempts they may already see.
+if ($dataformat !== '' && $attemptid === 0) {
+    require_capability('mod/elang:exportreports', $context);
+    $report = new \mod_elang\local\report\attempt_report();
+    \core\dataformat::download_data(
+        clean_filename(format_string($elang->name) . '-attempts'),
+        $dataformat,
+        $report->export_columns(),
+        $report->export_rows((int) $elang->id, (int) $currentgroup)
+    );
+    exit;
+}
+
+// Deleting an attempt is destructive, so it runs only through a confirmed POST
+// carrying a valid session key, and the attempt is re-checked against this
+// activity before anything is removed.
+if ($action === 'delete') {
+    require_capability('mod/elang:deleteattempts', $context);
+    $deleteid = required_param('attemptid', PARAM_INT);
+    $todelete = $DB->get_record(
+        'elang_attempt',
+        ['id' => $deleteid, 'elangid' => $elang->id],
+        '*',
+        MUST_EXIST
+    );
+
+    if (optional_param('confirm', 0, PARAM_BOOL) && confirm_sesskey()) {
+        $manager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(
+                new \mod_elang\local\grading\script_handler_manager()
+            )
+        );
+        $deleted = $manager->delete_attempt($deleteid);
+        elang_update_grades($elang, (int) $deleted->userid);
+        redirect(
+            new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
+            get_string('report:deleted', 'mod_elang'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
+    }
+
+    $PAGE->set_url('/mod/elang/report.php', ['id' => $cm->id, 'action' => 'delete', 'attemptid' => $deleteid]);
+    echo $OUTPUT->header();
+    echo $OUTPUT->confirm(
+        get_string('report:deleteconfirm', 'mod_elang'),
+        new moodle_url('/mod/elang/report.php', [
+            'id' => $cm->id,
+            'action' => 'delete',
+            'attemptid' => $deleteid,
+            'confirm' => 1,
+            'sesskey' => sesskey(),
+        ]),
+        new moodle_url('/mod/elang/report.php', ['id' => $cm->id])
+    );
+    echo $OUTPUT->footer();
+    exit;
+}
 
 $statelabel = function (string $state): string {
     $labels = [
@@ -126,15 +193,27 @@ if ($attemptid) {
         get_string('report:back', 'mod_elang')
     ));
 } else {
-    $currentgroup = 0;
     if ($groupmode != NOGROUPS) {
-        $currentgroup = groups_get_activity_group($cm, true);
         echo groups_print_activity_menu($cm, $PAGE->url, true);
     }
     $attempts = $report->list_for_activity((int) $elang->id, (int) $currentgroup);
     if (empty($attempts)) {
         echo html_writer::div(get_string('report:noattempts', 'mod_elang'));
     } else {
+        if ($canexport) {
+            $exportlinks = [];
+            foreach (['csv', 'xlsx', 'ods', 'json'] as $exportformat) {
+                $exportlinks[] = html_writer::link(
+                    new moodle_url('/mod/elang/report.php', ['id' => $cm->id, 'dataformat' => $exportformat]),
+                    strtoupper($exportformat)
+                );
+            }
+            echo html_writer::div(
+                get_string('report:export', 'mod_elang') . ': ' . implode(' · ', $exportlinks),
+                'mod_elang-export mb-3'
+            );
+        }
+
         $users = $DB->get_records_list('user', 'id', array_unique(array_column($attempts, 'userid')));
 
         $table = new html_table();
@@ -153,6 +232,15 @@ if ($attemptid) {
         foreach ($attempts as $attempt) {
             $user = $users[$attempt['userid']] ?? null;
             $viewurl = new moodle_url('/mod/elang/report.php', ['id' => $cm->id, 'attemptid' => $attempt['attemptid']]);
+            $actions = html_writer::link($viewurl, get_string('report:view', 'mod_elang'));
+            if ($candelete) {
+                $deleteurl = new moodle_url('/mod/elang/report.php', [
+                    'id' => $cm->id,
+                    'action' => 'delete',
+                    'attemptid' => $attempt['attemptid'],
+                ]);
+                $actions .= ' · ' . html_writer::link($deleteurl, get_string('report:delete', 'mod_elang'));
+            }
             $table->data[] = [
                 $user ? fullname($user) : (string) $attempt['userid'],
                 $attempt['attemptnumber'],
@@ -163,7 +251,7 @@ if ($attemptid) {
                 $attempt['exactgaps'],
                 $attempt['hintedgaps'],
                 $attempt['timefinish'] ? userdate($attempt['timefinish']) : '-',
-                html_writer::link($viewurl, get_string('report:view', 'mod_elang')),
+                $actions,
             ];
         }
         echo html_writer::table($table);

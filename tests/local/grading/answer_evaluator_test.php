@@ -358,4 +358,18 @@ final class answer_evaluator_test extends \advanced_testcase {
         $this->assertNull($result->matchedgapanswerid);
         $this->assertDebuggingCalled();
     }
+
+    /**
+     * is_valid_regex() accepts a pattern that compiles under the grading
+     * delimiter and flags, and rejects one that does not, so the authoring layer
+     * can turn away an uncompilable variant before it is stored.
+     *
+     * @return void
+     */
+    public function test_is_valid_regex_accepts_compilable_and_rejects_broken_patterns(): void {
+        $this->assertTrue(answer_evaluator::is_valid_regex('ch.t'));
+        $this->assertTrue(answer_evaluator::is_valid_regex('(chat|chien)'));
+        $this->assertFalse(answer_evaluator::is_valid_regex('(unclosed'));
+        $this->assertFalse(answer_evaluator::is_valid_regex('a{2,1}'));
+    }
 }

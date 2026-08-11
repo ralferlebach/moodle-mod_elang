@@ -170,3 +170,84 @@ ausrichten → Lücken markieren → Hinweise setzen → Vorschau → veröffent
 4. **P3** Word/ODF-Export (minimaler DOCX/ODT-Writer).
 5. **AP-D** Subtitle Studio & Authoring-UX als eigenes, größeres Paket, entlang
    der Workflows designt.
+
+---
+
+## E. Weg zur Beta — Checkliste (für die nächste Sitzung)
+
+Stand: nach Session 005 ist der Code funktional komplett und die CI grün
+(alpha.70). Es gibt **keinen großen technischen Blocker** mehr. Vor dem Sprung
+von Alpha auf Beta stehen aber Abschluss, Härtung und Vollständigkeit an. Diese
+Liste ist die Arbeitsgrundlage für die nächste(n) Sitzung(en); Reihenfolge grob
+von „schnell erledigt" nach „großes Paket".
+
+### Review-P0/P1 + tote Caps — **[ERLEDIGT alpha.71, Session 006]**
+Vor E0/E1 wurde die Codehärtung aus dem technischen Review abgearbeitet (die
+Fixes lagen bereits uncommittet über alpha.70 vor, waren aber ungetestet):
+- P0 Transcript: Worksheet (maskiert) vs. Solution (Volltext, neue Cap
+  `mod/elang:exportsolution`) — mit Regressionstests über alle Formate.
+- P0 useregex serverseitig durchgesetzt; P1 Domain-Validierung (penalty∈[0,1],
+  isregex∈{0,1}, Regex-Compile, Algorithmus/Hinttyp-Enum) + Score-Clamp — getestet.
+- Tote Caps `deleteattempts`/`exportreports` implementiert (Dataformat-Export +
+  bestätigter Lösch-Flow). `package-lock.json` committet, Lang 229/229.
+
+### E0 — Werkzeug-/Infrastruktur-Nachzug — **[ERLEDIGT alpha.71]**
+- Vollständiges `makefile` von mod_vimipad übernommen und an elang-Pfade
+  (`js/vendor/react/editor.bundle.js`, `mod/elang`) sowie elang-benannte
+  Playwright/JMeter/k6-Ziele angeglichen. Die Load-/Playwright-Ziele stehen
+  bereit für die E5/E6-Pakete (Testdateien folgen dort).
+
+### E1 — Kleinreste — **[ERLEDIGT alpha.71]**
+- **Player-Meldung**: `view.php` mountet den Player nur bei publizierter Version
+  und zeigt sonst `player:nocontent` (String neu ergänzt).
+- **P1.3 — Sprache NICHT `required`.** Bestätigt, bleibt optional.
+- **Report-Gruppenfilter**: Sichtprüfung vorhanden (SEPARATEGROUPS +
+  `moodle/site:accessallgroups` in `report.php`).
+
+### E2 — AP-D „Subtitle Studio & Authoring-UX" **vor Beta**
+- Das große, eigenständige Paket (siehe Abschnitt C). Fundament (React/TS,
+  gebündelt) steht; die workflow-orientierte Autoren-Erfahrung (Waveform via Web
+  Audio API, Drag/Snap-Timing, Live-Re-Sync der Lücken-Offsets, Autosave,
+  geführtes Onboarding) ist noch zu bauen. Start mit einem Scoping-/Design-
+  Schritt (Klick-Flows), dann inkrementell.
+
+### E3 — Codehärtung **vor Beta**
+- Fehlerpfade, Randfälle und Eingabevalidierung systematisch durchgehen
+  (insbesondere die Authoring-Write-Services und die Migration).
+- Defensive Prüfungen dort, wo bisher „happy path" angenommen wird.
+- Konsistente, nutzerfreundliche Fehlermeldungen statt Exceptions im UI.
+
+### E4 — Behat-Testabdeckung **vor Beta**
+- Aktuell nur wenige Feature-Dateien. Für Beta die Kernpfade durchgängig als
+  `@javascript`-Szenarien abdecken: Übung anlegen → bearbeiten → veröffentlichen
+  → als Lernende bearbeiten → Report ansehen → Transkript exportieren.
+- Gruppenmodus-Pfade und die Autoren-UI (Timeline, Lücken-Editor) mit einbeziehen.
+
+### E5 — Sichtfunktions- und Barrierearmutsprüfung **vor Beta**
+- **Sichtfunktionsprüfung (visuelle Regression / E2E-Klickprüfung):** entweder
+  eine dokumentierte manuelle Prüf-Anleitung bereitstellen **oder** automatisierte
+  **Playwright**-Tests bereitstellen (bevorzugt), die die tatsächliche Darstellung
+  und Interaktion von Player und Autorentool abdecken.
+- **Barrierearmut (Accessibility):** Tastaturbedienbarkeit, ARIA-Rollen/-Labels,
+  Kontraste, Screenreader-Fluss für Player und Autorentool prüfen. Anleitung
+  bzw. automatisierte a11y-Checks (z. B. axe in Playwright) bereitstellen.
+
+### E6 — Lasttests **vor Beta**
+- Last-/Performance-Tests bereitstellen: **jMeter**-Testplan **und** **k6**-Skripte
+  für die wesentlichen Endpunkte (Player-Datenabruf, Antwort-/Grading-Roundtrip,
+  Autoren-Speichern/Veröffentlichen). Ziel: Verhalten unter realistischer und
+  unter Spitzenlast dokumentieren; Engpässe identifizieren.
+
+### E7 — Migrationspfad prüfen (**automatische Testabdeckung!**) **vor Beta**
+- Der V1→V2-Migrationspfad muss auf einem **echten Upgrade** verifiziert werden,
+  nicht nur auf PHPUnit-Frischinstalls (Schema-Kollisionen in `upgrade.php`
+  tauchen nur auf realen Admin-UI-Upgrades auf).
+- **Automatisierte Testabdeckung** dafür bereitstellen: ein reproduzierbarer,
+  in der CI (oder scriptgestützt) laufender Durchlauf, der von einer echten
+  V1-Instanz über die Zwischenversionen bis V2 (alpha.70+) migriert und die
+  Datenintegrität (cuekey/gapkey-Stabilität, Versionen, Media, Ergebnisse)
+  assertiert.
+
+### Bewusst NICHT Beta-blockierend
+- OAuth/login-gated Provider-Support: eigenes, kostenpflichtiges Subplugin,
+  ausdrücklich nach Beta.

@@ -322,6 +322,8 @@ class version_manager {
     private function insert_version_content(int $versionid, array $cues): void {
         global $DB;
 
+        self::validate_content_shape($cues);
+
         foreach ($cues as $cue) {
             $cueid = $DB->insert_record('elang_cue', (object) [
                 'versionid' => $versionid,
@@ -364,6 +366,63 @@ class version_manager {
                         'penalty' => $hint['penalty'],
                         'timecreated' => time(),
                     ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Enforce the domain invariants of an incoming cue list before any of it is
+     * written. The external layer's PARAM_* filters only guarantee scalar
+     * types, so a hand-crafted request could otherwise store a hint penalty
+     * outside [0, 1] (which would push a response score above 1), an isregex
+     * flag other than 0 or 1, an uncompilable regex variant that never matches,
+     * or an unknown hint type or grading algorithm. Rejecting them here keeps
+     * the stored content within the range the grading engine is defined for.
+     *
+     * @param array $cues The cue list, each with nested gaps/answers/hints
+     * @return void
+     * @throws \moodle_exception When any value falls outside its allowed domain
+     */
+    private static function validate_content_shape(array $cues): void {
+        $knownalgorithms = [
+            \mod_elang\local\grading\answer_evaluator::ALGORITHM_EXACT,
+            \mod_elang\local\grading\answer_evaluator::ALGORITHM_WORDRECOGNIZED,
+        ];
+        $knownhinttypes = ['text', 'firstletter', 'wordlength', 'partial', 'solution', 'translation'];
+
+        foreach ($cues as $cue) {
+            foreach ($cue['gaps'] ?? [] as $gap) {
+                if (!in_array($gap['gradingalgorithm'], $knownalgorithms, true)) {
+                    throw new \moodle_exception(
+                        'error:invalidgradingalgorithm',
+                        'mod_elang',
+                        '',
+                        $gap['gradingalgorithm']
+                    );
+                }
+
+                foreach ($gap['answers'] ?? [] as $answer) {
+                    $isregex = (int) $answer['isregex'];
+                    if ($isregex !== 0 && $isregex !== 1) {
+                        throw new \moodle_exception('error:invalidisregex', 'mod_elang');
+                    }
+                    if (
+                        $isregex === 1
+                        && !\mod_elang\local\grading\answer_evaluator::is_valid_regex((string) $answer['answer'])
+                    ) {
+                        throw new \moodle_exception('error:invalidregexpattern', 'mod_elang', '', $answer['answer']);
+                    }
+                }
+
+                foreach ($gap['hints'] ?? [] as $hint) {
+                    $penalty = (float) $hint['penalty'];
+                    if (!is_finite($penalty) || $penalty < 0.0 || $penalty > 1.0) {
+                        throw new \moodle_exception('error:invalidpenalty', 'mod_elang');
+                    }
+                    if (!in_array($hint['hinttype'], $knownhinttypes, true)) {
+                        throw new \moodle_exception('error:invalidhinttype', 'mod_elang', '', $hint['hinttype']);
+                    }
                 }
             }
         }

@@ -17,9 +17,11 @@
 /**
  * Transcript export for mod_elang.
  *
- * Streams the published version's transcript as a PDF or a text file, or shows
- * a small chooser when no format is given. Gated on mod/elang:exporttranscript,
- * which learners hold too.
+ * Streams the published version's transcript as a PDF, Word, ODF or text file,
+ * or shows a small chooser when no format is given. The learner worksheet
+ * (every gap blanked out) is gated on mod/elang:exporttranscript, which
+ * learners hold too; the solution copy (full text) additionally requires
+ * mod/elang:exportsolution, which learners do not hold.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -30,6 +32,7 @@ require(__DIR__ . '/../../config.php');
 
 $id = required_param('id', PARAM_INT);
 $format = optional_param('format', '', PARAM_ALPHA);
+$solution = optional_param('solution', 0, PARAM_BOOL);
 
 [$course, $cm] = get_course_and_cm_from_cmid($id, 'elang');
 $elang = $DB->get_record('elang', ['id' => $cm->instance], '*', MUST_EXIST);
@@ -37,6 +40,16 @@ $elang = $DB->get_record('elang', ['id' => $cm->instance], '*', MUST_EXIST);
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/elang:exporttranscript', $context);
+
+// The solution copy carries the full, unmasked text, so it is gated behind the
+// higher capability that learners do not hold. Everything else is the masked
+// learner worksheet.
+$cansolution = has_capability('mod/elang:exportsolution', $context);
+$masked = !($solution && $cansolution);
+if ($solution) {
+    require_capability('mod/elang:exportsolution', $context);
+}
+$suffix = $masked ? '' : '-solution';
 
 $version = (new \mod_elang\local\domain\version_manager())->get_published((int) $elang->id);
 $name = clean_filename(format_string($elang->name));
@@ -50,8 +63,8 @@ if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 
 
     if ($format === 'txt') {
         send_file(
-            $exporter->plain_text((int) $version->id),
-            $name . '.txt',
+            $exporter->plain_text((int) $version->id, $masked),
+            $name . $suffix . '.txt',
             0,
             0,
             true,
@@ -63,11 +76,11 @@ if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 
     if ($format === 'docx') {
         $bytes = (new \mod_elang\local\export\docx_writer())->build(
             format_string($elang->name),
-            $exporter->paragraphs((int) $version->id)
+            $exporter->paragraphs((int) $version->id, $masked)
         );
         send_file(
             $bytes,
-            $name . '.docx',
+            $name . $suffix . '.docx',
             0,
             0,
             true,
@@ -79,12 +92,12 @@ if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 
     if ($format === 'odt') {
         $bytes = (new \mod_elang\local\export\odt_writer())->build(
             format_string($elang->name),
-            $exporter->paragraphs((int) $version->id)
+            $exporter->paragraphs((int) $version->id, $masked)
         );
-        send_file($bytes, $name . '.odt', 0, 0, true, true, 'application/vnd.oasis.opendocument.text');
+        send_file($bytes, $name . $suffix . '.odt', 0, 0, true, true, 'application/vnd.oasis.opendocument.text');
     }
 
-    $text = $exporter->plain_text((int) $version->id);
+    $text = $exporter->plain_text((int) $version->id, $masked);
 
     require_once($CFG->libdir . '/pdflib.php');
     $pdf = new pdf();
@@ -98,7 +111,7 @@ if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 
         $html .= html_writer::tag('p', nl2br(s($paragraph)));
     }
     $pdf->writeHTML($html);
-    $pdf->Output($name . '.pdf', 'D');
+    $pdf->Output($name . $suffix . '.pdf', 'D');
     exit;
 }
 
@@ -113,19 +126,30 @@ echo $OUTPUT->heading(get_string('exporttranscript', 'mod_elang'));
 if ($version === null) {
     echo html_writer::div(get_string('export:nocontent', 'mod_elang'));
 } else {
-    $pdfurl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'pdf']);
-    $txturl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'txt']);
-    $docxurl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'docx']);
-    $odturl = new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id, 'format' => 'odt']);
-    echo html_writer::div(
-        html_writer::link($pdfurl, get_string('export:pdf', 'mod_elang'))
-        . ' · '
-        . html_writer::link($docxurl, get_string('export:docx', 'mod_elang'))
-        . ' · '
-        . html_writer::link($odturl, get_string('export:odt', 'mod_elang'))
-        . ' · '
-        . html_writer::link($txturl, get_string('export:text', 'mod_elang'))
-    );
+    $formatlinks = function (bool $sol) use ($cm): string {
+        $formats = ['pdf' => 'export:pdf', 'docx' => 'export:docx', 'odt' => 'export:odt', 'txt' => 'export:text'];
+        $links = [];
+        foreach ($formats as $format => $stringkey) {
+            $params = ['id' => $cm->id, 'format' => $format];
+            if ($sol) {
+                $params['solution'] = 1;
+            }
+            $links[] = html_writer::link(
+                new moodle_url('/mod/elang/transcript.php', $params),
+                get_string($stringkey, 'mod_elang')
+            );
+        }
+        return implode(' · ', $links);
+    };
+
+    echo $OUTPUT->heading(get_string('export:worksheet', 'mod_elang'), 3);
+    echo html_writer::div($formatlinks(false));
+
+    if ($cansolution) {
+        echo $OUTPUT->heading(get_string('export:solution', 'mod_elang'), 3);
+        echo html_writer::div(get_string('export:solutionhint', 'mod_elang'));
+        echo html_writer::div($formatlinks(true));
+    }
 }
 
 echo $OUTPUT->footer();

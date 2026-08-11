@@ -89,6 +89,19 @@ class answer_evaluator {
      */
     private const REGEX_DELIMITER = "\x01";
 
+    /**
+     * Check whether an author-supplied regex answer variant compiles under the
+     * same delimiter and flags used at grading time. The authoring layer calls
+     * this so an uncompilable pattern is rejected when the draft is saved,
+     * rather than being stored and then silently never matching at grade time.
+     *
+     * @param string $pattern The stored pattern, without PCRE delimiters
+     * @return bool True when the pattern compiles, false otherwise
+     */
+    public static function is_valid_regex(string $pattern): bool {
+        return @preg_match(self::REGEX_DELIMITER . $pattern . self::REGEX_DELIMITER . 'u', '') !== false;
+    }
+
     /** @var script_handler_manager */
     private $handlermanager;
 

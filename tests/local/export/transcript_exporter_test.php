@@ -62,4 +62,81 @@ final class transcript_exporter_test extends \advanced_testcase {
 
         $this->assertSame('', (new transcript_exporter())->plain_text((int) $version->id));
     }
+
+    /**
+     * Create a published version whose single cue carries one gap whose solution
+     * word is literally present in the transcript, mirroring how a real gap is
+     * stored (charstart/charlength index into the full text).
+     *
+     * @return \stdClass The created version record
+     */
+    private function version_with_a_gap(): \stdClass {
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+        $cue = $generator->create_cue([
+            'versionid' => $version->id,
+            'sortorder' => 1,
+            'transcript' => 'Le chat dort',
+        ]);
+        $generator->create_gap([
+            'cueid' => $cue->id,
+            'gapkey' => 'gap-1',
+            'charstart' => 3,
+            'charlength' => 4,
+            'solution' => 'chat',
+        ]);
+
+        return $version;
+    }
+
+    /**
+     * The learner worksheet (the default, masked export) must never contain a
+     * gap's solution text: this is the P0 information-flow guarantee, checked
+     * across every export path that shares transcript_exporter::paragraphs().
+     *
+     * @return void
+     */
+    public function test_worksheet_export_never_contains_the_solution(): void {
+        $this->resetAfterTest();
+
+        $version = $this->version_with_a_gap();
+        $exporter = new transcript_exporter();
+
+        $worksheet = $exporter->plain_text((int) $version->id, true);
+
+        $this->assertStringNotContainsString('chat', $worksheet);
+        $this->assertStringContainsString('Le', $worksheet);
+        $this->assertStringContainsString('dort', $worksheet);
+    }
+
+    /**
+     * The default parameterless export is the masked worksheet, so a caller that
+     * forgets the flag cannot accidentally leak the solution.
+     *
+     * @return void
+     */
+    public function test_default_export_is_the_masked_worksheet(): void {
+        $this->resetAfterTest();
+
+        $version = $this->version_with_a_gap();
+
+        $this->assertStringNotContainsString('chat', (new transcript_exporter())->plain_text((int) $version->id));
+    }
+
+    /**
+     * The solution export (only reachable after a mod/elang:exportsolution check)
+     * keeps the full text, including the gap solution.
+     *
+     * @return void
+     */
+    public function test_solution_export_contains_the_solution(): void {
+        $this->resetAfterTest();
+
+        $version = $this->version_with_a_gap();
+
+        $this->assertStringContainsString('chat', (new transcript_exporter())->plain_text((int) $version->id, false));
+    }
 }

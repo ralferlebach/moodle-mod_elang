@@ -68,7 +68,8 @@ class save_draft_version extends external_api {
             'cues' => $cues,
         ]);
 
-        self::require_manage_version($versionid);
+        [, $context] = self::require_manage_version($versionid);
+        self::require_useregex_if_needed($cues, $context);
 
         $version = self::get_version_manager()->save_draft_content($versionid, $cues, $expectedrevision);
 

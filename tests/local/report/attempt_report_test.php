@@ -124,4 +124,40 @@ final class attempt_report_test extends \advanced_testcase {
         $this->assertCount(1, $grouponly);
         $this->assertSame((int) $insider->id, $grouponly[0]['userid']);
     }
+
+    /**
+     * export_rows() flattens each attempt into one row keyed by the stable
+     * column names of export_columns(), ready for the Dataformat API.
+     *
+     * @return void
+     */
+    public function test_export_rows_match_the_export_columns(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+        $manager->submit_response($attempt->id, (int) $gap->id, 'chat');
+        $manager->finish_attempt($attempt->id);
+
+        $report = new attempt_report();
+        $columns = $report->export_columns();
+        $this->assertArrayHasKey('user', $columns);
+        $this->assertArrayHasKey('score', $columns);
+
+        $rows = $report->export_rows((int) $elang->id);
+        $this->assertCount(1, $rows);
+        $row = reset($rows);
+        $this->assertSame(array_keys($columns), array_keys($row));
+        $this->assertSame(fullname($student), $row['user']);
+    }
 }

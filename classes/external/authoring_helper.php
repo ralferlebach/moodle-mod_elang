@@ -65,6 +65,34 @@ trait authoring_helper {
     }
 
     /**
+     * Require the higher-privileged mod/elang:useregex capability when, and
+     * only when, the incoming content actually stores a regular-expression
+     * answer variant. mod/elang:manage lets a teacher author gaps, but a regex
+     * variant runs author-supplied PCRE against learner input at grade time, so
+     * it is deliberately gated behind a separate capability that the editing
+     * teacher archetype does not hold by default. The capability must be
+     * enforced here on the server: the React editor normally sends isregex 0,
+     * but that is a UI convenience, not authorisation.
+     *
+     * @param array $cues The cue list, each with nested gaps/answers
+     * @param \context $context The activity context to check the capability in
+     * @return void
+     * @throws \required_capability_exception When a regex variant is present without the capability
+     */
+    private static function require_useregex_if_needed(array $cues, \context $context): void {
+        foreach ($cues as $cue) {
+            foreach ($cue['gaps'] ?? [] as $gap) {
+                foreach ($gap['answers'] ?? [] as $answer) {
+                    if ((int) $answer['isregex'] === 1) {
+                        require_capability('mod/elang:useregex', $context);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Describe the structure of one accepted-answer variant.
      *
      * @return external_single_structure

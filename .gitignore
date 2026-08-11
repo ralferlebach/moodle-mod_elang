@@ -14,7 +14,8 @@ desktop.ini
 node_modules/
 npm-debug.log*
 yarn-error.log*
-package-lock.json
+# package-lock.json IS committed: it pins the dev toolchain so `npm ci`
+# reproduces the exact esbuild/grunt versions that built the shipped bundles.
 yarn.lock
 
 # PHP / Composer

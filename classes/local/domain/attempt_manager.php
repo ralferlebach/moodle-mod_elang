@@ -423,6 +423,33 @@ class attempt_manager {
     }
 
     /**
+     * Permanently delete one attempt and all of its responses.
+     *
+     * Wrapped in a transaction so a half-deleted attempt (responses gone but
+     * the attempt row left behind, or vice versa) can never result from a
+     * mid-operation failure. The caller is responsible for the capability check
+     * (mod/elang:deleteattempts) and for pushing the recomputed gradebook grade
+     * afterwards, since this class deliberately performs no gradebook bootstrap.
+     *
+     * @param int $attemptid The elang_attempt id
+     * @return \stdClass The deleted attempt record, so the caller can regrade its owner
+     */
+    public function delete_attempt(int $attemptid): \stdClass {
+        global $DB;
+
+        return $this->with_lock('attempt:' . $attemptid, function () use ($DB, $attemptid): \stdClass {
+            $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+
+            $transaction = $DB->start_delegated_transaction();
+            $DB->delete_records('elang_response', ['attemptid' => $attemptid]);
+            $DB->delete_records('elang_attempt', ['id' => $attemptid]);
+            $transaction->allow_commit();
+
+            return $attempt;
+        });
+    }
+
+    /**
      * Recompute an attempt's aggregate counters, and each response's own
      * score, from its responses and any hint penalties they have incurred.
      *
@@ -463,7 +490,11 @@ class attempt_manager {
             $penalty = $response->hintlevel > 0
                 ? ($penalties[$response->gapid . ':' . $response->hintlevel] ?? 0.0)
                 : 0.0;
-            $responsescore = $response->accepted ? max(0.0, 1.0 - $penalty) : 0.0;
+            // Penalties are validated to [0, 1] when a draft is saved, so
+            // 1 - penalty already lands in [0, 1]; clamp anyway so no single
+            // response can ever contribute more than one point even if a stray
+            // legacy value slipped through.
+            $responsescore = $response->accepted ? min(1.0, max(0.0, 1.0 - $penalty)) : 0.0;
             $points += $responsescore;
 
             if ((float) $response->score !== $responsescore) {
@@ -476,7 +507,7 @@ class attempt_manager {
         $attempt->exactgaps = $exact;
         $attempt->correctgaps = $correct;
         $attempt->hintedgaps = $hinted;
-        $attempt->score = $attempt->totalgaps > 0 ? round($points / $attempt->totalgaps, 5) : 0;
+        $attempt->score = $attempt->totalgaps > 0 ? min(1.0, max(0.0, round($points / $attempt->totalgaps, 5))) : 0;
         $attempt->timemodified = time();
         $DB->update_record('elang_attempt', $attempt);
     }

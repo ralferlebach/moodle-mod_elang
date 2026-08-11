@@ -57,7 +57,13 @@ $event->trigger();
 $completion = new completion_info($course);
 $completion->set_module_viewed($cm);
 
-$PAGE->requires->js_call_amd('mod_elang/player', 'init', [(int) $cm->id]);
+// Decide up front whether there is anything to play. When no version has been
+// published yet, the player is not mounted at all and a plain notice is shown
+// instead of letting the JS bootstrap fail into the generic load error.
+$published = (new \mod_elang\local\domain\version_manager())->get_published((int) $elang->id);
+if ($published !== null) {
+    $PAGE->requires->js_call_amd('mod_elang/player', 'init', [(int) $cm->id]);
+}
 
 echo $OUTPUT->header();
 
@@ -87,5 +93,9 @@ if ($actions !== '') {
     echo html_writer::div($actions, 'mod_elang-actions mb-3');
 }
 
-echo $OUTPUT->render_from_template('mod_elang/player', []);
+if ($published === null) {
+    echo $OUTPUT->notification(get_string('player:nocontent', 'mod_elang'), 'info');
+} else {
+    echo $OUTPUT->render_from_template('mod_elang/player', []);
+}
 echo $OUTPUT->footer();

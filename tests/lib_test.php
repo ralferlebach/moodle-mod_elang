@@ -476,4 +476,26 @@ final class lib_test extends \advanced_testcase {
 
         return (float) $gradegrade->finalgrade;
     }
+
+    /**
+     * A normalised attempt score is defined on [0, 1]; elang_score_to_rawgrade()
+     * must clamp any stray out-of-range value so it can never produce a rawgrade
+     * above the numeric maximum or off the end of a scale.
+     *
+     * @covers ::elang_score_to_rawgrade
+     * @return void
+     */
+    public function test_score_to_rawgrade_clamps_out_of_range_scores(): void {
+        $this->resetAfterTest();
+
+        // Numeric grade out of 100: a score above 1 never exceeds the maximum,
+        // and a negative score never falls below zero.
+        $this->assertSame(100.0, elang_score_to_rawgrade(1.5, 100, 0));
+        $this->assertSame(0.0, elang_score_to_rawgrade(-0.5, 100, 0));
+        $this->assertSame(50.0, elang_score_to_rawgrade(0.5, 100, 0));
+
+        // Scale of three items: the position stays within the scale bounds.
+        $this->assertSame(3.0, elang_score_to_rawgrade(1.5, -1, 3));
+        $this->assertSame(1.0, elang_score_to_rawgrade(-0.5, -1, 3));
+    }
 }

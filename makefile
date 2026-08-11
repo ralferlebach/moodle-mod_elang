@@ -3,7 +3,7 @@
 #
 # Targets:
 #   make all          — fix + full check suite (default)
-#   make fix          — auto-fix PHP style + PHPDoc + rebuild AMD
+#   make fix          — auto-fix PHP style + PHPDoc + rebuild React/AMD
 #   make check        — check-only (no auto-fix)
 #   make clear        — clear terminal
 #
@@ -18,15 +18,23 @@
 # Auto-fixers:
 #   make fix-lint-php — phpcbf PHP code-style auto-fix
 #   make fix-phpdoc   — moodlecheck PHPDoc report
-#   make amd          — rebuild AMD minified files
-#
-# Tests:
-#   make phpunit      — PHPUnit testsuite for this plugin
-#
-# React authoring frontend (development-only toolchain, see build.mjs):
+#   make amd          — rebuild AMD minified files (grunt)
+#   make build        — build BOTH the React bundle (esbuild) and AMD (grunt)
 #   make react        — bundle the React editor (esbuild → js/vendor/react/editor.bundle.js)
 #   make lint-react   — TypeScript type-check (tsc --noEmit)
 #   make test-react   — Jest unit tests for the React/TS sources
+#
+# Tests:
+#   make phpunit      — PHPUnit testsuite for this plugin
+#   make playwright   — browser + a11y tests (installs Playwright on 1st run)
+#   make jmeter       — JMeter read-endpoint load test (downloads JMeter on 1st run)
+#   make load-k6      — k6 read-endpoint load test (needs k6 installed)
+#   make load-seed    — seed a large exercise + web-service token; prints exports
+#   make k6-setup     — download the k6 binary if it is not installed
+#
+# Setup only:
+#   make playwright-setup — install Playwright + Chromium browser
+#   make jmeter-setup     — download Apache JMeter
 #
 # Paths are auto-detected from the makefile's own location.
 # The plugin lives at <MOODLE_ROOT>/mod/elang/ — always two
@@ -44,20 +52,57 @@ PHP           ?= $(shell which php 2>/dev/null || echo /usr/bin/php)
 PHPCS         ?= phpcs
 PHPCBF        ?= phpcbf
 NPX           ?= npx
+NPM           ?= npm
+
+# --- Browser / load-test tooling -------------------------------------------
+PLAYWRIGHT_DIR ?= $(PLUGIN_DIR)/tests/playwright
+LOAD_DIR       ?= $(PLUGIN_DIR)/tests/load
+JMETER_VERSION ?= 5.6.3
+JMETER_HOME    ?= $(LOAD_DIR)/apache-jmeter-$(JMETER_VERSION)
+JMETER         ?= $(JMETER_HOME)/bin/jmeter
+K6             ?= k6
+K6_VERSION     ?= 0.54.0
+
+# Base URL read from the site's own config.php ($CFG->wwwroot), via Moodle's
+# ABORT_AFTER_CONFIG so only the config is loaded, not the whole bootstrap.
+# Lazily evaluated: only the load / playwright targets expand it. Empty if no
+# config.php is present (e.g. a bare checkout) — then the :8000 fallback applies.
+MOODLE_WWWROOT = $(shell $(PHP) -r "define('CLI_SCRIPT',1); define('ABORT_AFTER_CONFIG',1); @include '$(MOODLE_ROOT)/config.php'; echo isset(\$$CFG->wwwroot) ? \$$CFG->wwwroot : '';" 2>/dev/null)
+
+# Load-test parameters (override on the command line):
+#   make jmeter BASE_URL=http://localhost/moodle45 TOKEN=... CMID=.. VERSIONID=..
+BASE_URL       ?= $(or $(MOODLE_WWWROOT),http://localhost:8000)
+TOKEN          ?=
+CMID           ?=
+VERSIONID      ?=
+THREADS        ?= 25
+RAMPUP         ?= 10
+LOOPS          ?= 20
+MAXDURATION    ?= 2000
+OPLOG          ?= 5000
+
+# Values written by `make load-seed` (BASE_URL/TOKEN/CMID/VERSIONID). Auto-read
+# here so `make jmeter` / `make load-k6` need no manual eval. The leading '-'
+# ignores the file when it does not exist yet; a command-line override wins.
+-include $(LOAD_DIR)/.load-env
+# Optional: override the base URL Playwright uses (otherwise seed.php sets it).
+ELANG_BASE_URL ?= $(MOODLE_WWWROOT)
 
 .PHONY: all fix check clear \
         lint-php lint-phpdoc lint-js lint-mustache lint-cpd lint-md \
-        fix-lint-php fix-phpdoc amd phpunit
+        lint-react test-react react build \
+        fix-lint-php fix-phpdoc amd phpunit \
+        playwright playwright-setup jmeter jmeter-setup load-k6 k6-setup load-seed
 
 all: clear fix check
 	@echo ""
 	@echo "=== All checks complete. Review output above for errors. ==="
 
-fix: clear fix-phpdoc fix-lint-php amd
+fix: clear fix-phpdoc fix-lint-php build
 	@echo ""
 	@echo "=== All fixes complete. ==="
 
-check: clear lint-php lint-phpdoc lint-mustache lint-cpd amd phpunit
+check: clear lint-php lint-phpdoc lint-mustache lint-cpd lint-js lint-react build test-react phpunit
 	@echo ""
 	@echo "=== All checks complete. Review output above for errors. ==="
 
@@ -98,8 +143,12 @@ fix-phpdoc:
 lint-mustache:
 	@echo ""
 	@echo "=== Mustache syntax check ==="
-	-$(PHP) $(PLUGIN_DIR)/tools/mustache_check.php \
-		$(PLUGIN_DIR)/templates 2>&1 | grep -v '^OK:' || true
+	@if [ -d $(PLUGIN_DIR)/templates ]; then \
+		$(PHP) $(PLUGIN_DIR)/tools/mustache_check.php \
+			$(PLUGIN_DIR)/templates 2>&1 | grep -v '^OK:' || true; \
+	else \
+		echo "No templates/ directory — Mustache check skipped."; \
+	fi
 
 lint-cpd:
 	@echo ""
@@ -127,37 +176,53 @@ amd:
 	@echo ""
 	@echo "=== AMD rebuild (skipped when amd/src/ is empty) ==="
 	@if ls $(PLUGIN_DIR)/amd/src/*.js 2>/dev/null | grep -q .; then \
-		grunt amd --force; \
+		cd $(PLUGIN_DIR) && $(NPX) grunt amd --force; \
 	else \
 		echo "No AMD source files — skipped."; \
 	fi
 
 react:
 	@echo ""
-	@echo "=== React bundle (esbuild -> js/vendor/react/editor.bundle.js) ==="
-	@if [ ! -d $(PLUGIN_DIR)/node_modules ]; then \
-		echo "Installing frontend dev dependencies..."; \
-		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	@echo "=== React bundle (esbuild → js/vendor/react/editor.bundle.js) ==="
+	@if [ -f $(PLUGIN_DIR)/build.mjs ]; then \
+		if [ ! -d $(PLUGIN_DIR)/node_modules ]; then \
+			echo "Installing frontend dev dependencies..."; \
+			cd $(PLUGIN_DIR) && $(NPM) install --no-audit --no-fund; \
+		fi; \
+		cd $(PLUGIN_DIR) && $(NPM) run build; \
+	else \
+		echo "No build.mjs — React bundle skipped."; \
 	fi
-	@cd $(PLUGIN_DIR) && node build.mjs
+
+build: react amd
+	@echo ""
+	@echo "=== Front-end build complete (React bundle + AMD). ==="
 
 lint-react:
 	@echo ""
 	@echo "=== TypeScript type-check (tsc --noEmit) ==="
-	@if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/tsc ]; then \
-		echo "Installing frontend dev dependencies..."; \
-		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	@if [ -f $(PLUGIN_DIR)/tsconfig.json ]; then \
+		if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/tsc ]; then \
+			echo "Installing frontend dev dependencies..."; \
+			cd $(PLUGIN_DIR) && $(NPM) install --no-audit --no-fund; \
+		fi; \
+		cd $(PLUGIN_DIR) && ./node_modules/.bin/tsc --noEmit; \
+	else \
+		echo "No tsconfig.json — type-check skipped."; \
 	fi
-	@cd $(PLUGIN_DIR) && ./node_modules/.bin/tsc --noEmit
 
 test-react:
 	@echo ""
 	@echo "=== Jest (React/TS unit tests) ==="
-	@if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/jest ]; then \
-		echo "Installing frontend dev dependencies..."; \
-		cd $(PLUGIN_DIR) && npm install --no-audit --no-fund; \
+	@if [ -d $(PLUGIN_DIR)/js/tests ]; then \
+		if [ ! -x $(PLUGIN_DIR)/node_modules/.bin/jest ]; then \
+			echo "Installing frontend dev dependencies..."; \
+			cd $(PLUGIN_DIR) && $(NPM) install --no-audit --no-fund; \
+		fi; \
+		cd $(PLUGIN_DIR) && ./node_modules/.bin/jest; \
+	else \
+		echo "No js/tests — Jest skipped."; \
 	fi
-	@cd $(PLUGIN_DIR) && ./node_modules/.bin/jest
 
 phpunit:
 	@echo ""
@@ -184,3 +249,107 @@ phpunit:
 		rm -f "$$tmpout"; \
 		exit $$phpunit_exit; \
 	fi
+
+# --- Browser + accessibility tests (Playwright) ----------------------------
+# Need a RUNNING Moodle site with mod_elang installed. seed.php creates the
+# authoring/player fixture and prints the exports (incl. ELANG_BASE_URL from the
+# site's wwwroot), so no manual base URL is needed for a local install.
+
+playwright-setup:
+	@echo ""
+	@echo "=== Playwright setup (npm install + Chromium) ==="
+	cd $(PLAYWRIGHT_DIR) && $(NPM) install --no-audit --no-fund && $(NPM) run install-browsers
+
+playwright: clear
+	@echo ""
+	@echo "=== Playwright browser + a11y tests (needs a running Moodle site) ==="
+	@if [ ! -d $(PLAYWRIGHT_DIR)/node_modules ]; then \
+		echo "First run: installing Playwright + Chromium..."; \
+		cd $(PLAYWRIGHT_DIR) && $(NPM) install --no-audit --no-fund && $(NPM) run install-browsers; \
+	fi
+	cd $(PLAYWRIGHT_DIR) && eval "$$($(PHP) seed.php)" && \
+		$(if $(ELANG_BASE_URL),ELANG_BASE_URL='$(ELANG_BASE_URL)' )$(NPM) test
+
+# --- Seed a large exercise + token for the load tests ----------------------
+# Needs a running, installed Moodle. Prints `export BASE_URL/TOKEN/CMID/
+# VERSIONID` for the load run. Disposable dev/staging sites only.
+load-seed: clear
+	@echo ""
+	@echo "=== Seed large exercise + web-service token (cues = $(OPLOG)) ==="
+	@$(PHP) $(PLUGIN_DIR)/tests/load/seed_large.php $(OPLOG) | tee $(LOAD_DIR)/.load-seed.out
+	@sed -n "s/^export \([A-Z_][A-Z_]*\)=.\(.*\)./\1=\2/p" $(LOAD_DIR)/.load-seed.out > $(LOAD_DIR)/.load-env
+	@rm -f $(LOAD_DIR)/.load-seed.out
+	@echo ""
+	@echo "Saved BASE_URL/TOKEN/CMID/VERSIONID to $(LOAD_DIR)/.load-env"
+	@echo "Now just run:  make jmeter   (or: make load-k6) — no eval needed."
+
+# --- Read-endpoint load test (JMeter) --------------------------------------
+# Needs a live, seeded site + a REST web-service token. Seed a large exercise
+# and mint a token first — see tests/load/README.md.
+
+jmeter-setup:
+	@echo ""
+	@echo "=== JMeter setup ==="
+	@if [ -x $(JMETER) ]; then \
+		echo "JMeter $(JMETER_VERSION) already present at $(JMETER_HOME)."; \
+	else \
+		echo "Downloading Apache JMeter $(JMETER_VERSION)..."; \
+		cd $(LOAD_DIR) && \
+		curl -fsSL https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).tgz -o jmeter.tgz && \
+		tar xzf jmeter.tgz && rm -f jmeter.tgz && \
+		echo "Installed to $(JMETER_HOME)."; \
+	fi
+
+jmeter: clear jmeter-setup
+	@echo ""
+	@echo "=== JMeter load test — read endpoints ==="
+	@command -v java >/dev/null 2>&1 || { echo "Java (JRE 8+) is required to run JMeter — please install a JRE."; exit 1; }
+	@if [ -z "$(TOKEN)" ] || [ -z "$(CMID)" ]; then \
+		echo "Missing required parameters. Usage:"; \
+		echo "  make jmeter BASE_URL=<wwwroot> TOKEN=<token> CMID=<id> [VERSIONID=<id> \\"; \
+		echo "             THREADS=25 RAMPUP=10 LOOPS=20 MAXDURATION=2000]"; \
+		echo ""; \
+		echo "  Run 'make load-seed' first (it seeds a large exercise + token and stores them),"; \
+		echo "  or pass TOKEN/CMID yourself. See tests/load/README.md."; \
+		exit 1; \
+	fi
+	cd $(LOAD_DIR) && $(JMETER) -n -t elang-read-endpoints.jmx \
+		-Jbase_url='$(BASE_URL)' -Jtoken='$(TOKEN)' \
+		-Jcmid='$(CMID)' -Jversionid='$(VERSIONID)' \
+		-Jthreads='$(THREADS)' -Jrampup='$(RAMPUP)' -Jloops='$(LOOPS)' \
+		-Jmaxduration='$(MAXDURATION)' \
+		-l elang-load-results.jtl
+	@echo ""
+	@echo "Results written to $(LOAD_DIR)/elang-load-results.jtl"
+
+# --- Read-endpoint load test (k6, alternative) -----------------------------
+# Download the k6 binary locally if it is not on PATH (single static binary).
+k6-setup:
+	@echo ""
+	@echo "=== k6 setup ==="
+	@if command -v $(K6) >/dev/null 2>&1; then \
+		echo "k6 already on PATH."; \
+	elif [ -x $(LOAD_DIR)/k6 ]; then \
+		echo "k6 already present at $(LOAD_DIR)/k6."; \
+	else \
+		arch=$$(uname -m); case "$$arch" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) a=amd64;; esac; \
+		echo "Downloading k6 $(K6_VERSION) (linux-$$a)..."; \
+		cd $(LOAD_DIR) && \
+		curl -fsSL "https://github.com/grafana/k6/releases/download/v$(K6_VERSION)/k6-v$(K6_VERSION)-linux-$$a.tar.gz" -o k6.tgz && \
+		tar xzf k6.tgz && cp "k6-v$(K6_VERSION)-linux-$$a/k6" ./k6 && chmod +x ./k6 && \
+		rm -rf k6.tgz "k6-v$(K6_VERSION)-linux-$$a" && \
+		echo "Installed to $(LOAD_DIR)/k6"; \
+	fi
+
+load-k6: clear k6-setup
+	@echo ""
+	@echo "=== k6 load test — read endpoints ==="
+	@if [ -z "$(TOKEN)" ] || [ -z "$(CMID)" ]; then \
+		echo "Missing required parameters. Usage:"; \
+		echo "  make load-k6 BASE_URL=<wwwroot> TOKEN=<token> CMID=<id> [VERSIONID=<id>]"; \
+		exit 1; \
+	fi
+	@K6BIN=$$(command -v $(K6) 2>/dev/null || echo "$(LOAD_DIR)/k6"); \
+	cd $(LOAD_DIR) && "$$K6BIN" run elang-read-endpoints.k6.js \
+		-e BASE_URL='$(BASE_URL)' -e TOKEN='$(TOKEN)' \
+		-e CMID='$(CMID)' -e VERSIONID='$(VERSIONID)'

@@ -51,11 +51,23 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.70 (2026081009) — Phasen 2–4 abgeschlossen; in
-Session 005 kamen das React/TS-Autorentool, der V1-Lücken-Syntax-Import, die
-Provider-Registry, die Admin-Sprachrestriktion und der DOCX/ODT-Export hinzu,
-plus ein CI-Fix. Details in docs/sessions/session-005.md. (Verlauf bis
-Session 004 unten weiter beschrieben.)
+**Version:** 2.0.0-alpha.71 (2026081101) — Phasen 2–4 abgeschlossen. In
+Session 006 wurde die Codehärtung aus dem technischen Review abgearbeitet
+(Reihenfolge Review-P0/P1 → E0 → E1 → Logo → Cleanup). WICHTIG: Das Review war
+gegen ein gestripptes Release-ZIP erstellt; der echte Arbeitsbaum hatte die
+P0/P1-Fixes bereits uncommittet über alpha.70 — sie waren aber UNGETESTET, ein
+Lang-String fehlte, und die toten Caps waren entfernt. Session 006 hat: die
+Fixes verifiziert; 15 Sicherheits-/Validierungstests ergänzt (340→355 grün);
+`player:nocontent` und `report:score`/`report:answered` (fehlende Strings)
+ergänzt; `deleteattempts`+`exportreports` implementiert (Dataformat-Export +
+bestätigter Lösch-Flow); das vollständige mod_vimipad-`makefile` übernommen
+(E0); Logo eingepflegt; `package-lock.json` committet. Details in
+docs/sessions/session-006.md. (Session 005 und älter unten weiter beschrieben.)
+
+**Stand Session 006 (Verifikation real gegen Moodle 4.5.13):** PHPUnit 355/1115
+grün, phpcs 0/0, tsc sauber, Jest 7/7, esbuild + grunt amd byte-identisch
+reproduzierbar. Die drei P0/P1-Review-Blocker sind mit Tests geschlossen. Offen
+für Beta bleiben E2–E7 (siehe Checkliste unten).
 
 **Stand Session 005 (zusätzlich zu Session 004):**
   - **React/TS-Autorentool** (aus mod_vimipad übernommen, Option B): Quellcode
@@ -175,6 +187,39 @@ Details zu Session 004 in `docs/sessions/session-004.md`, ältere Sessions
     Barrierefreiheit, Autosave.
   - Kleinreste: Player-Meldung „kein Inhalt veröffentlicht" statt loaderror;
     Gruppen-Sichtprüfung im Report-UI.
+
+**WEG ZUR BETA — verbindliche Checkliste (Abschnitt E der Arbeitsplanung):**
+Der Code ist funktional komplett und die CI grün (alpha.70); es gibt keinen
+großen technischen Blocker mehr. Vor dem Sprung auf Beta ist die folgende Liste
+abzuarbeiten (Details, Reihenfolge und Begründungen in
+`docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`, Abschnitt E):
+  - **E0 [ERLEDIGT alpha.71]** Vollständiges `makefile` von mod_vimipad
+    übernommen, an elang-Pfade (`js/vendor/react/editor.bundle.js`, `mod/elang`)
+    und elang-benannte Playwright/JMeter/k6-Ziele angeglichen.
+  - **E1 [ERLEDIGT alpha.71]** Player-Meldung „kein Inhalt veröffentlicht"
+    (view.php + `player:nocontent`); Report-Gruppenfilter-Sichtprüfung vorhanden
+    (report.php SEPARATEGROUPS + accessallgroups). P1.3 Sprache bleibt bewusst
+    NICHT `required`.
+  - **[ERLEDIGT alpha.71] Review-P0/P1 + tote Caps:** Transcript-Worksheet/
+    Solution-Trennung (`exportsolution`), serverseitige useregex-Durchsetzung +
+    Domain-Validierung, Score-Clamp — alle mit Tests. `deleteattempts`/
+    `exportreports` implementiert (Dataformat-Export + Lösch-Flow).
+    `package-lock.json` committet, Lang-Parität 229/229, Logo eingepflegt.
+  - **E2** AP-D „Subtitle Studio & Authoring-UX" vor Beta (siehe oben).
+  - **E3** Codehärtung vor Beta (Fehlerpfade, Randfälle, Eingabevalidierung,
+    nutzerfreundliche Fehlermeldungen statt Exceptions).
+  - **E4** Behat-Testabdeckung vor Beta (Kernpfade als `@javascript`-E2E:
+    anlegen → bearbeiten → publish → als Lernende bearbeiten → Report → Export).
+  - **E5** Sichtfunktions- UND Barrierearmutsprüfung vor Beta: Anleitung
+    bereitstellen ODER (bevorzugt) automatisierte **Playwright**-Tests, inkl.
+    a11y-Checks (z. B. axe in Playwright).
+  - **E6** Lasttests vor Beta: **jMeter**-Testplan UND **k6**-Skripte für die
+    wesentlichen Endpunkte bereitstellen.
+  - **E7** Migrationspfad prüfen mit **automatischer Testabdeckung** vor Beta:
+    echtes V1→V2-Upgrade (nicht nur PHPUnit-Frischinstall) reproduzierbar/CI-tauglich,
+    mit Assertions auf Datenintegrität (cuekey/gapkey, Versionen, Media, Ergebnisse).
+  - NICHT Beta-blockierend: OAuth/login-gated Provider (eigenes, kostenpflichtiges
+    Subplugin, nach Beta).
 
 **Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
   2.1-1 regelbasierte Lückenerzeugung

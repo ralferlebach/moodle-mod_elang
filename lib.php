@@ -401,6 +401,11 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
  * @return float The rawgrade to push through grade_update()
  */
 function elang_score_to_rawgrade(float $bestscore, int $elanggrade, int $scaleitemcount): float {
+    // A normalised attempt score is defined on [0, 1]; clamp defensively so a
+    // stray out-of-range value can never produce a rawgrade above the numeric
+    // maximum or off the end of a scale.
+    $bestscore = min(1.0, max(0.0, $bestscore));
+
     if ($elanggrade >= 0 || $scaleitemcount <= 0) {
         return $bestscore * $elanggrade;
     }

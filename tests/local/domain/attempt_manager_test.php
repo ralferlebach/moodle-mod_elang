@@ -592,4 +592,24 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->assertSame(grading_result::RESULTSTATE_WORDRECOGNIZED, $result->resultstate);
         $this->assertTrue($result->accepted);
     }
+
+    /**
+     * delete_attempt() removes the attempt together with all of its responses
+     * and returns the deleted record so the caller can regrade its owner.
+     *
+     * @return void
+     */
+    public function test_delete_attempt_removes_the_attempt_and_its_responses(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $this->assertSame(1, (int) $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+
+        $deleted = $this->manager->delete_attempt((int) $attempt->id);
+
+        $this->assertSame((int) $this->student->id, (int) $deleted->userid);
+        $this->assertSame(0, (int) $DB->count_records('elang_attempt', ['id' => $attempt->id]));
+        $this->assertSame(0, (int) $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+    }
 }

@@ -18,27 +18,26 @@ namespace mod_elang\local\migration;
 
 /**
  * Detects a version 1 (mod_elang 1.x) install alongside V2, and produces the
- * read-only "Trockenlauf" (dry run) report Migration_V1_V2.md chapter 2 step
+ * read-only "Trockenlauf" (dry run) report
  * 2 calls for — before any migration step is allowed to write anything.
  *
  * V1 and V2 share the same `elang` table — a V1 activity's row already
  * exists before any V2 schema step runs (Moodle requires exactly one
  * activity instance row per course module) and simply gains new columns
- * over time. Since 2026072407 (Migration_V1_V2.md chapter 1.2, decision A)
+ * over time. Since 2026072407
  * that includes a nullable `options` column purely so V1's JSON blob
  * survives from schema upgrade to data migration; the table's mere
  * existence is still never a usable signal on its own (every elang row has
  * one), so "pending" is decided from `options` being present and
  * `currentversionid` still being empty on the SAME row, not from a second
  * table. `elang_cues` (plural, V1-only, distinct from V2's singular
- * `elang_cue`) is the signal for whether V1 legacy content exists at all —
- * see Migration_V1_V2.md chapter 1.1 ("Grundsatz: Die Migration wird an der
+ * `elang_cue`) is the signal for whether V1 legacy content exists at all —. 1 ("Grundsatz: Die Migration wird an der
  * Existenz der Legacy-Tabellen festgemacht, nicht an Versionsnummern").
  *
  * This class only reads. It does not migrate anything, does not create the
  * progress-tracking schema a resumable migration task will need, and does
  * not decide how elang_check/elang_help's aggregate counts should be
- * reported — those remain open per Migration_V1_V2.md chapter 3 and are
+ * reported — those remain open per
  * deliberately out of scope here.
  *
  * @package    mod_elang
@@ -47,9 +46,18 @@ namespace mod_elang\local\migration;
  */
 final class v1_detector {
     /**
+     * How many pending activities a single dry-run report describes.
+     *
+     * The report is an admin preview, not an inventory: it reads several rows
+     * per activity, so it takes a bounded block rather than the whole backlog of
+     * a large site. Callers that need more can raise the limit deliberately.
+     */
+    public const DRY_RUN_LIMIT = 100;
+
+    /**
      * Whether V1 legacy tables are present on this site at all.
      *
-     * @return bool
+     * @return bool True when the condition holds, false otherwise.
      */
     public static function v1_tables_present(): bool {
         global $DB;
@@ -126,25 +134,54 @@ final class v1_detector {
     }
 
     /**
-     * Build the dry-run report for every pending V1 activity: quantities
-     * only, no writes, safe to run repeatedly and safe to run on a large
-     * site (Migration_V1_V2.md chapter 4, "speicherschonend" — reads one
-     * activity's cues at a time, never the whole table at once).
+     * Build the dry-run report for a bounded block of pending V1 activities:
+     * quantities only, no writes, safe to run repeatedly.
      *
+     * The activities, their legacy cues and their learner counts are each read
+     * in one batched query, and the number of activities per run is capped, so
+     * the cost does not grow with the size of the backlog on a large site.
+     *
+     * @param int $limit The maximum number of pending activities to describe.
      * @return object[] One entry per pending activity, each with ->elangid,
      *         ->name, ->cuecount, ->gapcount, ->learnercount,
-     *         ->gradingalgorithm ('exact'|'wordrecognized', see
-     *         Migration_V1_V2.md chapter 1.2 for the mapping rule),
-     *         ->jarothreshold, and ->parseerrors (string[], empty when every
-     *         cue parsed cleanly)
+     *         ->gradingalgorithm ('exact'|'wordrecognized'), ->jarothreshold,
+     *         and ->parseerrors (string[], empty when every cue parsed cleanly)
      */
-    public static function dry_run_report(): array {
+    public static function dry_run_report(int $limit = self::DRY_RUN_LIMIT): array {
         global $DB;
 
         $report = [];
 
-        foreach (self::pending_activity_ids() as $elangid) {
-            $elang = $DB->get_record('elang', ['id' => $elangid]);
+        // Bounded and batched: the previous shape issued a handful of queries per
+        // pending activity and materialised every one of them, which does not
+        // survive a large site. Take a bounded block of activities, then read the
+        // activities, their cues and their learner counts in one query each.
+        $elangids = self::pending_activity_ids($limit);
+        if (empty($elangids)) {
+            return $report;
+        }
+
+        [$insql, $inparams] = $DB->get_in_or_equal($elangids, SQL_PARAMS_NAMED);
+
+        $elangs = $DB->get_records_select('elang', "id $insql", $inparams);
+
+        $cuesbyactivity = [];
+        $cuerecordset = $DB->get_recordset_select('elang_cues', "id_elang $insql", $inparams, 'id_elang ASC, id ASC');
+        foreach ($cuerecordset as $cuerecord) {
+            $cuesbyactivity[(int) $cuerecord->id_elang][] = $cuerecord;
+        }
+        $cuerecordset->close();
+
+        $learnercounts = $DB->get_records_sql(
+            "SELECT id_elang, COUNT(DISTINCT id_user) AS learners
+               FROM {elang_users}
+              WHERE id_elang $insql
+           GROUP BY id_elang",
+            $inparams
+        );
+
+        foreach ($elangids as $elangid) {
+            $elang = $elangs[$elangid] ?? null;
             if (!$elang || $elang->options === null) {
                 // No options blob to read: either a race with something
                 // deleting the row between the two queries, or (should not
@@ -157,7 +194,7 @@ final class v1_detector {
             $options = json_decode((string) $elang->options, true) ?? [];
             [$gradingalgorithm, $jarothreshold] = v1_options_mapper::map_grading_algorithm($options);
 
-            $cuerecords = $DB->get_records('elang_cues', ['id_elang' => $elangid]);
+            $cuerecords = $cuesbyactivity[$elangid] ?? [];
             $gapcount = 0;
             $parseerrors = [];
 
@@ -170,17 +207,12 @@ final class v1_detector {
                 }
             }
 
-            $learnercount = $DB->count_records_sql(
-                'SELECT COUNT(DISTINCT id_user) FROM {elang_users} WHERE id_elang = ?',
-                [$elangid]
-            );
-
             $report[] = (object) [
                 'elangid' => $elangid,
                 'name' => (string) $elang->name,
                 'cuecount' => count($cuerecords),
                 'gapcount' => $gapcount,
-                'learnercount' => (int) $learnercount,
+                'learnercount' => (int) ($learnercounts[$elangid]->learners ?? 0),
                 'gradingalgorithm' => $gradingalgorithm,
                 'jarothreshold' => $jarothreshold,
                 'parseerrors' => $parseerrors,

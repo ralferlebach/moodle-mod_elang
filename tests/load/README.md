@@ -34,8 +34,12 @@ k6
 --
 
 `elang-read-endpoints.k6.js` ramps virtual users (default 25) and fails the run
-if the endpoint errors on more than 1% of requests or p95 latency exceeds the
-budget. Tunables via `-e`: `VUS`, `RAMPUP`, `DURATION`, `P95` (ms). `make
+if the endpoint errors on more than 1% of requests. It also guards p95 latency,
+but that is a regression signal rather than an absolute SLA: latency is dominated
+by the response payload size, so it scales with the number of cues. The default
+seed (`OPLOG`, 500 cues) stays well under the default p95 budget; for a stress
+run of several thousand cues (`make load-seed OPLOG=5000`), raise the budget with
+`-e P95=<ms>`. Tunables via `-e`: `VUS`, `RAMPUP`, `DURATION`, `P95` (ms). `make
 k6-setup` downloads the k6 binary locally if it is not on `PATH`.
 
 JMeter

@@ -23,8 +23,8 @@ namespace mod_elang\local\domain;
  * elang_gap.charstart/charlength are character offsets *into that text* —
  * the gap word or phrase is literally still there. Sending the raw
  * transcript to any external function response would hand the player the
- * solution outright, which Lastenheft P12 ("Player-Nutzlast enthält niemals
- * Lösungen") explicitly forbids. Every external function that returns a
+ * solution outright. The player payload must never contain solutions, so every
+ * external function that returns a
  * transcript MUST run it through mask() first; nothing in this class talks
  * to the database, so it has no way to accidentally do the right thing only
  * some of the time.
@@ -87,8 +87,8 @@ final class transcript_masker {
     /**
      * Read charstart from either an object or an array gap representation.
      *
-     * @param object|array $gap
-     * @return int
+     * @param object|array $gap The gap to use.
+     * @return int The resulting number.
      */
     private static function charstart_of($gap): int {
         return (int) (is_array($gap) ? $gap['charstart'] : $gap->charstart);
@@ -97,8 +97,8 @@ final class transcript_masker {
     /**
      * Read charlength from either an object or an array gap representation.
      *
-     * @param object|array $gap
-     * @return int
+     * @param object|array $gap The gap to use.
+     * @return int The resulting number.
      */
     private static function charlength_of($gap): int {
         return (int) (is_array($gap) ? $gap['charlength'] : $gap->charlength);
@@ -107,8 +107,8 @@ final class transcript_masker {
     /**
      * Read gapkey from either an object or an array gap representation.
      *
-     * @param object|array $gap
-     * @return string
+     * @param object|array $gap The gap to use.
+     * @return string The resulting text.
      */
     private static function gapkey_of($gap): string {
         return (string) (is_array($gap) ? $gap['gapkey'] : $gap->gapkey);

@@ -71,17 +71,19 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * after_execute, once the versions it refers to have been recreated.
      *
      * @param array $data The elang record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang($data) {
         global $DB;
 
         $data = (object) $data;
         $data->course = $this->get_courseid();
-        if (!empty($data->migrationapproveduserid)) {
-            $data->migrationapproveduserid = $this->get_mappingid('user', $data->migrationapproveduserid)
-                ?: $data->migrationapproveduserid;
-        }
+        // Never fall back to the source site's numeric user id: on another
+        // installation that same number belongs to a different person, which
+        // would silently attribute the sign-off to them. Unmapped means unknown.
+        $data->migrationapproveduserid = empty($data->migrationapproveduserid)
+            ? 0
+            : (int) $this->get_mappingid('user', $data->migrationapproveduserid);
 
         $newitemid = $DB->insert_record('elang', $data);
         $this->apply_activity_instance($newitemid);
@@ -91,7 +93,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one version and record its id mapping (with files).
      *
      * @param array $data The version record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_version($data) {
         global $DB;
@@ -99,9 +101,11 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
         $data = (object) $data;
         $oldid = $data->id;
         $data->elangid = $this->get_new_parentid('elang');
-        if (!empty($data->usermodified)) {
-            $data->usermodified = $this->get_mappingid('user', $data->usermodified) ?: $data->usermodified;
-        }
+        // As above: an unmapped author becomes unknown rather than whoever
+        // happens to hold that id on the destination site.
+        $data->usermodified = empty($data->usermodified)
+            ? 0
+            : (int) $this->get_mappingid('user', $data->usermodified);
 
         $newitemid = $DB->insert_record('elang_version', $data);
         // The true flag records that this element owns files (media, poster).
@@ -112,7 +116,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one cue.
      *
      * @param array $data The cue record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_cue($data) {
         global $DB;
@@ -129,7 +133,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one gap and record its id mapping, so responses can find it.
      *
      * @param array $data The gap record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_gap($data) {
         global $DB;
@@ -146,7 +150,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one accepted-answer variant.
      *
      * @param array $data The answer record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_gapanswer($data) {
         global $DB;
@@ -161,7 +165,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one hint.
      *
      * @param array $data The hint record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_gaphint($data) {
         global $DB;
@@ -176,7 +180,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one learner attempt, remapping its version and user.
      *
      * @param array $data The attempt record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_attempt($data) {
         global $DB;
@@ -195,7 +199,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Restore one response, remapping the gap it answered.
      *
      * @param array $data The response record from the backup
-     * @return void
+     * @return void No return value; the record is written and mapped.
      */
     protected function process_elang_response($data) {
         global $DB;
@@ -211,7 +215,7 @@ class restore_elang_activity_structure_step extends restore_activity_structure_s
      * Reattach files and remap the activity's current-version pointer once every
      * version has been recreated.
      *
-     * @return void
+     * @return void No return value.
      */
     protected function after_execute() {
         global $DB;

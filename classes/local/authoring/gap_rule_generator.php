@@ -142,7 +142,8 @@ final class gap_rule_generator {
         $offset = max(0, (int) ($rule['offset'] ?? 0));
 
         $selected = [];
-        for ($i = $offset; $i < count($words); $i += $n) {
+        $total = count($words);
+        for ($i = $offset; $i < $total; $i += $n) {
             $selected[] = $words[$i];
         }
 

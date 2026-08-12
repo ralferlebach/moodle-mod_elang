@@ -78,12 +78,10 @@ if ($dataformat !== '' && $attemptid === 0) {
 if ($action === 'delete') {
     require_capability('mod/elang:deleteattempts', $context);
     $deleteid = required_param('attemptid', PARAM_INT);
-    $todelete = $DB->get_record(
-        'elang_attempt',
-        ['id' => $deleteid, 'elangid' => $elang->id],
-        '*',
-        MUST_EXIST
-    );
+    // Object-level authorisation: the attempt must belong to this activity and,
+    // in separate-groups mode, to a learner this teacher shares a group with.
+    $todelete = (new \mod_elang\local\report\attempt_report())
+        ->require_attempt_access($deleteid, (int) $elang->id, $cm, $context);
 
     if (optional_param('confirm', 0, PARAM_BOOL) && confirm_sesskey()) {
         $manager = new \mod_elang\local\domain\attempt_manager(
@@ -146,24 +144,8 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('report:heading', 'mod_elang'));
 
 if ($attemptid) {
+    $report->require_attempt_access($attemptid, (int) $elang->id, $cm, $context);
     $detail = $report->detail($attemptid);
-    if ((int) $detail['attempt']['elangid'] !== (int) $elang->id) {
-        throw new moodle_exception('invalidrecord', 'error');
-    }
-
-    if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
-        $allowedgroups = groups_get_activity_allowed_groups($cm);
-        $shared = false;
-        foreach (array_keys($allowedgroups) as $groupid) {
-            if (groups_is_member($groupid, (int) $detail['attempt']['userid'])) {
-                $shared = true;
-                break;
-            }
-        }
-        if (!$shared) {
-            throw new moodle_exception('nopermissions', 'error', '', get_string('report:heading', 'mod_elang'));
-        }
-    }
 
     $attempt = $detail['attempt'];
     $user = $DB->get_record('user', ['id' => $attempt['userid']]);

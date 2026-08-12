@@ -20,8 +20,7 @@
  * Renders the Moodle-native player shell inside the standard page frame and
  * hands off to the mod_elang/player AMD module, which drives the attempt
  * lifecycle (start/resume the attempt, load the pinned version's media and
- * cues) entirely through the external API. Answering, media/cue
- * synchronisation and resume are layered on in later phase 3 slices.
+ * cues), answering and resume entirely through the external API.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

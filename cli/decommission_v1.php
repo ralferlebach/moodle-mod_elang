@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CLI entry point for Migration_V1_V2.md chapter 2 step 5 ("Abbau") —
+ * CLI entry point for
  * irreversibly drops the V1 legacy tables and elang.options once every
  * activity is migrated and signed off, never before. See
  * classes/local/migration/v1_decommissioner.php for the full reasoning on
@@ -48,17 +48,17 @@ if ($unrecognised) {
 }
 
 if ($options['help'] || (!$options['check'] && !$options['execute'])) {
-    echo "Decommission V1 legacy data for mod_elang (Migration_V1_V2.md chapter 2, step 5).
+    echo "Decommission V1 legacy data for mod_elang.
 
 Drops elang_cues, elang_users, elang_help, elang_check and elang.options —
 irreversibly. Only proceeds once every V1 activity has been migrated AND
 every migrated activity has been signed off (see admin_migrate_v1.php).
 
 Options:
-  --check      Show whether decommissioning is currently blocked, write nothing.
-  --execute    Decommission if nothing blocks it.
-  --yes        Skip the confirmation prompt (--execute only).
-  -h, --help   This message.
+  --check Show whether decommissioning is currently blocked, write nothing.
+  --execute Decommission if nothing blocks it.
+  --yes Skip the confirmation prompt (--execute only).
+  -h, --help This message.
 
 Exactly one of --check or --execute is required.
 ";

@@ -24,8 +24,8 @@
  *
  * Answers are sent on explicit submit only (Enter or leaving the field), never
  * on every keystroke, and each submit carries the tries count the client last
- * saw so a lost-response retry is idempotent server-side. Media/cue
- * synchronisation and resume of prior input are added in later slices.
+ * saw so a lost-response retry is idempotent server-side. Prior input is
+ * restored when an attempt is resumed.
  *
  * @module     mod_elang/player
  * @copyright  2026 Ralf Erlebach

@@ -100,8 +100,14 @@ class version_manager {
     /**
      * Create a new draft version for an activity.
      *
-     * Always creates a new row; callers that want to reuse an existing draft
-     * should use get_or_create_draft() instead.
+     * Low-level entry point. It always inserts a new row and does NOT enforce
+     * this class's "at most one draft per activity" invariant, so ordinary
+     * application code must use get_or_create_draft() instead. It exists for the
+     * two callers that legitimately need an unconditional draft: the one-way V1
+     * migration, which creates the very first draft of a freshly migrated
+     * activity, and test fixtures.
+     *
+     * Not part of the stable API; ordinary callers use get_or_create_draft().
      *
      * @param int $elangid The activity id
      * @param int|null $userid Id to record as usermodified; defaults to the current user
@@ -307,7 +313,7 @@ class version_manager {
      * reference the rows being removed.
      *
      * @param int $versionid The version whose content is removed
-     * @return void
+     * @return void No return value.
      */
     private function delete_version_content(int $versionid): void {
         global $DB;
@@ -336,7 +342,7 @@ class version_manager {
      *
      * @param int $versionid The version the content is attached to
      * @param array $cues The cue list, each with nested gaps/answers/hints
-     * @return void
+     * @return void No return value.
      */
     private function insert_version_content(int $versionid, array $cues): void {
         global $DB;
@@ -400,7 +406,7 @@ class version_manager {
      * the stored content within the range the grading engine is defined for.
      *
      * @param array $cues The cue list, each with nested gaps/answers/hints
-     * @return void
+     * @return void No return value.
      * @throws \moodle_exception When any value falls outside its allowed domain
      */
     private static function validate_content_shape(array $cues): void {
@@ -577,7 +583,7 @@ class version_manager {
      *
      * @param int $contextid The activity context id
      * @param int $versionid The version whose files (itemid) are removed
-     * @return void
+     * @return void No return value.
      */
     private function clear_version_files(int $contextid, int $versionid): void {
         $fs = get_file_storage();
@@ -669,11 +675,11 @@ class version_manager {
      * Compute a deterministic content hash over a version's cues, gaps,
      * accepted answers and grading algorithms.
      *
-     * Used as the cache key for rendered worksheets and player payloads
-     * (see Blueprint chapter 12/16). Hashes the JSON encoding of a single
-     * canonical structure rather than fields concatenated with chosen
-     * delimiters, so content that happens to contain those delimiters can no
-     * longer produce an ambiguous pre-hash string (reviewer note 8). Includes
+     * Used as the cache key for rendered worksheets and player payloads.
+     * Hashes the JSON encoding of a single canonical structure rather than
+     * fields concatenated with chosen delimiters, so content that happens to
+     * contain those delimiters cannot produce an ambiguous pre-hash string
+     * (two different exercises hashing alike). Includes
      * the media columns, cues, gaps, accepted answers, grading algorithms,
      * maxlength, linkurl, transcriptformat AND the gaps' hints (level, type,
      * text, penalty) — a hint change affects how a gap is solved and scored,
@@ -753,7 +759,7 @@ class version_manager {
 
         // Build a single canonical structure and hash its JSON encoding, rather
         // than concatenating fields with chosen delimiters that content could
-        // itself contain (reviewer note 8). Hints are included — their type,
+        // itself contain and so collide. Hints are included — their type,
         // text and penalty all affect how a gap is solved and scored, so a
         // change to any of them must invalidate a cached worksheet or player
         // payload. Media columns and the media/poster files (by stored content
@@ -929,7 +935,7 @@ class version_manager {
      *
      * @param int $sourceversionid The version to copy content from
      * @param int $draftversionid The draft version to copy content into
-     * @return void
+     * @return void No return value.
      */
     private function copy_version_content(int $sourceversionid, int $draftversionid): void {
         global $DB;
@@ -1007,7 +1013,7 @@ class version_manager {
      * @param int $elangid The activity that owns the file context
      * @param int $sourceversionid The version whose files are copied (source itemid)
      * @param int $draftversionid The draft version the files are copied to (target itemid)
-     * @return void
+     * @return void No return value.
      */
     private function copy_version_files(int $elangid, int $sourceversionid, int $draftversionid): void {
         $cm = get_coursemodule_from_instance('elang', $elangid, 0, false, IGNORE_MISSING);

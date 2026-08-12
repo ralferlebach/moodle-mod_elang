@@ -24,8 +24,8 @@ namespace mod_elang\local\media;
  * shapes (youtu.be links, share links with tracking parameters, shorts,
  * player URLs, ...) — into the canonical video id the player's embed
  * builders expect. Only OAuth-free, publicly embeddable providers belong
- * here; login-gated providers are deferred to a separate subplugin by
- * design (see the work plan).
+ * here; providers that require OAuth or a login are out of scope for this
+ * registry and belong in a separate subplugin.
  *
  * Extending the list means: add the key here, an embed builder in
  * amd/src/player.js, and a provider:<key> language string.

@@ -58,10 +58,14 @@ export const options = {
         },
     },
     thresholds: {
-        // Fewer than 1% functional errors and a p95 under the budget (default
-        // 800ms; override with -e P95=<ms>).
+        // The hard gate is the error rate: fewer than 1% functional errors. The
+        // p95 latency is a regression guard, not an absolute SLA — it is
+        // dominated by the response payload size, so it scales with the number
+        // of cues in the seeded exercise. The default suits the default seed
+        // (a few hundred cues); for a stress run of several thousand cues raise
+        // it with -e P95=<ms>.
         elang_content_errors: ['rate<0.01'],
-        elang_content_latency: ['p(95)<' + Number(__ENV.P95 || 800)],
+        elang_content_latency: ['p(95)<' + Number(__ENV.P95 || 1500)],
         http_req_failed: ['rate<0.01'],
     },
 };

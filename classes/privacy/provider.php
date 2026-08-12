@@ -37,7 +37,7 @@ use core_privacy\local\request\writer;
  * skeleton (2.0.0-alpha.1/alpha.2): the external functions introduced
  * alongside this provider are the first code path that can actually write to
  * elang_attempt/elang_response from outside a test, which is exactly the
- * point at which Lastenheft L-Q4 requires a full provider to exist.
+ * point at which a full provider must exist.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -85,6 +85,12 @@ class provider implements
             'usermodified' => 'privacy:metadata:elang_version:usermodified',
         ], 'privacy:metadata:elang_version');
 
+        // The activity also records which user signed off the one-way migration
+        // of its 1.x content, which is a user identifier like any other.
+        $collection->add_database_table('elang', [
+            'migrationapproveduserid' => 'privacy:metadata:elang:migrationapproveduserid',
+        ], 'privacy:metadata:elang');
+
         return $collection;
     }
 
@@ -97,18 +103,26 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
+        // A user leaves personal data behind in three ways: as a learner who
+        // attempted the exercise, as an author whose id is stamped on a content
+        // version, and as the administrator who signed off the 1.x migration.
         $sql = "SELECT ctx.id
                   FROM {context} ctx
                   JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
                   JOIN {modules} m ON m.id = cm.module AND m.name = :modname
                   JOIN {elang} e ON e.id = cm.instance
-                  JOIN {elang_attempt} a ON a.elangid = e.id
-                 WHERE a.userid = :userid";
+             LEFT JOIN {elang_attempt} a ON a.elangid = e.id AND a.userid = :attemptuserid
+             LEFT JOIN {elang_version} v ON v.elangid = e.id AND v.usermodified = :versionuserid
+                 WHERE a.id IS NOT NULL
+                    OR v.id IS NOT NULL
+                    OR e.migrationapproveduserid = :approveduserid";
 
         $contextlist->add_from_sql($sql, [
             'contextlevel' => CONTEXT_MODULE,
             'modname' => 'elang',
-            'userid' => $userid,
+            'attemptuserid' => $userid,
+            'versionuserid' => $userid,
+            'approveduserid' => $userid,
         ]);
 
         return $contextlist;
@@ -118,7 +132,7 @@ class provider implements
      * Add every user with personal data in the given context to the userlist.
      *
      * @param userlist $userlist The userlist to add users to
-     * @return void
+     * @return void Nothing; the users are added to the given userlist.
      */
     public static function get_users_in_context(userlist $userlist): void {
         $context = $userlist->get_context();
@@ -131,8 +145,22 @@ class provider implements
                   JOIN {elang} e ON e.id = cm.instance
                   JOIN {elang_attempt} a ON a.elangid = e.id
                  WHERE cm.id = :cmid";
-
         $userlist->add_from_sql('userid', $sql, ['cmid' => $context->instanceid]);
+
+        // Authors of content versions, and the migration sign-off user, are in
+        // the activity's data too even when they never attempted it.
+        $authorsql = "SELECT v.usermodified
+                        FROM {course_modules} cm
+                        JOIN {elang} e ON e.id = cm.instance
+                        JOIN {elang_version} v ON v.elangid = e.id
+                       WHERE cm.id = :cmid AND v.usermodified > 0";
+        $userlist->add_from_sql('usermodified', $authorsql, ['cmid' => $context->instanceid]);
+
+        $approvedsql = "SELECT e.migrationapproveduserid
+                          FROM {course_modules} cm
+                          JOIN {elang} e ON e.id = cm.instance
+                         WHERE cm.id = :cmid AND e.migrationapproveduserid > 0";
+        $userlist->add_from_sql('migrationapproveduserid', $approvedsql, ['cmid' => $context->instanceid]);
     }
 
     /**
@@ -144,7 +172,7 @@ class provider implements
      * grow with the number of attempts a learner had made.
      *
      * @param approved_contextlist $contextlist List of approved contexts for one user
-     * @return void
+     * @return void No return value; the data is handed to the writer.
      */
     public static function export_user_data(approved_contextlist $contextlist): void {
         global $DB;
@@ -163,11 +191,9 @@ class provider implements
             $cm = get_coursemodule_from_id('elang', $context->instanceid, 0, false, MUST_EXIST);
 
             $attempts = $DB->get_records('elang_attempt', ['elangid' => $cm->instance, 'userid' => $user->id]);
-            if (empty($attempts)) {
-                continue;
-            }
-
-            $responsesbyattempt = self::get_responses_by_attempt(array_keys($attempts));
+            $responsesbyattempt = empty($attempts)
+                ? []
+                : self::get_responses_by_attempt(array_keys($attempts));
 
             $exportedattempts = [];
             foreach ($attempts as $attempt) {
@@ -202,9 +228,45 @@ class provider implements
                 ];
             }
 
+            // A user may also appear as the author of content versions or as the
+            // administrator who signed off the 1.x migration, without ever
+            // having attempted the exercise; export those too.
+            $authored = $DB->get_records(
+                'elang_version',
+                ['elangid' => $cm->instance, 'usermodified' => $user->id],
+                'id ASC',
+                'id, versionnumber, status, timecreated'
+            );
+            $exportedversions = [];
+            foreach ($authored as $version) {
+                $exportedversions[] = (object) [
+                    'versionnumber' => (int) $version->versionnumber,
+                    'status' => $version->status,
+                    'timecreated' => transform::datetime((int) $version->timecreated),
+                ];
+            }
+
+            $approvedtime = $DB->get_field(
+                'elang',
+                'migrationapprovedtime',
+                ['id' => $cm->instance, 'migrationapproveduserid' => $user->id]
+            );
+
+            if (empty($exportedattempts) && empty($exportedversions) && empty($approvedtime)) {
+                continue;
+            }
+
+            $exportdata = ['attempts' => $exportedattempts];
+            if (!empty($exportedversions)) {
+                $exportdata['authoredversions'] = $exportedversions;
+            }
+            if (!empty($approvedtime)) {
+                $exportdata['migrationapprovedtime'] = transform::datetime((int) $approvedtime);
+            }
+
             writer::with_context($context)->export_data(
                 [get_string('pluginname', 'mod_elang')],
-                (object) ['attempts' => $exportedattempts]
+                (object) $exportdata
             );
         }
     }
@@ -213,7 +275,7 @@ class provider implements
      * Delete all personal data for every user in the given context.
      *
      * @param \context $context The context to delete personal data within
-     * @return void
+     * @return void No return value.
      */
     public static function delete_data_for_all_users_in_context(\context $context): void {
         if (!$context instanceof \context_module) {
@@ -226,13 +288,14 @@ class provider implements
         }
 
         self::delete_attempts_and_responses_where('elangid = :elangid', ['elangid' => $cm->instance]);
+        self::anonymise_authoring_where((int) $cm->instance, ':column > 0', []);
     }
 
     /**
      * Delete all personal data for one user across the approved contexts.
      *
      * @param approved_contextlist $contextlist List of approved contexts for one user
-     * @return void
+     * @return void No return value.
      */
     public static function delete_data_for_user(approved_contextlist $contextlist): void {
         $userid = $contextlist->get_user()->id;
@@ -251,7 +314,44 @@ class provider implements
                 'elangid = :elangid AND userid = :userid',
                 ['elangid' => $cm->instance, 'userid' => $userid]
             );
+            self::anonymise_authoring_where(
+                (int) $cm->instance,
+                ':column = :authoruserid',
+                ['authoruserid' => $userid]
+            );
         }
+    }
+
+    /**
+     * Detach a user's identity from the authoring trail of one activity.
+     *
+     * The content versions themselves belong to the course, not to the user, so
+     * they are kept; only the identifying reference is cleared, which is the
+     * anonymisation the GDPR right to erasure asks for here.
+     *
+     * @param int $elangid The activity to clean.
+     * @param string $wheresql A WHERE fragment matching the users to detach, on the alias-free column.
+     * @param array $params The parameters for that fragment.
+     * @return void No return value.
+     */
+    private static function anonymise_authoring_where(int $elangid, string $wheresql, array $params): void {
+        global $DB;
+
+        $DB->set_field_select(
+            'elang_version',
+            'usermodified',
+            0,
+            'elangid = :elangid AND ' . str_replace(':column', 'usermodified', $wheresql),
+            $params + ['elangid' => $elangid]
+        );
+
+        $DB->set_field_select(
+            'elang',
+            'migrationapproveduserid',
+            0,
+            'id = :elangid AND ' . str_replace(':column', 'migrationapproveduserid', $wheresql),
+            $params + ['elangid' => $elangid]
+        );
     }
 
     /**
@@ -263,7 +363,7 @@ class provider implements
      * one bounded operation.
      *
      * @param approved_userlist $userlist The approved users in one context
-     * @return void
+     * @return void No return value.
      */
     public static function delete_data_for_users(approved_userlist $userlist): void {
         global $DB;
@@ -289,13 +389,29 @@ class provider implements
             "elangid = ? AND userid $insql",
             array_merge([$cm->instance], $inparams)
         );
+
+        // Detach the same users from the authoring trail, keeping the content.
+        $DB->set_field_select(
+            'elang_version',
+            'usermodified',
+            0,
+            "elangid = ? AND usermodified $insql",
+            array_merge([$cm->instance], $inparams)
+        );
+        $DB->set_field_select(
+            'elang',
+            'migrationapproveduserid',
+            0,
+            "id = ? AND migrationapproveduserid $insql",
+            array_merge([$cm->instance], $inparams)
+        );
     }
 
     /**
      * Load every elang_response row for a set of attempt ids in a single
      * query, grouped by attemptid.
      *
-     * @param int[] $attemptids
+     * @param int[] $attemptids The attempt ids to read.
      * @return array<int, \stdClass[]> Responses keyed by attemptid
      */
     private static function get_responses_by_attempt(array $attemptids): array {
@@ -326,7 +442,7 @@ class provider implements
      *
      * @param string $attemptwheresql WHERE clause fragment against elang_attempt
      * @param array $params Parameters for the WHERE clause (named or positional, matching the SQL fragment)
-     * @return void
+     * @return void No return value.
      */
     private static function delete_attempts_and_responses_where(string $attemptwheresql, array $params): void {
         global $DB;

@@ -19,8 +19,9 @@
  *
  * General section, the standard grading elements (grade, grade category,
  * grade to pass) and the elang-specific completion rule (see
- * add_completion_rules()). Media, subtitle import and gap settings are
- * added in phase 4 (authoring tool).
+ * add_completion_rules()), plus the exercise language and the answer-comparison
+ * threshold. Media, subtitle import and gaps are edited in the authoring editor
+ * (edit.php), not here.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -42,7 +43,7 @@ class mod_elang_mod_form extends moodleform_mod {
     /**
      * Define the form elements.
      *
-     * @return void
+     * @return void No return value.
      */
     public function definition() {
         global $CFG;
@@ -132,7 +133,7 @@ class mod_elang_mod_form extends moodleform_mod {
      * Whether elang's own completion rule is enabled, based on submitted form data.
      *
      * @param array $data Input data (not yet validated)
-     * @return bool
+     * @return bool True when the condition holds, false otherwise.
      */
     public function completion_rule_enabled($data) {
         $suffix = $this->get_suffix();

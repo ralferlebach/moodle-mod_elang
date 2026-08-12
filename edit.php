@@ -20,8 +20,8 @@
  * Ensures the activity has a draft version to edit (branching a copy from the
  * published version when there is one) and hands off to the mod_elang/editor
  * AMD module, which loads the draft through the external API and drives editing,
- * subtitle import, saving and publishing. This is the editor foundation; the
- * timeline interactions are layered on in later slices.
+ * subtitle import, saving and publishing, including the timeline with draggable
+ * cue edges.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

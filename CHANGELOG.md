@@ -11,10 +11,86 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.83] - 2026-08-12
+
 ### Fixed
-- Coding-style fix in the generate_rule_gaps web service (trait import placement),
-  and the load/browser seeders now pass `introeditor` to `create_module()` as a
-  real Moodle site requires. Test/tooling only.
+- Messages that reach teachers in the browser are localisable instead of
+  hardcoded English: every publish-validation problem (no cues, empty solution,
+  unknown grading algorithm, bad or overlapping character range, non-contiguous
+  hint levels, no gaps) and every migration-verification discrepancy now goes
+  through `get_string()`. 23 new strings in English and German (280/280).
+
+### Changed
+- Every `@param` and `@return` tag in the shipped code now carries a description,
+  as the Moodle coding style requires — 93 bare tags filled in. phpcs now reports
+  zero errors *and* zero warnings, which is what the CI gate enforces.
+- The over-long docblock line in `grading_result.php` is wrapped, so no shipped
+  non-language line exceeds the 132-character guidance.
+- `version_manager::create_draft()` is documented as the low-level entry point it
+  is: it does not enforce the one-draft-per-activity invariant, and ordinary code
+  must use `get_or_create_draft()`.
+
+## [2.0.0-alpha.82] - 2026-08-12
+
+### Changed
+- Comments across the code base now explain the current logic instead of the
+  development process: references to internal planning documents, review notes,
+  phase and slice numbering are gone, and the statements that had become untrue
+  (the player, authoring editor, reporting, exports, language field, timeline and
+  migration admin tooling all described as "not yet built") now describe what the
+  code actually does.
+- Third-party documentation for the bundled React runtime is accurate again: the
+  vendor README described the superseded AMD architecture, and there was no
+  `readme_moodle.txt`. Both are rewritten/added with provenance, upstream URLs and
+  reproducible build steps, the MIT licence text is shipped alongside, and
+  `thirdpartylibs.xml` no longer describes the bundle as an AMD module.
+- The production JavaScript bundle no longer ships a source map, which roughly
+  tripled the payload and exposed the unminified sources. A map is still produced
+  for a development build (`node build.mjs --dev`).
+
+### Removed
+- Two dead language strings (`skeletonnotice`, `editor:gaps`), the first of which
+  still claimed the player was unimplemented.
+
+## [2.0.0-alpha.81] - 2026-08-12
+
+### Security
+- Attempt actions in the report are now authorised per object through one shared
+  check: in separate-groups mode a teacher can no longer delete (or inspect) an
+  attempt belonging to a learner outside their groups. Previously the delete path
+  verified only the capability and that the attempt belonged to the activity.
+- Restoring a backup no longer falls back to the source site's numeric user id
+  when a user cannot be mapped. That fallback could attribute a content version's
+  authorship, or a migration sign-off, to an unrelated user who happened to hold
+  the same id on the destination site; unmapped now means unknown.
+
+### Fixed
+- The privacy provider now covers every personal field it declares. Users who
+  only authored content (`elang_version.usermodified`) or approved a 1.x
+  migration (`elang.migrationapproveduserid`) are found by context discovery and
+  the userlist, included in exports, and detached on erasure — the content itself
+  is kept, only the identifying reference is cleared. `migrationapproveduserid`
+  is now declared in the metadata too.
+- The attempt report export streams rows from a recordset (with the learner name
+  joined in SQL) instead of materialising every attempt and user in memory, so
+  exporting a long attempt history no longer scales in memory with its size.
+- Migration admin paths are batched and bounded: the dry-run report reads its
+  activities, cues and learner counts in one query each and covers a bounded
+  block per run; the migration verifier resolves cues, gaps, hints, attempts and
+  response counts in batched queries instead of one per row; and decommission
+  blocker messages quote an exact count plus a bounded sample of ids rather than
+  every id on the site.
+- CI robustness: the workflow configures npm retry/backoff so a transient GitHub
+  download failure during node setup no longer fails the build. Coding-style fix
+  in the generate_rule_gaps web service, and the load/browser seeders now pass
+  `introeditor` to `create_module()` as a real Moodle site requires.
+
+### Changed
+- Documentation: README rewritten to the standard plugin template; the license and
+  provenance note translated to English and renamed to `License_and_Provenance.md`.
+- Load tests: realistic default seed size and p95 latency budget (latency scales
+  with payload size; the error rate is the hard gate), and the JMeter plan now
+  asserts the response actually contains the content.
 
 ## [2.0.0-alpha.80] - 2026-08-12
 

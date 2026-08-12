@@ -21,19 +21,19 @@ use mod_elang\local\migration\v1_migrator;
 
 /**
  * Resumable, block-wise migration of every pending V1 activity — the
- * "Migration" step (Migration_V1_V2.md chapter 2, step 3) wrapped around the
+ * "Migration" step wrapped around the
  * per-activity unit of work v1_migrator already provides.
  *
  * Resumability is not implemented via a dedicated progress-tracking table:
  * v1_detector::pending_activity_ids() is itself the progress marker
- * (Migration_V1_V2.md chapter 1.2's `elang.currentversionid` check — an
+ * (.2's `elang.currentversionid` check — an
  * activity that migrated successfully is never returned again, from this
  * task run or any later one, cron-restarted or not). Nothing here decides
  * what "pending" means; that stays entirely v1_detector's responsibility, so
  * the two can never drift apart on the definition.
  *
  * One execute() call processes at most BLOCK_SIZE activities
- * (Migration_V1_V2.md chapter 4, "blockweise") and, if pending activities
+ * and, if pending activities
  * remain afterwards, queues another instance of itself to continue — an
  * adhoc task is expected to finish in bounded time per cron run, not to
  * migrate an entire large site in one execution.
@@ -45,10 +45,10 @@ use mod_elang\local\migration\v1_migrator;
  * v1_migrator itself already applies to individual cues/gaps/responses
  * within one activity.
  *
- * Deliberately not yet built: an admin page or CLI script to queue this
- * task, and the "Verifikation" step (Migration_V1_V2.md chapter 2, step 4)
- * that would compare migrated content against the source afterwards and
- * require explicit administrator sign-off before anything is trusted.
+ * The task is queued from the migration admin page or the CLI script; the
+ * separate verification step (v1_verifier) compares migrated content against the
+ * source afterwards, and an administrator must sign it off (v1_signoff) before
+ * the legacy data may be decommissioned.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -65,7 +65,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
      * is re-queried at the start of every execute(), never assumed stale.
      *
      * @param int $blocksize Activities to process per execute() call
-     * @return void
+     * @return void No return value.
      */
     public static function queue(int $blocksize = self::DEFAULT_BLOCK_SIZE): void {
         $task = new self();
@@ -76,7 +76,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
     /**
      * The task's display name, shown in admin/tasklogs.php and similar.
      *
-     * @return string
+     * @return string The name.
      */
     public function get_name(): string {
         return get_string('task:migratev1activities', 'mod_elang');
@@ -85,7 +85,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
     /**
      * Process up to one block of pending activities, and re-queue if more remain.
      *
-     * @return void
+     * @return void No return value.
      */
     public function execute(): void {
         $blocksize = (int) ($this->get_custom_data()?->blocksize ?? self::DEFAULT_BLOCK_SIZE);

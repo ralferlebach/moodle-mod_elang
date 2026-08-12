@@ -93,7 +93,7 @@ und das Migrationskonzept ist so gebaut, dass es beide Wege trägt.
       (Grundlage für `answer_evaluator`)
 - [ ] Produktionsnahe V1-Datenmenge für Migrationstests beschaffen
 - [ ] Schriftliche Bestätigung der Maintainer-Übergabe abwarten
-      (`Lizenz_und_Herkunft.md`, Kap. 3)
+      (`License_and_Provenance.md`, Kap. 3)
 - [ ] Phase 2 beginnen: `db/install.xml` um das versionierte Datenmodell erweitern —
       einschließlich `cuekey` und `gapkey` als Vorleistung für 2.1-2
 - [ ] `classes/courseformat/overview.php` ergänzen (wirkt ab Moodle 5.0)

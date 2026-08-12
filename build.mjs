@@ -34,6 +34,12 @@
 import {build} from 'esbuild';
 import {writeFileSync} from 'fs';
 
+// A source map is a development aid: it roughly triples the shipped payload and
+// exposes the full unminified sources. Moodle's own production React build ships
+// without one, so the map is only produced on an explicit dev build
+// (ELANG_BUILD_DEV=1 or `node build.mjs --dev`).
+const dev = process.env.ELANG_BUILD_DEV === '1' || process.argv.includes('--dev');
+
 const result = await build({
     entryPoints: ['js/src/mount.tsx'],
     bundle: true,
@@ -41,7 +47,7 @@ const result = await build({
     globalName: 'mod_elang_editor',
     target: ['es2018'],
     minify: true,
-    sourcemap: true,
+    sourcemap: dev,
     write: false,
     outfile: 'js/vendor/react/editor.bundle.js',
     jsx: 'automatic',
@@ -56,4 +62,4 @@ const result = await build({
 for (const file of result.outputFiles) {
     writeFileSync(file.path, file.text);
 }
-console.log('Built js/vendor/react/editor.bundle.js (+ .map)');
+console.log('Built js/vendor/react/editor.bundle.js' + (dev ? ' (+ .map)' : ' (production, no source map)'));

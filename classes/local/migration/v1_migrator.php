@@ -25,7 +25,7 @@ use mod_elang\local\grading\script_handler_manager;
  * Migrates one V1 (mod_elang 1.x) activity's legacy content and learner data
  * into the V2 schema, transactionally.
  *
- * This is step 3 ("Migration") of Migration_V1_V2.md chapter 2, built on top
+ * This is step 3 ("Migration") of
  * of the read-only step 1/2 v1_detector already provides. It is the
  * per-activity unit of work a resumable ad-hoc task would call in a loop —
  * this class itself is not the task: it has no knowledge of blocks spanning
@@ -35,7 +35,7 @@ use mod_elang\local\grading\script_handler_manager;
  * migrated" is decided.
  *
  * What this migrates, and the decisions each mapping rests on (all
- * cross-referenced to Migration_V1_V2.md chapter 1.2/3, not invented here):
+ * cross-referenced to.2/3, not invented here):
  *
  * - elang_cues.json -> elang_cue + elang_gap, via v1_cue_parser. cuekey/
  *   gapkey are derived from the stable V1 ids ("v1-cue-<id>",
@@ -58,15 +58,14 @@ use mod_elang\local\grading\script_handler_manager;
  *   at least an exact match; an unsuccessful guess's own raw text replays as
  *   incorrect just as reliably.
  * - tries is always migrated as 1 — confirmed to have no V1 source at all,
- *   not even in elang_check (Migration_V1_V2.md chapter 1.2).
+ *   not even in elang_check.
  * - elang_help/elang_check are read by nothing here — confirmed to carry no
  *   user reference, so neither can contribute to a specific learner's
  *   migrated data (same chapter).
  *
  * What this deliberately does NOT do: decide "not yet migrated" for itself
  * (the caller must have already established that via v1_detector), drop the
- * legacy tables or elang.options (a separate, later release per
- * Migration_V1_V2.md chapter 2 step 5), or migrate a real .mbz restore (a
+ * legacy tables or elang.options (a separate, later release per. mbz restore (a
  * different code path that reuses these same rules, per chapter 5).
  *
  * @package    mod_elang
@@ -97,7 +96,7 @@ final class v1_migrator {
      * outright, not silently re-migrated or merged with what is there.
      *
      * The whole activity migrates inside a single delegated transaction —
-     * matching Migration_V1_V2.md chapter 4's "transaktional je Block" at
+     * matching
      * the coarsest possible block granularity (one activity). A caller
      * migrating many activities in one resumable task is expected to call
      * this once per activity, each call its own transaction, so a failure
@@ -256,8 +255,7 @@ final class v1_migrator {
     }
 
     /**
-     * Validate a parsed gap's link URL against the same rule
-     * Migration_V1_V2.md chapter 3.1 specifies: http(s) only, nothing taken
+     * Validate a parsed gap's link URL against the same rule. 1 specifies: http(s) only, nothing taken
      * verbatim from subtitle markup. An invalid link is dropped (the gap
      * itself is still migrated) and recorded in $report, never silently.
      *
@@ -292,7 +290,7 @@ final class v1_migrator {
      * @param string $gradingalgorithm This activity's mapped algorithm
      * @param float $jarothreshold This activity's mapped threshold
      * @param object $report Mutated in place
-     * @return void
+     * @return void No return value.
      */
     private function migrate_learners(
         \stdClass $elang,
@@ -391,7 +389,7 @@ final class v1_migrator {
 
                     // Hint penalty is always 0 here — every migrated hint is
                     // the single, unpenalised level created in
-                    // migrate_cues() (Migration_V1_V2.md chapter 3.1, "keine
+                    // migrate_cues() (.1, "keine
                     // Bestrafung" — V1 had no gradebook to penalise against).
                     $responsescore = $result->accepted ? 1.0 : 0.0;
                     $points += $responsescore;

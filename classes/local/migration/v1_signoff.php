@@ -18,7 +18,6 @@ namespace mod_elang\local\migration;
 
 /**
  * Records an administrator's explicit sign-off on a migrated activity —
- * Migration_V1_V2.md chapter 2 step 4 ("Freigabe durch Administration"), the
  * decision that follows reviewing a v1_verifier report, not the review
  * itself.
  *
@@ -35,7 +34,7 @@ namespace mod_elang\local\migration;
  * action.
  *
  * Approval is currently only ever a manual, one-way action: there is no
- * "unapprove". Nothing downstream (Migration_V1_V2.md chapter 2 step 5,
+ * "unapprove". Nothing downstream (
  * "Abbau" — removing the legacy tables and elang.options) reads this yet;
  * that step is a separate, later release and will decide for itself what,
  * if anything, it requires approval for.
@@ -49,9 +48,9 @@ final class v1_signoff {
      * Record that $userid has reviewed and approved this activity's
      * migration.
      *
-     * @param int $elangid
-     * @param int $userid
-     * @return void
+     * @param int $elangid The activity instance id.
+     * @param int $userid The user id.
+     * @return void No return value.
      * @throws \coding_exception if the activity has not been migrated yet
      *         (no currentversionid) — approving something that has not
      *         happened is never meaningful, regardless of intent
@@ -71,8 +70,8 @@ final class v1_signoff {
     /**
      * Whether an activity has been signed off.
      *
-     * @param int $elangid
-     * @return bool
+     * @param int $elangid The activity instance id.
+     * @return bool True when it applies, false otherwise.
      */
     public static function is_approved(int $elangid): bool {
         global $DB;
@@ -86,7 +85,7 @@ final class v1_signoff {
      * The full sign-off status for one activity, for the admin page to
      * render without needing to know the underlying field names.
      *
-     * @param int $elangid
+     * @param int $elangid The activity instance id.
      * @return object{elangid: int, migrated: bool, approved: bool,
      *         approveduserid: ?int, approvedtime: ?int}
      * @throws \dml_missing_record_exception if the activity does not exist
@@ -106,23 +105,42 @@ final class v1_signoff {
     }
 
     /**
-     * Every migrated activity that has not been signed off yet — what the
-     * admin page's "needs review" list is built from.
+     * Migrated activities that have not been signed off yet — what the admin
+     * page's "needs review" list is built from.
      *
-     * @return int[] elang ids, sorted
+     * @param int $limit The maximum number of ids to return, or 0 for all.
+     * @return int[] elang ids, ascending
      */
-    public static function pending_approval_ids(): array {
+    public static function pending_approval_ids(int $limit = 0): array {
         global $DB;
 
-        $ids = $DB->get_fieldset_select(
+        $records = $DB->get_records_select(
             'elang',
-            'id',
             'currentversionid IS NOT NULL AND migrationapproveduserid IS NULL',
-            []
+            [],
+            'id ASC',
+            'id',
+            0,
+            $limit > 0 ? $limit : 0
         );
-        $ids = array_map('intval', $ids);
-        sort($ids);
 
-        return $ids;
+        return array_map('intval', array_keys($records));
+    }
+
+    /**
+     * How many migrated activities are still awaiting sign-off.
+     *
+     * Counting in the database keeps callers that only need the number — such as
+     * a blocker message — from loading every identifier of a large site.
+     *
+     * @return int The number of activities awaiting sign-off.
+     */
+    public static function count_pending_approval(): int {
+        global $DB;
+
+        return (int) $DB->count_records_select(
+            'elang',
+            'currentversionid IS NOT NULL AND migrationapproveduserid IS NULL'
+        );
     }
 }

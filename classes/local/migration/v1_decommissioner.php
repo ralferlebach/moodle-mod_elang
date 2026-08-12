@@ -18,7 +18,6 @@ namespace mod_elang\local\migration;
 
 /**
  * Removes the V1 legacy tables and the elang.options column —
- * Migration_V1_V2.md chapter 2 step 5 ("Abbau"), the last and only
  * irreversible step in the whole migration.
  *
  * Deliberately NOT a normal db/upgrade.php step. Every other schema change
@@ -32,7 +31,6 @@ namespace mod_elang\local\migration;
  * explicitly — cli/decommission_v1.php or the admin page — never from
  * db/upgrade.php, and only once blockers() is empty.
  *
- * Migration_V1_V2.md's own principle ("mindestens ein Release Abstand" —
  * at least one release between migrating and decommissioning) is
  * deliberately NOT encoded as a version-number check here: that would
  * invite exactly the false confidence a real release boundary is meant to
@@ -46,7 +44,7 @@ namespace mod_elang\local\migration;
  * who approved what and when, with lasting value long after the source
  * data they were approving is gone. options, in contrast, is genuinely
  * disposable — its only purpose was surviving the gap between schema
- * upgrade and data migration (Migration_V1_V2.md chapter 1.3), a gap that
+ * upgrade and data migration, a gap that
  * has definitionally closed for every activity this class allows itself to
  * run for.
  *
@@ -64,9 +62,30 @@ namespace mod_elang\local\migration;
  */
 final class v1_decommissioner {
     /**
+     * How many example activity ids a blocker message quotes.
+     */
+    private const BLOCKER_EXAMPLES = 20;
+
+    /**
+     * Render a bounded list of example ids for a blocker message.
+     *
+     * @param int[] $examples The example ids to quote.
+     * @param int $total How many there are in total.
+     * @return string A human-readable fragment naming the examples.
+     */
+    private static function format_examples(array $examples, int $total): string {
+        $text = 'elang id: ' . implode(', ', $examples);
+        if ($total > count($examples)) {
+            $text .= ', …';
+        }
+
+        return $text;
+    }
+
+    /**
      * Reasons decommissioning cannot proceed right now. Empty means safe.
      *
-     * @return string[]
+     * @return string[] One message per blocker, each naming the count and example ids.
      */
     public static function blockers(): array {
         if (!v1_detector::v1_tables_present()) {
@@ -75,16 +94,21 @@ final class v1_decommissioner {
 
         $blockers = [];
 
-        $pendingmigration = v1_detector::pending_activity_ids();
-        if (!empty($pendingmigration)) {
-            $blockers[] = count($pendingmigration) . ' V1 activity/activities not yet migrated (elang id: '
-                . implode(', ', $pendingmigration) . ')';
+        // A blocker message needs the exact count and enough example ids to start
+        // investigating — not every id on the site, which on a large backlog
+        // would build an unbounded string from an unbounded query.
+        $pendingmigrationcount = v1_detector::count_pending_activities();
+        if ($pendingmigrationcount > 0) {
+            $blockers[] = $pendingmigrationcount . ' V1 activity/activities not yet migrated ('
+                . self::format_examples(v1_detector::pending_activity_ids(self::BLOCKER_EXAMPLES), $pendingmigrationcount)
+                . ')';
         }
 
-        $pendingapproval = v1_signoff::pending_approval_ids();
-        if (!empty($pendingapproval)) {
-            $blockers[] = count($pendingapproval) . ' migrated activity/activities not yet approved (elang id: '
-                . implode(', ', $pendingapproval) . ')';
+        $pendingapprovalcount = v1_signoff::count_pending_approval();
+        if ($pendingapprovalcount > 0) {
+            $blockers[] = $pendingapprovalcount . ' migrated activity/activities not yet approved ('
+                . self::format_examples(v1_signoff::pending_approval_ids(self::BLOCKER_EXAMPLES), $pendingapprovalcount)
+                . ')';
         }
 
         return $blockers;

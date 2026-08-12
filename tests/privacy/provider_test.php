@@ -74,6 +74,97 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
+     * A user who only authored a content version — never attempting the
+     * exercise — still has personal data in the activity: their id is stamped on
+     * the version, so discovery, the userlist and export must all find them, and
+     * erasure must detach them while keeping the content.
+     *
+     * @return void
+     */
+    public function test_an_author_without_attempts_is_covered(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $author = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $cm = get_coursemodule_from_instance('elang', $elang->id);
+        $context = \context_module::instance($cm->id);
+
+        $versionmanager = new \mod_elang\local\domain\version_manager();
+        $draft = $versionmanager->create_draft($elang->id, $author->id);
+        $versionmanager->publish($draft->id, $author->id);
+        $this->assertSame((int) $author->id, (int) $DB->get_field('elang_version', 'usermodified', ['id' => $draft->id]));
+
+        // Discovery finds the activity even though the author never attempted it.
+        $contextlist = provider::get_contexts_for_userid((int) $author->id);
+        // Cast both sides: contextlist ids can come back as strings (see the
+        // note in test_get_contexts_for_userid_finds_the_activity_context).
+        $this->assertContains((int) $context->id, array_map('intval', $contextlist->get_contextids()));
+
+        // The userlist includes the author.
+        $userlist = new userlist($context, 'mod_elang');
+        provider::get_users_in_context($userlist);
+        $this->assertContains((int) $author->id, array_map('intval', $userlist->get_userids()));
+
+        // Export writes the authoring data.
+        $this->export_context_data_for_user((int) $author->id, $context, 'mod_elang');
+        $data = writer::with_context($context)->get_data([get_string('pluginname', 'mod_elang')]);
+        $this->assertNotEmpty($data->authoredversions);
+
+        // Erasure detaches the author but keeps the version itself.
+        $approved = new approved_contextlist(
+            \core_user::get_user((int) $author->id),
+            'mod_elang',
+            [$context->id]
+        );
+        provider::delete_data_for_user($approved);
+        $this->assertTrue($DB->record_exists('elang_version', ['id' => $draft->id]));
+        $this->assertSame(0, (int) $DB->get_field('elang_version', 'usermodified', ['id' => $draft->id]));
+    }
+
+    /**
+     * The user who signed off a 1.x migration is personal data too, and is
+     * discovered, listed and detached on erasure.
+     *
+     * @return void
+     */
+    public function test_the_migration_signoff_user_is_covered(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $admin = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $cm = get_coursemodule_from_instance('elang', $elang->id);
+        $context = \context_module::instance($cm->id);
+
+        $DB->set_field('elang', 'migrationapproveduserid', $admin->id, ['id' => $elang->id]);
+        $DB->set_field('elang', 'migrationapprovedtime', time(), ['id' => $elang->id]);
+
+        $contextlist = provider::get_contexts_for_userid((int) $admin->id);
+        // Cast both sides: contextlist ids can come back as strings (see the
+        // note in test_get_contexts_for_userid_finds_the_activity_context).
+        $this->assertContains((int) $context->id, array_map('intval', $contextlist->get_contextids()));
+
+        $userlist = new userlist($context, 'mod_elang');
+        provider::get_users_in_context($userlist);
+        $this->assertContains((int) $admin->id, array_map('intval', $userlist->get_userids()));
+
+        $approved = new approved_contextlist(
+            \core_user::get_user((int) $admin->id),
+            'mod_elang',
+            [$context->id]
+        );
+        provider::delete_data_for_user($approved);
+        $this->assertSame(0, (int) $DB->get_field('elang', 'migrationapproveduserid', ['id' => $elang->id]));
+    }
+
+    /**
      * A user with an attempt has the activity context in their contextlist.
      *
      * @return void

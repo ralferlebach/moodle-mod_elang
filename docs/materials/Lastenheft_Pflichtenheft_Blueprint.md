@@ -23,7 +23,7 @@ Ergänzende Dokumente im selben Verzeichnis:
 | `Blueprint_kompakt.md` | Einseitige Arbeitsfassung |
 | `Machbarkeit_Zusatzanforderungen.md` | Technische Prüfung der Zusatz- und Roadmap-Anforderungen |
 | `Migration_V1_V2.md` | Migrations- und Restore-Konzept |
-| `Lizenz_und_Herkunft.md` | Lizenz-, Herkunfts- und Namensfragen |
+| `License_and_Provenance.md` | Lizenz-, Herkunfts- und Namensfragen |
 | `Ideen_Backlog.md` | Bewertetes Ideen-Backlog |
 
 Drei Festlegungen sind dem gesamten Dokument übergeordnet:
@@ -1143,8 +1143,8 @@ Datenmodell und Domain und erhöhen den 2.0-Aufwand nicht messbar.
 | --- | --- | --- |
 | 1 | Die Spanne 4.5 – 5.3 zwingt den Code auf **PHP 8.1**, während auf 5.2 und 5.3 bereits 8.4 läuft. Versehentlich genutzte neuere Sprachmerkmale fallen erst im 4.5-Job auf | PHP-Lint und phpcs laufen verbindlich gegen 8.1; der 4.5-Job ist blockierend und steht in der Matrix an erster Stelle |
 | 2 | Moodle 5.3 ist noch nicht veröffentlicht; APIs können sich bis zum Code Freeze ändern | 5.3-Jobs laufen nicht blockierend; Revalidierung nach dem 5. Oktober 2026 |
-| 3 | Lizenzwechsel CeCILL-B → GPL v3+ bei Übernahme von V1-Logik | Klärung und Regeln in `Lizenz_und_Herkunft.md`; im Zweifel Neuimplementierung aus der Spezifikation |
-| 4 | Maintainerschaft für `mod_elang` | Kontakt mit Christophe Demko zur Fortführung ist aufgenommen; bis zur schriftlichen Bestätigung bleibt der Rückfallweg eines eigenen Komponentennamens mit Migrationswerkzeug bestehen (`Lizenz_und_Herkunft.md`, Kap. 3) |
+| 3 | Lizenzwechsel CeCILL-B → GPL v3+ bei Übernahme von V1-Logik | Klärung und Regeln in `License_and_Provenance.md`; im Zweifel Neuimplementierung aus der Spezifikation |
+| 4 | Maintainerschaft für `mod_elang` | Kontakt mit Christophe Demko zur Fortführung ist aufgenommen; bis zur schriftlichen Bestätigung bleibt der Rückfallweg eines eigenen Komponentennamens mit Migrationswerkzeug bestehen (`License_and_Provenance.md`, Kap. 3) |
 | 5 | Standbilder für Arbeitsblätter sind für eingebettete Fremdvideos (YouTube, Vimeo) technisch nicht erreichbar | Funktion nur für Moodle-Dateien und direkte Medien-URLs anbieten, sonst Fallback ohne Bilder |
 | 6 | Spracherkennung und Videogenerierung sind im Moodle-KI-Subsystem nicht als Aktionen vorgesehen | Schnittstelle vorbereiten, Umsetzung erst nach Kernunterstützung; kein Eigenweg am Subsystem vorbei |
 | 7 | Reguläre Ausdrücke in Antwortvarianten sind ein DoS-Risiko | Nur mit eigener Capability, mit Längen- und Zeitbegrenzung, mit Vorabvalidierung |

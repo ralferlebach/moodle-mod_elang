@@ -32,8 +32,7 @@ namespace mod_elang\local\migration;
 final class v1_options_mapper {
     /**
      * Decide gradingalgorithm and jarothreshold for a V1 activity from its
-     * options, per the rule confirmed against the V1 source
-     * (Migration_V1_V2.md chapter 1.2, server.php:315-340): V1 applies
+     * options, per the rule confirmed against the V1 source: V1 applies
      * usecasesensitive/usetransliteration/jaroDistance uniformly to every
      * gap in the activity, OR-combined, so every gap gets the SAME mapped
      * algorithm — there is no per-gap source to honour even in principle.

@@ -35,8 +35,8 @@ use mod_elang\local\grading\grading_result;
  * level) happens inside both a per-resource Moodle lock and the delegated
  * transaction that follows it, not before either. Two concurrent calls for
  * the same attempt/gap therefore serialise on the lock rather than racing to
- * read the same "nothing exists yet" state and both trying to create it (see
- * the technical review that prompted this, 2026-07-24, findings P0-04/P0-05).
+ * read the same "nothing exists yet" state and both trying to create it, which
+ * would produce a duplicate attempt or a lost response.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -459,7 +459,7 @@ class attempt_manager {
      * an attempt's responses.
      *
      * @param int $attemptid The elang_attempt id
-     * @return void
+     * @return void No return value.
      */
     private function recalculate_attempt_aggregates(int $attemptid): void {
         global $DB;

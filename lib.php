@@ -22,9 +22,7 @@
  * custom completion rule (see classes/completion/custom_completion.php), and
  * gradebook integration. The exercise domain itself (versions, cues, gaps,
  * attempts, responses, grading) lives under classes/local/ and
- * classes/external/, not in this file; see docs/materials/ for the current
- * scope of each phase. The learner-facing player, authoring tool, reporting
- * and exports remain unimplemented (phase 3/4).
+ * classes/external/, not in this file.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -82,8 +80,8 @@ function elang_is_branded(): bool {
 /**
  * Add a new elang instance.
  *
- * Skeleton implementation: stores the base record only. Exercise content handling
- * is added in phase 2 together with the versioned data model.
+ * Stores the base activity record. Exercise content (versions, cues, gaps) is
+ * created separately through the authoring API, not from this form.
  *
  * @param stdClass $elang Data from the module form
  * @param mod_elang_mod_form|null $mform The form instance
@@ -95,8 +93,8 @@ function elang_add_instance(stdClass $elang, ?mod_elang_mod_form $mform = null):
     // The elang.language column has no schema-level default (a NOTNULL CHAR
     // column with an empty-string DEFAULT is rejected by Moodle's XMLDB
     // validator with a debugging() call), so it must always be supplied
-    // explicitly here until mod_form.php gains a language field of its own
-    // (phase 3/4).
+    // explicitly here; callers that do not set it (such as a programmatic
+    // creation without the form) get an empty value rather than a DB error.
     if (!isset($elang->language)) {
         $elang->language = '';
     }
@@ -159,7 +157,7 @@ function elang_update_instance(stdClass $elang, ?mod_elang_mod_form $mform = nul
  * forum_get_coursemodule_info()).
  *
  * @param stdClass $coursemodule The course_modules record, as passed by get_fast_modinfo()
- * @return cached_cm_info|false
+ * @return cached_cm_info|false The result of this call.
  */
 function elang_get_coursemodule_info($coursemodule) {
     global $DB;
@@ -314,7 +312,7 @@ function elang_grade_item_update(stdClass $elang, $grades = null): int {
  * @param stdClass $elang Row from the elang table
  * @param int $userid 0 to recompute every user who has ever attempted this activity, or a specific user id
  * @param bool $nullifnone Whether a user with no finished attempts should have their grade explicitly cleared
- * @return void
+ * @return void No return value.
  */
 function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone = true): void {
     global $DB;
@@ -528,7 +526,7 @@ function elang_pluginfile($course, $cm, $context, string $filearea, array $args,
  *
  * @param settings_navigation $settingsnav The settings navigation tree
  * @param navigation_node $elangnode The activity's node within it
- * @return void
+ * @return void No return value.
  */
 function elang_extend_settings_navigation(settings_navigation $settingsnav, navigation_node $elangnode): void {
     global $PAGE;

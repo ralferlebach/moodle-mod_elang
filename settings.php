@@ -18,7 +18,7 @@
  * Site administration settings/pages for mod_elang.
  *
  * No configurable settings exist yet — this file exists solely to register
- * admin_migrate_v1.php (Migration_V1_V2.md chapter 2) as a page under Site
+ * admin_migrate_v1.php as a page under Site
  * administration > Plugins > Activity modules > elang, using
  * admin_externalpage rather than admin_settingpage since it is an action
  * page, not a settings form. Requires moodle/site:config, the same

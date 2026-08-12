@@ -17,7 +17,7 @@
 namespace mod_elang\local\migration;
 
 /**
- * Verifies an already-migrated activity — Migration_V1_V2.md chapter 2 step
+ * Verifies an already-migrated activity —
  * 4, "Soll-/Ist-Abgleich" — before an administrator is asked to sign off on
  * it (that sign-off step itself is not built yet, see the class docblock's
  * end).
@@ -33,7 +33,6 @@ namespace mod_elang\local\migration;
  *
  * Only meaningful for an activity that has ALREADY migrated
  * (elang.currentversionid set) and whose V1 legacy rows still exist — once
- * Migration_V1_V2.md chapter 2 step 5 ("Abbau") removes the legacy tables in
  * a later release, there is nothing left here to verify against, which is
  * exactly why step 5 must not happen until step 4 (this class) has been run
  * and reviewed.
@@ -88,7 +87,10 @@ final class v1_verifier {
 
         $actualjarothreshold = (float) $elang->jarothreshold;
         if (abs($actualjarothreshold - $expectedjarothreshold) > 0.00001) {
-            $discrepancies[] = "elang.jarothreshold is {$actualjarothreshold}, expected {$expectedjarothreshold}";
+            $discrepancies[] = get_string('verify:jarothreshold', 'mod_elang', (object) [
+                'actual' => $actualjarothreshold,
+                'expected' => $expectedjarothreshold,
+            ]);
         }
 
         return (object) [
@@ -102,12 +104,12 @@ final class v1_verifier {
      * Re-parse every V1 cue and compare it, and each of its gaps, against
      * the migrated elang_cue/elang_gap rows found by cuekey/gapkey.
      *
-     * @param int $elangid
+     * @param int $elangid The activity instance id.
      * @param int $versionid The published version to check cues/gaps against
-     * @param \stdClass[] $v1cues
-     * @param string $expectedalgorithm
+     * @param \stdClass[] $v1cues The v1cues to use.
+     * @param string $expectedalgorithm The expectedalgorithm to use.
      * @param string[] $discrepancies Mutated in place
-     * @return void
+     * @return void No return value.
      */
     private function verify_cues_and_gaps(
         int $elangid,
@@ -120,6 +122,36 @@ final class v1_verifier {
 
         $expectedgapkeys = [];
 
+        // Batched up front: the comparison below used to issue a query per cue,
+        // per gap and per gap's hint, which does not survive a large activity.
+        // Everything the loop needs is read here in three queries and indexed by
+        // the stable keys the migration assigns.
+        $v2cues = $DB->get_records('elang_cue', ['versionid' => $versionid]);
+        $cuesbykey = [];
+        foreach ($v2cues as $v2cue) {
+            $cuesbykey[$v2cue->cuekey] = $v2cue;
+        }
+
+        $gapsbycueandkey = [];
+        $hintedgapids = [];
+        if (!empty($v2cues)) {
+            [$cueinsql, $cueinparams] = $DB->get_in_or_equal(array_keys($v2cues), SQL_PARAMS_NAMED);
+            $v2gaps = $DB->get_records_select('elang_gap', "cueid $cueinsql", $cueinparams);
+            foreach ($v2gaps as $v2gap) {
+                $gapsbycueandkey[(int) $v2gap->cueid][$v2gap->gapkey] = $v2gap;
+            }
+
+            if (!empty($v2gaps)) {
+                [$gapinsql, $gapinparams] = $DB->get_in_or_equal(array_keys($v2gaps), SQL_PARAMS_NAMED);
+                $hintedgapids = array_flip(array_map('intval', $DB->get_fieldset_select(
+                    'elang_gaphint',
+                    'DISTINCT gapid',
+                    "gapid $gapinsql",
+                    $gapinparams
+                )));
+            }
+        }
+
         foreach ($v1cues as $v1cue) {
             try {
                 $parsed = v1_cue_parser::parse($v1cue->json);
@@ -131,14 +163,14 @@ final class v1_verifier {
             }
 
             $cuekey = 'v1-cue-' . $v1cue->id;
-            $cue = $DB->get_record('elang_cue', ['versionid' => $versionid, 'cuekey' => $cuekey]);
+            $cue = $cuesbykey[$cuekey] ?? null;
             if (!$cue) {
-                $discrepancies[] = "cuekey {$cuekey}: missing elang_cue row";
+                $discrepancies[] = get_string('verify:missingcue', 'mod_elang', $cuekey);
                 continue;
             }
 
             if ($cue->transcript !== $parsed->transcript) {
-                $discrepancies[] = "cuekey {$cuekey}: transcript does not match the re-parsed V1 source";
+                $discrepancies[] = get_string('verify:transcriptmismatch', 'mod_elang', $cuekey);
             }
 
             foreach ($parsed->gaps as $gapindex => $gap) {
@@ -146,28 +178,35 @@ final class v1_verifier {
                 $gapkey = 'v1-gap-' . $v1cue->id . '-' . $position;
                 $expectedgapkeys[$gapkey] = true;
 
-                $gaprecord = $DB->get_record('elang_gap', ['cueid' => $cue->id, 'gapkey' => $gapkey]);
+                $gaprecord = $gapsbycueandkey[(int) $cue->id][$gapkey] ?? null;
                 if (!$gaprecord) {
-                    $discrepancies[] = "gapkey {$gapkey}: missing elang_gap row";
+                    $discrepancies[] = get_string('verify:missinggap', 'mod_elang', $gapkey);
                     continue;
                 }
 
                 if ($gaprecord->solution !== $gap->solution) {
-                    $discrepancies[] = "gapkey {$gapkey}: solution is \"{$gaprecord->solution}\", expected \"{$gap->solution}\"";
+                    $discrepancies[] = get_string('verify:solutionmismatch', 'mod_elang', (object) [
+                        'gapkey' => $gapkey,
+                        'actual' => $gaprecord->solution,
+                        'expected' => $gap->solution,
+                    ]);
                 }
                 if ((int) $gaprecord->charstart !== $gap->charstart || (int) $gaprecord->charlength !== $gap->charlength) {
-                    $discrepancies[] = "gapkey {$gapkey}: charstart/charlength does not match the re-parsed V1 source";
+                    $discrepancies[] = get_string('verify:rangemismatch', 'mod_elang', $gapkey);
                 }
                 if ($gaprecord->gradingalgorithm !== $expectedalgorithm) {
-                    $discrepancies[] = "gapkey {$gapkey}: gradingalgorithm is {$gaprecord->gradingalgorithm}, "
-                        . "expected {$expectedalgorithm}";
+                    $discrepancies[] = get_string('verify:algorithmmismatch', 'mod_elang', (object) [
+                        'gapkey' => $gapkey,
+                        'actual' => $gaprecord->gradingalgorithm,
+                        'expected' => $expectedalgorithm,
+                    ]);
                 }
 
-                $hashint = $DB->record_exists('elang_gaphint', ['gapid' => $gaprecord->id]);
+                $hashint = isset($hintedgapids[(int) $gaprecord->id]);
                 if ($gap->hintsallowed && !$hashint) {
-                    $discrepancies[] = "gapkey {$gapkey}: V1 marked this gap help-allowed, but no elang_gaphint exists";
+                    $discrepancies[] = get_string('verify:missinghint', 'mod_elang', $gapkey);
                 } else if (!$gap->hintsallowed && $hashint) {
-                    $discrepancies[] = "gapkey {$gapkey}: V1 marked this gap help-disallowed, but an elang_gaphint exists";
+                    $discrepancies[] = get_string('verify:unexpectedhint', 'mod_elang', $gapkey);
                 }
             }
         }
@@ -176,18 +215,16 @@ final class v1_verifier {
         // would mean either data invented by the migration or a V1 row
         // deleted after migration without a matching V2 cleanup, neither of
         // which should be possible, checked anyway rather than assumed.
-        $v2cues = $DB->get_records('elang_cue', ['versionid' => $versionid]);
         $expectedcuekeys = array_map(static fn ($v1cue) => 'v1-cue-' . $v1cue->id, $v1cues);
         foreach ($v2cues as $v2cue) {
             if (!in_array($v2cue->cuekey, $expectedcuekeys, true)) {
-                $discrepancies[] = "elang_cue id {$v2cue->id} (cuekey {$v2cue->cuekey}): no corresponding V1 cue found";
+                $discrepancies[] = get_string('verify:orphancue', 'mod_elang', $v2cue->cuekey);
                 continue;
             }
 
-            $v2gaps = $DB->get_records('elang_gap', ['cueid' => $v2cue->id]);
-            foreach ($v2gaps as $v2gap) {
+            foreach ($gapsbycueandkey[(int) $v2cue->id] ?? [] as $v2gap) {
                 if (!isset($expectedgapkeys[$v2gap->gapkey])) {
-                    $discrepancies[] = "elang_gap id {$v2gap->id} (gapkey {$v2gap->gapkey}): no corresponding V1 gap found";
+                    $discrepancies[] = get_string('verify:orphangap', 'mod_elang', $v2gap->gapkey);
                 }
             }
         }
@@ -204,10 +241,10 @@ final class v1_verifier {
      * source data. Counting from the V1 side independently is the check
      * that actually catches a row silently dropped or duplicated.
      *
-     * @param int $elangid
-     * @param int $versionid
+     * @param int $elangid The activity instance id.
+     * @param int $versionid The content version id.
      * @param string[] $discrepancies Mutated in place
-     * @return void
+     * @return void No return value.
      */
     private function verify_learners(int $elangid, int $versionid, array &$discrepancies): void {
         global $DB;
@@ -218,7 +255,10 @@ final class v1_verifier {
         );
         $actuallearnercount = (int) $DB->count_records('elang_attempt', ['elangid' => $elangid, 'versionid' => $versionid]);
         if ($expectedlearnercount !== $actuallearnercount) {
-            $discrepancies[] = "attempt count is {$actuallearnercount}, expected {$expectedlearnercount} distinct V1 learners";
+            $discrepancies[] = get_string('verify:attemptcount', 'mod_elang', (object) [
+                'actual' => $actuallearnercount,
+                'expected' => $expectedlearnercount,
+            ]);
         }
 
         $v1cueids = $DB->get_fieldset_select('elang_cues', 'id', 'id_elang = ?', [$elangid]);
@@ -228,7 +268,7 @@ final class v1_verifier {
         $expectedresponsesperuser = [];
         foreach ($v1users as $v1user) {
             if (!in_array((int) $v1user->id_cue, $v1cueids, true)) {
-                // An orphaned V1 row (Migration_V1_V2.md chapter 3.1) —
+                // An orphaned V1 row —
                 // v1_migrator reports these but cannot migrate them, so they
                 // correctly contribute nothing here either.
                 continue;
@@ -238,16 +278,44 @@ final class v1_verifier {
             $expectedresponsesperuser[$userid] = ($expectedresponsesperuser[$userid] ?? 0) + count($state);
         }
 
+        // The attempts and their response counts are read in two queries rather
+        // than two per learner, so verification stays flat in the number of
+        // learners on the activity.
+        $attemptsbyuser = [];
+        $attempts = $DB->get_records('elang_attempt', ['elangid' => $elangid, 'versionid' => $versionid]);
+        foreach ($attempts as $attempt) {
+            $attemptsbyuser[(int) $attempt->userid] = $attempt;
+        }
+
+        $responsecounts = [];
+        if (!empty($attempts)) {
+            [$attemptinsql, $attemptinparams] = $DB->get_in_or_equal(array_keys($attempts), SQL_PARAMS_NAMED);
+            $counts = $DB->get_records_sql(
+                "SELECT attemptid, COUNT(1) AS responses
+                   FROM {elang_response}
+                  WHERE attemptid $attemptinsql
+               GROUP BY attemptid",
+                $attemptinparams
+            );
+            foreach ($counts as $count) {
+                $responsecounts[(int) $count->attemptid] = (int) $count->responses;
+            }
+        }
+
         foreach ($expectedresponsesperuser as $userid => $expectedcount) {
-            $attempt = $DB->get_record('elang_attempt', ['elangid' => $elangid, 'versionid' => $versionid, 'userid' => $userid]);
+            $attempt = $attemptsbyuser[(int) $userid] ?? null;
             if (!$attempt) {
-                $discrepancies[] = "userid {$userid}: expected an elang_attempt, found none";
+                $discrepancies[] = get_string('verify:missingattempt', 'mod_elang', $userid);
                 continue;
             }
 
-            $actualcount = (int) $DB->count_records('elang_response', ['attemptid' => $attempt->id]);
+            $actualcount = $responsecounts[(int) $attempt->id] ?? 0;
             if ($actualcount !== $expectedcount) {
-                $discrepancies[] = "userid {$userid}: elang_response count is {$actualcount}, expected {$expectedcount}";
+                $discrepancies[] = get_string('verify:responsecount', 'mod_elang', (object) [
+                    'userid' => $userid,
+                    'actual' => $actualcount,
+                    'expected' => $expectedcount,
+                ]);
             }
         }
     }

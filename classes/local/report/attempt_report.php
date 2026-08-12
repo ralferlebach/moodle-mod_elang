@@ -132,42 +132,108 @@ final class attempt_report {
 
     /**
      * Flatten an activity's attempt summaries into export rows keyed by the
-     * stable column names of export_columns(), ready to stream through the
-     * Moodle Dataformat API (CSV/Excel/ODS/JSON). Learner names are resolved in
-     * a single query rather than one per row. The caller is responsible for the
+     * stable column names of export_columns(), streamed through the Moodle
+     * Dataformat API (CSV/Excel/ODS/JSON). Rows are yielded one at a time from a
+     * recordset, with the learner name joined in SQL, so memory does not grow
+     * with the size of the attempt history. The caller is responsible for the
      * mod/elang:exportreports capability check.
      *
      * @param int $elangid The activity id
      * @param int $groupid Only attempts by members of this group, or 0 for all
-     * @return array<int, array<string, string|int|float>> One associative row per attempt
+     * @return \Generator<int, array<string, string|int|float>> One associative row per attempt, yielded lazily
      */
-    public function export_rows(int $elangid, int $groupid = 0): array {
+    public function export_rows(int $elangid, int $groupid = 0): \Generator {
         global $DB;
 
-        $summaries = $this->list_for_activity($elangid, $groupid);
-        if (empty($summaries)) {
-            return [];
+        // Streamed rather than materialised: the export must not grow in memory
+        // with the whole attempt history of a large activity. The user record is
+        // joined in SQL so there is no second pass over every user, and the
+        // recordset yields one row at a time straight into the Dataformat API.
+        $params = ['elangid' => $elangid];
+        $usernamefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
+
+        if ($groupid > 0) {
+            $from = "{elang_attempt} a
+                       JOIN {groups_members} gm ON gm.userid = a.userid
+                  LEFT JOIN {user} u ON u.id = a.userid";
+            $where = "a.elangid = :elangid AND gm.groupid = :groupid";
+            $params['groupid'] = $groupid;
+        } else {
+            $from = "{elang_attempt} a
+                  LEFT JOIN {user} u ON u.id = a.userid";
+            $where = "a.elangid = :elangid";
         }
 
-        $users = $DB->get_records_list('user', 'id', array_unique(array_column($summaries, 'userid')));
+        $sql = "SELECT a.id, a.userid, a.attemptnumber, a.state, a.score, a.answeredgaps,
+                       a.correctgaps, a.exactgaps, a.hintedgaps, a.timefinish, $usernamefields
+                  FROM $from
+                 WHERE $where
+              ORDER BY a.timestart DESC, a.id DESC";
 
-        $rows = [];
-        foreach ($summaries as $summary) {
-            $user = $users[$summary['userid']] ?? null;
-            $rows[] = [
-                'user' => $user ? fullname($user) : (string) $summary['userid'],
-                'attemptnumber' => $summary['attemptnumber'],
-                'state' => $summary['state'],
-                'score' => format_float($summary['score'], 5),
-                'answered' => $summary['answeredgaps'],
-                'correct' => $summary['correctgaps'],
-                'exact' => $summary['exactgaps'],
-                'hinted' => $summary['hintedgaps'],
-                'finished' => $summary['timefinish'] ? userdate($summary['timefinish']) : '',
-            ];
+        $recordset = $DB->get_recordset_sql($sql, $params);
+        try {
+            foreach ($recordset as $record) {
+                yield [
+                    'user' => empty($record->id) ? (string) $record->userid : fullname($record),
+                    'attemptnumber' => (int) $record->attemptnumber,
+                    'state' => $record->state,
+                    'score' => format_float((float) $record->score, 5),
+                    'answered' => (int) $record->answeredgaps,
+                    'correct' => (int) $record->correctgaps,
+                    'exact' => (int) $record->exactgaps,
+                    'hinted' => (int) $record->hintedgaps,
+                    'finished' => $record->timefinish ? userdate((int) $record->timefinish) : '',
+                ];
+            }
+        } finally {
+            $recordset->close();
+        }
+    }
+
+    /**
+     * Assert that the current user may act on one specific attempt.
+     *
+     * This is the object-level authorisation for every per-attempt action
+     * (viewing a detail, deleting). Capability checks alone are not enough: in
+     * separate-groups mode a teacher may only reach attempts of learners who
+     * share one of their groups, so every entry point must funnel through here
+     * rather than repeating the check.
+     *
+     * @param int $attemptid The attempt being acted on.
+     * @param int $elangid The activity the attempt must belong to.
+     * @param \stdClass|\cm_info $cm The course module of that activity.
+     * @param \context $context The module context, for the capability checks.
+     * @return \stdClass The attempt record, once access is granted.
+     * @throws \moodle_exception If the attempt belongs to another activity or another group.
+     */
+    public function require_attempt_access(int $attemptid, int $elangid, $cm, \context $context): \stdClass {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', IGNORE_MISSING);
+        if ($attempt === false || (int) $attempt->elangid !== $elangid) {
+            throw new \moodle_exception('invalidrecord', 'error');
         }
 
-        return $rows;
+        $groupmode = groups_get_activity_groupmode($cm);
+        if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
+            $shared = false;
+            foreach (array_keys(groups_get_activity_allowed_groups($cm)) as $groupid) {
+                if (groups_is_member($groupid, (int) $attempt->userid)) {
+                    $shared = true;
+                    break;
+                }
+            }
+            if (!$shared) {
+                throw new \moodle_exception(
+                    'nopermissions',
+                    'error',
+                    '',
+                    get_string('report:heading', 'mod_elang')
+                );
+            }
+        }
+
+        return $attempt;
     }
 
     /**

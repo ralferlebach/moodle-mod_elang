@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CLI entry point for the V1 -> V2 migration (Migration_V1_V2.md chapter 2)
+ * CLI entry point for the V1 -> V2 migration
  * — the only way to trigger it right now; there is no admin page yet.
  * Deliberately thin: every actual decision (what counts as pending, how a
  * site's own gradingalgorithm maps, how a block is processed) lives in
@@ -57,15 +57,15 @@ if ($unrecognised) {
 }
 
 if ($options['help'] || (!$options['dry-run'] && !$options['execute'])) {
-    echo "V1 -> V2 migration for mod_elang (Migration_V1_V2.md).
+    echo "V1 -> V2 migration for mod_elang.
 
 Options:
-  --dry-run             Show what would be migrated, write nothing.
-  --execute             Queue the migration adhoc task.
+  --dry-run Show what would be migrated, write nothing.
+  --execute Queue the migration adhoc task.
   --blocksize=<n>       Activities per task execution (default "
         . migrate_v1_activities_task::DEFAULT_BLOCK_SIZE . ", --execute only).
-  --yes                 Skip the confirmation prompt (--execute only).
-  -h, --help            This message.
+  --yes Skip the confirmation prompt (--execute only).
+  -h, --help This message.
 
 Exactly one of --dry-run or --execute is required.
 ";
@@ -114,8 +114,7 @@ if (!$options['yes']) {
     $confirm = cli_input(
         'This will queue an adhoc task that writes new elang_version/elang_cue/elang_gap/elang_attempt/'
             . 'elang_response data for the activities listed above, ' . $blocksize . ' per task run. '
-            . 'The legacy tables and elang.options are left untouched (Migration_V1_V2.md chapter 2, '
-            . 'step 5 is a separate, later step). Type "yes" to continue:'
+            . 'The legacy tables and elang.options are left untouched. Type "yes" to continue:'
     );
     if (strtolower(trim($confirm)) !== 'yes') {
         cli_writeln('Aborted, nothing was queued.');

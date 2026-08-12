@@ -30,7 +30,7 @@ use core_external\external_value;
  *
  * Every returned transcript has gone through
  * \mod_elang\local\domain\transcript_masker::mask() — solution text is
- * never included in the response (Lastenheft P12). Gaps deliberately do NOT
+ * never included in the response. Gaps deliberately do NOT
  * include charstart/charlength: the masked transcript's {{gap:<gapkey>}}
  * token already tells the player where to place an input, and returning the
  * original character length would hand out the solution's length as an
@@ -53,7 +53,7 @@ class get_attempt_cues extends external_api {
     /**
      * Describe the parameters this function accepts.
      *
-     * @return external_function_parameters
+     * @return external_function_parameters The description of this function's parameters.
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
@@ -192,7 +192,7 @@ class get_attempt_cues extends external_api {
     /**
      * Describe the structure this function returns.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([

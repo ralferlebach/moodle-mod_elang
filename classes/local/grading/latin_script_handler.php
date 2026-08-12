@@ -39,7 +39,6 @@ namespace mod_elang\local\grading;
  * outside that table are not folded. The intl extension is on Moodle's
  * recommended extension list and present on essentially all production
  * installations; this is a documented degrade path, not a silent one — see
- * docs/materials/Lastenheft_Pflichtenheft_Blueprint.md, chapter 22.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

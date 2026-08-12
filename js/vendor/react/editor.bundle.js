@@ -277,4 +277,3 @@ react/cjs/react-jsx-runtime.production.min.js:
    *)
 */
 window.mod_elang_editor = (mod_elang_editor && mod_elang_editor.default) ? mod_elang_editor.default : mod_elang_editor;
-//# sourceMappingURL=editor.bundle.js.map

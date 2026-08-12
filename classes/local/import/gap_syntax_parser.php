@@ -21,8 +21,7 @@ namespace mod_elang\local\import;
  *
  * V1 exercises were authored by marking gaps directly in the subtitle text:
  * `[word]` created a gap whose learners may request help, `{word}` created a
- * gap without help (verified against a real V1 instance, see
- * Migration_V1_V2.md). This parser strips those markers from a single cue
+ * gap without help (verified against a real V1 instance, see. This parser strips those markers from a single cue
  * transcript and reports each gap's solution and its character range in the
  * CLEANED transcript, so an importing editor can materialise real V2 gaps
  * instead of leaving the brackets behind as literal text.

@@ -22,11 +22,11 @@ namespace mod_elang\local\migration;
  *
  * Deliberately scoped to only the parts of a V1 cue that are fully
  * determined by its own json content — this is one mechanical piece of the
- * eventual migration (Migration_V1_V2.md), not the migration itself.
+ * eventual migration, not the migration itself.
  * Everything this class does NOT decide is exactly the set of things that
  * genuinely need either a source-code check against V1's locallib.php or a
  * product decision before a real migrator can be written; see the "offene
- * Punkte" in Migration_V1_V2.md chapter 3 for the current list — in
+ * Punkte" in
  * particular this class has no opinion on elang_gap.gradingalgorithm
  * (derived from the ACTIVITY-wide usecasesensitive/usetransliteration/
  * jaroDistance options, not from anything per-gap) or on how a gap's `help`

@@ -38,6 +38,35 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  */
 final class restore_test extends \advanced_testcase {
     /**
+     * Seed a course with a student and a published elang activity (one cue, one
+     * gap with an answer variant and a hint), with the current-version pointer
+     * set.
+     *
+     * @return \stdClass The created course, student, elang, version, cue and gap.
+     */
+    private function seed_activity(): \stdClass {
+        global $DB;
+
+        $seed = new \stdClass();
+        $seed->course = $this->getDataGenerator()->create_course();
+        $seed->student = $this->getDataGenerator()->create_and_enrol($seed->course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $seed->elang = $generator->create_instance(['course' => $seed->course->id, 'language' => 'fr']);
+        $seed->version = $generator->create_version(['elangid' => $seed->elang->id, 'status' => 'published']);
+        $seed->cue = $generator->create_cue(['versionid' => $seed->version->id, 'transcript' => 'Le chat dort']);
+        $seed->gap = $generator->create_gap(
+            ['cueid' => $seed->cue->id, 'solution' => 'chat', 'charstart' => 3, 'charlength' => 4]
+        );
+        $generator->create_gapanswer(['gapid' => $seed->gap->id, 'answer' => 'chats']);
+        $generator->create_gaphint(['gapid' => $seed->gap->id, 'level' => 1, 'hinttext' => 'animal']);
+        $DB->set_field('elang', 'currentversionid', $seed->version->id, ['id' => $seed->elang->id]);
+
+        return $seed;
+    }
+
+    /**
      * Duplicate a course containing a fully populated elang activity, with user
      * data, and assert the whole content tree, the learner attempt and every
      * internal reference (current version, attempt version, response gap) is
@@ -51,18 +80,12 @@ final class restore_test extends \advanced_testcase {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $course = $this->getDataGenerator()->create_course();
-        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
-
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
-        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat', 'charstart' => 3, 'charlength' => 4]);
-        $generator->create_gapanswer(['gapid' => $gap->id, 'answer' => 'chats']);
-        $generator->create_gaphint(['gapid' => $gap->id, 'level' => 1, 'hinttext' => 'animal']);
-        $DB->set_field('elang', 'currentversionid', $version->id, ['id' => $elang->id]);
+        $seed = $this->seed_activity();
+        $course = $seed->course;
+        $student = $seed->student;
+        $elang = $seed->elang;
+        $version = $seed->version;
+        $gap = $seed->gap;
 
         // A finished attempt with one response, so user data is exercised.
         $evaluator = new \mod_elang\local\grading\answer_evaluator(
@@ -108,6 +131,72 @@ final class restore_test extends \advanced_testcase {
     }
 
     /**
+     * An author id that has no user mapping in the restore must not be carried
+     * over as a raw number: on another site that id belongs to somebody else.
+     * It becomes unknown (0) instead, while the content survives.
+     *
+     * @return void
+     */
+    public function test_restore_does_not_reassign_an_unmapped_user_id(): void {
+        global $DB, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $seed = $this->seed_activity();
+
+        // Stamp an author and a migration sign-off that the restore cannot map,
+        // because no such user is part of the backup.
+        $ghostid = 999999;
+        $DB->set_field('elang_version', 'usermodified', $ghostid, ['id' => $seed->version->id]);
+        $DB->set_field('elang', 'migrationapproveduserid', $ghostid, ['id' => $seed->elang->id]);
+
+        $newcourseid = $this->backup_and_restore($seed->course, (int) $USER->id, false);
+
+        $cms = get_coursemodules_in_course('elang', $newcourseid);
+        $newelang = $DB->get_record('elang', ['id' => reset($cms)->instance], '*', MUST_EXIST);
+        $newversion = $DB->get_record('elang_version', ['elangid' => $newelang->id], '*', MUST_EXIST);
+
+        // The unmapped ids are cleared, never reused.
+        $this->assertNotEquals($ghostid, (int) $newversion->usermodified);
+        $this->assertSame(0, (int) $newversion->usermodified);
+        $this->assertNotEquals($ghostid, (int) $newelang->migrationapproveduserid);
+        $this->assertSame(0, (int) $newelang->migrationapproveduserid);
+
+        // The content itself came across regardless.
+        $this->assertSame(
+            'Le chat dort',
+            $DB->get_field('elang_cue', 'transcript', ['versionid' => $newversion->id])
+        );
+    }
+
+    /**
+     * When the backup carries user information, a mapped author is restored as
+     * the corresponding user on the destination site.
+     *
+     * @return void
+     */
+    public function test_restore_maps_a_known_author(): void {
+        global $DB, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $seed = $this->seed_activity();
+        $author = $this->getDataGenerator()->create_and_enrol($seed->course, 'editingteacher');
+        $DB->set_field('elang_version', 'usermodified', $author->id, ['id' => $seed->version->id]);
+
+        $newcourseid = $this->backup_and_restore($seed->course, (int) $USER->id);
+
+        $cms = get_coursemodules_in_course('elang', $newcourseid);
+        $newelang = $DB->get_record('elang', ['id' => reset($cms)->instance], '*', MUST_EXIST);
+        $newversion = $DB->get_record('elang_version', ['elangid' => $newelang->id], '*', MUST_EXIST);
+
+        // Restoring into the same site maps the author onto themselves.
+        $this->assertSame((int) $author->id, (int) $newversion->usermodified);
+    }
+
+    /**
      * Assert that a backup taken without user information restores the content
      * but none of the learner attempts.
      *
@@ -119,16 +208,11 @@ final class restore_test extends \advanced_testcase {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $course = $this->getDataGenerator()->create_course();
-        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
-
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
-        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
-        $DB->set_field('elang', 'currentversionid', $version->id, ['id' => $elang->id]);
+        $seed = $this->seed_activity();
+        $course = $seed->course;
+        $student = $seed->student;
+        $elang = $seed->elang;
+        $version = $seed->version;
 
         $evaluator = new \mod_elang\local\grading\answer_evaluator(
             new \mod_elang\local\grading\script_handler_manager([])

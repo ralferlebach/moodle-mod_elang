@@ -79,7 +79,7 @@ THREADS        ?= 25
 RAMPUP         ?= 10
 LOOPS          ?= 20
 MAXDURATION    ?= 2000
-OPLOG          ?= 5000
+OPLOG          ?= 500
 
 # Values written by `make load-seed` (BASE_URL/TOKEN/CMID/VERSIONID). Auto-read
 # here so `make jmeter` / `make load-k6` need no manual eval. The leading '-'

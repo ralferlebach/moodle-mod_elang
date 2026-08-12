@@ -52,6 +52,13 @@ $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((i
 // and exposes window.mod_elang_editor; the mod_elang/editor AMD module then
 // mounts it. Loading via $PAGE->requires->js keeps it in Moodle's asset
 // handling.
+//
+// The plugin ships its own React bundle because it still supports Moodle 4.5
+// through 5.1, which do not provide React in core. Moodle 5.2 ships React (with
+// import maps) in core; once the minimum supported version rises to 5.2 — the
+// next release after 5.1 reaches end of life — this should switch to core's
+// React instead of a second bundled copy, at which point this file and build.mjs
+// change together.
 $PAGE->requires->js(new moodle_url('/mod/elang/js/vendor/react/editor.bundle.js'));
 $PAGE->requires->js_call_amd('mod_elang/editor', 'init', [(int) $draft->id]);
 

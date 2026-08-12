@@ -30,6 +30,12 @@
  */
 
 /**
+ * How many learners a whole-activity grade rebuild processes per batch, so the
+ * work stays bounded in memory on activities with very many learners.
+ */
+define('ELANG_GRADE_REBUILD_CHUNK', 500);
+
+/**
  * Return the list of features this module supports.
  *
  * @param string $feature FEATURE_xx constant
@@ -324,14 +330,14 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
     }
 
     if ($userid) {
-        $userids = [$userid];
+        $userids = [(int) $userid];
     } else {
-        $userids = $DB->get_fieldset_select(
+        $userids = array_map('intval', $DB->get_fieldset_select(
             'elang_attempt',
             'DISTINCT userid',
             'elangid = ?',
             [$elang->id]
-        );
+        ));
     }
 
     if (empty($userids)) {
@@ -339,45 +345,52 @@ function elang_update_grades(stdClass $elang, int $userid = 0, bool $nullifnone 
         return;
     }
 
-    // One grouped query for every user's best (highest) score among their
-    // finished attempts, instead of attempt_manager::get_best_score() called
-    // once per user — the previous per-user loop meant one query per learner
-    // just to recompute grades for a whole activity.
-    [$insql, $inparams] = $DB->get_in_or_equal(array_map('intval', $userids));
-    $bestscores = $DB->get_records_sql(
-        "SELECT userid, MAX(score) AS bestscore
-           FROM {elang_attempt}
-          WHERE elangid = ? AND state = ? AND userid $insql
-       GROUP BY userid",
-        array_merge([$elang->id, \mod_elang\local\domain\attempt_manager::STATE_FINISHED], $inparams)
-    );
-
     $scaleitemcount = (int) $elang->grade < 0 ? elang_get_scale_item_count(-(int) $elang->grade) : 0;
 
-    $grades = [];
-    foreach ($userids as $uid) {
-        $uid = (int) $uid;
-        $bestscore = isset($bestscores[$uid]) ? (float) $bestscores[$uid]->bestscore : null;
+    // Rebuild in chunks so neither the best-score IN(...) query nor the grades
+    // array grows with the total number of learners on the activity. Each user's
+    // best (highest) score among their finished attempts is read with one grouped
+    // query per chunk, not one query per learner.
+    $pushedgrades = false;
+    foreach (array_chunk($userids, ELANG_GRADE_REBUILD_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk);
+        $bestscores = $DB->get_records_sql(
+            "SELECT userid, MAX(score) AS bestscore
+               FROM {elang_attempt}
+              WHERE elangid = ? AND state = ? AND userid $insql
+           GROUP BY userid",
+            array_merge([$elang->id, \mod_elang\local\domain\attempt_manager::STATE_FINISHED], $inparams)
+        );
 
-        if ($bestscore === null) {
-            if ($nullifnone) {
-                $grade = new stdClass();
-                $grade->userid = $uid;
-                $grade->rawgrade = null;
-                $grades[$uid] = $grade;
+        $grades = [];
+        foreach ($chunk as $uid) {
+            $bestscore = isset($bestscores[$uid]) ? (float) $bestscores[$uid]->bestscore : null;
+
+            if ($bestscore === null) {
+                if ($nullifnone) {
+                    $grade = new stdClass();
+                    $grade->userid = $uid;
+                    $grade->rawgrade = null;
+                    $grades[$uid] = $grade;
+                }
+                continue;
             }
-            continue;
+
+            $grade = new stdClass();
+            $grade->userid = $uid;
+            $grade->rawgrade = elang_score_to_rawgrade($bestscore, (int) $elang->grade, $scaleitemcount);
+            $grades[$uid] = $grade;
         }
 
-        $grade = new stdClass();
-        $grade->userid = $uid;
-        $grade->rawgrade = elang_score_to_rawgrade($bestscore, (int) $elang->grade, $scaleitemcount);
-        $grades[$uid] = $grade;
+        if (!empty($grades)) {
+            elang_grade_item_update($elang, $grades);
+            $pushedgrades = true;
+        }
     }
 
-    if (!empty($grades)) {
-        elang_grade_item_update($elang, $grades);
-    } else {
+    // No chunk produced any grade to push (for example every learner is unfinished
+    // and $nullifnone is false): still make sure the grade item itself exists.
+    if (!$pushedgrades) {
         elang_grade_item_update($elang);
     }
 }
@@ -569,4 +582,61 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
             new pix_icon('i/export', '')
         ));
     }
+}
+
+/**
+ * Serve files from the mod_elang file areas (exercise media and poster images).
+ *
+ * The player references these through pluginfile.php; without this callback
+ * Moodle refuses every such request and the medium never loads. Media and poster
+ * files are stored per content version (the item id is the elang_version id), so
+ * access is granted by resolving that version back to its activity and checking
+ * the viewer may see the activity.
+ *
+ * @param stdClass $course The course object.
+ * @param stdClass $cm The course module.
+ * @param context $context The context.
+ * @param string $filearea The file area ('media' or 'poster').
+ * @param array $args The remaining file path arguments, starting with the item id.
+ * @param bool $forcedownload Whether to force download.
+ * @param array $options Additional options affecting file serving.
+ * @return bool False if the file was not found; otherwise the file is served and the script exits.
+ */
+function mod_elang_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []): bool {
+    global $DB;
+
+    if ($context->contextlevel !== CONTEXT_MODULE) {
+        return false;
+    }
+
+    if (!in_array($filearea, ['media', 'poster'], true)) {
+        return false;
+    }
+
+    require_login($course, true, $cm);
+    if (!has_capability('mod/elang:view', $context)) {
+        return false;
+    }
+
+    $versionid = (int) array_shift($args);
+
+    // The requested version must belong to this activity, so a valid token for
+    // one activity cannot be used to read another activity's media.
+    $elang = $DB->get_record('elang', ['id' => $cm->instance], '*', MUST_EXIST);
+    if (!$DB->record_exists('elang_version', ['id' => $versionid, 'elangid' => $elang->id])) {
+        return false;
+    }
+
+    $filename = array_pop($args);
+    $filepath = empty($args) ? '/' : '/' . implode('/', $args) . '/';
+
+    $fs = get_file_storage();
+    $file = $fs->get_file($context->id, 'mod_elang', $filearea, $versionid, $filepath, $filename);
+    if (!$file || $file->is_directory()) {
+        return false;
+    }
+
+    send_stored_file($file, 86400, 0, $forcedownload, $options);
+
+    return true;
 }

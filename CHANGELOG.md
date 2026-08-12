@@ -11,6 +11,34 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.85] - 2026-08-12
+
+### Changed
+- Supported Moodle range is declared as 4.5 through 5.2 (`[405, 502]`). Moodle 5.3
+  is not yet stable, so it is no longer declared as supported; it continues to be
+  exercised in CI against its development branch, and the upper bound will rise
+  once 5.3 is released.
+- The whole-activity grade rebuild now processes learners in bounded batches, so
+  neither the best-score query nor the grades array grows with the total number
+  of learners on the activity.
+- Schema (`install.xml`), `version.php`, `services.php` and the editor's React
+  loader now carry technical documentation only: internal planning references,
+  phase numbering and a product/business note ("separate paid subplugin") are
+  removed, and the React loader records the intended switch to core's React once
+  the minimum supported version reaches 5.2.
+
+## [2.0.0-alpha.84] - 2026-08-12
+
+### Fixed
+- The player now loads the exercise medium. The plugin declared media and poster
+  file areas and generated pluginfile URLs for them, but shipped no
+  `mod_elang_pluginfile()` callback, so Moodle refused every such request and the
+  video (or audio) never appeared — the transcript and controls showed, the frame
+  stayed empty. The callback serves the `media` and `poster` areas after checking
+  the viewer may see the activity and that the requested version belongs to it, so
+  a token for one activity cannot read another's media. Covered by lib tests and a
+  player Behat scenario.
+
 ## [2.0.0-alpha.83] - 2026-08-12
 
 ### Fixed

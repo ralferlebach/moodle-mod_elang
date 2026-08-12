@@ -17,9 +17,9 @@
 /**
  * External function declarations for mod_elang.
  *
- * All functions are exposed to core/ajax and to the official mobile
- * service, so the same functions serve both a future web player and the
- * Moodle App without duplication (see Lastenheft P11, P18).
+ * All functions are exposed to core/ajax and to the official mobile service, so
+ * the same functions serve both the web player and the Moodle App without
+ * duplication.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

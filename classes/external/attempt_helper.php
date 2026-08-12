@@ -33,7 +33,7 @@ trait attempt_helper {
      * script_handler_manager, which auto-discovers installed elangscript
      * subplugins from disk.
      *
-     * @return \mod_elang\local\domain\attempt_manager
+     * @return \mod_elang\local\domain\attempt_manager The result of this call.
      */
     private static function get_attempt_manager(): \mod_elang\local\domain\attempt_manager {
         return new \mod_elang\local\domain\attempt_manager(

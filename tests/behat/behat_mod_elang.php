@@ -157,6 +157,37 @@ JS;
     }
 
     /**
+     * Attach a media file to a named activity's current version, so a scenario
+     * can assert the player's media pluginfile URL actually serves (the callback
+     * mod_elang_pluginfile that once was missing).
+     *
+     * @Given /^elang "(?P<name>[^"]*)" has a media file "(?P<filename>[^"]*)"$/
+     * @param string $name The activity name.
+     * @param string $filename The media file name to create.
+     * @return void
+     */
+    public function elang_has_a_media_file(string $name, string $filename): void {
+        global $DB;
+
+        $elang = $DB->get_record('elang', ['name' => $name], '*', MUST_EXIST);
+        $cm = get_coursemodule_from_instance('elang', $elang->id, 0, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+        $versionid = (int) $elang->currentversionid;
+
+        $DB->set_field('elang_version', 'mediakind', 'file', ['id' => $versionid]);
+        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $versionid]);
+
+        get_file_storage()->create_file_from_string([
+            'contextid' => $context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => $versionid,
+            'filepath' => '/',
+            'filename' => $filename,
+        ], 'behat-media-bytes');
+    }
+
+    /**
      * Record a finished attempt for a named user against a named activity's
      * published version: start the attempt, answer its single gap and finish it.
      * Lets a report scenario show real attempt data without driving the

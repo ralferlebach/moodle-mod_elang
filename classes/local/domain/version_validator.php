@@ -51,7 +51,7 @@ final class version_validator {
 
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
         if (empty($cues)) {
-            $problems[] = 'The version has no cues.';
+            $problems[] = get_string('validate:nocues', 'mod_elang');
             return $problems;
         }
 
@@ -77,25 +77,31 @@ final class version_validator {
             foreach ($gaps as $gap) {
                 $charstart = (int) $gap->charstart;
                 $charlength = (int) $gap->charlength;
-                $where = "gap {$gap->gapkey} in cue {$cue->cuekey}";
+                $where = get_string('validate:where', 'mod_elang', (object) [
+                    'gapkey' => $gap->gapkey,
+                    'cuekey' => $cue->cuekey,
+                ]);
 
                 if (trim((string) $gap->solution) === '') {
-                    $problems[] = "The solution for {$where} is empty.";
+                    $problems[] = get_string('validate:emptysolution', 'mod_elang', $where);
                 }
 
                 if (!in_array($gap->gradingalgorithm, $knownalgorithms, true)) {
-                    $problems[] = "The grading algorithm '{$gap->gradingalgorithm}' for {$where} is not recognised.";
+                    $problems[] = get_string('validate:unknownalgorithm', 'mod_elang', (object) [
+                        'where' => $where,
+                        'algorithm' => $gap->gradingalgorithm,
+                    ]);
                 }
 
                 if ($charlength <= 0) {
-                    $problems[] = "The character length of {$where} must be positive.";
+                    $problems[] = get_string('validate:nonpositivelength', 'mod_elang', $where);
                 } else if ($charstart < 0 || $charstart + $charlength > $transcriptlength) {
-                    $problems[] = "The character range of {$where} lies outside its transcript.";
+                    $problems[] = get_string('validate:rangeoutside', 'mod_elang', $where);
                 } else {
                     if ($previousend !== null && $charstart < $previousend) {
                         // Gaps are ordered by charstart, so an overlap shows up
                         // as this gap starting before the previous one ended.
-                        $problems[] = "The character range of {$where} overlaps another gap.";
+                        $problems[] = get_string('validate:rangeoverlap', 'mod_elang', $where);
                     }
                     $previousend = $charstart + $charlength;
                 }
@@ -104,7 +110,7 @@ final class version_validator {
                 sort($levels);
                 foreach ($levels as $index => $level) {
                     if ($level !== $index + 1) {
-                        $problems[] = "The hint levels for {$where} are not a contiguous sequence starting at 1.";
+                        $problems[] = get_string('validate:hintlevels', 'mod_elang', $where);
                         break;
                     }
                 }
@@ -112,7 +118,7 @@ final class version_validator {
         }
 
         if ($totalgaps === 0) {
-            $problems[] = 'The version has no gaps to answer.';
+            $problems[] = get_string('validate:nogaps', 'mod_elang');
         }
 
         return $problems;

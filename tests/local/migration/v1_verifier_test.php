@@ -143,7 +143,10 @@ final class v1_verifier_test extends \advanced_testcase {
         $result = (new v1_verifier())->verify_activity(1);
 
         $this->assertFalse($result->ok);
-        $this->assertStringContainsString('userid 2', implode(' ', $result->discrepancies));
+        $this->assertStringContainsString(
+            get_string('verify:responsecount', 'mod_elang', (object) ['userid' => 2, 'actual' => 2, 'expected' => 3]),
+            implode(' ', $result->discrepancies)
+        );
     }
 
     /**

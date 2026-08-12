@@ -37,7 +37,7 @@ trait authoring_helper {
     /**
      * Build a version_manager for the authoring operations.
      *
-     * @return \mod_elang\local\domain\version_manager
+     * @return \mod_elang\local\domain\version_manager The result of this call.
      */
     private static function get_version_manager(): \mod_elang\local\domain\version_manager {
         return new \mod_elang\local\domain\version_manager();
@@ -82,7 +82,7 @@ trait authoring_helper {
      *
      * @param array $cues The cue list, each with nested gaps/answers
      * @param \context $context The activity context to check the capability in
-     * @return void
+     * @return void No return value.
      * @throws \required_capability_exception When a regex variant is present without the capability
      */
     private static function require_useregex_if_needed(array $cues, \context $context): void {
@@ -101,7 +101,7 @@ trait authoring_helper {
     /**
      * Describe the structure of one accepted-answer variant.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     private static function answer_structure(): external_single_structure {
         return new external_single_structure([
@@ -114,7 +114,7 @@ trait authoring_helper {
     /**
      * Describe the structure of one graded hint.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     private static function hint_structure(): external_single_structure {
         return new external_single_structure([
@@ -129,7 +129,7 @@ trait authoring_helper {
      * Describe the structure of one gap, including its solution — this is the
      * authoring view, never sent to a learner.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     private static function gap_structure(): external_single_structure {
         return new external_single_structure([
@@ -149,7 +149,7 @@ trait authoring_helper {
     /**
      * Describe the structure of one cue with its gaps.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     private static function cue_structure(): external_single_structure {
         return new external_single_structure([

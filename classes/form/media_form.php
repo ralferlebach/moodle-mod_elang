@@ -32,7 +32,7 @@ class media_form extends \moodleform {
     /**
      * Define the form fields.
      *
-     * @return void
+     * @return void No return value.
      */
     protected function definition() {
         $mform = $this->_form;

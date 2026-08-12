@@ -33,7 +33,7 @@ class backup_elang_activity_task extends backup_activity_task {
     /**
      * Define particular settings this activity can have. None are needed.
      *
-     * @return void
+     * @return void No return value; this activity defines no extra settings.
      */
     protected function define_my_settings() {
     }
@@ -41,7 +41,7 @@ class backup_elang_activity_task extends backup_activity_task {
     /**
      * Define the particular backup steps this activity runs.
      *
-     * @return void
+     * @return void No return value; the steps are added to the plan.
      */
     protected function define_my_steps() {
         $this->add_step(new backup_elang_activity_structure_step('elang_structure', 'elang.xml'));

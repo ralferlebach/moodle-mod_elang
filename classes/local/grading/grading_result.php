@@ -52,7 +52,10 @@ final class grading_result {
     /** @var bool Whether resultstate meets the gap's configured algorithm */
     public $accepted;
 
-    /** @var int|null Id of the elang_gapanswer record that matched, or null when the primary elang_gap.solution matched, or when nothing matched */
+    /**
+     * @var int|null Id of the elang_gapanswer record that matched, or null when
+     * the primary elang_gap.solution matched, or when nothing matched.
+     */
     public $matchedgapanswerid;
 
     /**

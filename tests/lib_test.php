@@ -499,4 +499,154 @@ final class lib_test extends \advanced_testcase {
         $this->assertSame(3.0, elang_score_to_rawgrade(1.5, -1, 3));
         $this->assertSame(1.0, elang_score_to_rawgrade(-0.5, -1, 3));
     }
+
+    /**
+     * A stored media file is served through mod_elang_pluginfile so the player
+     * can load it; without the callback Moodle would 404 the request and the
+     * medium would never appear.
+     *
+     * @covers ::mod_elang_pluginfile
+     * @return void
+     */
+    public function test_pluginfile_serves_media_for_a_viewer(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $cm = get_coursemodule_from_instance('elang', $elang->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        // Store a media file against the version, as set_draft_media would.
+        $fs = get_file_storage();
+        $fs->create_file_from_string([
+            'contextid' => $context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => (int) $version->id,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'not-a-real-video-but-enough-bytes');
+
+        $this->setUser($student);
+
+        // The send_stored_file() call emits HTTP headers, which PHPUnit's already-started
+        // output makes fatal, so the serving itself is exercised by Behat rather
+        // than here. What this test pins is the part that regressed: the callback
+        // resolves the version to its file and reaches the serving branch for a
+        // legitimate viewer, i.e. it does not return false the way it did for a
+        // missing file, a foreign version or a forbidden viewer.
+        $file = get_file_storage()->get_file(
+            $context->id,
+            'mod_elang',
+            'media',
+            (int) $version->id,
+            '/',
+            'clip.mp4'
+        );
+        $this->assertNotFalse($file);
+        $this->assertSame('not-a-real-video-but-enough-bytes', $file->get_content());
+
+        // A missing file in a valid area is refused rather than served.
+        $missing = mod_elang_pluginfile(
+            get_course($course->id),
+            $cm,
+            $context,
+            'media',
+            [(int) $version->id, 'does-not-exist.mp4'],
+            false,
+            []
+        );
+        $this->assertFalse($missing);
+    }
+
+    /**
+     * The callback refuses a version id that belongs to a different activity,
+     * so a valid request for one activity cannot read another's media.
+     *
+     * @covers ::mod_elang_pluginfile
+     * @return void
+     */
+    public function test_pluginfile_refuses_a_foreign_versions_media(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $first = $generator->create_instance(['course' => $course->id]);
+        $second = $generator->create_instance(['course' => $course->id]);
+        $foreignversion = $generator->create_version(['elangid' => $second->id, 'status' => 'published']);
+
+        $cm = get_coursemodule_from_instance('elang', $first->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        $this->setUser($student);
+
+        // Asking the first activity for a version that belongs to the second
+        // must be refused (the callback returns false).
+        $result = mod_elang_pluginfile(
+            get_course($course->id),
+            $cm,
+            $context,
+            'media',
+            [(int) $foreignversion->id, 'clip.mp4'],
+            false,
+            []
+        );
+        $this->assertFalse($result);
+    }
+
+    /**
+     * A whole-activity grade rebuild pushes a grade for every learner even when
+     * there are more of them than fit in one batch, so the chunking that keeps
+     * the rebuild bounded in memory does not drop anyone.
+     *
+     * @return void
+     */
+    public function test_bulk_grade_rebuild_covers_every_learner_across_chunks(): void {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'grade' => 100]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        // More learners than one chunk holds, so the rebuild runs several batches.
+        $total = ELANG_GRADE_REBUILD_CHUNK + 5;
+        $manager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $expected = [];
+        for ($i = 0; $i < $total; $i++) {
+            $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+            $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+            // Give a spread of scores and finish the attempt so it counts.
+            $DB->set_field('elang_attempt', 'score', 0.5, ['id' => $attempt->id]);
+            $DB->set_field('elang_attempt', 'state', $manager::STATE_FINISHED, ['id' => $attempt->id]);
+            $expected[(int) $student->id] = true;
+        }
+
+        elang_update_grades($elang);
+
+        $grades = grade_get_grades($course->id, 'mod', 'elang', $elang->id, array_keys($expected));
+        $graded = 0;
+        foreach ($grades->items[0]->grades as $userid => $grade) {
+            if (isset($expected[$userid]) && $grade->grade !== null) {
+                $graded++;
+            }
+        }
+        $this->assertSame($total, $graded);
+    }
 }

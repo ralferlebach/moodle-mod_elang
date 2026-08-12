@@ -24,6 +24,15 @@ Feature: Attempt a language exercise in the player
     Then I should see "Exercise ready."
     And I should see "dort"
 
+  Scenario: The player loads the exercise medium
+    Given elang "Listening exercise 1" has a media file "clip.mp4"
+    When I am on the "Listening exercise 1" "elang activity" page logged in as student1
+    Then I should see "Exercise ready."
+    # The media element is present and its source resolves through pluginfile.php
+    # (a real <video> with a source, not an empty frame).
+    And "video source" "css_element" should exist
+    And I should see "Exercise ready."
+
   Scenario: A learner's answer survives a page reload
     Given I am on the "Listening exercise 1" "elang activity" page logged in as student1
     And I should see "Exercise ready."

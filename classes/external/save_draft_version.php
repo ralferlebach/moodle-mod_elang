@@ -35,7 +35,7 @@ class save_draft_version extends external_api {
     /**
      * Describe the parameters this function accepts.
      *
-     * @return external_function_parameters
+     * @return external_function_parameters The description of this function's parameters.
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
@@ -82,7 +82,7 @@ class save_draft_version extends external_api {
     /**
      * Describe the structure this function returns.
      *
-     * @return external_single_structure
+     * @return external_single_structure The description of this function's return value.
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([

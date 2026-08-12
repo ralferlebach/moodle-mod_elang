@@ -38,7 +38,7 @@ class custom_completion extends activity_custom_completion {
     /**
      * Fetch the list of custom completion rules that this module defines.
      *
-     * @return array
+     * @return array The resulting list.
      */
     public static function get_defined_custom_rules(): array {
         return [
@@ -69,7 +69,7 @@ class custom_completion extends activity_custom_completion {
     /**
      * Returns an associative array of the descriptions of custom completion rules.
      *
-     * @return array
+     * @return array The resulting list.
      */
     public function get_custom_rule_descriptions(): array {
         return [
@@ -80,7 +80,7 @@ class custom_completion extends activity_custom_completion {
     /**
      * Returns an array of all completion rules, in the order they should be displayed to users.
      *
-     * @return array
+     * @return array The resulting list.
      */
     public function get_sort_order(): array {
         return [

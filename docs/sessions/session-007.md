@@ -8,14 +8,14 @@ bleiben als chronologische Gliederung erhalten (eigenständige, abgeschlossene
 Inkremente mit je eigener Versionsnummer/Patch), nur die „Session"-Zählung war
 falsch.
 
-**Version am Ende:** 2.0.0-alpha.76 (2026081106)
+**Version am Ende:** 2.0.0-alpha.77 (2026081107)
 **Vorher (Ende Session 006):** 2.0.0-alpha.71 (2026081101)
 **CI-Status:** grün (von Ralf bestätigt, Moodle 4.5 + 5.2, MariaDB + PostgreSQL).
 
 Ausgelieferte Patches in dieser Session (inkrementell, kumulativ):
 patch-2.0.72 → patch-2.0.73 → patch-2.0.73-phpdoc → patch-2.0.74 →
 patch-2.0.74-behat → patch-2.0.75 → patch-2.0.75-e5e6 → patch-2.0.75-e7 →
-patch-2.0.76 (finaler Stand).
+patch-2.0.76 → patch-2.0.77 (finaler Stand).
 
 ---
 
@@ -173,9 +173,32 @@ oder Index-Clash das Admin-Upgrade abbricht. `tests/upgrade_test.php`:
   gherkinlint + behat --dry-run validiert (17 Szenarien/149 Steps, 0 undefined),
   echter JS-Lauf in der CI.
 
-## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.76)
+## Inkrement 9 — Feinschliff-Nachzug: Timing-Drag, Overview (5.x), regelbasierte Lücken (alpha.77)
 
-PHPUnit **366/1184** grün, phpcs `--standard=moodle` **0/0**, phpdoc
+Drei Punkte in Reihenfolge:
+
+- **E4-Rest — Timing-Nudge (@javascript)**: `authoring_studio.feature` bekommt ein
+  Szenario, das den **Tastatur-Pfad** der Cue-Ränder testet (die Handles sind
+  ARIA-Slider — deterministischer als Pixel-Drag): Klick auf den Start-Handle,
+  „ArrowRight", `aria-valuenow` = 100 (Cue startet bei 0, Schritt 100 ms). Nur
+  Standard-Steps; per gherkinlint + `--dry-run` validiert (18 Szenarien/160
+  Steps). Drag-Logik selbst ist per Jest abgedeckt.
+- **courseformat/overview (Moodle 5.x)**: `classes/courseformat/overview.php`
+  (`\core_courseformat\activityoverviewbase`) liefert für die Kurs-Übersichtsseite
+  eine Lehrer-Aktion (Link zum Report) und die Versuchszahl. API exakt gegen die
+  5.0-Quelle (mod_assign) modelliert. Auf 4.5 ruhend (nie geladen); Test
+  (`tests/courseformat/overview_test.php`) überspringt sich, wenn die Overview-API
+  fehlt — läuft in der 5.2-CI. 1 neuer String `overview:attempts` (EN+DE, 246/246).
+- **2.1-Baustein: regelbasierte Lücken**:
+  `classes/local/authoring/gap_rule_generator.php` — reine Domänen-Engine, die aus
+  Transkript + Regel codepoint-korrekte Gap-Spans erzeugt (Schwester von
+  `gap_syntax_parser`). Regeln: `words` (Wortliste, case-insensitive per Default)
+  und `everynth` (jedes n-te Wort). Kein Schema/UI — Fundament, das die
+  Authoring-Schicht später aufruft. 6 Tests/13 Assertions.
+
+## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.77)
+
+PHPUnit **373/1197** grün (1 skipped: Overview nur 5.x), phpcs `--standard=moodle` **0/0**, phpdoc
 (moodle-local_moodlecheck) **0/0**, tsc sauber, Jest **29/29**, esbuild
 reproduzierbar, Grunt eslint:amd + gherkinlint grün, Behat nicht-JS **9/72**
 grün + dry-run aller @mod_elang-Features ohne undefined Steps. Anschließend von

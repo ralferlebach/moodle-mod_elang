@@ -11,6 +11,22 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.77] - 2026-08-12
+
+### Added
+- Activity overview for the Moodle 5.0+ course overview page
+  (`mod_elang\courseformat\overview`): a teacher action linking to the attempt
+  report and a count of attempts. Inert on 4.5, where the overview feature does
+  not exist.
+- A rule-based gap generator (`mod_elang\local\authoring\gap_rule_generator`):
+  the foundation for 2.1 "rule-based gaps", turning a transcript plus a rule
+  (a vocabulary word list, or every nth word) into codepoint-correct gap spans.
+  Pure logic; not yet wired into the editor.
+
+### Tests
+- A @javascript scenario for nudging a cue's start edge with the keyboard
+  (the timeline handles are ARIA sliders).
+
 ## [2.0.0-alpha.76] - 2026-08-12
 
 ### Changed

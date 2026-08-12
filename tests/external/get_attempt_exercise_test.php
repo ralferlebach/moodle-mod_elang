@@ -85,6 +85,8 @@ final class get_attempt_exercise_test extends \advanced_testcase {
         $this->assertSame(1, $result['totalcues']);
         $this->assertSame(1, $result['totalgaps']);
         $this->assertNotSame('', $result['contenthash']);
+        // The French special-character bar is offered.
+        $this->assertContains('é', $result['specialcharacters']);
     }
 
     /**

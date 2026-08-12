@@ -55,3 +55,13 @@ Feature: The Subtitle Studio authoring editor
     When I click on ".mod_elang-editor-timeline-handle.start" "css_element"
     And I press the "ArrowRight" key
     Then the "aria-valuenow" attribute of ".mod_elang-editor-timeline-handle.start" "css_element" should contain "100"
+
+  Scenario: Gaps can be generated from a word-list rule
+    Given elang "Test elang" has version transcript "Le chat dort" gap "chat"
+    And I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I press "Edit content"
+    And I should see "Transcript"
+    When I set the field "Words to blank out" to "dort"
+    And I press "Generate gaps"
+    And I press "Apply 1 gaps"
+    Then I should see "Created 1 gaps from the rule"

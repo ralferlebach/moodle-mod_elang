@@ -39,7 +39,6 @@ require_once($CFG->dirroot . '/mod/elang/classes/external/authoring_helper.php')
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class generate_rule_gaps extends external_api {
-
     use authoring_helper;
 
     /**

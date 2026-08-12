@@ -8,14 +8,14 @@ bleiben als chronologische Gliederung erhalten (eigenständige, abgeschlossene
 Inkremente mit je eigener Versionsnummer/Patch), nur die „Session"-Zählung war
 falsch.
 
-**Version am Ende:** 2.0.0-alpha.79 (2026081109)
+**Version am Ende:** 2.0.0-alpha.80 (2026081110)
 **Vorher (Ende Session 006):** 2.0.0-alpha.71 (2026081101)
 **CI-Status:** grün (von Ralf bestätigt, Moodle 4.5 + 5.2, MariaDB + PostgreSQL).
 
 Ausgelieferte Patches in dieser Session (inkrementell, kumulativ):
 patch-2.0.72 → patch-2.0.73 → patch-2.0.73-phpdoc → patch-2.0.74 →
 patch-2.0.74-behat → patch-2.0.75 → patch-2.0.75-e5e6 → patch-2.0.75-e7 →
-patch-2.0.76 → patch-2.0.77 → patch-2.0.78 → patch-2.0.79 (finaler Stand).
+patch-2.0.76 → patch-2.0.77 → patch-2.0.78 → patch-2.0.79 → patch-2.0.80 (finaler Stand).
 
 ---
 
@@ -229,9 +229,37 @@ Die Editor-Seite der regelbasierten Lücken (ruft die WS aus Inkrement 10):
   neu erzeugt.
 - Jest: `spansToGaps` (2) + `generateRuleGaps`-Transport (1) → 32 Tests grün.
 
-## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.79)
+## Inkrement 12 — Behat (Regel-UI) + 2.1: Sonderzeichen-Leiste (Fundament) (alpha.80)
 
-PHPUnit **378/1212** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc
+- **Behat**: `authoring_studio.feature` bekommt ein @javascript-Szenario für die
+  Regel-UI — Wort eingeben, „Generate gaps", „Apply 1 gaps", Status „Created 1
+  gaps from the rule". Behat wartet implizit auf den async erscheinenden
+  Apply-Button. Nur Standard-Steps; gherkinlint + dry-run (19 Szenarien/172
+  Steps, 0 undefined).
+- **2.1 Sonderzeichen-Leiste (Fundament)**:
+  `classes/local/player/special_characters.php` — sprachabgeleiteter Provider
+  (`for_language('fr'|'de'|'es'|'it'|'pt')` liefert kuratierte Akzent-/
+  Sonderzeichen; `resolve()` erlaubt eine custom-Liste als spätere
+  Aktivitäts-Override, codepoint-korrekt zerlegt + dedupliziert). 4 Tests.
+- **Verdrahtung**: `get_attempt_exercise` liefert jetzt `specialcharacters`
+  (für die Übungssprache) mit, sodass die Daten den Player erreichen; der
+  Bestandstest prüft das französische Set. Die eigentliche Insert-Leiste im
+  Player-UI ist der nächste (Frontend-)Schritt.
+
+### Nachtrag (CI/Real-Env-Feedback von Ralf, ohne Version-Bump)
+
+- **phpcs** `generate_rule_gaps.php`: Leerzeile nach `{` entfernt, sodass der
+  `use authoring_helper;`-Trait direkt auf die Klassenöffnung folgt (Ralfs
+  moodle-cs meldete beide Sniffs; lokale ältere moodle-cs hatte sie durchgelassen).
+- **Seeder** `tests/load/seed_large.php` + `tests/playwright/seed.php`:
+  `create_module()` verlangt auf einer echten Site `introeditor` (Editor-Array)
+  statt `intro`/`introformat` — umgestellt auf
+  `'introeditor' => ['text' => ..., 'format' => FORMAT_HTML, 'itemid' => 0]`.
+  (Reines Test-/Tooling-Fix, lokal nicht reproduzierbar mangels installierter Site.)
+
+## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.80)
+
+PHPUnit **382/1223** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc
 (moodle-local_moodlecheck) **0/0**, tsc sauber, Jest **29/29**, esbuild
 reproduzierbar, Grunt eslint:amd + gherkinlint grün, Behat nicht-JS **9/72**
 grün + dry-run aller @mod_elang-Features ohne undefined Steps. Anschließend von

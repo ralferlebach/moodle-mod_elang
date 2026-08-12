@@ -11,6 +11,23 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Coding-style fix in the generate_rule_gaps web service (trait import placement),
+  and the load/browser seeders now pass `introeditor` to `create_module()` as a
+  real Moodle site requires. Test/tooling only.
+
+## [2.0.0-alpha.80] - 2026-08-12
+
+### Added
+- Special-character bar foundation: a language-derived provider of accented and
+  other special characters (French, German, Spanish, Italian, Portuguese), which
+  an activity can later override. The exercise web service now returns the set for
+  the exercise language, so the player can offer an insert bar for answers.
+
+### Tests
+- A @javascript scenario covering the rule-based gap control end to end
+  (generate, then apply).
+
 ## [2.0.0-alpha.79] - 2026-08-12
 
 ### Added

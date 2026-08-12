@@ -93,6 +93,7 @@ class get_attempt_exercise extends external_api {
             'totalgaps' => $totalgaps,
             'contenthash' => (string) $version->contenthash,
             'media' => self::build_media($context, $version),
+            'specialcharacters' => \mod_elang\local\player\special_characters::for_language((string) $elang->language),
         ];
     }
 
@@ -205,6 +206,12 @@ class get_attempt_exercise extends external_api {
                 ),
                 'posterurl' => new external_value(PARAM_RAW, 'pluginfile URL of the poster image, or empty'),
             ]),
+            'specialcharacters' => new external_multiple_structure(
+                new external_value(PARAM_RAW, 'A special character the answer bar offers'),
+                'Special characters for the exercise language, for the answer input bar',
+                VALUE_DEFAULT,
+                []
+            ),
         ]);
     }
 }

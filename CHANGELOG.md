@@ -11,6 +11,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.78] - 2026-08-12
+
+### Added
+- Web service `mod_elang_generate_rule_gaps`: applies a rule-based gap rule
+  (a vocabulary word list, or every nth word) to a transcript and returns the
+  gap spans for the editor to create, without saving. Requires the manage
+  capability; the second step of the 2.1 rule-based-gaps feature.
+
 ## [2.0.0-alpha.77] - 2026-08-12
 
 ### Added

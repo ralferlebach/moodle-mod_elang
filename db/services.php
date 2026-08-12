@@ -124,6 +124,14 @@ $functions = [
         'ajax' => true,
         'capabilities' => 'mod/elang:manage',
     ],
+    'mod_elang_generate_rule_gaps' => [
+        'classname' => 'mod_elang\\external\\generate_rule_gaps',
+        'methodname' => 'execute',
+        'description' => 'Generate gap definitions from a rule (a word list or every nth word) for the editor.',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
     'mod_elang_set_draft_media' => [
         'classname' => 'mod_elang\external\set_draft_media',
         'methodname' => 'execute',

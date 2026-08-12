@@ -51,7 +51,7 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.77 (2026081107) — Phasen 2–4 abgeschlossen. Session 007
+**Version:** 2.0.0-alpha.78 (2026081108) — Phasen 2–4 abgeschlossen. Session 007
 (dieser Chat; EIN Claude-Chat = EINE Session) brachte von alpha.71 auf alpha.75:
 (1) Skalierung — N+1 in version_validator/version_manager gebündelt, Report
 paginiert, V1-Detector DB-seitig limitiert, Draft-Invariante reconciliert, README
@@ -80,8 +80,8 @@ durch alle Savepoints + Migrations-Integrität, 32 Assertions). Offen für Beta:
 E5/E6 real laufen lassen (gegen Instanz/CI); @javascript-/Behat-CI bestätigen;
 E3/E4-Feinschliff + Nachzug erledigt: freundliche version-not-found-Meldung,
 tiefe @javascript-Studio-Szenarien inkl. Timing-Nudge, courseformat/overview
-(5.x, ruht auf 4.5), und der erste 2.1-Baustein gap_rule_generator (regelbasierte
-Lücken, rein/getestet). LEHRE: 5.x-only-Klassen (overview) gegen die echte
+(5.x, ruht auf 4.5), und die ersten 2.1-Bausteine: gap_rule_generator (regelbasierte Lücken, rein)
++ WS mod_elang_generate_rule_gaps (Editor-Endpunkt). LEHRE: 5.x-only-Klassen (overview) gegen die echte
 5.0-Quelle modellieren (raw.githubusercontent), Test per class_exists-Skip auf
 4.5 inert halten. Die harten Beta-Gates
 (Backup/Restore, Upgrade-Pfad) sind damit abgedeckt.

@@ -130,6 +130,7 @@ $string['error:nomorehints'] = 'No further hints are available for this gap.';
 $string['error:nopublishedversion'] = 'This exercise has no published content yet.';
 $string['error:responsetoolong'] = 'Your response is too long. The maximum for this gap is {$a} characters.';
 $string['error:staleattemptstate'] = 'Your view of this attempt is out of date. Please reload the current state and try again.';
+$string['error:unknowngaprule'] = 'Unknown gap rule type \'{$a}\'.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' is not one of the supported media providers.';
 $string['error:versionnotadraft'] = 'Only a draft version can be edited.';
 $string['error:versionnotfound'] = 'That exercise version no longer exists.';

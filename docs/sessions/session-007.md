@@ -8,14 +8,14 @@ bleiben als chronologische Gliederung erhalten (eigenständige, abgeschlossene
 Inkremente mit je eigener Versionsnummer/Patch), nur die „Session"-Zählung war
 falsch.
 
-**Version am Ende:** 2.0.0-alpha.77 (2026081107)
+**Version am Ende:** 2.0.0-alpha.78 (2026081108)
 **Vorher (Ende Session 006):** 2.0.0-alpha.71 (2026081101)
 **CI-Status:** grün (von Ralf bestätigt, Moodle 4.5 + 5.2, MariaDB + PostgreSQL).
 
 Ausgelieferte Patches in dieser Session (inkrementell, kumulativ):
 patch-2.0.72 → patch-2.0.73 → patch-2.0.73-phpdoc → patch-2.0.74 →
 patch-2.0.74-behat → patch-2.0.75 → patch-2.0.75-e5e6 → patch-2.0.75-e7 →
-patch-2.0.76 → patch-2.0.77 (finaler Stand).
+patch-2.0.76 → patch-2.0.77 → patch-2.0.78 (finaler Stand).
 
 ---
 
@@ -196,9 +196,25 @@ Drei Punkte in Reihenfolge:
   und `everynth` (jedes n-te Wort). Kein Schema/UI — Fundament, das die
   Authoring-Schicht später aufruft. 6 Tests/13 Assertions.
 
-## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.77)
+## Inkrement 10 — 2.1: regelbasierte Lücken als Web Service (alpha.78)
 
-PHPUnit **373/1197** grün (1 skipped: Overview nur 5.x), phpcs `--standard=moodle` **0/0**, phpdoc
+Der zweite 2.1-Baustein: die pure `gap_rule_generator` wird über eine
+Read-WS für den Editor nutzbar.
+
+- **`classes/external/generate_rule_gaps.php`** (`extends external_api`, `use
+  authoring_helper`): Parameter `versionid` (Autorisierung via
+  `require_manage_version`, Cap `mod/elang:manage`), `transcript` und `rule`
+  (`type` + `words[]`/`n`/`offset`/`casesensitive`); liefert die Gap-Spans
+  ({charstart, charlength, solution}) zurück, ohne etwas zu speichern — der
+  Editor wendet sie an und speichert über `save_draft`.
+- Registriert in `db/services.php` (`mod_elang_generate_rule_gaps`, type read,
+  ajax). Unbekannter Regeltyp → freundliche `error:unknowngaprule` (EN+DE,
+  247/247).
+- 4 External-Tests (Wortliste, jedes-n-te, unbekannter Typ, Cap-Prüfung).
+
+## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.78)
+
+PHPUnit **378/1212** grün (1 skipped: Overview nur 5.x), phpcs `--standard=moodle` **0/0**, phpdoc
 (moodle-local_moodlecheck) **0/0**, tsc sauber, Jest **29/29**, esbuild
 reproduzierbar, Grunt eslint:amd + gherkinlint grün, Behat nicht-JS **9/72**
 grün + dry-run aller @mod_elang-Features ohne undefined Steps. Anschließend von

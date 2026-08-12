@@ -130,6 +130,7 @@ $string['error:nomorehints'] = 'Für diese Lücke sind keine weiteren Hilfen ver
 $string['error:nopublishedversion'] = 'Für diese Übung ist noch kein Inhalt veröffentlicht.';
 $string['error:responsetoolong'] = 'Ihre Antwort ist zu lang. Das Maximum für diese Lücke beträgt {$a} Zeichen.';
 $string['error:staleattemptstate'] = 'Ihre Ansicht dieses Versuchs ist veraltet. Bitte laden Sie den aktuellen Stand neu und versuchen Sie es erneut.';
+$string['error:unknowngaprule'] = 'Unbekannter Lückenregel-Typ \'{$a}\'.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' gehört nicht zu den unterstützten Medienanbietern.';
 $string['error:versionnotadraft'] = 'Nur eine Entwurfsversion kann bearbeitet werden.';
 $string['error:versionnotfound'] = 'Diese Übungsversion existiert nicht mehr.';

@@ -51,9 +51,55 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.73 (2026081103) — Phasen 2–4 abgeschlossen; das große
-Autoren-UX-Paket **E2 „Subtitle Studio" (AP-D) ist umgesetzt**. Session 008 hat
-den React/TS-Editor zu einem workflow-orientierten Studio ausgebaut:
+**Version:** 2.0.0-alpha.74 (2026081104) — Phasen 2–4 abgeschlossen, E2
+(Subtitle Studio) umgesetzt, **E3-Codehärtung des Autoren-Write-Pfads
+begonnen**. Session 009 härtet `save_draft_version`: doppelte cuekey/gapkey/
+hint-level (die drei UNIQUE-Index-Constraints) und negative Gap-Offsets werden
+jetzt vorab mit klaren `moodle_exception`s abgefangen statt als rohe
+`dml_write_exception` mitten im Insert. `set_draft_media`/`publish`/Migration
+waren bereits gehärtet (geprüft). 4 neue `error:*`-Strings (EN+DE, Parität
+244/244), 4 neue Trust-Boundary-Tests (Security-Test 8→12). Zuvor der
+alpha.73-CI-Fix (fehlender `@param`-Block in `list_for_activity`) eingepflegt.
+Details in docs/sessions/session-009.md. (Sessions 008/007 und älter unten.)
+
+**Stand Session 009 (real gegen Moodle 4.5.13):** PHPUnit **362/1131** grün,
+phpcs 0/0, phpdoc (moodle-local_moodlecheck) 0/0. Kein Frontend berührt →
+Bundle unverändert. NEUE PFLICHT vor Auslieferung: moodlecheck lokal laufen
+lassen (phpcs prüft @param-Vollständigkeit nicht).
+
+**Version:** 2.0.0-alpha.75 (2026081105) — Phasen 2–4 abgeschlossen, E2
+(Subtitle Studio) umgesetzt, E3/E4 Teil 1, und der **Produktiv-Blocker
+Kurs-Backup/Restore ist erledigt**. Session 011: `FEATURE_BACKUP_MOODLE2` in
+lib.php auf true, vollständige `backup/moodle2/`-Implementierung (Struktur
+versions→cues→gaps→answers/hints, userinfo-gated attempts→responses; media/
+poster-Dateien; Remapping von usermodified/attempt.versionid+userid/response.
+gapid und dem Vorwärtsverweis currentversionid in after_execute). Verifiziert
+per echtem PHPUnit-Backup→Restore-Roundtrip (2 Tests). Details in
+docs/sessions/session-011.md. (Sessions 010/009/008 und älter unten.)
+
+**Stand Session 011 (real gegen Moodle 4.5.13):** PHPUnit **364/1150** grün,
+phpcs 0/0, phpdoc 0/0. Kein Frontend/Schema berührt → Bundle unverändert, kein
+upgrade.php-Savepoint. LEHREN: `elang_supports(FEATURE_BACKUP_MOODLE2)` MUSS true
+sein, sonst überspringt der Kurs-Backup die Aktivität; PHPUnit-Backup-Harness
+braucht `backup::MODE_IMPORT` + `users`-Setting `set_status(NOT_LOCKED)`/
+`set_value`; Vorwärtsverweise in `after_execute()` nachmappen. Offen für Beta:
+E5/E6 (Playwright+axe / jMeter+k6), E7 (V1→V2-Upgrade-CI-Test), E3/E4-Rest,
+optional courseformat/overview (5.x).
+
+**Stand Session 010 (E4 Behat, Teil 1):** Version alpha.74 (Test-only) — Neu: `report.feature` (Leerzustand, Versuch
+erscheint, Lernenden-Aktionsleiste) + `authoring_studio.feature` (@javascript:
+Onboarding, Toolbar) + wiederverwendbarer Step `elang "X" has a finished attempt
+by "user" answering "text"`. Nicht-JS-Szenarien lokal ausgeführt (9/72 grün),
+@javascript per gherkinlint + behat --dry-run validiert (15 Szenarien/130 Steps,
+0 undefined) — echter JS-Lauf in der Projekt-CI. LEHRE: ganzseitige „should not
+see"-Assertions sind fragil (z. B. „Reports" in der Seitennavigation) → auf
+Region `.mod_elang-actions` begrenzen. Behat lokal: config.php um behat_*
+ergänzen, init.php, `php -S 127.0.0.1:8000 -t <moodle>` als wwwroot. Offen für
+Beta: E4-Rest (tiefe @javascript-Studio-Interaktionen, in CI iterativ), E5/E6
+(Playwright+axe / jMeter+k6), E7 (V1→V2-Upgrade-CI-Test), Produktiv-Gate
+Backup/Restore.
+
+**Stand Session 008 (E2 Subtitle Studio):** Version alpha.73 —
 Live-Re-Sync der Lücken-Offsets beim Transkript-Edit (codepoint-genau, behebt
 die UTF-16/Astral-Fehlstellung), inline maskierte Lernenden-Vorschau,
 Timeline-Waveform (Web Audio → SVG, degradiert lautlos) mit ziehbaren,
@@ -295,6 +341,14 @@ WICHTIGE FALLSTRICKE (siehe Anleitung, Abschnitt 0):
   - NIE 'npx tsc' (zieht Fremdpaket tsc@2.0.4) -> immer ./node_modules/.bin/tsc
   - php -S ist instabil -> @javascript-Behat nur in der Projekt-CI, nicht hier
   - AMD-Build MUSS reproduzierbar sein (zweiter grunt-Lauf == erster), sonst CI rot
+  - phpcs `--standard=moodle` prüft NICHT die @param-Vollständigkeit gegen die
+    Signatur — das macht der SEPARATE `phpdoc`-Check (moodle-local_moodlecheck,
+    CI-Job „JS/Mustache/PHPDoc Lint"). Nach JEDER Signaturänderung (neuer/
+    entfernter Parameter) den @param-Block anpassen und lokal gegenprüfen:
+    `php local/moodlecheck/cli/moodlecheck.php --path=mod/elang` (Repo
+    moodlehq/moodle-local_moodlecheck ins Moodle unter local/ klonen; 0
+    `<error>`-Tags = grün). alpha.73 fiel genau hieran (list_for_activity, $page/
+    $perpage ohne @param).
 
 Zielzustand vor Beginn der eigentlichen Arbeit:
   PHPUnit grün, phpcs 0/0, AMD identisch, tsc/Jest grün,

@@ -410,8 +410,31 @@ class version_manager {
         ];
         $knownhinttypes = ['text', 'firstletter', 'wordlength', 'partial', 'solution', 'translation'];
 
+        // The identity keys and hint levels are backed by UNIQUE database
+        // indexes (versionid-cuekey, cueid-gapkey, gapid-level). Without these
+        // guards a payload with a repeated key or level would surface as a raw
+        // dml_write_exception mid-insert; catching it here turns it into a clear
+        // message and keeps the save transaction from aborting on a DB error.
+        $seencuekeys = [];
         foreach ($cues as $cue) {
+            $cuekey = (string) $cue['cuekey'];
+            if (isset($seencuekeys[$cuekey])) {
+                throw new \moodle_exception('error:duplicatecuekey', 'mod_elang', '', $cuekey);
+            }
+            $seencuekeys[$cuekey] = true;
+
+            $seengapkeys = [];
             foreach ($cue['gaps'] ?? [] as $gap) {
+                $gapkey = (string) $gap['gapkey'];
+                if (isset($seengapkeys[$gapkey])) {
+                    throw new \moodle_exception('error:duplicategapkey', 'mod_elang', '', $gapkey);
+                }
+                $seengapkeys[$gapkey] = true;
+
+                if ((int) $gap['charstart'] < 0 || (int) $gap['charlength'] < 0) {
+                    throw new \moodle_exception('error:negativegapoffset', 'mod_elang');
+                }
+
                 if (!in_array($gap['gradingalgorithm'], $knownalgorithms, true)) {
                     throw new \moodle_exception(
                         'error:invalidgradingalgorithm',
@@ -434,7 +457,14 @@ class version_manager {
                     }
                 }
 
+                $seenlevels = [];
                 foreach ($gap['hints'] ?? [] as $hint) {
+                    $level = (int) $hint['level'];
+                    if (isset($seenlevels[$level])) {
+                        throw new \moodle_exception('error:duplicatehintlevel', 'mod_elang', '', $level);
+                    }
+                    $seenlevels[$level] = true;
+
                     $penalty = (float) $hint['penalty'];
                     if (!is_finite($penalty) || $penalty < 0.0 || $penalty > 1.0) {
                         throw new \moodle_exception('error:invalidpenalty', 'mod_elang');

@@ -11,6 +11,48 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.75] - 2026-08-12
+
+### Added — course backup and restore (production gate)
+- The activity now supports Moodle course backup and restore, so course backups,
+  imports and duplications no longer silently lose its content. `elang_supports`
+  now advertises `FEATURE_BACKUP_MOODLE2`, backed by a full `backup/moodle2/`
+  implementation. The backup carries the whole content tree (versions, cues,
+  gaps, accepted-answer variants and hints) plus the media and poster files, and
+  — only when the backup includes user information — every learner attempt and
+  response. On restore, all internal references are remapped: a version's author,
+  an attempt's version and user, a response's gap, and the activity's forward
+  reference to its current published version (`currentversionid`). Verified by a
+  PHPUnit backup-and-restore round trip, including the user-info-off case that
+  restores the content but no attempts.
+
+### Tests
+- Behat coverage for the attempt report (empty state, a finished attempt showing
+  up, and the action bar offering learners only the learner actions) plus
+  @javascript scenarios for the Subtitle Studio editor (onboarding empty state
+  and the authoring toolbar), with a reusable step that seeds a finished attempt
+  through the domain layer.
+
+## [2.0.0-alpha.74] - 2026-08-12
+
+### Changed — authoring write-path hardening (E3)
+- Saving a draft now rejects a structurally corrupt payload with a clear message
+  instead of letting it surface as a raw database write error mid-save. The three
+  identity constraints backed by unique indexes are checked up front: a repeated
+  cue key (versionid-cuekey), a repeated gap key within a cue (cueid-gapkey) and a
+  repeated hint level within a gap (gapid-level). A negative gap offset or length
+  — structurally impossible and able to break codepoint slicing in the editor
+  preview — is rejected as well. These join the existing save-time checks (known
+  grading algorithm, valid regex, penalty range, known hint type). Draft saves
+  otherwise remain permissive: incomplete, not-yet-valid content is still allowed,
+  with full semantic validation deferred to publish.
+
+### Fixed
+- Completed the PHPDoc for `attempt_report::list_for_activity`: the `$page` and
+  `$perpage` parameters added in 2.0.0-alpha.72 were missing `@param` lines, which
+  the Moodle PHPDoc checker (moodle-plugin-ci `phpdoc`) reports as an incomplete
+  parameter list. This unblocks the JS/Mustache/PHPDoc lint job.
+
 ## [2.0.0-alpha.73] - 2026-08-11
 
 ### Added — Subtitle Studio (authoring UX, AP-D / E2)

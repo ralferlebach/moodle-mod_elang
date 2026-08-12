@@ -69,6 +69,17 @@ ausgebaut. Die korrektheitskritische und die restlichen UX-Bausteine:
 - Autosave-Effekt darf den Initial-Load nicht als „dirty" werten
   (`justLoadedRef`), sonst speichert der Editor sofort nach dem Laden.
 
+## Nachtrag — CI-Fix (phpdoc)
+
+Der erste CI-Lauf auf der committeten alpha.73 fiel im Job „JS / Mustache /
+PHPDoc Lint": `attempt_report::list_for_activity has incomplete parameters
+list`. Ursache: die in alpha.72 ergänzten Parameter `$page`/`$perpage` hatten
+keine `@param`-Zeilen. `phpcs --standard=moodle` prüft das nicht — nur der
+separate `phpdoc`-Check (moodle-local_moodlecheck) tut es. Fix: `@param`-Block
+vervollständigt; lokal mit moodlecheck gegen mod/elang verifiziert (0 Fehler,
+0 Warnungen). Reine Doku-Korrektur → kein Version-Bump. Lehre in sessionstart
+aufgenommen (moodlecheck nach jeder Signaturänderung lokal laufen lassen).
+
 ## Offen (Folge-Sessions)
 
 - **009** E3 Codehärtung + E4 Behat-`@javascript`-E2E (inkl. Studio-Flows:

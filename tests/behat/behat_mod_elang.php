@@ -155,4 +155,42 @@ JS;
 
         $manager->publish((int) $draft->id);
     }
+
+    /**
+     * Record a finished attempt for a named user against a named activity's
+     * published version: start the attempt, answer its single gap and finish it.
+     * Lets a report scenario show real attempt data without driving the
+     * JavaScript player.
+     *
+     * @Given /^elang "(?P<name>[^"]*)" has a finished attempt by "(?P<username>[^"]*)" answering "(?P<text>[^"]*)"$/
+     *
+     * @param string $name The activity name (elang.name)
+     * @param string $username The username making the attempt
+     * @param string $text The text to submit for the version's single gap
+     * @return void
+     */
+    public function elang_has_a_finished_attempt(string $name, string $username, string $text): void {
+        global $DB;
+
+        $elang = $DB->get_record('elang', ['name' => $name], '*', MUST_EXIST);
+        $user = $DB->get_record('user', ['username' => $username], '*', MUST_EXIST);
+
+        $manager = new \mod_elang\local\domain\version_manager();
+        $version = $manager->get_published((int) $elang->id);
+        if ($version === null) {
+            throw new \coding_exception("elang '{$name}' has no published version to attempt.");
+        }
+
+        $cue = $DB->get_record('elang_cue', ['versionid' => $version->id], '*', MUST_EXIST);
+        $gap = $DB->get_record('elang_gap', ['cueid' => $cue->id], '*', MUST_EXIST);
+
+        $evaluator = new \mod_elang\local\grading\answer_evaluator(
+            new \mod_elang\local\grading\script_handler_manager([])
+        );
+        $attempts = new \mod_elang\local\domain\attempt_manager($evaluator);
+
+        $attempt = $attempts->start_attempt((int) $elang->id, (int) $user->id, (int) $version->id);
+        $attempts->submit_response((int) $attempt->id, (int) $gap->id, $text);
+        $attempts->finish_attempt((int) $attempt->id);
+    }
 }

@@ -49,6 +49,7 @@ final class lib_test extends \advanced_testcase {
         $this->assertTrue(elang_supports(FEATURE_COMPLETION_TRACKS_VIEWS));
         $this->assertTrue(elang_supports(FEATURE_GROUPS));
         $this->assertTrue(elang_supports(FEATURE_GROUPINGS));
+        $this->assertTrue(elang_supports(FEATURE_BACKUP_MOODLE2));
         $this->assertFalse(elang_supports(FEATURE_GRADE_OUTCOMES));
         $this->assertNull(elang_supports('mod_elang_unknown_feature'));
     }
@@ -62,7 +63,7 @@ final class lib_test extends \advanced_testcase {
     public function test_unimplemented_features_are_not_declared(): void {
         $this->resetAfterTest();
 
-        $this->assertFalse(elang_supports(FEATURE_BACKUP_MOODLE2));
+        $this->assertFalse(elang_supports(FEATURE_GRADE_OUTCOMES));
     }
 
     /**

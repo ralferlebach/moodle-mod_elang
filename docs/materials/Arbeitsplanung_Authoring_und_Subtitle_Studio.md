@@ -226,13 +226,22 @@ Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
   reproduzierbar neu gebaut. Nur UX/Frontend — keine WS-/Grading-Logik berührt.
 - Offene Politur (nach Beta): Provider-Dropdown-UX, Waveform-Zoom, Undo/Redo.
 
-### E3 — Codehärtung **vor Beta**
-- Fehlerpfade, Randfälle und Eingabevalidierung systematisch durchgehen
-  (insbesondere die Authoring-Write-Services und die Migration).
-- Defensive Prüfungen dort, wo bisher „happy path" angenommen wird.
-- Konsistente, nutzerfreundliche Fehlermeldungen statt Exceptions im UI.
+### E3 — Codehärtung **vor Beta** — **[TEIL 1 ERLEDIGT alpha.74, Session 009]**
+- **Erledigt (Write-Pfad):** `save_draft_version` fängt strukturell korrupte
+  Payloads vorab ab (doppelte cuekey/gapkey/hint-level = die drei UNIQUE-Index-
+  Constraints; negative Gap-Offsets) und liefert klare Meldungen statt roher
+  `dml_write_exception`. `set_draft_media`/`publish`/Migration bereits gehärtet
+  (geprüft, kein Handlungsbedarf).
+- **Rest:** weitere Fehlerpfade/Randfälle nach Bedarf; freundliche Meldungen
+  überall dort, wo bisher „happy path" angenommen wird.
 
-### E4 — Behat-Testabdeckung **vor Beta**
+### E4 — Behat-Testabdeckung **vor Beta** — **[TEIL 1 ERLEDIGT alpha.74, Session 010]**
+- **Erledigt:** `report.feature` (Leerzustand, Versuch erscheint,
+  Lernenden-Aktionsleiste; nicht-JS, lokal grün) + `authoring_studio.feature`
+  (@javascript: Onboarding, Toolbar; in CI) + wiederverwendbarer Attempt-Step.
+- **Rest:** tiefe @javascript-Studio-Interaktionen (Cue/Gap anlegen, Timing-Drag
+  + Re-Sync, Autosave, maskierte Vorschau) — in CI iterativ, um Flakiness zu
+  vermeiden.
 - Aktuell nur wenige Feature-Dateien. Für Beta die Kernpfade durchgängig als
   `@javascript`-Szenarien abdecken: Übung anlegen → bearbeiten → veröffentlichen
   → als Lernende bearbeiten → Report ansehen → Transkript exportieren.
@@ -252,6 +261,12 @@ Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
   für die wesentlichen Endpunkte (Player-Datenabruf, Antwort-/Grading-Roundtrip,
   Autoren-Speichern/Veröffentlichen). Ziel: Verhalten unter realistischer und
   unter Spitzenlast dokumentieren; Engpässe identifizieren.
+
+### Produktiv-Gate: Kurs-Backup/Restore — **[ERLEDIGT alpha.75, Session 011]**
+- `FEATURE_BACKUP_MOODLE2` = true + vollständige `backup/moodle2/`-Implementierung
+  (Inhaltsbaum + media/poster-Dateien + userinfo-gated attempts/responses; volles
+  Reference-Remapping inkl. currentversionid in after_execute). PHPUnit-Roundtrip-
+  Test (mit/ohne userinfo). Damit ist der harte Produktiv-Blocker erfüllt.
 
 ### E7 — Migrationspfad prüfen (**automatische Testabdeckung!**) **vor Beta**
 - Der V1→V2-Migrationspfad muss auf einem **echten Upgrade** verifiziert werden,

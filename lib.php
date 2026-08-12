@@ -44,12 +44,13 @@ function elang_supports(string $feature) {
         case FEATURE_COMPLETION_TRACKS_VIEWS:
         case FEATURE_GROUPS:
         case FEATURE_GROUPINGS:
+        case FEATURE_BACKUP_MOODLE2:
+            // Course backup/restore is provided by backup/moodle2/ (structure,
+            // media/poster files and, with user info, learner attempts).
             return true;
         // The following features belong to the 2.0 target scope but stay switched
         // off until their implementation lands. Declaring a feature without its
-        // callbacks is not a harmless promise: FEATURE_BACKUP_MOODLE2 makes course
-        // backup look for backup_elang_activity_task.
-        case FEATURE_BACKUP_MOODLE2:
+        // callbacks is not a harmless promise.
         case FEATURE_GRADE_OUTCOMES:
             return false;
         case FEATURE_COMPLETION_HAS_RULES:

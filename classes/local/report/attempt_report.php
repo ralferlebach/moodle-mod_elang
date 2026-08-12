@@ -30,10 +30,12 @@ namespace mod_elang\local\report;
 final class attempt_report {
     /**
      * List every attempt for an activity, newest first, optionally restricted
-     * to the members of one group.
+     * to the members of one group and to a single page.
      *
      * @param int $elangid The activity id
      * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @param int $page The zero-based page to return
+     * @param int $perpage The page size, or 0 to return every attempt unpaged
      * @return array A list of attempt summary arrays
      */
     public function list_for_activity(int $elangid, int $groupid = 0, int $page = 0, int $perpage = 0): array {

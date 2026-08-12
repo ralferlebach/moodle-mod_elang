@@ -210,4 +210,83 @@ final class save_draft_version_security_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         save_draft_version::execute((int) $this->draft->id, -1, $payload);
     }
+
+    /**
+     * Two cues sharing a key would violate the versionid-cuekey unique index; it
+     * is rejected with a clear message rather than a raw database write error.
+     *
+     * @return void
+     */
+    public function test_a_duplicate_cue_key_is_rejected(): void {
+        $this->setUser($this->teacher);
+
+        $payload = $this->mutated_payload(function (array &$payload): void {
+            // A second cue reusing the first cue's key.
+            $payload[] = $payload[0];
+        });
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/cues share the key/');
+        save_draft_version::execute((int) $this->draft->id, -1, $payload);
+    }
+
+    /**
+     * Two gaps in one cue sharing a key would violate the cueid-gapkey unique
+     * index; it is rejected with a clear message.
+     *
+     * @return void
+     */
+    public function test_a_duplicate_gap_key_is_rejected(): void {
+        $this->setUser($this->teacher);
+
+        $payload = $this->mutated_payload(function (array &$payload): void {
+            $payload[0]['gaps'][] = $payload[0]['gaps'][0];
+        });
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/gaps in one cue share/');
+        save_draft_version::execute((int) $this->draft->id, -1, $payload);
+    }
+
+    /**
+     * Two hints of one gap sharing a level would violate the gapid-level unique
+     * index; it is rejected with a clear message.
+     *
+     * @return void
+     */
+    public function test_a_duplicate_hint_level_is_rejected(): void {
+        $this->setUser($this->teacher);
+
+        $payload = $this->mutated_payload(function (array &$payload): void {
+            $level = $payload[0]['gaps'][0]['hints'][0]['level'];
+            $payload[0]['gaps'][0]['hints'][] = [
+                'level' => $level,
+                'hinttype' => 'text',
+                'hinttext' => 'duplicate',
+                'penalty' => 0,
+            ];
+        });
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/hints at level/');
+        save_draft_version::execute((int) $this->draft->id, -1, $payload);
+    }
+
+    /**
+     * A negative gap offset or length is structurally impossible and rejected
+     * before anything is written.
+     *
+     * @return void
+     */
+    public function test_a_negative_gap_offset_is_rejected(): void {
+        $this->setUser($this->teacher);
+
+        $payload = $this->mutated_payload(function (array &$payload): void {
+            $payload[0]['gaps'][0]['charstart'] = -1;
+        });
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/must not be negative/');
+        save_draft_version::execute((int) $this->draft->id, -1, $payload);
+    }
 }

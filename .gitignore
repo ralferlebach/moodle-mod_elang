@@ -56,3 +56,12 @@ behatfaildumps/
 # Grunt and flags any file Grunt cannot regenerate. Both amd/build/ and
 # js/vendor/react/ must be committed.
 # (Intentionally NOT ignoring amd/build/ or js/vendor/.)
+
+# E5/E6 load & browser test artefacts (downloaded binaries / generated results).
+/tests/load/apache-jmeter-*/
+/tests/load/k6
+/tests/load/*.jtl
+/tests/load/.load-env
+/tests/playwright/playwright-report/
+/tests/playwright/test-results/
+/tests/playwright/package-lock.json

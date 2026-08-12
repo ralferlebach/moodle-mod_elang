@@ -51,86 +51,36 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.74 (2026081104) — Phasen 2–4 abgeschlossen, E2
-(Subtitle Studio) umgesetzt, **E3-Codehärtung des Autoren-Write-Pfads
-begonnen**. Session 009 härtet `save_draft_version`: doppelte cuekey/gapkey/
-hint-level (die drei UNIQUE-Index-Constraints) und negative Gap-Offsets werden
-jetzt vorab mit klaren `moodle_exception`s abgefangen statt als rohe
-`dml_write_exception` mitten im Insert. `set_draft_media`/`publish`/Migration
-waren bereits gehärtet (geprüft). 4 neue `error:*`-Strings (EN+DE, Parität
-244/244), 4 neue Trust-Boundary-Tests (Security-Test 8→12). Zuvor der
-alpha.73-CI-Fix (fehlender `@param`-Block in `list_for_activity`) eingepflegt.
-Details in docs/sessions/session-009.md. (Sessions 008/007 und älter unten.)
+**Version:** 2.0.0-alpha.76 (2026081106) — Phasen 2–4 abgeschlossen. Session 007
+(dieser Chat; EIN Claude-Chat = EINE Session) brachte von alpha.71 auf alpha.75:
+(1) Skalierung — N+1 in version_validator/version_manager gebündelt, Report
+paginiert, V1-Detector DB-seitig limitiert, Draft-Invariante reconciliert, README
+aktualisiert (alpha.72); (2) **E2 Subtitle Studio** — Live-Re-Sync der
+Lücken-Offsets (codepoint-genau), maskierte Vorschau, Waveform, ziehbare
+tastaturbedienbare Cue-Ränder, Autosave, Onboarding (js/src/studio/, 22
+Jest-Tests, Bundle reproduzierbar neu gebaut) (alpha.73); (3) **E3 Write-Härtung**
+— save_draft_version fängt doppelte cuekey/gapkey/hint-level + negative Offsets ab
+(klare Meldungen statt dml_write_exception) + phpdoc-CI-Fix (alpha.74); (4) **E4
+Behat** — report.feature (nicht-JS) + authoring_studio.feature (@javascript) +
+Attempt-Seed-Step (test-only); (5) **Produktiv-Gate Backup/Restore** —
+FEATURE_BACKUP_MOODLE2 + vollständige backup/moodle2/ mit Reference-Remapping inkl.
+currentversionid (alpha.75). Details in docs/sessions/session-007.md.
 
-**Stand Session 009 (real gegen Moodle 4.5.13):** PHPUnit **362/1131** grün,
-phpcs 0/0, phpdoc (moodle-local_moodlecheck) 0/0. Kein Frontend berührt →
-Bundle unverändert. NEUE PFLICHT vor Auslieferung: moodlecheck lokal laufen
-lassen (phpcs prüft @param-Vollständigkeit nicht).
-
-**Version:** 2.0.0-alpha.75 (2026081105) — Phasen 2–4 abgeschlossen, E2
-(Subtitle Studio) umgesetzt, E3/E4 Teil 1, und der **Produktiv-Blocker
-Kurs-Backup/Restore ist erledigt**. Session 011: `FEATURE_BACKUP_MOODLE2` in
-lib.php auf true, vollständige `backup/moodle2/`-Implementierung (Struktur
-versions→cues→gaps→answers/hints, userinfo-gated attempts→responses; media/
-poster-Dateien; Remapping von usermodified/attempt.versionid+userid/response.
-gapid und dem Vorwärtsverweis currentversionid in after_execute). Verifiziert
-per echtem PHPUnit-Backup→Restore-Roundtrip (2 Tests). Details in
-docs/sessions/session-011.md. (Sessions 010/009/008 und älter unten.)
-
-**Stand Session 011 (real gegen Moodle 4.5.13):** PHPUnit **364/1150** grün,
-phpcs 0/0, phpdoc 0/0. Kein Frontend/Schema berührt → Bundle unverändert, kein
-upgrade.php-Savepoint. LEHREN: `elang_supports(FEATURE_BACKUP_MOODLE2)` MUSS true
-sein, sonst überspringt der Kurs-Backup die Aktivität; PHPUnit-Backup-Harness
-braucht `backup::MODE_IMPORT` + `users`-Setting `set_status(NOT_LOCKED)`/
-`set_value`; Vorwärtsverweise in `after_execute()` nachmappen. Offen für Beta:
-E5/E6 (Playwright+axe / jMeter+k6), E7 (V1→V2-Upgrade-CI-Test), E3/E4-Rest,
-optional courseformat/overview (5.x).
-
-**Stand Session 010 (E4 Behat, Teil 1):** Version alpha.74 (Test-only) — Neu: `report.feature` (Leerzustand, Versuch
-erscheint, Lernenden-Aktionsleiste) + `authoring_studio.feature` (@javascript:
-Onboarding, Toolbar) + wiederverwendbarer Step `elang "X" has a finished attempt
-by "user" answering "text"`. Nicht-JS-Szenarien lokal ausgeführt (9/72 grün),
-@javascript per gherkinlint + behat --dry-run validiert (15 Szenarien/130 Steps,
-0 undefined) — echter JS-Lauf in der Projekt-CI. LEHRE: ganzseitige „should not
-see"-Assertions sind fragil (z. B. „Reports" in der Seitennavigation) → auf
-Region `.mod_elang-actions` begrenzen. Behat lokal: config.php um behat_*
-ergänzen, init.php, `php -S 127.0.0.1:8000 -t <moodle>` als wwwroot. Offen für
-Beta: E4-Rest (tiefe @javascript-Studio-Interaktionen, in CI iterativ), E5/E6
-(Playwright+axe / jMeter+k6), E7 (V1→V2-Upgrade-CI-Test), Produktiv-Gate
-Backup/Restore.
-
-**Stand Session 008 (E2 Subtitle Studio):** Version alpha.73 —
-Live-Re-Sync der Lücken-Offsets beim Transkript-Edit (codepoint-genau, behebt
-die UTF-16/Astral-Fehlstellung), inline maskierte Lernenden-Vorschau,
-Timeline-Waveform (Web Audio → SVG, degradiert lautlos) mit ziehbaren,
-tastaturbedienbaren ARIA-Slider-Cue-Rändern samt Snapping, debouncte Autosave
-mit Statusanzeige, und ein geführter Leerzustand. Reine Logik in
-`js/src/studio/` mit 22 neuen Jest-Tests; React-Bundle reproduzierbar neu
-gebaut, `amd/build/editor.min.js` via Grunt neu erzeugt. 11 neue `editor:*`-
-Strings (EN+DE, Parität 240/240). Keine WS-/Grading-Logik geändert. Details in
-docs/sessions/session-008.md. (Sessions 007/006 und älter unten.)
-
-**Stand Session 008 (real gegen Moodle 4.5.13):** tsc sauber, Jest **29/29**,
-esbuild reproduzierbar, Grunt eslint:amd grün, PHPUnit **358/1123** grün, phpcs
-0/0. Offen für Beta: E3/E4 (Codehärtung/Behat-E2E inkl. Studio-Flows), E5/E6
-(Playwright+axe / jMeter+k6), E7 (echtes V1→V2-Upgrade als CI-Test), sowie das
-Produktiv-Gate Backup/Restore.
-
-**Stand Session 007 (N+1/Pagination/Draft-Invariante):** Version alpha.72 — N+1 in `version_validator` (Publish) und `version_manager`
-(Draft-Copy) gebündelt; Report paginiert (`count_for_activity` +
-`list_for_activity($id,$group,$page,$perpage)`, `paging_bar`, Export bleibt
-ungeteilt); V1-Detector DB-seitig limitiert (`pending_activity_ids($limit)` +
-`count_pending_activities()`, Single-JOIN statt N+1); Draft-Invariante
-reconciliert (akkurater Klassenkommentar, `get_or_create_draft` toleriert einen
-Zweit-Draft). README nach Nutzer-Vorlage aktualisiert. +3 gezielte Tests
-(Query-Budget, Pagination, Detector-Limit). Details in
-docs/sessions/session-007.md. (Session 006 und älter unten weiter beschrieben.)
-
-**Stand Session 007 (real gegen Moodle 4.5.13):** PHPUnit 358/1123 grün, phpcs
-0/0, tsc sauber, Jest 7/7; kein JS berührt → esbuild/grunt unverändert. Die
-Review-Punkte 1–8 und 18 sind damit erledigt. Offen für Beta: E2 (Subtitle
-Studio), E3/E4 (Härtung/Behat), E5/E6 (Playwright+axe / jMeter+k6), E7
-(echtes V1→V2-Upgrade als CI-Test), sowie das Produktiv-Gate Backup/Restore.
+**Stand Session 007 (real gegen Moodle 4.5.13, CI von Ralf grün bestätigt):**
+PHPUnit **364/1150** grün, phpcs 0/0, phpdoc (moodle-local_moodlecheck) 0/0, tsc
+sauber, Jest 29/29, esbuild reproduzierbar, Grunt eslint:amd + gherkinlint grün,
+Behat nicht-JS 9/72 grün + dry-run ohne undefined. PFLICHTEN vor Auslieferung:
+(a) moodlecheck lokal laufen lassen (phpcs prüft @param-Vollständigkeit nicht);
+(b) FEATURE_BACKUP_MOODLE2 muss true sein, sonst überspringt Backup die Aktivität;
+(c) EIN Claude-Chat = EINE Session (Inkremente sind Gliederung, keine neuen
+Sessions — Zählfehler wiederholt vermeiden). E5/E6-Artefakte erstellt (tests/playwright: Playwright+axe; tests/load: k6+JMeter
+Lasttest der Read-WS get_version_content; Seeder + makefile-Targets; strukturell
+validiert, Ausführung gegen laufende Instanz/CI steht aus). E7 erledigt (tests/upgrade_test.php: echtes xmldb_elang_upgrade von V1-Baseline
+durch alle Savepoints + Migrations-Integrität, 32 Assertions). Offen für Beta:
+E5/E6 real laufen lassen (gegen Instanz/CI); @javascript-/Behat-CI bestätigen;
+E3/E4-Feinschliff erledigt (freundliche version-not-found-Meldung + tiefe
+@javascript-Studio-Szenarien); optional courseformat/overview (5.x). Die harten Beta-Gates
+(Backup/Restore, Upgrade-Pfad) sind damit abgedeckt.
 
 **Stand Session 006 (Codehärtung nach Review):** Version alpha.71 —
 (Reihenfolge Review-P0/P1 → E0 → E1 → Logo → Cleanup). WICHTIG: Das Review war

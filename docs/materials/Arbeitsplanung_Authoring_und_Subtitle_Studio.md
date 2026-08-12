@@ -268,7 +268,20 @@ Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
   Reference-Remapping inkl. currentversionid in after_execute). PHPUnit-Roundtrip-
   Test (mit/ohne userinfo). Damit ist der harte Produktiv-Blocker erfüllt.
 
-### E7 — Migrationspfad prüfen (**automatische Testabdeckung!**) **vor Beta**
+### E5 (Playwright + axe) + E6 (jMeter + k6) — **[ARTEFAKTE ERLEDIGT alpha.75, Session 007]**
+- `tests/playwright/` (Playwright + @axe-core: a11y-Scan view/report/studio + Editor-Smoke,
+  Fixture-Seeder) und `tests/load/` (k6 + JMeter Lasttest der Read-WS
+  `get_version_content`, Seeder + REST-Token). makefile-Targets vorhanden.
+  Strukturell validiert (k6 inspect, xmllint, playwright --list, phpcs/phpdoc).
+  Ausführung gegen eine laufende Dev/Staging-Instanz bzw. in der CI steht aus.
+
+### E7 — Migrationspfad prüfen (**automatische Testabdeckung!**) **vor Beta** — **[ERLEDIGT alpha.75, Session 007]**
+- `tests/upgrade_test.php`: rekonstruiert V1-Schema, fährt das echte
+  `xmldb_elang_upgrade()` von 2018091012 durch alle Savepoints (fängt
+  Schema-Kollisionen, die Frischinstalls nie sehen) und assertiert danach die
+  Migrations-Integrität (publizierte Version, stabile cuekey/gapkey, linkurl).
+  365/1182 PHPUnit grün, ohne die übrigen Tests zu beschädigen.
+
 - Der V1→V2-Migrationspfad muss auf einem **echten Upgrade** verifiziert werden,
   nicht nur auf PHPUnit-Frischinstalls (Schema-Kollisionen in `upgrade.php`
   tauchen nur auf realen Admin-UI-Upgrades auf).

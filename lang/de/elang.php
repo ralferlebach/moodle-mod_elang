@@ -132,6 +132,7 @@ $string['error:responsetoolong'] = 'Ihre Antwort ist zu lang. Das Maximum für d
 $string['error:staleattemptstate'] = 'Ihre Ansicht dieses Versuchs ist veraltet. Bitte laden Sie den aktuellen Stand neu und versuchen Sie es erneut.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' gehört nicht zu den unterstützten Medienanbietern.';
 $string['error:versionnotadraft'] = 'Nur eine Entwurfsversion kann bearbeitet werden.';
+$string['error:versionnotfound'] = 'Diese Übungsversion existiert nicht mehr.';
 $string['error:versionnotpublishable'] = 'Diese Version kann nicht veröffentlicht werden: {$a}';
 $string['export:docx'] = 'Als Word (DOCX) herunterladen';
 $string['export:nocontent'] = 'Es ist noch kein veröffentlichtes Transkript zum Export vorhanden.';

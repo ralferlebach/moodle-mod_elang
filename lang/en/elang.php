@@ -132,6 +132,7 @@ $string['error:responsetoolong'] = 'Your response is too long. The maximum for t
 $string['error:staleattemptstate'] = 'Your view of this attempt is out of date. Please reload the current state and try again.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' is not one of the supported media providers.';
 $string['error:versionnotadraft'] = 'Only a draft version can be edited.';
+$string['error:versionnotfound'] = 'That exercise version no longer exists.';
 $string['error:versionnotpublishable'] = 'This version cannot be published: {$a}';
 $string['export:docx'] = 'Download as Word (DOCX)';
 $string['export:nocontent'] = 'There is no published transcript to export yet.';

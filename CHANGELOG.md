@@ -11,6 +11,29 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.76] - 2026-08-12
+
+### Changed
+- Authoring web services now report an unknown exercise version with a clear
+  message ("That exercise version no longer exists.") instead of a raw database
+  record-not-found exception. This only affects direct web-service calls with a
+  stale or invalid version id; the editor always passes a valid one.
+
+### Tests
+- Deeper @javascript Behat coverage of the Subtitle Studio editor: adding a cue
+  creates a cue row and autosaves it, and the learner preview hides a gap's
+  solution.
+- Load and browser/accessibility test artefacts: k6 and JMeter read-endpoint load
+  tests for `mod_elang_get_version_content` (with seeders that build a large
+  exercise and mint a REST token) under `tests/load`, and a Playwright + axe-core
+  suite scanning the view, report and Subtitle Studio pages for WCAG 2.1 A/AA
+  violations plus an editor smoke, with a fixture seeder, under `tests/playwright`.
+- A real V1-to-2.0 upgrade test (`tests/upgrade_test.php`) that reconstructs the
+  V1 database state, runs the actual `xmldb_elang_upgrade()` DDL through every
+  savepoint — catching schema clashes a fresh install never exercises — and then
+  asserts the one-way content migration still runs with stable cue/gap keys on
+  the upgraded schema.
+
 ## [2.0.0-alpha.75] - 2026-08-12
 
 ### Added — course backup and restore (production gate)

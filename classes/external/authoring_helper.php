@@ -55,7 +55,13 @@ trait authoring_helper {
     private static function require_manage_version(int $versionid): array {
         global $DB;
 
-        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', IGNORE_MISSING);
+        if ($version === false) {
+            // A friendly message rather than a raw dml_missing_record_exception
+            // when a caller (a direct web-service call, not the editor) passes a
+            // version id that does not exist.
+            throw new \moodle_exception('error:versionnotfound', 'mod_elang');
+        }
         $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);
         self::validate_context($context);

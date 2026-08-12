@@ -289,4 +289,21 @@ final class save_draft_version_security_test extends \advanced_testcase {
         $this->expectExceptionMessageMatches('/must not be negative/');
         save_draft_version::execute((int) $this->draft->id, -1, $payload);
     }
+
+    /**
+     * A version id that does not exist is reported with a friendly message
+     * rather than a raw database "record not found" exception.
+     *
+     * @return void
+     */
+    public function test_an_unknown_version_is_rejected_cleanly(): void {
+        $this->setUser($this->teacher);
+
+        $payload = $this->mutated_payload(function (array &$payload): void {
+        });
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/no longer exists/');
+        save_draft_version::execute(999999, -1, $payload);
+    }
 }

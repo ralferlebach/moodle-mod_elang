@@ -71,6 +71,22 @@ export interface ImportedGap {
     hintsallowed: boolean;
 }
 
+/** A rule for generating gaps from a transcript (2.1 rule-based gaps). */
+export interface GapRule {
+    type: 'words' | 'everynth';
+    words?: string[];
+    n?: number;
+    offset?: number;
+    casesensitive?: boolean;
+}
+
+/** A gap span returned by the rule generator. */
+export interface RuleGapSpan {
+    charstart: number;
+    charlength: number;
+    solution: string;
+}
+
 export interface ImportedCue {
     sortorder: number;
     starttime: number;

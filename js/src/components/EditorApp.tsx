@@ -328,6 +328,7 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                         onChange={(updated) => replaceCue(index, updated)}
                         onDelete={() => setCues((current) => current.filter((_, i) => i !== index))}
                         onStatus={setStatus}
+                        onGenerateGaps={(transcript, rule) => api.generateRuleGaps(transcript, rule)}
                     />
                 ))}
             </div>

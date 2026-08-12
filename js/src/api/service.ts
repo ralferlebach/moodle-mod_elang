@@ -27,7 +27,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {Cue, ImportResult, Media, ServiceTransport, VersionContent} from '../types';
+import {Cue, GapRule, ImportResult, Media, RuleGapSpan, ServiceTransport, VersionContent} from '../types';
 
 /**
  * Reduce a cue list to exactly the fields save_draft_version declares,
@@ -131,6 +131,28 @@ export class ApiClient {
             subtitles,
             parsegaps,
         }) as Promise<ImportResult>;
+    }
+
+    /**
+     * Generate gaps from a rule for a transcript, without saving.
+     *
+     * @param transcript The transcript to generate gaps from.
+     * @param rule The gap-generation rule.
+     * @returns The generated gap spans.
+     */
+    async generateRuleGaps(transcript: string, rule: GapRule): Promise<RuleGapSpan[]> {
+        const result = await this.transport('mod_elang_generate_rule_gaps', {
+            versionid: this.versionid,
+            transcript,
+            rule: {
+                type: rule.type,
+                words: rule.words ?? [],
+                n: rule.n ?? 1,
+                offset: rule.offset ?? 0,
+                casesensitive: rule.casesensitive ?? false,
+            },
+        }) as {gaps: RuleGapSpan[]};
+        return result.gaps;
     }
 
     /**

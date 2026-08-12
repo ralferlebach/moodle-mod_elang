@@ -78,6 +78,9 @@ describe('ApiClient', () => {
             if (method === 'mod_elang_save_draft_version') {
                 return {versionid: 7, revision: 3};
             }
+            if (method === 'mod_elang_generate_rule_gaps') {
+                return {gaps: [{charstart: 3, charlength: 4, solution: 'chat'}]};
+            }
             return {};
         };
         return {transport, calls};
@@ -103,5 +106,24 @@ describe('ApiClient', () => {
 
         expect(calls[0].method).toBe('mod_elang_preview_import');
         expect(calls[0].args).toEqual({versionid: 7, subtitles: 'WEBVTT', parsegaps: true});
+    });
+
+    test('generateRuleGaps forwards the rule and returns the gaps', async() => {
+        const {transport, calls} = recordingTransport();
+        const api = new ApiClient(transport, 7);
+
+        const gaps = await api.generateRuleGaps('Le chat dort', {type: 'words', words: ['chat']});
+
+        expect(gaps).toEqual([{charstart: 3, charlength: 4, solution: 'chat'}]);
+        expect(calls[0].method).toBe('mod_elang_generate_rule_gaps');
+        expect(calls[0].args.versionid).toBe(7);
+        expect(calls[0].args.transcript).toBe('Le chat dort');
+        expect(calls[0].args.rule).toEqual({
+            type: 'words',
+            words: ['chat'],
+            n: 1,
+            offset: 0,
+            casesensitive: false,
+        });
     });
 });

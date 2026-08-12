@@ -8,14 +8,14 @@ bleiben als chronologische Gliederung erhalten (eigenständige, abgeschlossene
 Inkremente mit je eigener Versionsnummer/Patch), nur die „Session"-Zählung war
 falsch.
 
-**Version am Ende:** 2.0.0-alpha.78 (2026081108)
+**Version am Ende:** 2.0.0-alpha.79 (2026081109)
 **Vorher (Ende Session 006):** 2.0.0-alpha.71 (2026081101)
 **CI-Status:** grün (von Ralf bestätigt, Moodle 4.5 + 5.2, MariaDB + PostgreSQL).
 
 Ausgelieferte Patches in dieser Session (inkrementell, kumulativ):
 patch-2.0.72 → patch-2.0.73 → patch-2.0.73-phpdoc → patch-2.0.74 →
 patch-2.0.74-behat → patch-2.0.75 → patch-2.0.75-e5e6 → patch-2.0.75-e7 →
-patch-2.0.76 → patch-2.0.77 → patch-2.0.78 (finaler Stand).
+patch-2.0.76 → patch-2.0.77 → patch-2.0.78 → patch-2.0.79 (finaler Stand).
 
 ---
 
@@ -212,9 +212,26 @@ Read-WS für den Editor nutzbar.
   247/247).
 - 4 External-Tests (Wortliste, jedes-n-te, unbekannter Typ, Cap-Prüfung).
 
-## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.78)
+## Inkrement 11 — 2.1: Editor-UI für regelbasierte Lücken (alpha.79)
 
-PHPUnit **378/1212** grün (1 skipped: Overview nur 5.x), phpcs `--standard=moodle` **0/0**, phpdoc
+Die Editor-Seite der regelbasierten Lücken (ruft die WS aus Inkrement 10):
+
+- **`js/src/components/RuleGapControl.tsx`** (neu): Pro-Cue-Steuerung —
+  Regeltyp (Wortliste / jedes n-te Wort) + Eingabe, „Lücken erzeugen" ruft
+  `generateRuleGaps`, meldet die Trefferzahl und übernimmt erst nach Bestätigung
+  („N Lücken übernehmen") — eine Regel verwirft also nie stillschweigend
+  handgesetzte Lücken. `spansToGaps()` bildet die Spans auf vollständige
+  Gap-Records ab (eigener gapkey, gradingalgorithm „exact").
+- **`api/service.ts`**: `generateRuleGaps(transcript, rule)` → WS
+  `mod_elang_generate_rule_gaps`. In `CueRow`/`EditorApp` verdrahtet.
+- 10 neue `editor:rule*`-Strings (EN+DE, 257/257), in `amd/src/editor.js`
+  STRING_KEYS registriert. Bundle reproduzierbar neu gebaut, AMD-Build via Grunt
+  neu erzeugt.
+- Jest: `spansToGaps` (2) + `generateRuleGaps`-Transport (1) → 32 Tests grün.
+
+## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.79)
+
+PHPUnit **378/1212** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc
 (moodle-local_moodlecheck) **0/0**, tsc sauber, Jest **29/29**, esbuild
 reproduzierbar, Grunt eslint:amd + gherkinlint grün, Behat nicht-JS **9/72**
 grün + dry-run aller @mod_elang-Features ohne undefined Steps. Anschließend von

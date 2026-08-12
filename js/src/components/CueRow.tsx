@@ -24,12 +24,13 @@
  */
 
 import {useRef, useState} from 'react';
-import {Cue, Gap, Translator} from '../types';
+import {Cue, Gap, GapRule, RuleGapSpan, Translator} from '../types';
 import {newKey} from '../keys';
 import {resyncGaps} from '../studio/resync';
 import {maskTranscript} from '../studio/mask';
 import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
+import {RuleGapControl} from './RuleGapControl';
 
 interface Props {
     cue: Cue;
@@ -40,6 +41,7 @@ interface Props {
     onChange: (cue: Cue) => void;
     onDelete: () => void;
     onStatus: (text: string) => void;
+    onGenerateGaps: (transcript: string, rule: GapRule) => Promise<RuleGapSpan[]>;
 }
 
 /**
@@ -48,7 +50,7 @@ interface Props {
  * @param props The component props.
  * @returns The cue row element.
  */
-export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus}: Props): JSX.Element {
+export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus, onGenerateGaps}: Props): JSX.Element {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showpreview, setShowpreview] = useState(false);
 
@@ -184,6 +186,15 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                 <button type="button" className="btn btn-link p-0 d-block" onClick={addGapFromSelection}>
                     {t('editor:addgap')}
                 </button>
+
+                <RuleGapControl
+                    cue={cue}
+                    t={t}
+                    onGenerate={onGenerateGaps}
+                    onApply={(gaps) => onChange({...cue, gaps})}
+                    onStatus={onStatus}
+                />
+
                 <button type="button" className="btn btn-link text-danger p-0" onClick={onDelete}>
                     {t('editor:deletecue')}
                 </button>

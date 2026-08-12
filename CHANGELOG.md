@@ -11,6 +11,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.79] - 2026-08-12
+
+### Added
+- Editor UI for rule-based gaps: a per-cue control in the Subtitle Studio to
+  generate gaps from a rule (a vocabulary word list, or every nth word). It
+  reports how many gaps the rule would create and only replaces the cue's gaps
+  once the author confirms, so a rule never silently discards hand-placed gaps.
+
 ## [2.0.0-alpha.78] - 2026-08-12
 
 ### Added

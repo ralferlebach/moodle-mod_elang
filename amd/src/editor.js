@@ -54,7 +54,10 @@ const STRING_KEYS = [
     'editor:onboardinggaps', 'editor:onboardingimport', 'editor:onboardingintro', 'editor:onboardingmedia',
     'editor:onboardingtitle', 'editor:parsegaps',
     'editor:penalty', 'editor:poster', 'editor:preview', 'editor:publish', 'editor:published', 'editor:removehint',
-    'editor:removevariant', 'editor:save', 'editor:saved', 'editor:saveerror',
+    'editor:removevariant', 'editor:ruleapplied', 'editor:ruleapply', 'editor:ruleerror',
+    'editor:ruleeverynth', 'editor:rulefound', 'editor:rulegenerate', 'editor:ruleinterval',
+    'editor:ruletype', 'editor:rulewordlist', 'editor:rulewords',
+    'editor:save', 'editor:saved', 'editor:saveerror',
     'editor:savemedia', 'editor:saving', 'editor:selecttext', 'editor:solution', 'editor:starttime',
     'editor:transcript', 'editor:unsaved', 'editor:uploadmedia', 'editor:waveform',
 ];

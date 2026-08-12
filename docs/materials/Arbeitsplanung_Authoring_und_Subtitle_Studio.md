@@ -215,12 +215,16 @@ Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
 - **Report-Gruppenfilter**: Sichtprüfung vorhanden (SEPARATEGROUPS +
   `moodle/site:accessallgroups` in `report.php`).
 
-### E2 — AP-D „Subtitle Studio & Authoring-UX" **vor Beta**
-- Das große, eigenständige Paket (siehe Abschnitt C). Fundament (React/TS,
-  gebündelt) steht; die workflow-orientierte Autoren-Erfahrung (Waveform via Web
-  Audio API, Drag/Snap-Timing, Live-Re-Sync der Lücken-Offsets, Autosave,
-  geführtes Onboarding) ist noch zu bauen. Start mit einem Scoping-/Design-
-  Schritt (Klick-Flows), dann inkrementell.
+### E2 — AP-D „Subtitle Studio & Authoring-UX" — **[ERLEDIGT alpha.73, Session 008]**
+- Das große, eigenständige Paket (siehe Abschnitt C) ist umgesetzt: Live-Re-Sync
+  der Lücken-Offsets (codepoint-genau, `js/src/studio/resync.ts` + `text.ts`),
+  inline maskierte Lernenden-Vorschau (`mask.ts`), Timeline-Waveform via Web
+  Audio API (`waveform.ts` + `Waveform.tsx`, degradiert lautlos), ziehbare +
+  tastaturbedienbare ARIA-Slider-Cue-Ränder mit Snapping (`snapping.ts` +
+  `Timeline.tsx`), debouncte Autosave mit Statusanzeige (`autosave.ts`) und
+  geführtes Onboarding (`Onboarding.tsx`). 22 neue Jest-Tests; Bundle
+  reproduzierbar neu gebaut. Nur UX/Frontend — keine WS-/Grading-Logik berührt.
+- Offene Politur (nach Beta): Provider-Dropdown-UX, Waveform-Zoom, Undo/Redo.
 
 ### E3 — Codehärtung **vor Beta**
 - Fehlerpfade, Randfälle und Eingabevalidierung systematisch durchgehen

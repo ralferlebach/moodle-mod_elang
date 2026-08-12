@@ -28,9 +28,11 @@ import {useEffect, useRef, useState} from 'react';
 import {ApiClient} from '../api/service';
 import {Cue, FORMAT_PLAIN, Media, ProviderOption, Translator} from '../types';
 import {newKey} from '../keys';
+import {AutosaveController, AutosaveState, createAutosave} from '../studio/autosave';
 import {CueRow} from './CueRow';
 import {ImportPanel} from './ImportPanel';
 import {MediaPanel} from './MediaPanel';
+import {Onboarding} from './Onboarding';
 import {Timeline} from './Timeline';
 
 interface Props {
@@ -68,9 +70,14 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
     const [focusedcuekey, setFocusedcuekey] = useState('');
     const [currentms, setCurrentms] = useState(0);
     const [durationms, setDurationms] = useState(0);
+    const [savestate, setSavestate] = useState<AutosaveState>('idle');
 
     const revisionRef = useRef(0);
     const mediaRef = useRef<HTMLVideoElement>(null);
+    const cuesRef = useRef<Cue[]>([]);
+    cuesRef.current = cues;
+    const autosaveRef = useRef<AutosaveController | null>(null);
+    const justLoadedRef = useRef(false);
 
     useEffect(() => {
         let active = true;
@@ -79,6 +86,7 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                 return;
             }
             revisionRef.current = content.revision;
+            justLoadedRef.current = true;
             setCues(content.cues);
             setMedia(content);
             setProviders(content.mediaproviders || []);
@@ -97,6 +105,36 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Persist the latest cue list; reads cuesRef so the autosave controller
+    // always saves current content rather than the cues captured when it was
+    // created.
+    const save = async(): Promise<void> => {
+        revisionRef.current = await api.saveDraft(revisionRef.current, cuesRef.current);
+    };
+
+    // One debounced autosave controller for the mount's lifetime.
+    useEffect(() => {
+        const controller = createAutosave({
+            save,
+            onState: setSavestate,
+        });
+        autosaveRef.current = controller;
+        return () => controller.cancel();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Schedule an autosave on every content change, skipping the initial load.
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+        if (justLoadedRef.current) {
+            justLoadedRef.current = false;
+            return;
+        }
+        autosaveRef.current?.markDirty();
+    }, [cues, loaded]);
+
     const replaceCue = (index: number, cue: Cue): void => {
         setCues((current) => {
             const next = current.slice();
@@ -110,13 +148,15 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
         return video ? Math.round(video.currentTime * 1000) : null;
     };
 
-    const save = async(): Promise<void> => {
-        revisionRef.current = await api.saveDraft(revisionRef.current, cues);
+    const editCueTiming = (cuekey: string, starttime: number, endtime: number): void => {
+        setCues((current) => current.map(
+            (cue) => cue.cuekey === cuekey ? {...cue, starttime, endtime} : cue
+        ));
     };
 
     const handleSave = async(): Promise<void> => {
         try {
-            await save();
+            await (autosaveRef.current ? autosaveRef.current.flush() : save());
             setStatus(t('editor:saved'));
         } catch (error) {
             setStatus(errorMessage(error, t('editor:saveerror')));
@@ -125,7 +165,7 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
 
     const handlePublish = async(): Promise<void> => {
         try {
-            await save();
+            await (autosaveRef.current ? autosaveRef.current.flush() : save());
             await api.publish();
             setStatus(t('editor:published'));
             window.setTimeout(() => window.location.reload(), 1200);
@@ -208,6 +248,15 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
     const mediasrc = media ? (media.mediafileurl || media.mediaurl || '') : '';
     const showpreview = media !== null && (media.mediakind === 'file' || media.mediakind === 'url') && mediasrc !== '';
 
+    const savestatekeys: Record<AutosaveState, string> = {
+        idle: '',
+        dirty: 'editor:unsaved',
+        saving: 'editor:saving',
+        saved: 'editor:autosaved',
+        error: 'editor:autosaveerror',
+    };
+    const savestatekey = savestatekeys[savestate];
+
     return (
         <div>
             <p className="mod_elang-status" data-region="status" role="status" aria-live="polite">{status}</p>
@@ -222,6 +271,14 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                 <button type="button" className="btn btn-secondary" data-action="addcue" onClick={handleAddCue}>
                     {t('editor:addcue')}
                 </button>
+                <span
+                    className={'mod_elang-editor-savestate ' + savestate}
+                    data-region="savestate"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {savestatekey !== '' ? t(savestatekey) : ''}
+                </span>
             </div>
 
             <div className="mod_elang-editor-timeline-wrap mb-3" data-region="timelinewrap">
@@ -237,8 +294,20 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                         onLoadedMetadata={() => setDurationms(Math.round((mediaRef.current?.duration || 0) * 1000))}
                     />
                 )}
-                <Timeline cues={cues} durationms={durationms} currentms={currentms} onSeek={seekToCue} />
+                <Timeline
+                    cues={cues}
+                    durationms={durationms}
+                    currentms={currentms}
+                    mediasrc={showpreview ? mediasrc : ''}
+                    t={t}
+                    onSeek={seekToCue}
+                    onEdit={editCueTiming}
+                />
             </div>
+
+            {loaded && cues.length === 0 && (
+                <Onboarding t={t} hasmedia={media !== null && media.mediakind !== '' && media.mediakind !== 'none'} />
+            )}
 
             {loaded && (
                 <ImportPanel t={t} onImport={handleImport} />
@@ -249,7 +318,6 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
             )}
 
             <div className="mod_elang-editor-cues" data-region="cues">
-                {loaded && cues.length === 0 && <p className="text-muted">{t('editor:nocues')}</p>}
                 {cues.map((cue, index) => (
                     <CueRow
                         key={cue.cuekey}

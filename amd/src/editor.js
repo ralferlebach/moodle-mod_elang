@@ -41,6 +41,7 @@ import Log from 'core/log';
 const STRING_KEYS = [
     'editor:addcue', 'editor:addgap', 'editor:addhint', 'editor:addvariant',
     'editor:algoexact', 'editor:algorithm', 'editor:algowordrecognized', 'editor:answers',
+    'editor:autosaved', 'editor:autosaveerror',
     'editor:captureend', 'editor:capturestart', 'editor:currentmedia', 'editor:deletecue',
     'editor:deletegap', 'editor:endtime', 'editor:gaprange', 'editor:hints', 'editor:hinttext',
     'editor:hinttype', 'editor:hinttype_firstletter', 'editor:hinttype_partial', 'editor:hinttype_solution',
@@ -49,11 +50,13 @@ const STRING_KEYS = [
     'editor:loaderror', 'editor:loading', 'editor:media', 'editor:mediafile', 'editor:mediakind',
     'editor:medianone', 'editor:mediaprovider', 'editor:mediaproviderref', 'editor:mediaproviderrefhint',
     'editor:mediasaved',
-    'editor:mediaurl', 'editor:nocues', 'editor:nogaps', 'editor:nomedia', 'editor:parsegaps',
-    'editor:penalty', 'editor:publish', 'editor:published', 'editor:removehint',
+    'editor:mediaurl', 'editor:nocues', 'editor:nogaps', 'editor:nomedia',
+    'editor:onboardinggaps', 'editor:onboardingimport', 'editor:onboardingintro', 'editor:onboardingmedia',
+    'editor:onboardingtitle', 'editor:parsegaps',
+    'editor:penalty', 'editor:poster', 'editor:preview', 'editor:publish', 'editor:published', 'editor:removehint',
     'editor:removevariant', 'editor:save', 'editor:saved', 'editor:saveerror',
-    'editor:savemedia', 'editor:selecttext', 'editor:solution', 'editor:starttime',
-    'editor:transcript', 'editor:uploadmedia',
+    'editor:savemedia', 'editor:saving', 'editor:selecttext', 'editor:solution', 'editor:starttime',
+    'editor:transcript', 'editor:unsaved', 'editor:uploadmedia', 'editor:waveform',
 ];
 
 /**

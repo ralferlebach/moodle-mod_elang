@@ -51,9 +51,26 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.72 (2026081102) — Phasen 2–4 abgeschlossen. Session 007
-hat die Skalierungs-/Datenintegritätsbefunde des Reviews (Punkte 4–8, 18)
-abgearbeitet: N+1 in `version_validator` (Publish) und `version_manager`
+**Version:** 2.0.0-alpha.73 (2026081103) — Phasen 2–4 abgeschlossen; das große
+Autoren-UX-Paket **E2 „Subtitle Studio" (AP-D) ist umgesetzt**. Session 008 hat
+den React/TS-Editor zu einem workflow-orientierten Studio ausgebaut:
+Live-Re-Sync der Lücken-Offsets beim Transkript-Edit (codepoint-genau, behebt
+die UTF-16/Astral-Fehlstellung), inline maskierte Lernenden-Vorschau,
+Timeline-Waveform (Web Audio → SVG, degradiert lautlos) mit ziehbaren,
+tastaturbedienbaren ARIA-Slider-Cue-Rändern samt Snapping, debouncte Autosave
+mit Statusanzeige, und ein geführter Leerzustand. Reine Logik in
+`js/src/studio/` mit 22 neuen Jest-Tests; React-Bundle reproduzierbar neu
+gebaut, `amd/build/editor.min.js` via Grunt neu erzeugt. 11 neue `editor:*`-
+Strings (EN+DE, Parität 240/240). Keine WS-/Grading-Logik geändert. Details in
+docs/sessions/session-008.md. (Sessions 007/006 und älter unten.)
+
+**Stand Session 008 (real gegen Moodle 4.5.13):** tsc sauber, Jest **29/29**,
+esbuild reproduzierbar, Grunt eslint:amd grün, PHPUnit **358/1123** grün, phpcs
+0/0. Offen für Beta: E3/E4 (Codehärtung/Behat-E2E inkl. Studio-Flows), E5/E6
+(Playwright+axe / jMeter+k6), E7 (echtes V1→V2-Upgrade als CI-Test), sowie das
+Produktiv-Gate Backup/Restore.
+
+**Stand Session 007 (N+1/Pagination/Draft-Invariante):** Version alpha.72 — N+1 in `version_validator` (Publish) und `version_manager`
 (Draft-Copy) gebündelt; Report paginiert (`count_for_activity` +
 `list_for_activity($id,$group,$page,$perpage)`, `paging_bar`, Export bleibt
 ungeteilt); V1-Detector DB-seitig limitiert (`pending_activity_ids($limit)` +

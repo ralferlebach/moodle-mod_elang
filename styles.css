@@ -123,6 +123,76 @@
     pointer-events: none;
 }
 
+.mod_elang-editor-waveform {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: pointer;
+}
+
+.mod_elang-editor-waveform-band {
+    fill: #b8cbe0;
+    stroke: none;
+}
+
+.mod_elang-editor-waveform-playhead {
+    stroke: #000;
+    stroke-width: 2;
+}
+
+.mod_elang-editor-timeline-handle {
+    position: absolute;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+.mod_elang-editor-timeline-handle.start {
+    left: 0;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.mod_elang-editor-timeline-handle.end {
+    right: 0;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.mod_elang-editor-timeline-handle:focus {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+}
+
+.mod_elang-editor-timeline-label {
+    display: block;
+    height: 100%;
+    padding: 0 8px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.mod_elang-editor-savestate {
+    margin-left: 0.75rem;
+    font-size: 12px;
+    color: #666;
+}
+
+.mod_elang-editor-savestate.error {
+    color: #d9534f;
+}
+
+.mod_elang-editor-preview-text {
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
 .mod_elang-editor-cue.focused {
     box-shadow: 0 0 0 2px #d9534f;
 }

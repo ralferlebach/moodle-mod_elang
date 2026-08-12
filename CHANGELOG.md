@@ -11,6 +11,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.73] - 2026-08-11
+
+### Added — Subtitle Studio (authoring UX, AP-D / E2)
+- The transcript editor now keeps every gap aligned with its word while the text
+  is edited: a gap before an edit is untouched, a gap after it shifts, a gap the
+  edit grows or shrinks is remapped, and a gap whose text is deleted outright is
+  dropped. Offsets are handled in Unicode codepoints (matching the server's
+  mb_substr grading view), so a transcript containing an emoji or other astral
+  character no longer misaligns the gaps after it. Gaps created from a textarea
+  selection are converted from UTF-16 to codepoint offsets for the same reason.
+- An inline masked "learner preview" per cue shows exactly what a learner sees —
+  the transcript with every gap blanked out — without a round trip to the server,
+  mirroring the server-side masker.
+- The timeline gained an audio waveform (decoded once via the Web Audio API and
+  drawn as an SVG band; it degrades silently for provider embeds, cross-origin
+  URLs or browsers without AudioContext) and draggable cue-edge handles that snap
+  to neighbouring edges and the playhead. The handles are ARIA sliders and are
+  fully keyboard-operable (arrow keys nudge, Shift for coarse steps).
+- Content now autosaves: edits are debounced and coalesced into one save, with a
+  live "unsaved / saving… / all changes saved / error" indicator; manual Save and
+  Publish flush the same controller so the two never disagree.
+- A guided empty state walks a first-time author through choosing a medium,
+  importing subtitles or adding cues, and marking gaps, instead of a bare "no
+  cues yet" line.
+
+### Notes
+- Pure studio logic (gap re-sync, masking, snapping, waveform peak extraction,
+  the autosave state machine) lives in framework-free modules under js/src/studio
+  with 22 new Jest tests; the React bundle is rebuilt reproducibly and the AMD
+  loader regenerated. No web-service or grading logic changed.
+
 ## [2.0.0-alpha.72] - 2026-08-11
 
 ### Performance (scaling on the normal author/report paths)

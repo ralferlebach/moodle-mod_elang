@@ -23,9 +23,12 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useRef} from 'react';
+import {useRef, useState} from 'react';
 import {Cue, Gap, Translator} from '../types';
 import {newKey} from '../keys';
+import {resyncGaps} from '../studio/resync';
+import {maskTranscript} from '../studio/mask';
+import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
 
 interface Props {
@@ -47,11 +50,19 @@ interface Props {
  */
 export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus}: Props): JSX.Element {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [showpreview, setShowpreview] = useState(false);
 
     const replaceGap = (index: number, gap: Gap): void => {
         const gaps = cue.gaps.slice();
         gaps[index] = gap;
         onChange({...cue, gaps});
+    };
+
+    // Editing the transcript must keep every gap pointing at the same word: the
+    // offsets are remapped from the old text to the new one, and any gap whose
+    // text was deleted outright is dropped.
+    const handleTranscriptChange = (value: string): void => {
+        onChange({...cue, transcript: value, gaps: resyncGaps(cue.gaps, cue.transcript, value)});
     };
 
     const addGapFromSelection = (): void => {
@@ -65,11 +76,15 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
             onStatus(t('editor:selecttext'));
             return;
         }
+        // Convert the textarea's UTF-16 selection offsets to the codepoint
+        // offsets the server stores and grades against.
+        const charstart = utf16ToCodepoint(textarea.value, start);
+        const charend = utf16ToCodepoint(textarea.value, end);
         onChange({...cue, gaps: [...cue.gaps, {
             gapkey: newKey('g'),
             sortorder: cue.gaps.length + 1,
-            charstart: start,
-            charlength: end - start,
+            charstart,
+            charlength: charend - charstart,
             solution: textarea.value.substring(start, end),
             gradingalgorithm: 'exact',
             maxlength: 0,
@@ -127,9 +142,30 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                         className="form-control"
                         rows={2}
                         value={cue.transcript}
-                        onChange={(event) => onChange({...cue, transcript: event.target.value})}
+                        onChange={(event) => handleTranscriptChange(event.target.value)}
                     />
                 </label>
+
+                {cue.gaps.length > 0 && (
+                    <div className="mod_elang-editor-preview mt-1">
+                        <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0"
+                            aria-expanded={showpreview}
+                            onClick={() => setShowpreview((value) => !value)}
+                        >
+                            {t('editor:preview')}
+                        </button>
+                        {showpreview && (
+                            <p
+                                className="mod_elang-editor-preview-text text-muted small mb-0"
+                                data-region="maskedpreview"
+                            >
+                                {maskTranscript(cue.transcript, cue.gaps)}
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 <div className="mod_elang-editor-gaps mt-2">
                     {cue.gaps.length === 0

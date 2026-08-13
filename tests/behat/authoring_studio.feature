@@ -54,7 +54,7 @@ Feature: The Subtitle Studio authoring editor
     # The seeded cue starts at 0 ms; one right-arrow press nudges the start edge
     # by 100 ms (the browser delivers this as KeyboardEvent.key 'ArrowRight').
     When I click on ".mod_elang-editor-timeline-handle.start" "css_element"
-    And I press the "right" key
+    And I press the right key
     Then the "aria-valuenow" attribute of ".mod_elang-editor-timeline-handle.start" "css_element" should contain "100"
 
   Scenario: Gaps can be generated from a word-list rule

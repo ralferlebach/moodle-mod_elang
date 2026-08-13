@@ -12,9 +12,12 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [Unreleased]
 
 ### Fixed
-- Behat: the keyboard-nudge scenario used `"ArrowRight"` for the key press, which
-  Moodle's named-key step does not accept; it now uses `"right"` (which the browser
-  still delivers to the slider as `KeyboardEvent.key` `ArrowRight`). Test only.
+- Behat: the keyboard-nudge scenario used a quoted key name (`"ArrowRight"`, then
+  `"right"`) for the key press. Moodle's named-key step takes the key unquoted and
+  keyed by its own name, so it is now `I press the right key`, which the browser
+  delivers to the slider as `KeyboardEvent.key` `ArrowRight`. Test only. (Behat
+  dry-run cannot catch this: the step regex matches any text, so only a real
+  @javascript run validates the key name.)
 - Rebuilt `amd/build/player.min.js` so it matches its source again. A comment in
   `amd/src/player.js` was updated during the documentation cleanup without
   regenerating the AMD bundle; Moodle's build keeps the leading docblock in the

@@ -11,6 +11,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Rebuilt `amd/build/player.min.js` so it matches its source again. A comment in
+  `amd/src/player.js` was updated during the documentation cleanup without
+  regenerating the AMD bundle; Moodle's build keeps the leading docblock in the
+  minified file, so the stale bundle failed the CI Grunt staleness check. No
+  runtime code changed — the minified code after the banner is byte-identical.
+
+
 ## [2.0.0-alpha.85] - 2026-08-12
 
 ### Changed
@@ -26,6 +34,10 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   phase numbering and a product/business note ("separate paid subplugin") are
   removed, and the React loader records the intended switch to core's React once
   the minimum supported version reaches 5.2.
+- README is self-contained: the provenance and licensing (the two licences, the
+  CeCILL-B attribution, and that version 2.0 carries over no version 1 source) is
+  now a section in the README itself instead of a link into `docs/`, and the
+  supported-version statement matches the declared range.
 
 ## [2.0.0-alpha.84] - 2026-08-12
 

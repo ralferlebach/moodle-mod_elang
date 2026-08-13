@@ -11,6 +11,16 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.86] - 2026-08-13
+
+### Added
+- Friendly handling of media whose video track the browser cannot decode (for
+  example MPEG-4 Part 2 / Xvid-era files, which VLC plays fine but browsers show
+  as a black picture with working audio). The authoring editor warns the author
+  with a re-encode hint (H.264/MP4) as soon as the preview loads, and the player
+  shows learners a notice that the audio still plays instead of leaving a silent
+  black frame. Audio files are recognised and never trigger the warning.
+
 ### Fixed
 - Behat: the keyboard-nudge scenario used a quoted key name (`"ArrowRight"`, then
   `"right"`) for the key press. Moodle's named-key step takes the key unquoted and

@@ -161,6 +161,49 @@ const buildUrlMedia = (media) => {
 };
 
 /**
+ * Warn when the browser cannot decode the video track of a medium.
+ *
+ * A codec the browser does not support (for example MPEG-4 Part 2 from the
+ * DivX/Xvid era) typically still plays its audio track while the picture stays
+ * black — VLC and other desktop players decode it fine, so the file looks
+ * healthy to the author. The reliable runtime signal is a VIDEO element whose
+ * metadata reports a zero-width video track. Shows one dismissible warning
+ * above the medium instead of leaving the learner with a silent black frame.
+ *
+ * @param {Element} element The media element that was mounted
+ * @param {Element} region The media region to place the warning in
+ */
+const watchVideoDecoding = (element, region) => {
+    if (!element || element.tagName !== 'VIDEO') {
+        return;
+    }
+    let warned = false;
+    const check = () => {
+        if (warned || element.videoWidth > 0) {
+            return;
+        }
+        // An audio file mounted in a video element also reports no picture
+        // size; that is not a decoding problem, so it must not warn.
+        const src = element.currentSrc || '';
+        if (/\.(mp3|m4a|aac|oga|ogg|opus|wav|flac)(\?|#|$)/i.test(src)) {
+            return;
+        }
+        // Metadata is loaded (readyState >= 1) yet there is no picture size:
+        // the video track cannot be decoded by this browser.
+        if (element.readyState >= 1) {
+            warned = true;
+            const notice = document.createElement('div');
+            notice.className = 'alert alert-warning mod_elang-novideo';
+            notice.setAttribute('role', 'alert');
+            notice.textContent = strings['player:novideotrack'];
+            region.insertBefore(notice, element);
+        }
+    };
+    element.addEventListener('loadedmetadata', check);
+    element.addEventListener('playing', check);
+};
+
+/**
  * Render the attempt's medium into the media region.
  *
  * @param {Element} region The media region element
@@ -179,6 +222,7 @@ const renderMedia = (region, media) => {
     }
     if (element) {
         region.appendChild(element);
+        watchVideoDecoding(element, region);
     }
     return element;
 };
@@ -584,6 +628,7 @@ const loadStrings = async() => {
         'player:gaplabel', 'player:gaplink', 'player:check', 'player:hint', 'player:finish', 'player:finished',
         'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
         'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
+        'player:novideotrack',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {

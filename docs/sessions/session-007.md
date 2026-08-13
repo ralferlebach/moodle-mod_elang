@@ -325,6 +325,22 @@ Externes Code-Review zu alpha.80. Ich habe jede Feststellung am Code gegengeprü
    neue `count_pending_approval()`, Blocker-Meldungen nennen exakte Zahl + max. 20
    Beispiel-IDs statt aller.
 
+## Inkrement 14 — Undekodierbare Videospur nutzerfreundlich abfangen (alpha.86)
+
+Ralfs Testvideo: MPEG-4 Part 2 (mp4v, DivX/Xvid-Ära) — VLC spielt es, Browser
+dekodieren nur die AAC-Tonspur (schwarzes Bild). Laufzeitsignal: VIDEO-Element mit
+geladenen Metadaten und `videoWidth === 0`.
+
+- **Player** (`amd/src/player.js`): `watchVideoDecoding()` zeigt Lernenden eine
+  Warnung („Ton läuft weiter, Lehrkraft informieren") statt stummem Schwarzbild.
+- **Editor** (`js/src/studio/mediacheck.ts` + EditorApp): warnt Autor:innen beim
+  Laden der Vorschau, mit Re-Encode-Hinweis (H.264/MP4).
+- **False-Positive-Schutz**: Audio-Dateien in einem VIDEO-Element haben legitim
+  keine Bildgröße — Extension-Guard (mp3/m4a/aac/ogg/opus/wav/flac), pure Helfer
+  mit 4 Jest-Tests (36/36 gesamt). 2 Strings EN+DE (282/282).
+- Beide AMD-Builds + React-Bundle neu erzeugt, **Idempotenz verifiziert** (sha
+  vor/nach Grunt identisch — Lektion aus dem player.min.js-stale-Fail).
+
 ## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.81)
 
 PHPUnit **389/1257** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc

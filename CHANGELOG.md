@@ -12,6 +12,9 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [Unreleased]
 
 ### Fixed
+- Behat: the keyboard-nudge scenario used `"ArrowRight"` for the key press, which
+  Moodle's named-key step does not accept; it now uses `"right"` (which the browser
+  still delivers to the slider as `KeyboardEvent.key` `ArrowRight`). Test only.
 - Rebuilt `amd/build/player.min.js` so it matches its source again. A comment in
   `amd/src/player.js` was updated during the documentation cleanup without
   regenerating the AMD bundle; Moodle's build keeps the leading docblock in the

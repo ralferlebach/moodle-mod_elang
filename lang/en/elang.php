@@ -211,6 +211,7 @@ $string['player:loaderror'] = 'The exercise could not be loaded. Please reload t
 $string['player:loading'] = 'Loading the exercise…';
 $string['player:nocontent'] = 'No exercise content has been published yet. Please check back later.';
 $string['player:novideotrack'] = 'Your browser cannot display the video track of this medium; the audio will still play. Please inform your teacher.';
+$string['player:outdatedattempt'] = 'This exercise has been updated since you started this attempt. You are continuing on the earlier content; finish this attempt to work with the updated exercise next time.';
 $string['player:ready'] = 'Exercise ready.';
 $string['player:scorelabel'] = 'Score: %score%%';
 $string['player:stateaccepted'] = 'Accepted';

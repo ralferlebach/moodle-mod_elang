@@ -628,7 +628,7 @@ const loadStrings = async() => {
         'player:gaplabel', 'player:gaplink', 'player:check', 'player:hint', 'player:finish', 'player:finished',
         'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
         'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
-        'player:novideotrack',
+        'player:novideotrack', 'player:outdatedattempt',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -689,6 +689,16 @@ const bootstrap = async(cmid, player) => {
 
     const exercise = await callWs('mod_elang_get_attempt_exercise', {attemptid: attemptId});
     const mediaEl = renderMedia(player.querySelector(SELECTORS.MEDIA), exercise.media);
+
+    if (exercise.outdated) {
+        // The exercise was republished after this attempt was touched; the
+        // attempt deliberately continues on the content it started with.
+        const notice = document.createElement('div');
+        notice.className = 'alert alert-info mod_elang-outdated';
+        notice.setAttribute('role', 'status');
+        notice.textContent = strings['player:outdatedattempt'];
+        player.insertBefore(notice, player.firstChild);
+    }
 
     const transcriptregion = player.querySelector(SELECTORS.TRANSCRIPT);
     transcriptregion.textContent = '';

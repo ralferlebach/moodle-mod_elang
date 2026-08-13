@@ -211,6 +211,7 @@ $string['player:loaderror'] = 'Die Übung konnte nicht geladen werden. Bitte lad
 $string['player:loading'] = 'Übung wird geladen …';
 $string['player:nocontent'] = 'Es wurden noch keine Übungsinhalte veröffentlicht. Bitte später erneut vorbeischauen.';
 $string['player:novideotrack'] = 'Ihr Browser kann die Videospur dieses Mediums nicht anzeigen; der Ton läuft weiter. Bitte informieren Sie Ihre Lehrkraft.';
+$string['player:outdatedattempt'] = 'Diese Übung wurde aktualisiert, seit dieser Versuch begonnen wurde. Sie arbeiten auf dem früheren Stand weiter; schließen Sie den Versuch ab, um beim nächsten Mal die aktualisierte Übung zu nutzen.';
 $string['player:ready'] = 'Übung bereit.';
 $string['player:scorelabel'] = 'Ergebnis: %score%%';
 $string['player:stateaccepted'] = 'Akzeptiert';

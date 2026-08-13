@@ -341,6 +341,25 @@ geladenen Metadaten und `videoWidth === 0`.
 - Beide AMD-Builds + React-Bundle neu erzeugt, **Idempotenz verifiziert** (sha
   vor/nach Grunt identisch — Lektion aus dem player.min.js-stale-Fail).
 
+## Inkrement 15 — Unberührte Versuche folgen der aktuellen Version (alpha.87)
+
+Ralfs Folge-Befund zum Video-Fix: Nach Re-Upload + Veröffentlichen spielte der
+Player weiter die alte Datei — sein laufender Versuch war auf die alte Version
+gepinnt (by design; `start_attempt` resumed ohne Versionsvergleich).
+
+- **Re-Pin**: `attempt_manager::start_attempt()` — ein UNBERÜHRTER Versuch (keine
+  `elang_response`-Zeile; deckt Antworten UND Hints ab) folgt beim Fortsetzen der
+  aktuellen veröffentlichten Version (versionid + totalgaps aktualisiert).
+  Berührte Versuche bleiben gepinnt (Lernerdaten-Integrität).
+- **Hinweis**: `get_attempt_exercise` liefert `outdated`; der Player zeigt bei
+  gepinnten älteren Versuchen eine Info („läuft auf früherem Stand weiter").
+  String EN+DE (283/283). AMD-Build neu, Idempotenz verifiziert.
+- 2 Tests (untouched folgt / touched bleibt). **LEHRE/Fehler unterwegs:** Die
+  Tests waren zunächst per stillem No-op-Replace „eingefügt" — Grün war der
+  Altbestand (29), nicht 27+2. Aufgefallen an der Suite-Zählung (392 statt 394).
+  Konsequenz: Nach Test-Einfügungen immer die Methodenzahl der Datei UND die
+  Suite-Differenz verifizieren, nie nur „OK" lesen.
+
 ## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.81)
 
 PHPUnit **389/1257** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc

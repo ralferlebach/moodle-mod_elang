@@ -11,6 +11,19 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-alpha.87] - 2026-08-13
+
+### Fixed
+- Republishing an exercise now reaches learners whose attempt exists but is
+  untouched. An attempt is pinned to the version it started on so content edits
+  never change a running attempt — but that pin also meant a learner who had
+  merely opened the exercise once kept resuming stale content forever (for
+  example a broken medium the author had already replaced). Resuming an attempt
+  with no response and no hint yet now follows the current published version;
+  touched attempts stay pinned and the player shows a notice that the attempt
+  continues on the earlier content (new `outdated` flag in the exercise web
+  service).
+
 ## [2.0.0-alpha.86] - 2026-08-13
 
 ### Added

@@ -92,6 +92,31 @@ class attempt_manager {
                 'state' => self::STATE_INPROGRESS,
             ]);
             if ($existing) {
+                // An attempt is pinned to the version it started on, so content
+                // edits never change a running attempt underneath the learner.
+                // But an UNTOUCHED attempt (no response and no hint yet — both
+                // write elang_response rows) has nothing to protect: if the
+                // exercise was republished meanwhile (for example to fix a
+                // broken medium), silently follow the current version instead of
+                // resuming stale content forever.
+                $touched = $DB->record_exists('elang_response', ['attemptid' => $existing->id]);
+                if (!$touched && (int) $existing->versionid !== $versionid) {
+                    $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                    $repinnable = (int) $version->elangid === $elangid
+                        && $version->status === version_manager::STATUS_PUBLISHED;
+                    if ($repinnable) {
+                        $existing->versionid = $versionid;
+                        $existing->totalgaps = (int) $DB->count_records_sql(
+                            'SELECT COUNT(g.id)
+                               FROM {elang_gap} g
+                               JOIN {elang_cue} c ON c.id = g.cueid
+                              WHERE c.versionid = ?',
+                            [$versionid]
+                        );
+                        $existing->timemodified = time();
+                        $DB->update_record('elang_attempt', $existing);
+                    }
+                }
                 $transaction->allow_commit();
                 return $existing;
             }

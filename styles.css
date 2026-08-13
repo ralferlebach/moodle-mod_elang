@@ -1,0 +1,198 @@
+/* This file is part of Moodle - http://moodle.org/ */
+/* */
+/* Moodle is free software: you can redistribute it and/or modify */
+/* it under the terms of the GNU General Public License as published by */
+/* the Free Software Foundation, either version 3 of the License, or */
+/* (at your option) any later version. */
+/* */
+/* Moodle is distributed in the hope that it will be useful, */
+/* but WITHOUT ANY WARRANTY; without even the implied warranty of */
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the */
+/* GNU General Public License for more details. */
+/* */
+/* You should have received a copy of the GNU General Public License */
+/* along with Moodle.  If not, see <http://www.gnu.org/licenses/>. */
+
+/* Player layout only — colours, dark mode and RTL are left to the theme. */
+
+.mod_elang-player .mod_elang-media video,
+.mod_elang-player .mod_elang-media iframe {
+    max-width: 100%;
+    width: 100%;
+}
+
+.mod_elang-player .mod_elang-media iframe.mod_elang-embed {
+    aspect-ratio: 16 / 9;
+    border: 0;
+}
+
+.mod_elang-player .mod_elang-cues {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mod_elang-player .mod_elang-cue {
+    padding: 0.25rem 0;
+    line-height: 1.8;
+}
+
+/* The currently playing cue is marked by weight and a leading border, not by
+   colour alone, and uses logical properties so it follows RTL. */
+.mod_elang-player .mod_elang-cue.mod_elang-current {
+    border-inline-start: 4px solid;
+    padding-inline-start: 0.5rem;
+    font-weight: bold;
+}
+
+.mod_elang-player .mod_elang-gap {
+    display: inline-block;
+    width: 8em;
+    max-width: 100%;
+}
+
+.mod_elang-player .mod_elang-gapwrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.mod_elang-player .mod_elang-gapstate {
+    font-size: 0.85em;
+    white-space: normal;
+}
+
+/* State is shown by border style (not colour alone) plus the status text, so
+   it survives dark mode, RTL and colour-vision differences. */
+.mod_elang-player .mod_elang-correct .mod_elang-gap {
+    border-bottom: 3px solid;
+}
+
+.mod_elang-player .mod_elang-accepted .mod_elang-gap {
+    border-bottom: 3px dotted;
+}
+
+.mod_elang-player .mod_elang-incorrect .mod_elang-gap {
+    border-bottom: 3px dashed;
+}
+
+/* Content editor timeline (mod_elang/editor). */
+.mod_elang-editor-media-preview {
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.mod_elang-editor-timeline {
+    position: relative;
+    height: 40px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.mod_elang-editor-timeline-cue {
+    position: absolute;
+    top: 4px;
+    height: 32px;
+    min-width: 2px;
+    padding: 0 4px;
+    overflow: hidden;
+    background: #4a90d9;
+    opacity: 0.6;
+    border-radius: 3px;
+    color: #fff;
+    font-size: 11px;
+    line-height: 32px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mod_elang-editor-timeline-cue.active {
+    opacity: 1;
+    background: #d9534f;
+}
+
+.mod_elang-editor-timeline-playhead {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #000;
+    pointer-events: none;
+}
+
+.mod_elang-editor-waveform {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: pointer;
+}
+
+.mod_elang-editor-waveform-band {
+    fill: #b8cbe0;
+    stroke: none;
+}
+
+.mod_elang-editor-waveform-playhead {
+    stroke: #000;
+    stroke-width: 2;
+}
+
+.mod_elang-editor-timeline-handle {
+    position: absolute;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+.mod_elang-editor-timeline-handle.start {
+    left: 0;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.mod_elang-editor-timeline-handle.end {
+    right: 0;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.mod_elang-editor-timeline-handle:focus {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+}
+
+.mod_elang-editor-timeline-label {
+    display: block;
+    height: 100%;
+    padding: 0 8px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.mod_elang-editor-savestate {
+    margin-left: 0.75rem;
+    font-size: 12px;
+    color: #666;
+}
+
+.mod_elang-editor-savestate.error {
+    color: #d9534f;
+}
+
+.mod_elang-editor-preview-text {
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.mod_elang-editor-cue.focused {
+    box-shadow: 0 0 0 2px #d9534f;
+}

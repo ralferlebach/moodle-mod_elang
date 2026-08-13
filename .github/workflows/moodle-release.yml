@@ -1,0 +1,288 @@
+##############################################################################
+# GitHub Actions Release CI – mod_elang
+#
+# Triggered on push / PR to main.
+# Provides the "CI complete" status check for branch protection.
+#
+# Supported range: Moodle 4.5 LTS … 5.3 LTS, PHP 8.1 … 8.4.
+# Per-release PHP bounds are respected (4.5 → 8.1-8.3, 5.0 → 8.2-8.3,
+# 5.2 → 8.3-8.4, 5.3 → 8.3-8.4).
+#
+# Moodle 5.3 is still under active development, and testing against `main`
+# genuinely can and does surface Moodle-side debugging()/deprecation output
+# that has nothing to do with this plugin — moodle-plugin-ci's own install
+# step treats any such output as a hard failure. `main` is therefore tested
+# in its own dedicated `ci-experimental` job rather than as an extra matrix
+# entry inside the blocking `ci` job.
+#
+# IMPORTANT — do not "simplify" this by adding `main` back into the `ci`
+# matrix with a job-level `continue-on-error: ${{ matrix.experimental }}`.
+# That was tried and does not work as it looks like it should: job-level
+# continue-on-error masks the job's *result* for `needs:` gating, but the
+# overall workflow RUN still shows as failed, which is exactly as confusing
+# to a human glancing at the checks list as a real failure. continue-on-error
+# only reliably keeps the whole run green when applied to every STEP that can
+# fail, which is why every step in ci-experimental below sets it individually.
+#
+# After Moodle 5.3 is released (5 October 2026): replace `main` with
+# MOODLE_503_STABLE in ci-experimental, remove its per-step continue-on-error,
+# and fold it back into the regular `ci` job's matrix as an ordinary entry.
+##############################################################################
+
+name: Moodle Plugin Release CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MOODLE_CI: '^4'
+  COMPOSER_NO_INTERACTION: 1
+  COMPOSER_PROCESS_TIMEOUT: 0
+  COMPOSER_NO_AUDIT: 1
+  PGPASSWORD: moodle
+
+jobs:
+
+  # ── Blocking matrix — Moodle 4.5, 5.0, 5.2 only ──────────────────────────
+  ci:
+    name: "CI / ${{ matrix.moodle-branch }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }}"
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Moodle 4.5 LTS — minimum supported release.
+          - { moodle-branch: MOODLE_405_STABLE, php: '8.1', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle, name: moodle } }
+          - { moodle-branch: MOODLE_405_STABLE, php: '8.3', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root,   name: moodle } }
+          # Moodle 5.0 (requires PHP 8.2+).
+          - { moodle-branch: MOODLE_500_STABLE, php: '8.2', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root,   name: moodle } }
+          # Moodle 5.2 — current stable (requires PHP 8.3+).
+          - { moodle-branch: MOODLE_502_STABLE, php: '8.3', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle, name: moodle } }
+          - { moodle-branch: MOODLE_502_STABLE, php: '8.4', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root,   name: moodle } }
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER:     moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB:       postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s --health-timeout 5s --health-retries 3
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: zip, gd, intl, soap, mbstring, pdo_mysql, pdo_pgsql, sodium
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Install en_AU.UTF-8 locale
+        run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
+
+      - name: Initialise moodle-plugin-ci
+        run: |
+          composer create-project -n --no-dev --prefer-dist \
+            moodlehq/moodle-plugin-ci ci ${{ env.MOODLE_CI }}
+          echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
+
+      - name: Set TRAVIS_BRANCH
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
+          echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Install Moodle and plugin
+        run: |
+          moodle-plugin-ci install \
+            --plugin ./plugin \
+            --db-host 127.0.0.1 \
+            --db-port ${{ matrix.db.port }} \
+            --db-user ${{ matrix.db.user }} \
+            --db-pass ${{ matrix.db.pass }} \
+            --db-name ${{ matrix.db.name }}
+        env:
+          DB:            ${{ matrix.db.type }}
+          MOODLE_BRANCH: ${{ matrix.moodle-branch }}
+
+      - name: PHP Lint
+        run: moodle-plugin-ci phplint
+
+      - name: PHP Copy/Paste Detector
+        run: moodle-plugin-ci phpcpd || true
+
+      - name: Moodle Code Checker (PHPCS)
+        run: moodle-plugin-ci phpcs --max-warnings 0
+
+      - name: Moodle PHPDoc Checker
+        run: moodle-plugin-ci phpdoc --max-warnings 0
+
+      - name: Validate plugin structure
+        run: moodle-plugin-ci validate
+
+      - name: Check upgrade savepoints
+        run: moodle-plugin-ci savepoints
+
+      - name: Mustache lint
+        run: moodle-plugin-ci mustache
+
+      - name: Grunt
+        run: moodle-plugin-ci grunt --max-lint-warnings 0
+
+      - name: PHPUnit
+        run: moodle-plugin-ci phpunit --fail-on-warning
+
+      - name: Behat
+        run: |
+          moodle-plugin-ci behat \
+            --profile chrome \
+            --tags "@mod_elang&&~@broken" \
+            --start-servers
+
+  # ── Moodle main (non-blocking — see header note) ─────────────────────────
+  ci-experimental:
+    name: "CI / main / PHP 8.4 / pgsql (experimental)"
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER:     moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB:       postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s --health-timeout 5s --health-retries 3
+
+    steps:
+      - name: Checkout plugin
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Set up PHP 8.4
+        continue-on-error: true
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: zip, gd, intl, soap, mbstring, pdo_mysql, pdo_pgsql, sodium
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Install en_AU.UTF-8 locale
+        continue-on-error: true
+        run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
+
+      - name: Initialise moodle-plugin-ci
+        continue-on-error: true
+        run: |
+          composer create-project -n --no-dev --prefer-dist \
+            moodlehq/moodle-plugin-ci ci ${{ env.MOODLE_CI }}
+          echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
+
+      - name: Set TRAVIS_BRANCH
+        continue-on-error: true
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
+          echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Install Moodle and plugin
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci install \
+            --plugin ./plugin \
+            --db-host 127.0.0.1 \
+            --db-port 5432 \
+            --db-user moodle \
+            --db-pass moodle \
+            --db-name moodle
+        env:
+          DB: pgsql
+          MOODLE_BRANCH: main
+
+      - name: PHP Lint
+        continue-on-error: true
+        run: moodle-plugin-ci phplint
+
+      - name: Moodle Code Checker (PHPCS)
+        continue-on-error: true
+        run: moodle-plugin-ci phpcs --max-warnings 0
+
+      - name: Moodle PHPDoc Checker
+        continue-on-error: true
+        run: moodle-plugin-ci phpdoc --max-warnings 0
+
+      - name: Validate plugin structure
+        continue-on-error: true
+        run: moodle-plugin-ci validate
+
+      - name: Check upgrade savepoints
+        continue-on-error: true
+        run: moodle-plugin-ci savepoints
+
+      - name: Mustache lint
+        continue-on-error: true
+        run: moodle-plugin-ci mustache
+
+      - name: Grunt
+        continue-on-error: true
+        run: moodle-plugin-ci grunt --max-lint-warnings 0
+
+      - name: PHPUnit
+        continue-on-error: true
+        run: moodle-plugin-ci phpunit --fail-on-warning
+
+      - name: Behat
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci behat \
+            --profile chrome \
+            --tags "@mod_elang&&~@broken" \
+            --start-servers
+
+  # ── Gate — only the blocking job decides the outcome ─────────────────────
+  ci-complete:
+    name: CI complete
+    needs: ci
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: All blocking matrix jobs must have succeeded
+        run: |
+          result="${{ needs.ci.result }}"
+          if [[ "$result" == "success" ]]; then
+            echo "All blocking CI jobs passed. (main/5.3-dev result is informational only — see the ci-experimental job.)"
+          else
+            echo "CI result: $result — one or more blocking matrix jobs failed or were cancelled."
+            exit 1
+          fi

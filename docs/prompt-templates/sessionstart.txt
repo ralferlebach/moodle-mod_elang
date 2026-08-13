@@ -1,0 +1,718 @@
+## SESSION-START: Sprachübung – mod_elang 2.0
+
+Du arbeitest als erfahrener Moodle-Architekt und PHP-Entwickler
+an einem laufenden Projekt. Lies zunächst alles, was ich dir gebe,
+bevor du antwortest.
+
+---
+
+### A) Lastenheft, Pflichtenheft und Blueprint
+
+Die aktuellen Dokumente liegen im Plugin-Repo:
+  docs/materials/Lastenheft_Pflichtenheft_Blueprint.md   (verbindlich)
+  docs/materials/Blueprint_kompakt.md                    (Arbeitsfassung)
+  docs/materials/Machbarkeit_Zusatzanforderungen.md      (Exporte, Icon, YouTube, KI)
+  docs/materials/Migration_V1_V2.md                      (Migration und Restore)
+  docs/materials/Lizenz_und_Herkunft.md                  (CeCILL-B/GPL, Namensfrage)
+  docs/materials/Ideen_Backlog.md                        (bewertetes Backlog)
+
+---
+
+### B) Kontext-Dokument der letzten Sitzung
+
+Das aktuelle Kontext-Dokument (sessionende der Vorsitzung) ist im Anhang
+zu finden. Ältere Kontext-Dokumente zwecks Referenz: docs/sessions/
+
+---
+
+### C) Aktueller Code
+
+Repository: https://github.com/ralferlebach/moodle-mod_elang/tree/development
+Der aktuelle Plugin-Stand liegt zusätzlich als Patch-ZIP im Anhang, einzuspielen
+in die Moodle-Installation unter mod/elang/.
+
+Moodle: >= 4.5 LTS (2024100700) bis 5.3 LTS. supported = [405, 503].
+        Releaseziel 5.3 (Code Freeze 24.08.2026, Release 05.10.2026).
+        KEINE Abwärtskompatibilität < 4.5.
+PHP:    8.1 bis 8.4 — Code strikt auf PHP-8.1-Sprachstand beschränken!
+        (4.5 -> 8.1-8.3, 5.0 -> 8.2-8.3, 5.2/5.3 -> 8.3-8.4)
+DB:     PostgreSQL und MariaDB/MySQL.
+
+Haupt-Dependencies:
+  KEINE. Optionale Integrationen (KI-Subsystem, OAuth 2, Dateikonverter, ffmpeg)
+  werden zur Laufzeit erkannt und degradieren sauber. Nicht in version.php
+  deklariert.
+
+Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
+  Version 2.0 ist eine kompatible NEUENTWICKLUNG, kein Refactoring.
+  Aus V1 wird KEIN Code übernommen (siehe Lizenz_und_Herkunft.md).
+
+---
+
+### D) Aktueller Entwicklungsstand
+
+**Version:** 2.0.0-alpha.80 (2026081110) — Phasen 2–4 abgeschlossen. Session 007
+(dieser Chat; EIN Claude-Chat = EINE Session) brachte von alpha.71 auf alpha.75:
+(1) Skalierung — N+1 in version_validator/version_manager gebündelt, Report
+paginiert, V1-Detector DB-seitig limitiert, Draft-Invariante reconciliert, README
+aktualisiert (alpha.72); (2) **E2 Subtitle Studio** — Live-Re-Sync der
+Lücken-Offsets (codepoint-genau), maskierte Vorschau, Waveform, ziehbare
+tastaturbedienbare Cue-Ränder, Autosave, Onboarding (js/src/studio/, 22
+Jest-Tests, Bundle reproduzierbar neu gebaut) (alpha.73); (3) **E3 Write-Härtung**
+— save_draft_version fängt doppelte cuekey/gapkey/hint-level + negative Offsets ab
+(klare Meldungen statt dml_write_exception) + phpdoc-CI-Fix (alpha.74); (4) **E4
+Behat** — report.feature (nicht-JS) + authoring_studio.feature (@javascript) +
+Attempt-Seed-Step (test-only); (5) **Produktiv-Gate Backup/Restore** —
+FEATURE_BACKUP_MOODLE2 + vollständige backup/moodle2/ mit Reference-Remapping inkl.
+currentversionid (alpha.75). Details in docs/sessions/session-007.md.
+
+**Stand Session 007 (real gegen Moodle 4.5.13, CI von Ralf grün bestätigt):**
+PHPUnit **364/1150** grün, phpcs 0/0, phpdoc (moodle-local_moodlecheck) 0/0, tsc
+sauber, Jest 29/29, esbuild reproduzierbar, Grunt eslint:amd + gherkinlint grün,
+Behat nicht-JS 9/72 grün + dry-run ohne undefined. PFLICHTEN vor Auslieferung:
+(a) moodlecheck lokal laufen lassen (phpcs prüft @param-Vollständigkeit nicht);
+(b) FEATURE_BACKUP_MOODLE2 muss true sein, sonst überspringt Backup die Aktivität;
+(c) EIN Claude-Chat = EINE Session (Inkremente sind Gliederung, keine neuen
+Sessions — Zählfehler wiederholt vermeiden). E5/E6-Artefakte erstellt (tests/playwright: Playwright+axe; tests/load: k6+JMeter
+Lasttest der Read-WS get_version_content; Seeder + makefile-Targets; strukturell
+validiert, Ausführung gegen laufende Instanz/CI steht aus). E7 erledigt (tests/upgrade_test.php: echtes xmldb_elang_upgrade von V1-Baseline
+durch alle Savepoints + Migrations-Integrität, 32 Assertions). Offen für Beta:
+E5/E6 real laufen lassen (gegen Instanz/CI); @javascript-/Behat-CI bestätigen;
+E3/E4-Feinschliff + Nachzug erledigt: freundliche version-not-found-Meldung,
+tiefe @javascript-Studio-Szenarien inkl. Timing-Nudge, courseformat/overview
+(5.x, ruht auf 4.5), und die ersten 2.1-Bausteine: gap_rule_generator (regelbasierte Lücken, rein)
++ WS + Editor-UI (RuleGapControl). 2.1 Sonderzeichen-Leiste: Fundament
+special_characters (sprachabgeleitet) + in get_attempt_exercise verdrahtet
+(Player-Insert-Leiste = nächster Frontend-Schritt). LEHRE: 5.x-only-Klassen (overview) gegen die echte
+5.0-Quelle modellieren (raw.githubusercontent), Test per class_exists-Skip auf
+4.5 inert halten. Die harten Beta-Gates
+(Backup/Restore, Upgrade-Pfad) sind damit abgedeckt.
+
+**Stand Session 006 (Codehärtung nach Review):** Version alpha.71 —
+(Reihenfolge Review-P0/P1 → E0 → E1 → Logo → Cleanup). WICHTIG: Das Review war
+gegen ein gestripptes Release-ZIP erstellt; der echte Arbeitsbaum hatte die
+P0/P1-Fixes bereits uncommittet über alpha.70 — sie waren aber UNGETESTET, ein
+Lang-String fehlte, und die toten Caps waren entfernt. Session 006 hat: die
+Fixes verifiziert; 15 Sicherheits-/Validierungstests ergänzt (340→355 grün);
+`player:nocontent` und `report:score`/`report:answered` (fehlende Strings)
+ergänzt; `deleteattempts`+`exportreports` implementiert (Dataformat-Export +
+bestätigter Lösch-Flow); das vollständige mod_vimipad-`makefile` übernommen
+(E0); Logo eingepflegt; `package-lock.json` committet. Details in
+docs/sessions/session-006.md. (Session 005 und älter unten weiter beschrieben.)
+
+**Stand Session 006 (Verifikation real gegen Moodle 4.5.13):** PHPUnit 355/1115
+grün, phpcs 0/0, tsc sauber, Jest 7/7, esbuild + grunt amd byte-identisch
+reproduzierbar. Die drei P0/P1-Review-Blocker sind mit Tests geschlossen. Offen
+für Beta bleiben E2–E7 (siehe Checkliste unten).
+
+**Stand Session 005 (zusätzlich zu Session 004):**
+  - **React/TS-Autorentool** (aus mod_vimipad übernommen, Option B): Quellcode
+    unter `js/src`, per esbuild (`build.mjs`) zu `js/vendor/react/
+    editor.bundle.js` gebündelt (React/ReactDOM/Scheduler, in
+    `thirdpartylibs.xml` als Verzeichnis `js/vendor/react` deklariert);
+    `edit.php` lädt das Bundle via `$PAGE->requires->js()` als Seiten-Skript
+    (exponiert `window.mod_elang_editor`); `amd/src/editor.js` ist ein dünner
+    AMD-Loader (core/str + core/ajax), der die globale Variable liest und
+    mountet;
+    `editor.mustache` schlanke Shell. Player bleibt framework-frei.
+    Jest/jsdom-Suite unter `js/tests`, Dev-Toolchain via `package.json`/
+    `tsconfig.json`. Migrationspfad auf Core-React ab Ende des 4.5-Supports
+    dokumentiert (Grundsatz B präzisiert: React NUR im gebündelten Autorentool).
+  - **V1-Lücken-Syntax beim Import**: `gap_syntax_parser` erkennt `[Wort]`
+    (Lücke mit Hilfe + gesäter Solution-Hilfestufe) und `{Wort}` (ohne Hilfe);
+    `preview_import` mit optionaler `parsegaps`-Option (BC) und Per-Cue-`gaps`.
+  - **P1**: kuratierte `provider_registry` (YouTube/Vimeo, OAuth-frei) +
+    Referenz-Normalisierung (ID ODER gängige URL-Form → kanonische Video-ID);
+    `set_draft_media` validiert/normalisiert; `get_version_content` liefert
+    `mediaproviders`; Medien-Panel als Dropdown. `mod_form`: Sprach-Vorauswahl
+    auf Kurs-/Site-Sprache (Lang-Pack-Variante → Basiscode), Bestand bleibt.
+  - **P2**: Admin-Setting `mod_elang/allowedlanguages` (`configmultiselect`) in
+    `settings.php`; zentraler Helfer `language_options` (Restriktion +
+    Basiscode-Mapping + Bestandswert bleibt im Dropdown). `mod_form` nutzt ihn.
+  - **P3**: DOCX/ODT-Transkript-Export OHNE Fremdbibliothek (`docx_writer` via
+    Core-`zip_packer`, `odt_writer` via Core-`ZipArchive` mit mimetype-stored-
+    first); `transcript_exporter::paragraphs()` als gemeinsame Basis;
+    `transcript.php` mit DOCX/ODT-Zweigen. PDF + Text bleiben.
+  - **CI-Fix (alpha.65→67)**: JS-Lint-Blocker behoben. Zwei verkettete
+    Ursachen: (1) Grunt/mpc statten jede `thirdpartylibs.xml`-`<location>`
+    (fehlende Datei → ENOENT); (2) mpc löscht `amd/build/` vor Grunt und
+    markiert nicht-regenerierte Dateien als „no longer generated". Ein
+    React-Bundle kann daher NICHT in `amd/build/` liegen → nach
+    `js/vendor/react/editor.bundle.js` verschoben, als Seiten-Skript geladen,
+    globale Variable statt AMD-`require()`. Verifiziert mit UND ohne Bundle.
+    alpha.67 zog die letzten veralteten Pfad-Verweise nach (makefile/.gitignore/
+    thirdpartylibs-Beschreibung). WICHTIGE LOG-LEHRE: Der erste rote Lauf nach
+    dem Fix hatte den Fix gar nicht ausgecheckt — bei rotem CI IMMER zuerst am
+    `$plugin->release` bzw. am erwarteten Fix-Marker im Log prüfen, welche
+    Version tatsächlich lief, bevor man erneut „fixt".
+  - **CI-Fix Fortsetzung (alpha.68→70), zwei entscheidende Root-Causes:**
+    (a) `.gitignore` hatte eine UNVERANKERTE Regel `vendor/`, die auch
+    `js/vendor/` matchte → git schloss das committete React-Bundle still aus,
+    es fehlte in jedem CI-Checkout. Fix: `/vendor/` (am Root verankert). IMMER
+    prüfen, ob eine `.gitignore`-Regel legitime Dateien mit-matcht
+    (`git check-ignore <pfad>`); unverankerte Verzeichnisnamen matchen in jeder
+    Tiefe. (b) Ein ZIP-Extrakt fügt hinzu/aktualisiert, LÖSCHT aber nie
+    ausgelassene Dateien. Als das Bundle nach `js/vendor/react/` zog, blieb
+    `amd/build/editor_lazy.min.js` in Ralfs Git liegen und brach den JS-Lint-Job
+    („File no longer generated"). Sobald ein Fix eine committete Datei
+    entfernt/verschiebt, reicht ein ZIP NICHT — es braucht eine explizite
+    `git rm`-Anweisung (hier: `tools/cleanup_stale.sh`). Verifikation solcher
+    Fixes über einen echten `git init → add → commit → clone`, nicht über
+    direktes Kopieren (das umgeht die git-Ignore-/Lösch-Logik). Danach CI grün.
+
+**(Historischer Stand — Version zu Beginn von Session 005):**
+2.0.0-alpha.60 (2026072538) — Phase 2 (Datenmodell, Domäne,
+Migration), Phase 3 (Lernendenoberfläche/Player) UND der Kern von Phase 4
+(Autorenoberfläche) samt Reporting/Export abgeschlossen. In Session 004 kam der
+versionierte Autoren-Workflow hinzu: Copy-on-Write-Drafts, version_validator +
+Publish-Guard, Authoring-WS (save_draft_version, publish_version,
+get_version_content, preview_import, set_draft_media), ein Editor (edit.php +
+templates/editor.mustache + amd/src/editor.js: Cues/Import/Lücken/Hints/Medien +
+Timeline-Increment), Medien-Upload (media.php), Aktivitäts-Einstellungen
+(Sprache-Dropdown + Jaro-Schwellwert), Attempt-Report (report.php, gruppenbewusst)
+und Transkript-Export (transcript.php, PDF/Text). Der Editor lädt (P0-Argument-Bug
+behoben). Details in docs/sessions/session-004.md.
+
+**Grundsätze (nicht ohne explizite Diskussion ändern):**
+  A — Kompatible Neuentwicklung: fachlich kompatibel (Formate, Bewertungsregeln,
+      Migration), technisch neu. Keine Portierung von V1-Code.
+  B — Ausschließlich dokumentierte Moodle-APIs. Keine eigenen Endpunkte, kein
+      eigenes HTML-Dokument, kein Fremd-Frontend-Framework.
+  C — Kein Release ohne vollständige Privacy-API, ohne CSRF-/Capability-
+      Absicherung aller schreibenden Operationen, ohne verlustfreie
+      Inhaltsbearbeitung.
+
+**Zuletzt abgeschlossen (Session 004 — Autorenoberfläche + Reporting/Export):**
+  - Datenmodell versioniert (language/jarothreshold/revision auf elang_version;
+    Grading aus gepinnter Version; Content-Hash inkl. Medien-Bytes) +
+    Copy-on-Write-Drafts (create_draft_locked, stabile cuekey/gapkey).
+  - version_validator + optionaler Publish-Guard (publish($id,$user,$validate));
+    Migration bleibt tolerant.
+  - Authoring-WS: save_draft_version (Replace-all + Revision +
+    Optimistic-Concurrency), publish_version, get_version_content (inkl. Lösungen
+    + Medien-URLs), preview_import (subtitle_parser, VTT/SRT), set_draft_media
+    (Datei/URL/Provider/keins). Gemeinsamer authoring_helper-Trait.
+  - Editor: Cues/Transkripte, Import, Lücken per Auswahl (Lösung/Algorithmus/
+    Varianten), Hinweise (Typ/Text/Penalty, Level auto-1..n), Medien-Panel,
+    Timeline-Increment (Vorschau + Playhead + Zeit-Capture + Klick-Seek),
+    speichern/publizieren; Medien-Upload via moodleform-Filepicker (media.php).
+  - mod_form „Antwortbewertung": Inhaltssprache (Dropdown) + Jaro-Schwellwert.
+  - report.php + attempt_report (Übersicht + gap-für-gap Detail, Gruppenmodus);
+    transcript.php + transcript_exporter (PDF via TCPDF + Text).
+  - Erreichbarkeit: Aktionsleiste auf view.php (unabhängig von der Sekundärnav);
+    makefile exakt zurückgerollt; P0-Editor-Ladefehler (js_call_amd-Argument)
+    behoben; E2E-Behat (edit_content.feature).
+  - amd/build/editor.min.js beigelegt (Hand-Build); kanonisch via grunt amd.
+
+Details zu Session 004 in `docs/sessions/session-004.md`, ältere Sessions
+(001–003) im selben Verzeichnis.
+
+**Als nächstes geplant (siehe docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md):**
+  - **P1 [ERLEDIGT alpha.62]** Anbieter-Dropdown (provider_registry) + Referenz-
+    Normalisierung (ID/URL → kanonische ID); Sprach-Vorauswahl. Offen bleibt
+    bewusst P1.3 (Sprache required? — Empfehlung: nicht erzwingen).
+  - **P2 [ERLEDIGT alpha.63]** Admin-Setting `mod_elang/allowedlanguages`.
+  - **P3 [ERLEDIGT alpha.64]** DOCX/ODT-Export ohne Fremdlib (docx_writer via
+    zip_packer, odt_writer via ZipArchive mit mimetype-stored-first).
+  - **NÄCHSTES GROSSES PAKET — AP-D — Subtitle Studio & Authoring-UX
+    (eigenes, größeres Paket, sinnvoller Start mit Scoping/Design-Schritt):**
+    end-to-end entlang der Workflows (Medium -> Transkript -> Timing an Waveform/
+    Timeline mit Drag/Snap -> Lücken mit Live-Vorschau & Re-Sync -> Hinweise/
+    Bewertung -> Vorschau -> Publish). Bausteine: Waveform (Web Audio API),
+    Drag-Resize, Live-Re-Sync der Lücken-Offsets, geführtes Onboarding,
+    Barrierefreiheit, Autosave.
+  - Kleinreste: Player-Meldung „kein Inhalt veröffentlicht" statt loaderror;
+    Gruppen-Sichtprüfung im Report-UI.
+
+**WEG ZUR BETA — verbindliche Checkliste (Abschnitt E der Arbeitsplanung):**
+Der Code ist funktional komplett und die CI grün (alpha.70); es gibt keinen
+großen technischen Blocker mehr. Vor dem Sprung auf Beta ist die folgende Liste
+abzuarbeiten (Details, Reihenfolge und Begründungen in
+`docs/materials/Arbeitsplanung_Authoring_und_Subtitle_Studio.md`, Abschnitt E):
+  - **E0 [ERLEDIGT alpha.71]** Vollständiges `makefile` von mod_vimipad
+    übernommen, an elang-Pfade (`js/vendor/react/editor.bundle.js`, `mod/elang`)
+    und elang-benannte Playwright/JMeter/k6-Ziele angeglichen.
+  - **E1 [ERLEDIGT alpha.71]** Player-Meldung „kein Inhalt veröffentlicht"
+    (view.php + `player:nocontent`); Report-Gruppenfilter-Sichtprüfung vorhanden
+    (report.php SEPARATEGROUPS + accessallgroups). P1.3 Sprache bleibt bewusst
+    NICHT `required`.
+  - **[ERLEDIGT alpha.71] Review-P0/P1 + tote Caps:** Transcript-Worksheet/
+    Solution-Trennung (`exportsolution`), serverseitige useregex-Durchsetzung +
+    Domain-Validierung, Score-Clamp — alle mit Tests. `deleteattempts`/
+    `exportreports` implementiert (Dataformat-Export + Lösch-Flow).
+    `package-lock.json` committet, Lang-Parität 229/229, Logo eingepflegt.
+  - **E2** AP-D „Subtitle Studio & Authoring-UX" vor Beta (siehe oben).
+  - **E3** Codehärtung vor Beta (Fehlerpfade, Randfälle, Eingabevalidierung,
+    nutzerfreundliche Fehlermeldungen statt Exceptions).
+  - **E4** Behat-Testabdeckung vor Beta (Kernpfade als `@javascript`-E2E:
+    anlegen → bearbeiten → publish → als Lernende bearbeiten → Report → Export).
+  - **E5** Sichtfunktions- UND Barrierearmutsprüfung vor Beta: Anleitung
+    bereitstellen ODER (bevorzugt) automatisierte **Playwright**-Tests, inkl.
+    a11y-Checks (z. B. axe in Playwright).
+  - **E6** Lasttests vor Beta: **jMeter**-Testplan UND **k6**-Skripte für die
+    wesentlichen Endpunkte bereitstellen.
+  - **E7** Migrationspfad prüfen mit **automatischer Testabdeckung** vor Beta:
+    echtes V1→V2-Upgrade (nicht nur PHPUnit-Frischinstall) reproduzierbar/CI-tauglich,
+    mit Assertions auf Datenintegrität (cuekey/gapkey, Versionen, Media, Ergebnisse).
+  - NICHT Beta-blockierend: OAuth/login-gated Provider (eigenes, kostenpflichtiges
+    Subplugin, nach Beta).
+
+**Für 2.1 verbindlich zugesagt (Blueprint Kap. 19):**
+  2.1-1 regelbasierte Lückenerzeugung
+  2.1-2 Antwortvariante nachträglich anerkennen inkl. Neubewertung
+  2.1-3 Zeichenleiste für Sonderzeichen
+  2.1-4 Übersetzungsspur als Hilfestufe
+  2.1-5 Blindmodus und Audio-only
+  Die Vorleistungen dafür MÜSSEN in 2.0 ins Datenmodell: stabile cuekey/gapkey,
+  dauerhaft gespeicherter Antworttext, zustandsfreie Bewertungsfunktion.
+
+---
+### E) Verifikationsumgebung ZUERST aufsetzen (verpflichtend)
+
+Bevor du inhaltlich arbeitest, richtest du eine echte, lauffähige
+Moodle-4.5-Umgebung ein und verifizierst den mitgelieferten Code REAL
+(nicht nur statisch). Das ist Pflicht, weil mehrere Fehlerklassen
+(PHPUnit-Fails, AMD-Grunt-Diff, Editor-Loading, Backup/Restore) sich
+ausschließlich in einer laufenden Instanz zeigen.
+
+Folge dabei Schritt für Schritt der Anleitung im Repo:
+  docs/dev/moodle-test-environment-setup.md
+
+Kurzfassung des Ablaufs (Details in der Anleitung):
+  1. Systempakete (php-pgsql/mbstring/curl/intl/zip/gd/soap, postgresql, locales)
+  2. PHP konfigurieren (max_input_vars=5000, locale en_AU.UTF-8)
+  3. PostgreSQL starten + Moodle-DB/-User anlegen
+  4. Moodle klonen (git, MOODLE_405_STABLE) und Plugin nach mod/vimipad spiegeln
+  5. config.php mit PHPUnit- und Behat-Blöcken schreiben
+  6. PHPUnit-Env initialisieren -> vendor/bin/phpunit --filter mod_vimipad
+  7. moodle-cs (aktuell) via Composer -> phpcs --severity=1 (Ziel 0/0)
+  8. moodle-plugin-ci PHAR -> phplint/phpmd/phpcpd/phpdoc/validate/savepoints/mustache
+  9. Moodles Grunt-Toolchain (npm ci) -> npx grunt amd (AMD reproduzierbar bauen)
+ 10. Behat init + dry-run (Steps validieren; @javascript nur in CI)
+ 11. Frontend: ./node_modules/.bin/tsc --noEmit, node build.mjs, ./node_modules/.bin/jest
+
+WICHTIGE FALLSTRICKE (siehe Anleitung, Abschnitt 0):
+  - PostgreSQL schläft ein -> vor JEDEM DB-Kommando: service postgresql start; sleep 3
+  - Nach Plugin-Sync mit NEUEN Dateien: PHPUnit-Env re-initialisieren (init.php)
+  - NIE 'npx tsc' (zieht Fremdpaket tsc@2.0.4) -> immer ./node_modules/.bin/tsc
+  - php -S ist instabil -> @javascript-Behat nur in der Projekt-CI, nicht hier
+  - AMD-Build MUSS reproduzierbar sein (zweiter grunt-Lauf == erster), sonst CI rot
+  - phpcs `--standard=moodle` prüft NICHT die @param-Vollständigkeit gegen die
+    Signatur — das macht der SEPARATE `phpdoc`-Check (moodle-local_moodlecheck,
+    CI-Job „JS/Mustache/PHPDoc Lint"). Nach JEDER Signaturänderung (neuer/
+    entfernter Parameter) den @param-Block anpassen und lokal gegenprüfen:
+    `php local/moodlecheck/cli/moodlecheck.php --path=mod/elang` (Repo
+    moodlehq/moodle-local_moodlecheck ins Moodle unter local/ klonen; 0
+    `<error>`-Tags = grün). alpha.73 fiel genau hieran (list_for_activity, $page/
+    $perpage ohne @param).
+
+Zielzustand vor Beginn der eigentlichen Arbeit:
+  PHPUnit grün, phpcs 0/0, AMD identisch, tsc/Jest grün,
+  phpdoc/validate/savepoints/mustache ohne Fehlerzeilen.
+
+Wenn ein Schritt in der Sandbox nicht stabil läuft (z. B. voller Site-Install
+wegen instabilem PostgreSQL), dokumentiere das ehrlich und stütze die
+Verifikation auf die stabile PHPUnit-Env, statt Erfolg vorzutäuschen.
+
+---
+
+### F) Ziel dieser Sitzung
+
+Wir knüpfen an die Arbeiten an, die im aktuellen Kontext-Dokument
+und in der angehängten Code-Base vorliegen, und gehen, wenn der letzte
+Arbeitsschritt als vollumfänglich erfüllt angesehen wird, zum nächsten
+vorgesehenen Schritt in der Umsetzung über.
+
+Schlüssel-Entwurfsentscheidungen (nicht verändern ohne explizite Diskussion):
+  1. Versionierte Übungsdefinition. Inhaltsänderungen erzeugen eine neue Version;
+     laufende Versuche bleiben an der alten Version. Kein Löschen von Lerndaten
+     beim Speichern — das war P0.1 in V1.
+  2. Keine eigene AJAX-Schicht. Alles über External Functions + core/ajax.
+     Destruktives nur per bestätigtem POST bzw. Moodleform.
+  3. Lösungen und Antwortvarianten verlassen den Server nicht. Prüfung
+     ausschließlich serverseitig. Keine Lösungstexte in Events.
+  4. Eine Zeile je fachlichem Objekt. Keine JSON-Blobs. Fortschritt und Abschluss
+     über indizierte Aggregate auf elang_attempt.
+  5. Ausgabe über Renderables, Renderer und Mustache; JavaScript als native
+     ES-Module unter amd/src. Kein jQuery, kein Enyo, kein Bower.
+  6. Reporting über Report Builder; Datenexport über die Dataformat API
+     (CSV/XLSX/ODS/JSON ohne formatspezifischen Eigencode).
+  7. Migration wird an der EXISTENZ der Legacy-Tabellen festgemacht, nicht an
+     Versionsnummern. Legacy-Tabellen werden erst in einem späteren Release
+     abgebaut.
+  8. Keine harten Fremdabhängigkeiten; alles Optionale zur Laufzeit erkannt.
+  9. Versionsabhängige APIs über Fähigkeitsprüfung (Klassen-/Funktionsexistenz),
+     NIE über Versionsvergleiche im Fachcode. Betrifft vor allem:
+     courseformat\overview (ab 5.0), core_ai-Aktionen (4.5 kennt nur
+     generate_text und generate_image), Report-Builder-Erweiterungen.
+  10. Bewertung: GENAU zwei benannte Algorithmen (exact, wordrecognized), keine
+      frei kombinierbaren Einzelschalter. resultstate (feinste gefundene
+      Klassifizierung) und accepted (Regelentscheidung für DIESE Lücke) bleiben
+      getrennte Felder. Schriftsystemabhängige Reduktion läuft über
+      script_handler_manager -> elangscript-Subplugin oder latin_script_handler
+      als Default. Regex-Antwortvarianten sind ein eigener Mechanismus (zählen
+      bei Treffer immer als exact), keine dritte Toleranzstufe. Seit
+      2.0.0-alpha.9: wordrecognized akzeptiert zusätzlich eine Jaro-Ähnlichkeit
+      der reduzierten Formen >= elang.jarothreshold (Default 1, migriert aus
+      V1s jaroDistance-Option) — Details und Historie dieser Kehrtwende in
+      Lastenheft_Pflichtenheft_Blueprint.md Kap. 10.4, NICHT stillschweigend
+      wieder auf "kein Jaro" zurückändern.
+
+Bekannte Stolperfallen (Coding-Standards und Testumgebung):
+  - Lang-Dateien: alphabetisch sortiert, keine Kommentar-Trennzeilen
+  - Keine Leerzeile nach öffnender { (Klasse, Methode, Block)
+  - Genau 1 Space nach Komma; keine Alignment-Paddings
+  - Inline-Kommentare: Großbuchstabe/Ziffer am Anfang, Satzzeichen am Ende
+  - Keine MOODLE_INTERNAL-Guards in Klassen-Dateien (classes/); auch nicht in
+    reinen Funktions-/Generator-Dateien ohne Seiteneffekte (lib.php, tests/generator)
+  - Kein "TODO"/"@todo"-Token in ausgeliefertem Code (moodlecheck verlangt MDL-Ref)
+  - @param-Typ muss dem tatsächlichen Type-Hint exakt entsprechen
+  - @covers-Annotation in jeder Testklasse
+  - Tabellen- und Feldnamen: durchgehend Kleinbuchstaben, Feldnamen ohne Underscore
+  - Statische Register in Tests via setUp zurücksetzen (resetAfterTest setzt nur
+    die DB zurück, keine Statics)
+  - Moodle 5.3 ist noch nicht veröffentlicht: 5.3-CI-Jobs sind bewusst
+    nicht blockierend
+  - PHP 8.1 ist die Untergrenze: KEINE readonly-Klassen, KEINE DNF-Typen,
+    KEINE typisierten Klassenkonstanten, KEINE Property Hooks
+  - PHPUnit-Metadaten als @covers-Annotation, nicht als Attribut
+    (Attribute stehen auf Moodle 4.5 nicht zur Verfügung). VERSTÄRKT durch
+    Session 005: (1) `#[DataProvider]` allein bricht auf PHPUnit 9.6 (Moodle
+    4.5) — der Provider wird nicht gefunden, ArgumentCountError. (2) moodle-cs
+    v3.7.0 schaltet den Coverage-Sniff erst ab meetsMinimumMoodleVersion(500)
+    in den Attribut-Modus; der CI-Lint-Job läuft aber gegen die 4.5-Baseline
+    (branch 405) → dort erzeugen Coverage-Attribute pro Testmethode phpcs-
+    WARNUNGEN, die unter `phpcs --max-warnings 0` den Lint-Job brechen. (3) Die
+    PHPUnit-11-Deprecation „Metadata in doc-comments is deprecated" auf 5.0/5.2
+    ist KEIN CI-Blocker: `moodle-plugin-ci phpunit --fail-on-warning` wertet
+    Deprecations NICHT als Fehler (Job endet exit 0, „OK, but there were
+    issues!"). Also: NIEMALS wegen dieser Deprecation auf Attribute umstellen —
+    das repariert nichts und bricht den Lint-Job neu. Bei Doc-Kommentaren
+    bleiben.
+  - Mehrzeilige if-Bedingungen: öffnende Klammer allein auf der if-Zeile, erster
+    Ausdruck auf der Folgezeile, schließende Klammer allein auf eigener Zeile
+    vor { (phpcbf korrigiert das automatisch, aber es lohnt sich, gleich richtig
+    zu schreiben)
+  - Wer ein Interface implementiert, braucht auf JEDER implementierenden Methode
+    ein EIGENES Docblock — das Docblock im Interface reicht moodlecheck/phpcs
+    nicht, auch wenn es inhaltlich redundant wirkt
+  - Keine literalen Backticks in Strings (auch nicht als einzelnes Zeichen in
+    einer Zuordnungstabelle) — \u{0060} in einem DOPPELT gequoteten String
+    verwenden; \u{}-Escapes werden in einfach gequoteten Strings NICHT
+    interpretiert
+  - #[\Override]-Attribut ist PHP 8.3+, verstößt gegen die 8.1-Untergrenze
+  - moodle-plugin-ci: --no-init + manuelles "cd moodle && php admin/tool/
+    {phpunit,behat}/cli/init.php" ist ein veralteter v3-Workaround und in v4
+    fragil/nicht mehr nötig; moodle-plugin-ci phpunit/behat initialisieren
+    selbst (siehe aktuelles gha.dist.yml als Referenz)
+  - GitHub Actions: continue-on-error auf JOB-Ebene (z. B.
+    "continue-on-error: ${{ matrix.experimental }}" direkt unter dem Job)
+    maskiert zwar den Job-RESULT für needs:-Gates, lässt aber den GESAMTEN
+    Workflow-Lauf trotzdem als fehlgeschlagen erscheinen — sieht für alle
+    Praktiker aus wie "CI ist kaputt", obwohl die eigentlich blockierenden
+    Kombinationen liefen. Nicht-blockierende/experimentelle Matrix-Einträge
+    (z. B. Moodle main/5.3-dev) deshalb IMMER in einen EIGENEN, dedizierten
+    Job auslagern und dort continue-on-error: true auf JEDEM EINZELNEN Step
+    setzen, nicht auf Job-Ebene. Der eigene Job wird dann NICHT in needs: der
+    ci-complete-Gate aufgenommen.
+  - Moodle main (5.3-dev, oder jeder unveröffentlichte Entwicklungszweig)
+    unter der neuesten PHP-Version kann echte debugging()-Aufrufe beim
+    frischen Install auslösen (moodle-plugin-ci prüft das über
+    MoodleProcess::hasDebuggingMessages(), Regex auf "++ Text ++\n* line" —
+    das reale Moodle-debugging()-Ausgabeformat, kein Fehlalarm des Tools).
+    Das ist erwartete Instabilität eines unveröffentlichten Branches, kein
+    Plugin-Fehler — gehört in einen experimentellen Job, nicht gefixt
+  - CI-Logs auswerten (Session 005): Einen roten Gesamt-Lauf NICHT pauschal als
+    „alles kaputt" behandeln. Zuerst je Job auf `##[error]` prüfen und
+    experimentelle/non-blocking Jobs (continue-on-error, „informational only")
+    aussortieren. Nur Jobs, die WIRKLICH mit `##[error]` enden UND in needs:
+    der ci-complete-Gate stehen, blockieren. Rauschquellen, die NIE blockieren:
+    phpmd (`phpmd plugin || true`), phpcpd (`|| true`), PHPUnit-Deprecations
+    („OK, but there were issues!"), der experimentelle main/5.3-dev-Job. Erst
+    den echten Blocker isolieren, dann fixen — nicht am Rauschen „reparieren"
+    (das hat in Session 005 fast eine unnötige, schädliche Attribut-Umstellung
+    ausgelöst).
+  - **Vor dem Nachfixen: prüfen, welche Version der rote Lauf ausgecheckt hat
+    (Session 005).** Ein rotes CI-Ergebnis kann schlicht bedeuten, dass der Fix
+    im getesteten Commit noch nicht drin war. Im Log am `$plugin->release` oder
+    an einem erwarteten Fix-Marker (z. B. „zeigt `thirdpartylibs.xml` schon auf
+    `js/vendor/react`?") verifizieren, ob die Änderung überhaupt lief. Zeitstempel
+    des Laufs mit dem des ausgelieferten ZIP vergleichen. Nicht denselben Fix
+    erneut bauen, wenn der alte Stand getestet wurde.
+  - **Prebuilt-JS-Bundle-Falle (Session 005, ZWEI verkettete Ursachen):**
+    (1) `thirdpartylibs.xml`: Moodles Grunt (`.grunt/components.js
+    getThirdPartyPaths` -> `fs.statSync`) UND moodle-plugin-ci (`Vendors.php`)
+    statten JEDE deklarierte `<location>`. Fehlt die Datei im Checkout, bricht
+    der JS-Lint-Job („ENOENT ... stat" bzw. „non-existent path"), unter
+    `--max-lint-warnings 0` fatal. (2) moodle-plugin-cis `grunt`-Check LOESCHT
+    `amd/build/` komplett vor dem Grunt-Lauf (`GruntCommand`, `buildDirectory=
+    amd/build`, `$files->remove`) und markiert danach jede von Grunt NICHT
+    regenerierte Datei als „File no longer generated ... should be deleted"
+    (exit 1). Ein esbuild/React-Bundle hat kein `amd/src`-Pendant, wird also von
+    `grunt amd` nie erzeugt -> scheitert an (1) wenn absent UND an (2) wenn
+    praesent. **Loesung (bewaehrt in alpha.66):** Bundle NICHT in `amd/build/`,
+    sondern in `js/vendor/react/editor.bundle.js` (normales Verzeichnis, das
+    Grunt nie anfasst). `build.mjs` erzeugt es dort und exponiert
+    `window.mod_elang_editor`. `edit.php` laedt es via `$PAGE->requires->js(new
+    moodle_url(/mod/elang/js/vendor/react/editor.bundle.js))` als Seiten-Skript;
+    `amd/src/editor.js` liest die globale Variable (kurzes Polling) statt
+    `require()`. `thirdpartylibs.xml` zeigt auf das VERZEICHNIS `js/vendor/react`
+    (existiert immer). IMMER mit UND ohne Bundle testen: `moodle-plugin-ci grunt
+    --max-lint-warnings 0` / `phpcs --max-warnings 0` / `validate` muessen in
+    beiden Faellen exit 0 liefern.
+  - **Unverankerte `.gitignore`-Regel-Falle (Session 005):** Eine Regel wie
+    `vendor/` (ohne fuehrenden `/`) matcht dieses Verzeichnis in JEDER Tiefe,
+    also auch `js/vendor/`. Dadurch schloss git das committete React-Bundle
+    still aus (`git add` uebersprang es), und es fehlte in jedem CI-Checkout —
+    obwohl es in jedem ZIP lag. Fix: am Root verankern (`/vendor/`). Bei allem,
+    was committet werden MUSS (Build-Artefakte, gebuendelte Libs), mit
+    `git check-ignore <pfad>` verifizieren, dass keine Regel es faelschlich
+    erfasst. Verzeichnisnamen ohne fuehrenden `/` sind der klassische Fehler.
+  - **ZIP kann keine Loeschung ausdruecken (Session 005):** Ein ueber ein
+    bestehendes Repo extrahiertes Release-ZIP FUEGT HINZU und AKTUALISIERT, aber
+    LOESCHT nie Dateien, die im ZIP fehlen. Als das Bundle von `amd/build/` nach
+    `js/vendor/react/` zog, blieb `amd/build/editor_lazy.min.js` in Ralfs Git
+    liegen und brach den JS-Lint-Job („File no longer generated"). Sobald ein
+    Fix eine committete Datei entfernt/verschiebt, IMMER eine explizite
+    `git rm`-Anweisung mitliefern (hier: Helfer `tools/cleanup_stale.sh`), nicht
+    nur das ZIP. Solche Fixes ueber einen echten `git init → add → commit →
+    clone` verifizieren, nicht ueber direktes Kopieren (das umgeht git-Ignore-
+    und -Loeschlogik komplett).
+  - Lokale Verifikation auf ZWEI Moodle-Zweigen, wenn Testinfrastruktur berührt
+    wird (Session 005): 4.5 nutzt PHPUnit 9.6, 5.0/5.2 nutzen PHPUnit 11 — die
+    verhalten sich bei Test-Metadaten unterschiedlich. Moodle 5.x liegt unter
+    `public/` (Web-Root verschoben: Plugins in `public/mod/…`, version.php in
+    `public/version.php`, Init via `php public/admin/tool/phpunit/cli/init.php`).
+  - Vor dem Ausliefern lokal prüfen, sofern ein PHP mit intl-Extension
+    verfügbar ist: php -l auf jede Datei, phpcs --standard=moodle gegen den
+    ganzen Baum (moodlehq/moodle-cs via Composer installierbar)
+  - Subplugin-Verzeichnisse (db/subplugins.json) MÜSSEN physisch existieren,
+    auch wenn leer — Git trackt keine leeren Verzeichnisse. Ohne Datei darin
+    (z. B. README.md) loggt Moodle bei jedem Plugin-Scan "Invalid subtype
+    directory '...' detected", auch ohne echten Fehlerfall
+  - XMLDB: NOTNULL-CHAR-Spalten dürfen KEIN DEFAULT="" haben — Moodles
+    XMLDB-Validator lehnt das mit einem debugging()-Aufruf ab ("must have
+    one meaningful DEFAULT declared or none"). Entweder ein echter Default
+    oder DEFAULT-Attribut ganz weglassen. Wenn weggelassen: Anwendungscode
+    MUSS das Feld beim Insert immer explizit setzen (Moodle-DB-Layer wirft
+    sonst wegen NOT NULL ohne Default)
+  - Moodles $DB-Layer garantiert KEINE Integer-PHP-Typen für Integer-Spalten:
+    insert_record() liefert echte int zurück, get_record()/get_field()
+    liefern auf MariaDB/PDO oft Strings. assertSame() ist typstrikt — bei
+    jedem Vergleich von frisch aus der DB geholten numerischen Werten
+    IMMER explizit (int) casten, auf BEIDEN Seiten
+  - PHPUnit-Testfixtures (Test-Doubles, die von mehreren *_test.php-Dateien
+    gebraucht werden): NIEMALS in eine eigene, nicht auf _test.php endende
+    Datei auslagern — Moodles PHPUnit-Discovery requiret NUR Dateien nach
+    dem Muster *_test.php, alles andere wird nie geladen ("Class ... not
+    found"). Korrekt (bestätigt gegen echten Moodle-Core-Test
+    lib/phpunit/tests/advanced_test.php): Datei unter tests/fixtures/,
+    Namespace passend zum Pfad (z. B. mod_elang\fixtures\...), UND
+    explizites require_once(__DIR__ . '/pfad/zu/fixtures/datei.php') in
+    setUpBeforeClass() jeder verbrauchenden Testklasse
+  - phpcs (moodle-Standard): GENAU eine Klasse pro Datei, keine Ausnahme —
+    auch nicht für kleine Test-Doubles, die neben der eigentlichen
+    Testklasse in derselben Datei "praktisch" wären
+  - \externallib_advanced_testcase (Basisklasse für External-Function-Tests)
+    braucht wie fake_script_handler ein explizites require_once($CFG->
+    dirroot . '/webservice/tests/helpers.php'), sonst "Class ... not found".
+    BESSER, wenn keine ihrer webservice-spezifischen Zusatzmethoden gebraucht
+    werden (nur execute()/execute_returns() direkt aufgerufen, keine echte
+    REST-Dispatch-Simulation): einfach \advanced_testcase direkt erben. Die
+    Legacy-Klasse ist ohnehin ab Moodle 4.6 zur Ablösung vorgesehen und
+    empfiehlt isolierte Prozesse wegen interner class_alias()-Aufrufe —
+    beides Gründe, sie zu meiden, wenn sie nicht wirklich gebraucht wird.
+    Allgemeine Lektion: JEDE Moodle-Kernklasse mit "advanced_testcase" im
+    Namen prüfen, ob sie zur Kernbibliothek gehört (immer verfügbar) oder zu
+    einem Subsystem mit eigenem tests/helpers.php (braucht require_once).
+  - phpcpd (Teil von moodle-plugin-ci phpcpd, läuft mit || true, blockiert
+    also nie die CI) trotzdem ernst nehmen, wenn gemeldet — fast identische
+    setUp()-Methoden mehrerer Testklassen gehören in eine gemeinsame Fixture
+    (tests/fixtures/), nicht kopiert. WICHTIG dabei, real durchlaufen (nicht
+    nur einmal, sondern es kam beim ersten Versuch selbst zu einem Fehler):
+    eine gemeinsame Fixture als TRAIT ("use TraitName;" INNERHALB der
+    Klasse) wird beim KOMPILIEREN der Klasse aufgelöst — also sobald die
+    Datei geladen wird, VOR jeder Methode, auch vor einer statischen
+    setUpBeforeClass(). require_once() in setUpBeforeClass() kommt für einen
+    Trait deshalb IMMER zu spät ("Trait ... not found"), obwohl exakt
+    dasselbe Muster für fake_script_handler (eine normale Klasse, nur per
+    new innerhalb von Methodenrümpfen referenziert) funktioniert. Ein
+    require_once() auf Dateiebene VOR der Klasse würde den Trait zwar
+    rechtzeitig laden, verstößt dann aber gegen eine ANDERE echte phpcs-
+    Regel (moodle-Standard: ausführender Code auf Dateiebene außerhalb eines
+    MOODLE_INTERNAL-Kontexts gilt als unerwünschte globale Zustandsänderung).
+    RICHTIG: geteilte Fixtures als normale KLASSE mit statischer
+    create()-Factory-Methode bauen, nur aus Methodenrümpfen (setUp()) heraus
+    aufgerufen — dann funktioniert das bewährte require_once()-in-
+    setUpBeforeClass()-Muster unverändert, keine Dateiebenen-Anweisung nötig.
+  - Vor dem Ausliefern eines require_once()/Autoloading-Fixes: nicht nur
+    php -l und phpcs laufen lassen (die finden diese Art von "zu spät
+    aufgelöst"-Reihenfolgefehler NICHT), sondern ein eigenes Skript bauen,
+    das GENAU die Aufrufreihenfolge von PHPUnit nachstellt (Datei laden ->
+    Klasse deklariert -> setUpBeforeClass() aufrufen -> erst DANACH auf die
+    Fixture zugreifen) und prüfen, ob die Klasse zu jedem Zeitpunkt im
+    erwarteten Zustand (geladen/nicht geladen) ist
+  - PHPUnit assertContains() vergleicht seit PHPUnit 9 STRIKT (===), vorher
+    (PHPUnit 8 und früher) lose. Dieses Projekt läuft auf PHPUnit 9.6 (siehe
+    Moodle-4.5-Testlauf). Betrifft also GENAU dieselbe String-vs-Int-Falle
+    wie bei DB-Rückgabewerten (siehe oben) — nur diesmal in der Assertion
+    selbst, nicht im geprüften Code. Bei jedem assertContains()/
+    assertNotContains() auf einer aus der DB stammenden ID-Liste: beide
+    Seiten explizit (int) bzw. array_map('intval', ...) casten.
+    assertEqualsCanonicalizing()/assertEquals() sind davon NICHT betroffen
+    (lose Vergleichslogik, unverändert), nur assertContains()/
+    assertNotContains() sind strikt geworden.
+  - Ein fehlendes Verzeichnis ist nicht automatisch ein Fehler, der behoben
+    werden muss — manchmal ist "existiert noch nicht" der korrekte,
+    erwartete Zustand für die aktuelle Projektphase (Beispiel: templates/
+    für Mustache, bevor der Renderer/Ausgabe-Layer überhaupt gebaut ist).
+    Unterschied zum script/-Fall (Schritt 3 dieser Sitzung): DORT verlangte MOODLE SELBST
+    die Existenz einer im Schema deklarierten Subplugin-Verzeichnis-Struktur
+    unabhängig vom Inhalt — HIER ist es nur unser eigenes Dev-Tool, das ein
+    Verzeichnis für einen noch nicht gebauten Projektteil erwartet. Bei
+    eigenen Tools: die Meldung an den tatsächlichen Erwartungszustand
+    anpassen (OK statt ERROR), statt das Verzeichnis vorzeitig anzulegen.
+  - External Functions: self::validate_context($context) ruft bei
+    CONTEXT_MODULE INTERN require_login($course, false, $cm, ...) auf —
+    DAS prüft bereits, ob die Aktivität für die aktuelle Person "sichtbar"
+    ist (u. a. über mod/MODNAME:view, die Capability, die Moodle per
+    Namenskonvention für Sichtbarkeit heranzieht). Wird GENAU DIESE
+    Capability (":view") prohibited, schlägt bereits validate_context()
+    mit \core\exception\require_login_exception ("Activity is hidden") fehl
+    — der EIGENE, nachfolgende require_capability(':view', ...)-Aufruf wird
+    nie erreicht. Tests, die ":view" prohibiten und
+    required_capability_exception erwarten, schlagen deshalb fehl (real
+    bestätigt gegen Moodle 4.5). RICHTIG: bei ":view"-Tests
+    require_login_exception erwarten. Bei ANDEREN Capabilities (z. B.
+    ":attempt", die nicht sichtbarkeitsrelevant sind) funktioniert die
+    ursprüngliche Erwartung (required_capability_exception) weiterhin normal,
+    da dort kein require_login()-Kurzschluss greift.
+  - KRITISCHER BLINDER FLECK, der uns bis alpha.6 unbemerkt begleitet hat:
+    PHPUnit installiert IMMER frisch über install.xml (database_manager::
+    install_from_xmldb_file()), NIEMALS über upgrade.php. Ein reales Upgrade
+    einer bestehenden Installation (Admin-UI, admin/index.php) nimmt
+    dagegen upgrade.php's imperativen xmldb_table/xmldb_field/xmldb_index/
+    xmldb_key-Pfad. Diese zwei Pfade sind NICHT gleich streng: die
+    XML-Installation toleriert offenbar KEY+INDEX-Kollisionen auf denselben
+    Feldern (ein Fremdschlüssel erzeugt bereits implizit einen Index, ein
+    zusätzlicher expliziter Index auf GENAU denselben Feldern ist redundant),
+    die imperative API in upgrade.php wirft dafür explizit eine
+    coding_exception ("Key X collides with index Y"). Diese Kollision lag
+    SEIT alpha.2 unbemerkt im Schema (elang_gapanswer.gapid,
+    elang_attempt.versionid), weil bis alpha.6 nie ein echtes Admin-UI-
+    Upgrade getestet wurde, nur PHPUnit-Frischinstallationen. LEKTION:
+    install.xml und upgrade.php IMMER gemeinsam auf KEY-Feld == INDEX-Feld-
+    Kollisionen prüfen (ein KEY deckt sein Feld bereits ab, kein
+    zusätzlicher INDEX mit EXAKT denselben Feldern nötig), nicht erst wenn
+    ein echtes Upgrade das findet. Bei jeder neuen Tabelle mit einem
+    einzelnen Fremdschlüssel-Feld: kein separater Index auf genau diesem
+    einen Feld, außer er deckt eine ANDERE Feldkombination ab.
+  - Wiederaufnehmbarkeits-Analyse bei einem fehlgeschlagenen Upgrade: DDL in
+    MySQL/MariaDB committet pro Anweisung sofort und kann durch eine
+    PHP-Exception NICHT zurückgerollt werden. Ein fehlgeschlagener
+    xmldb_elang_upgrade()-Aufruf kann also bereits TEILWEISE angewendet
+    sein. Ob ein erneuter Lauf nach einem Fix sauber wiederaufnimmt, hängt
+    davon ab, ob JEDE table_exists()/field_exists()/index_exists()-Prüfung
+    von Anfang an konsequent vor jedem create_table()/add_field()/
+    add_index() steht (bei uns der Fall — zahlt sich hier aus) — sonst
+    schlägt der zweite Versuch mit "already exists" fehl, statt sauber dort
+    weiterzumachen, wo der erste abgebrochen ist.
+  - Custom-Completion-Regeln BRAUCHEN eine eigene DB-Spalte UND
+    {modname}_get_coursemodule_info(): validate_rule() (core_completion\
+    activity_custom_completion) prüft ZWEI getrennte Dinge — (1) ist die
+    Regel überhaupt vom Plugin definiert (get_defined_custom_rules(),
+    wirft coding_exception wenn nicht) UND (2) ist sie für GENAU DIESE
+    Kursmodul-Instanz aktiviert/in Benutzung (wirft moodle_exception wenn
+    nicht). Prüfung (2) liest
+    cm_info->customdata['customcompletionrules'] -- das wird
+    AUSSCHLIESSLICH durch einen {modname}_get_coursemodule_info(
+    $coursemodule)-Callback in lib.php befüllt (Vorbild:
+    forum_get_coursemodule_info(), liest forum.completiondiscussions etc.
+    aus der EIGENEN Tabelle der Aktivität). OHNE diesen Callback UND eine
+    eigene Spalte für die Regel (z. B. elang.completionfinishattempt)
+    schlägt get_state() IMMER fehl, unabhängig von Testaufbau oder
+    eigener Logik -- ein Fix, der nur create_module()-Optionen anpasst
+    (Kurs mit enablecompletion => 1, Modul mit completion =>
+    COMPLETION_TRACKING_AUTOMATIC + unsuffixierter Regelname), OHNE
+    Spalte und Callback, bleibt wirkungslos (real erlebt: erster
+    Fixversuch schlug exakt so fehl). RICHTIG: BEIDES zusammen -- Spalte
+    + Callback, der customdata['customcompletionrules'][$regelname] NUR
+    setzt, wenn $coursemodule->completion == COMPLETION_TRACKING_
+    AUTOMATIC (Core-eigene Konvention). Erst DANACH wirkt die
+    create_module()-Konfiguration wie vorgesehen.
+  - insert_record()/insert_record_raw() quoten Spaltennamen NIE. Reale
+    V1-Spaltennamen wie begin/end/user sind auf PostgreSQL reservierte
+    Wörter — auf MariaDB unauffällig. Betrifft nur Code, der Daten mit
+    einer expliziten Spaltenliste EINFÜGT; SELECT *-Lesezugriffe sind
+    nicht betroffen.
+  - DDL (DROP COLUMN/TABLE) ist in MySQL/MariaDB nicht transaktional und
+    wird von Moodles PHPUnit-resetAfterTest() NICHT rückgängig gemacht —
+    nur Tabellendaten werden zurückgesetzt, nicht das Schema selbst. Ein
+    Test, der versehentlich eine reale Spalte droppt, beschädigt den
+    GESAMTEN weiteren Testlauf, nicht nur sich selbst. Bei jeder
+    DDL-verändernden Methode: die Bedingung für eine tatsächliche
+    Änderung muss so scharf sein, dass ein harmlos gemeinter Aufruf
+    nachweislich NICHTS verändert.
+  - Bei demselben Fehlerbild über mehrere TATSÄCHLICH unabhängige
+    Umgebungen hinweg (mehrere separate, frische CI-Container) zuerst
+    einen echten Code-Bug vermuten, nicht Umgebungszustand/Caching/
+    Dateisperren — auch wenn genau diese Erklärungen in ANDEREN
+    Situationen zuvor tatsächlich richtig waren.
+  - phpcs sortiert Lang-Strings über die GESAMTE Datei alphabetisch,
+    nicht nur innerhalb eines neu hinzugefügten Blocks.
+  - Kommentare, die mit einem Funktionsaufruf beginnen (z. B.
+    "chr(96) is..."), lösen dieselbe Großschreibungsregel aus wie jeder
+    andere Kommentar.
+
+---
+---
+
+### F) Modus zur Delivery
+
+- Code- UND Doku-Änderungen immer gemeinsam ausliefern als EIN Patch-ZIP:
+  eine ZIP-Datei, die NUR die geänderten Dateien enthält (kein .git-Ordner),
+  mit korrekter Verzeichnisstruktur relativ zum Plugin-Root — also auch
+  geänderte docs/-Dateien MIT im selben ZIP, nicht separat oder als lose
+  Einzeldateien im Chat.
+- AUSNAHME für prebuilt Artefakte (z. B. das React-Bundle
+  `js/vendor/react/editor.bundle.js`): Wenn eine Änderung ein solches, groesses
+  prebuilt Artefakt betrifft, ein VOLL-ZIP des ganzen Plugin-Baums ausliefern
+  (kein .git/node_modules/tools/vendor, aber MIT js/vendor/react/, amd/build/
+  und js/src), damit die Datei sicher ankommt. Wichtiger als der Zustellweg ist
+  aber die Struktur: Das Bundle liegt bewusst in js/vendor/react/ und NICHT in
+  amd/build/ (siehe Prebuilt-JS-Bundle-Falle oben), damit die CI weder bei
+  fehlender noch bei vorhandener Datei bricht. Der Nutzer testet gegen seine
+  echte CI.
+- Patch-ZIPs erhalten einen durchnummerierten Namen (patch-2.0.YY.zip),
+  die Version in version.php orientiert sich am aktuellen Datum und wird
+  mit jeder Iteration hochgezählt (Format: YYYYMMDDNN, z.B. 2026072301)
+- Zu jeder Änderung eine einzeilige Kurzbeschreibung des Commits (englisch)
+  sowie bis zu 5 Stichpunkte zu den vorgenommenen Änderungen.
+  Diese Angaben als MD-Code DIREKT UNTER dem Download-Link der Patch-ZIP
+- Bei der Code-Generierung immer die Moodle-Coding-Standards einhalten:
+    - GPL-Boilerplate-Header in jeder Datei
+    - PHPDoc für alle Klassen, Methoden und Properties
+    - Short array syntax ([] statt array())
+    - Keine Leerzeile nach öffnender {
+    - Multiline-Argumente: jedes Argument auf eigener Zeile
+    - Genau 1 Space nach Komma in Argumentlisten (kein Alignment-Padding)
+    - Inline-Kommentare: Großbuchstabe/Ziffer am Anfang, Punkt/!/? am Ende
+    - Keine MOODLE_INTERNAL-Guards in Klassen-Dateien (classes/)
+    - Membervariablen: all lowercase (kein camelCase)
+    - Lang-Strings: alphabetisch sortiert, keine Kommentar-Trennzeilen
+    - PHPUnit-Tests: basic_testcase ohne DB, advanced_testcase mit DB
+    - @covers-Annotation in jeder Testklasse
+- Author: Ralf Erlebach, Jahr: 2026, Lizenz: GPL v3 or later
+- Bei Unklarheiten und auftretenden Fehlern: Shell-Skripte, SQL-Abfragen
+  und JS-Skripte für die Konsole mitliefern. Diagnose-Skripte werden
+  grundsätzlich nur im Chat-Fenster ausgeliefert, nie als Download!
+
+Bevor du beginnst:
+1. Bestätige kurz, was du aus dem Kontext-Dokument und den
+   Dateien verstanden hast.
+2. Benenne, falls vorhanden, Widersprüche oder fehlende
+   Informationen, die du für die heutige Aufgabe brauchst.
+3. Warte dann auf meine Freigabe, bevor du Code schreibst.
+
+Liefere nun eine kurze Einschätzung zu den bevorstehenden Arbeiten
+und den drei Punkten oben!

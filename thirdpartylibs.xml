@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<libraries>
+    <library>
+        <location>js/vendor/react</location>
+        <name>React</name>
+        <description>React is installed from npm (pinned in package-lock.json) and compiled together with the plugin's own TypeScript sources (js/src) into the prebuilt authoring editor bundle js/vendor/react/editor.bundle.js, used on Moodle versions without a native React runtime. The declaration points at the js/vendor/react directory, which always exists in a checkout and documents the bundle, rather than at a build artefact under amd/build/, which moodle-plugin-ci wipes before re-running Grunt. Provenance and reproducible build steps: js/vendor/react/readme_moodle.txt.</description>
+        <version>18.3.1</version>
+        <license>MIT</license>
+        <licenseversion></licenseversion>
+    </library>
+    <library>
+        <location>js/vendor/react</location>
+        <name>ReactDOM</name>
+        <description>ReactDOM is bundled into the prebuilt authoring editor bundle together with React (see the React entry for build details and js/vendor/react/readme_moodle.txt for provenance).</description>
+        <version>18.3.1</version>
+        <license>MIT</license>
+        <licenseversion></licenseversion>
+    </library>
+    <library>
+        <location>js/vendor/react</location>
+        <name>Scheduler</name>
+        <description>Scheduler (a ReactDOM runtime dependency) is bundled into the prebuilt authoring editor bundle together with React and ReactDOM.</description>
+        <version>0.23.2</version>
+        <license>MIT</license>
+        <licenseversion></licenseversion>
+    </library>
+</libraries>

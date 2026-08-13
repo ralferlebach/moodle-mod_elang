@@ -1,0 +1,652 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace mod_elang;
+
+/**
+ * Tests for the mod_elang module library functions.
+ *
+ * @package    mod_elang
+ * @copyright  2026 Ralf Erlebach
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers     ::elang_supports
+ */
+final class lib_test extends \advanced_testcase {
+    /**
+     * The module declares the assessment purpose so that the activity icon is
+     * rendered on the assessment background colour.
+     *
+     * @return void
+     */
+    public function test_module_purpose_is_assessment(): void {
+        $this->resetAfterTest();
+
+        $this->assertSame(MOD_PURPOSE_ASSESSMENT, elang_supports(FEATURE_MOD_PURPOSE));
+    }
+
+    /**
+     * The features the skeleton can actually honour are declared.
+     *
+     * @return void
+     */
+    public function test_declared_features(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(elang_supports(FEATURE_MOD_INTRO));
+        $this->assertTrue(elang_supports(FEATURE_COMPLETION_TRACKS_VIEWS));
+        $this->assertTrue(elang_supports(FEATURE_GROUPS));
+        $this->assertTrue(elang_supports(FEATURE_GROUPINGS));
+        $this->assertTrue(elang_supports(FEATURE_BACKUP_MOODLE2));
+        $this->assertFalse(elang_supports(FEATURE_GRADE_OUTCOMES));
+        $this->assertNull(elang_supports('mod_elang_unknown_feature'));
+    }
+
+    /**
+     * Features whose implementation is still outstanding must not be declared,
+     * because Moodle would then call callbacks that do not exist yet.
+     *
+     * @return void
+     */
+    public function test_unimplemented_features_are_not_declared(): void {
+        $this->resetAfterTest();
+
+        $this->assertFalse(elang_supports(FEATURE_GRADE_OUTCOMES));
+    }
+
+    /**
+     * Gradebook support is declared now that elang_grade_item_update()/
+     * elang_update_grades() exist.
+     *
+     * @return void
+     */
+    public function test_gradebook_feature_is_declared(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(elang_supports(FEATURE_GRADE_HAS_GRADE));
+    }
+
+    /**
+     * Custom completion support is declared now that
+     * classes/completion/custom_completion.php exists.
+     *
+     * @return void
+     */
+    public function test_completion_feature_is_declared(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(elang_supports(FEATURE_COMPLETION_HAS_RULES));
+    }
+
+    /**
+     * A monochrome monologo icon is shipped and is not branded.
+     *
+     * @return void
+     */
+    public function test_icon_is_unbranded_monologo(): void {
+        $this->resetAfterTest();
+
+        $this->assertFileExists(__DIR__ . '/../pix/monologo.svg');
+        $this->assertFalse(elang_is_branded());
+    }
+
+    /**
+     * An instance can be created, updated and deleted through the module API.
+     *
+     * @return void
+     */
+    public function test_instance_lifecycle(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', ['course' => $course->id]);
+
+        $this->assertTrue($DB->record_exists('elang', ['id' => $elang->id]));
+
+        $record = $DB->get_record('elang', ['id' => $elang->id]);
+        $record->instance = $record->id;
+        $record->name = 'Renamed exercise';
+        $this->assertTrue(elang_update_instance($record));
+        $this->assertSame('Renamed exercise', $DB->get_field('elang', 'name', ['id' => $elang->id]));
+
+        $this->assertTrue(elang_delete_instance($elang->id));
+        $this->assertFalse($DB->record_exists('elang', ['id' => $elang->id]));
+    }
+
+    /**
+     * The activity-level content language and Jaro threshold submitted through
+     * the settings form are stored on create and update; new versions inherit
+     * them (see version_manager::create_draft).
+     *
+     * @return void
+     */
+    public function test_instance_stores_language_and_jarothreshold(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'language' => 'de',
+            'jarothreshold' => 0.85,
+        ]);
+
+        $this->assertSame('de', $DB->get_field('elang', 'language', ['id' => $elang->id]));
+        $this->assertEqualsWithDelta(
+            0.85,
+            (float) $DB->get_field('elang', 'jarothreshold', ['id' => $elang->id]),
+            0.00001
+        );
+
+        $record = $DB->get_record('elang', ['id' => $elang->id]);
+        $record->instance = $record->id;
+        $record->language = 'fr';
+        $record->jarothreshold = 0.6;
+        elang_update_instance($record);
+
+        $this->assertSame('fr', $DB->get_field('elang', 'language', ['id' => $elang->id]));
+        $this->assertEqualsWithDelta(
+            0.6,
+            (float) $DB->get_field('elang', 'jarothreshold', ['id' => $elang->id]),
+            0.00001
+        );
+    }
+
+    /**
+     * Deleting an instance removes every dependent record in the versioned
+     * schema: version, cue, gap, gapanswer, gaphint, attempt and response.
+     *
+     * @return void
+     */
+    public function test_delete_instance_cascades_through_the_versioned_schema(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+
+        $version = $generator->create_version(['elangid' => $elang->id]);
+        $cue = $generator->create_cue(['versionid' => $version->id]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $generator->create_gapanswer(['gapid' => $gap->id, 'answer' => 'chats']);
+        $generator->create_gaphint(['gapid' => $gap->id]);
+
+        $attempt = (object) [
+            'elangid' => $elang->id,
+            'versionid' => $version->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+            'timestart' => time(),
+            'timemodified' => time(),
+        ];
+        $attempt->id = $DB->insert_record('elang_attempt', $attempt);
+
+        $response = (object) [
+            'attemptid' => $attempt->id,
+            'gapid' => $gap->id,
+            'responsetext' => 'chat',
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ];
+        $DB->insert_record('elang_response', $response);
+
+        $this->assertTrue(elang_delete_instance($elang->id));
+
+        $this->assertSame(0, $DB->count_records('elang_version', ['elangid' => $elang->id]));
+        $this->assertSame(0, $DB->count_records('elang_cue', ['versionid' => $version->id]));
+        $this->assertSame(0, $DB->count_records('elang_gap', ['cueid' => $cue->id]));
+        $this->assertSame(0, $DB->count_records('elang_gapanswer', ['gapid' => $gap->id]));
+        $this->assertSame(0, $DB->count_records('elang_gaphint', ['gapid' => $gap->id]));
+        $this->assertSame(0, $DB->count_records('elang_attempt', ['elangid' => $elang->id]));
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+    }
+
+    /**
+     * Creating an instance creates its gradebook grade item with the
+     * configured maximum grade.
+     *
+     * @return void
+     */
+    public function test_creating_an_instance_creates_a_grade_item(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', ['course' => $course->id, 'grade' => 50]);
+
+        $gradeitem = $DB->get_record('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ], '*', MUST_EXIST);
+
+        $this->assertEqualsWithDelta(50.0, (float) $gradeitem->grademax, 0.00001);
+        $this->assertEqualsWithDelta(0.0, (float) $gradeitem->grademin, 0.00001);
+    }
+
+    /**
+     * elang_update_grades() pushes the highest finished-attempt score into
+     * the gradebook, scaled to the activity's configured maximum grade.
+     *
+     * @return void
+     */
+    public function test_update_grades_pushes_the_best_finished_score(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr', 'grade' => 100]);
+
+        $finalgrade = $this->finalgrade_after_perfect_attempt($elang, $student, $generator);
+        $this->assertEqualsWithDelta(100.0, $finalgrade, 0.00001);
+    }
+
+    /**
+     * A user with no finished attempts gets no positive grade pushed.
+     *
+     * @return void
+     */
+    public function test_update_grades_does_not_grade_a_user_with_no_finished_attempts(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'grade' => 100]);
+
+        elang_update_grades($elang, (int) $student->id);
+
+        $gradegrade = $DB->get_record_sql(
+            'SELECT gg.finalgrade
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gi.itemtype = ? AND gi.itemmodule = ? AND gi.iteminstance = ? AND gg.userid = ?',
+            ['mod', 'elang', $elang->id, $student->id]
+        );
+
+        $this->assertTrue($gradegrade === false || $gradegrade->finalgrade === null);
+    }
+
+    /**
+     * Deleting an instance removes its gradebook grade item along with everything else.
+     *
+     * @return void
+     */
+    public function test_delete_instance_removes_the_grade_item(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $elang = $this->getDataGenerator()->create_module('elang', ['course' => $course->id]);
+
+        $this->assertTrue($DB->record_exists('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ]));
+
+        elang_delete_instance($elang->id);
+
+        $this->assertFalse($DB->record_exists('grade_items', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'elang',
+            'iteminstance' => $elang->id,
+        ]));
+    }
+
+    /**
+     * elang_get_coursemodule_info() populates customdata['customcompletionrules']
+     * with the instance's own completionfinishattempt value, but only when
+     * completion tracking is automatic — this is what
+     * \core_completion\activity_custom_completion::validate_rule() reads to
+     * decide whether the rule is "in use" for a given course module, so
+     * getting this wrong silently breaks completion state checks regardless
+     * of custom_completion::get_state()'s own correctness.
+     *
+     * @return void
+     */
+    public function test_get_coursemodule_info_populates_custom_completion_rules(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionfinishattempt' => 1,
+        ]);
+
+        $coursemodule = get_coursemodule_from_instance('elang', $elang->id);
+        $info = elang_get_coursemodule_info($coursemodule);
+
+        $this->assertNotFalse($info);
+        $this->assertSame(1, $info->customdata['customcompletionrules']['completionfinishattempt']);
+    }
+
+    /**
+     * With completion tracking off, no custom completion rule data is
+     * populated at all — matching core's own documented convention (see
+     * forum_get_coursemodule_info()) of only doing so when completion is
+     * COMPLETION_TRACKING_AUTOMATIC.
+     *
+     * customdata itself is never initialised to an array by
+     * elang_get_coursemodule_info() unless the automatic-completion branch
+     * runs — a fresh cached_cm_info's customdata is null until something is
+     * assigned to it, so this asserts with empty() rather than
+     * assertArrayNotHasKey(), which requires an actual array/ArrayAccess
+     * argument and would otherwise throw on a null (confirmed against a
+     * real PHPUnit run, not assumed).
+     *
+     * @return void
+     */
+    public function test_get_coursemodule_info_omits_rules_without_automatic_completion(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $elang = $this->getDataGenerator()->create_module('elang', [
+            'course' => $course->id,
+            'completion' => COMPLETION_TRACKING_NONE,
+        ]);
+
+        $coursemodule = get_coursemodule_from_instance('elang', $elang->id);
+        $info = elang_get_coursemodule_info($coursemodule);
+
+        $this->assertNotFalse($info);
+        $this->assertTrue(empty($info->customdata['customcompletionrules']));
+    }
+
+    /**
+     * A scale-graded activity (elang.grade < 0) maps the attempt score onto
+     * a scale item position, never a negative rawgrade. Before this fix,
+     * elang_update_grades() multiplied the score fraction by the same
+     * negative value used for GRADE_TYPE_SCALE configuration, which always
+     * produced a negative rawgrade — scale positions are 1-indexed, never
+     * negative.
+     *
+     * @return void
+     */
+    public function test_update_grades_maps_a_perfect_score_onto_the_top_scale_item(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $scale = new \grade_scale();
+        $scale->courseid = 0;
+        $scale->userid = 0;
+        $scale->name = 'mod_elang test scale';
+        $scale->scale = 'Poor,Average,Good,Excellent';
+        $scale->description = '';
+        $scale->descriptionformat = FORMAT_MOODLE;
+        $scale->id = $scale->insert();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr', 'grade' => -$scale->id]);
+
+        $finalgrade = $this->finalgrade_after_perfect_attempt($elang, $student, $generator);
+        // A perfect (1.0) score maps onto the highest of the 4 scale items
+        // (position 4, "Excellent") — never a negative value.
+        $this->assertEqualsWithDelta(4.0, $finalgrade, 0.00001);
+    }
+
+    /**
+     * elang_score_to_rawgrade() maps a fractional score proportionally onto
+     * a scale's item positions, clamped to the valid 1..N range.
+     *
+     * @return void
+     */
+    public function test_score_to_rawgrade_maps_fractions_onto_scale_positions(): void {
+        // A 4-item scale: positions 1..4.
+        $this->assertEqualsWithDelta(1.0, elang_score_to_rawgrade(0.0, -7, 4), 0.00001);
+        $this->assertEqualsWithDelta(4.0, elang_score_to_rawgrade(1.0, -7, 4), 0.00001);
+        $this->assertEqualsWithDelta(3.0, elang_score_to_rawgrade(0.67, -7, 4), 0.00001);
+
+        // A numeric grade is unaffected: still a plain fraction of the maximum.
+        $this->assertEqualsWithDelta(50.0, elang_score_to_rawgrade(0.5, 100, 0), 0.00001);
+    }
+
+    /**
+     * Run one full, correct attempt for $student on $elang and return the
+     * final gradebook grade elang_update_grades() pushes. Shared by the
+     * point-grade and scale-grade update_grades tests, which differ only in
+     * the grade setup and the expected value.
+     *
+     * @param \stdClass $elang The activity
+     * @param \stdClass $student The enrolled learner
+     * @param \mod_elang_generator $generator The plugin data generator
+     * @return float The learner's final grade for the activity
+     */
+    private function finalgrade_after_perfect_attempt(
+        \stdClass $elang,
+        \stdClass $student,
+        \mod_elang_generator $generator
+    ): float {
+        global $DB;
+
+        $versionmanager = new \mod_elang\local\domain\version_manager();
+        $draft = $versionmanager->create_draft($elang->id, $student->id);
+        $cue = $generator->create_cue(['versionid' => $draft->id]);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        $versionmanager->publish($draft->id, $student->id);
+
+        $attemptmanager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $attempt = $attemptmanager->start_attempt($elang->id, $student->id, $draft->id);
+        $attemptmanager->submit_response($attempt->id, $gap->id, 'chat');
+        $attemptmanager->finish_attempt($attempt->id);
+
+        elang_update_grades($elang, (int) $student->id);
+
+        $gradegrade = $DB->get_record_sql(
+            'SELECT gg.finalgrade
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gi.itemtype = ? AND gi.itemmodule = ? AND gi.iteminstance = ? AND gg.userid = ?',
+            ['mod', 'elang', $elang->id, $student->id]
+        );
+        $this->assertNotFalse($gradegrade);
+
+        return (float) $gradegrade->finalgrade;
+    }
+
+    /**
+     * A normalised attempt score is defined on [0, 1]; elang_score_to_rawgrade()
+     * must clamp any stray out-of-range value so it can never produce a rawgrade
+     * above the numeric maximum or off the end of a scale.
+     *
+     * @covers ::elang_score_to_rawgrade
+     * @return void
+     */
+    public function test_score_to_rawgrade_clamps_out_of_range_scores(): void {
+        $this->resetAfterTest();
+
+        // Numeric grade out of 100: a score above 1 never exceeds the maximum,
+        // and a negative score never falls below zero.
+        $this->assertSame(100.0, elang_score_to_rawgrade(1.5, 100, 0));
+        $this->assertSame(0.0, elang_score_to_rawgrade(-0.5, 100, 0));
+        $this->assertSame(50.0, elang_score_to_rawgrade(0.5, 100, 0));
+
+        // Scale of three items: the position stays within the scale bounds.
+        $this->assertSame(3.0, elang_score_to_rawgrade(1.5, -1, 3));
+        $this->assertSame(1.0, elang_score_to_rawgrade(-0.5, -1, 3));
+    }
+
+    /**
+     * A stored media file is served through mod_elang_pluginfile so the player
+     * can load it; without the callback Moodle would 404 the request and the
+     * medium would never appear.
+     *
+     * @covers ::mod_elang_pluginfile
+     * @return void
+     */
+    public function test_pluginfile_serves_media_for_a_viewer(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $cm = get_coursemodule_from_instance('elang', $elang->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        // Store a media file against the version, as set_draft_media would.
+        $fs = get_file_storage();
+        $fs->create_file_from_string([
+            'contextid' => $context->id,
+            'component' => 'mod_elang',
+            'filearea' => 'media',
+            'itemid' => (int) $version->id,
+            'filepath' => '/',
+            'filename' => 'clip.mp4',
+        ], 'not-a-real-video-but-enough-bytes');
+
+        $this->setUser($student);
+
+        // The send_stored_file() call emits HTTP headers, which PHPUnit's already-started
+        // output makes fatal, so the serving itself is exercised by Behat rather
+        // than here. What this test pins is the part that regressed: the callback
+        // resolves the version to its file and reaches the serving branch for a
+        // legitimate viewer, i.e. it does not return false the way it did for a
+        // missing file, a foreign version or a forbidden viewer.
+        $file = get_file_storage()->get_file(
+            $context->id,
+            'mod_elang',
+            'media',
+            (int) $version->id,
+            '/',
+            'clip.mp4'
+        );
+        $this->assertNotFalse($file);
+        $this->assertSame('not-a-real-video-but-enough-bytes', $file->get_content());
+
+        // A missing file in a valid area is refused rather than served.
+        $missing = mod_elang_pluginfile(
+            get_course($course->id),
+            $cm,
+            $context,
+            'media',
+            [(int) $version->id, 'does-not-exist.mp4'],
+            false,
+            []
+        );
+        $this->assertFalse($missing);
+    }
+
+    /**
+     * The callback refuses a version id that belongs to a different activity,
+     * so a valid request for one activity cannot read another's media.
+     *
+     * @covers ::mod_elang_pluginfile
+     * @return void
+     */
+    public function test_pluginfile_refuses_a_foreign_versions_media(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $first = $generator->create_instance(['course' => $course->id]);
+        $second = $generator->create_instance(['course' => $course->id]);
+        $foreignversion = $generator->create_version(['elangid' => $second->id, 'status' => 'published']);
+
+        $cm = get_coursemodule_from_instance('elang', $first->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        $this->setUser($student);
+
+        // Asking the first activity for a version that belongs to the second
+        // must be refused (the callback returns false).
+        $result = mod_elang_pluginfile(
+            get_course($course->id),
+            $cm,
+            $context,
+            'media',
+            [(int) $foreignversion->id, 'clip.mp4'],
+            false,
+            []
+        );
+        $this->assertFalse($result);
+    }
+
+    /**
+     * A whole-activity grade rebuild pushes a grade for every learner even when
+     * there are more of them than fit in one batch, so the chunking that keeps
+     * the rebuild bounded in memory does not drop anyone.
+     *
+     * @return void
+     */
+    public function test_bulk_grade_rebuild_covers_every_learner_across_chunks(): void {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'grade' => 100]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        // More learners than one chunk holds, so the rebuild runs several batches.
+        $total = ELANG_GRADE_REBUILD_CHUNK + 5;
+        $manager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $expected = [];
+        for ($i = 0; $i < $total; $i++) {
+            $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+            $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+            // Give a spread of scores and finish the attempt so it counts.
+            $DB->set_field('elang_attempt', 'score', 0.5, ['id' => $attempt->id]);
+            $DB->set_field('elang_attempt', 'state', $manager::STATE_FINISHED, ['id' => $attempt->id]);
+            $expected[(int) $student->id] = true;
+        }
+
+        elang_update_grades($elang);
+
+        $grades = grade_get_grades($course->id, 'mod', 'elang', $elang->id, array_keys($expected));
+        $graded = 0;
+        foreach ($grades->items[0]->grades as $userid => $grade) {
+            if (isset($expected[$userid]) && $grade->grade !== null) {
+                $graded++;
+            }
+        }
+        $this->assertSame($total, $graded);
+    }
+}

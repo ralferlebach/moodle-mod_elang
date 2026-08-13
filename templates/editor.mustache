@@ -1,0 +1,38 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/editor
+
+    Moodle-native shell for the exercise content editor. The mod_elang/editor
+    AMD module mounts the bundled React application into the editorroot region,
+    replacing the server-rendered loading status; the media upload page URL is
+    handed over as a data attribute.
+
+    Example context (json):
+    {
+        "mediauploadurl": "https://example.com/mod/elang/media.php?id=1"
+    }
+}}
+<div class="mod_elang-editor" data-region="mod_elang/editor">
+    <h3>{{#str}} editor:heading, mod_elang {{/str}}</h3>
+
+    <div data-region="editorroot" data-mediauploadurl="{{mediauploadurl}}">
+        <p class="mod_elang-status" data-region="status" role="status" aria-live="polite">
+            {{#str}} editor:loading, mod_elang {{/str}}
+        </p>
+    </div>
+</div>

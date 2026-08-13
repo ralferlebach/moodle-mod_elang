@@ -1,0 +1,8 @@
+{
+    "subplugintypes": {
+        "elangscript": "script"
+    },
+    "plugintypes": {
+        "elangscript": "mod/elang/script"
+    }
+}

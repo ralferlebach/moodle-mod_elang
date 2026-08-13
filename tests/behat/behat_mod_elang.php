@@ -131,6 +131,23 @@ JS;
         $manager = new \mod_elang\local\domain\version_manager();
         $draft = $manager->create_draft((int) $elang->id);
 
+        // The create_draft() call copies the current version's content into the new
+        // draft so an author can build on it. For a test that states the whole new
+        // transcript, that inherited content would linger alongside the cue set
+        // below; remove it so the published version contains exactly this cue.
+        $inheritedcueids = $DB->get_fieldset_select('elang_cue', 'id', 'versionid = ?', [$draft->id]);
+        if (!empty($inheritedcueids)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($inheritedcueids);
+            $inheritedgapids = $DB->get_fieldset_select('elang_gap', 'id', "cueid $insql", $inparams);
+            if (!empty($inheritedgapids)) {
+                [$gapinsql, $gapinparams] = $DB->get_in_or_equal($inheritedgapids);
+                $DB->delete_records_select('elang_gaphint', "gapid $gapinsql", $gapinparams);
+                $DB->delete_records_select('elang_gapanswer', "gapid $gapinsql", $gapinparams);
+                $DB->delete_records_select('elang_gap', "id $gapinsql", $gapinparams);
+            }
+            $DB->delete_records('elang_cue', ['versionid' => $draft->id]);
+        }
+
         $cue = (object) [
             'versionid' => $draft->id,
             'cuekey' => 'behat-cue-' . random_string(8),

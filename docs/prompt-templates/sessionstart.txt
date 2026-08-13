@@ -51,42 +51,48 @@ Vorgänger: mod_elang 1.x (Université de La Rochelle, CeCILL-B, Moodle 3.4).
 
 ### D) Aktueller Entwicklungsstand
 
-**Version:** 2.0.0-alpha.80 (2026081110) — Phasen 2–4 abgeschlossen. Session 007
-(dieser Chat; EIN Claude-Chat = EINE Session) brachte von alpha.71 auf alpha.75:
-(1) Skalierung — N+1 in version_validator/version_manager gebündelt, Report
-paginiert, V1-Detector DB-seitig limitiert, Draft-Invariante reconciliert, README
-aktualisiert (alpha.72); (2) **E2 Subtitle Studio** — Live-Re-Sync der
-Lücken-Offsets (codepoint-genau), maskierte Vorschau, Waveform, ziehbare
-tastaturbedienbare Cue-Ränder, Autosave, Onboarding (js/src/studio/, 22
-Jest-Tests, Bundle reproduzierbar neu gebaut) (alpha.73); (3) **E3 Write-Härtung**
-— save_draft_version fängt doppelte cuekey/gapkey/hint-level + negative Offsets ab
-(klare Meldungen statt dml_write_exception) + phpdoc-CI-Fix (alpha.74); (4) **E4
-Behat** — report.feature (nicht-JS) + authoring_studio.feature (@javascript) +
-Attempt-Seed-Step (test-only); (5) **Produktiv-Gate Backup/Restore** —
-FEATURE_BACKUP_MOODLE2 + vollständige backup/moodle2/ mit Reference-Remapping inkl.
-currentversionid (alpha.75). Details in docs/sessions/session-007.md.
+**Version:** 2.0.0-beta.1 (2026081303), `MATURITY_BETA`. Session 007 brachte das
+Plugin von alpha.71 zur ersten Beta. Alle P0/P1/P2 aus dem externen Release-Review
+sind geschlossen; die volle CI-Matrix (Moodle 4.5/5.0/5.2, PostgreSQL + MariaDB,
+PHP 8.1–8.4, Chrome-Behat, PHP-Lint, JS/Mustache/PHPDoc-Lint) ist **von Ralf grün
+bestätigt**. Details je Version im CHANGELOG, Verlauf in
+docs/sessions/session-007.md.
 
-**Stand Session 007 (real gegen Moodle 4.5.13, CI von Ralf grün bestätigt):**
-PHPUnit **364/1150** grün, phpcs 0/0, phpdoc (moodle-local_moodlecheck) 0/0, tsc
-sauber, Jest 29/29, esbuild reproduzierbar, Grunt eslint:amd + gherkinlint grün,
-Behat nicht-JS 9/72 grün + dry-run ohne undefined. PFLICHTEN vor Auslieferung:
-(a) moodlecheck lokal laufen lassen (phpcs prüft @param-Vollständigkeit nicht);
-(b) FEATURE_BACKUP_MOODLE2 muss true sein, sonst überspringt Backup die Aktivität;
-(c) EIN Claude-Chat = EINE Session (Inkremente sind Gliederung, keine neuen
-Sessions — Zählfehler wiederholt vermeiden). E5/E6-Artefakte erstellt (tests/playwright: Playwright+axe; tests/load: k6+JMeter
-Lasttest der Read-WS get_version_content; Seeder + makefile-Targets; strukturell
-validiert, Ausführung gegen laufende Instanz/CI steht aus). E7 erledigt (tests/upgrade_test.php: echtes xmldb_elang_upgrade von V1-Baseline
-durch alle Savepoints + Migrations-Integrität, 32 Assertions). Offen für Beta:
-E5/E6 real laufen lassen (gegen Instanz/CI); @javascript-/Behat-CI bestätigen;
-E3/E4-Feinschliff + Nachzug erledigt: freundliche version-not-found-Meldung,
-tiefe @javascript-Studio-Szenarien inkl. Timing-Nudge, courseformat/overview
-(5.x, ruht auf 4.5), und die ersten 2.1-Bausteine: gap_rule_generator (regelbasierte Lücken, rein)
-+ WS + Editor-UI (RuleGapControl). 2.1 Sonderzeichen-Leiste: Fundament
-special_characters (sprachabgeleitet) + in get_attempt_exercise verdrahtet
-(Player-Insert-Leiste = nächster Frontend-Schritt). LEHRE: 5.x-only-Klassen (overview) gegen die echte
-5.0-Quelle modellieren (raw.githubusercontent), Test per class_exists-Skip auf
-4.5 inert halten. Die harten Beta-Gates
-(Backup/Restore, Upgrade-Pfad) sind damit abgedeckt.
+**Was in Session 007 fertig wurde:** Subtitle Studio (React/TS-Editor, Timeline,
+codepoint-sicherer Resync, Autosave); Backup/Restore; echter V1→V2-Upgrade-Test;
+2.1-Bausteine (regelbasierte Lücken Engine→WS→UI, Sonderzeichen-Fundament); alle
+P1-Security-Gates (Separate-Groups-Delete, Privacy-Lifecycle, Restore-User-ID,
+Report-Export-Streaming, Migration-Batching); alle P2 (PHPDoc-Beschreibungen,
+Kommentar-/i18n-/Third-Party-Cleanup, `supported`[405,502], Bulk-Grade-Chunking,
+README/Provenienz); Praxis-Fixes (pluginfile-Callback, Video-Codec-Warnung,
+Resume-Re-Pin nach Republish).
+
+**Stand (real gegen Moodle 4.5.13):** PHPUnit **394/1268** grün (1 skipped:
+Overview nur 5.x), phpcs **0 Errors / 0 Warnings** (CI `--max-warnings 0`), phpdoc
+**0**, tsc sauber, Jest **36/36**, esbuild-Bundle byte-reproduzierbar, Grunt `amd`
+idempotent (kein „stale"), eslint:amd/gherkinlint/stylelint grün.
+
+**Als nächstes geplant (Session 008): konkrete UI-Verbesserungen.** Fokus auf
+Player- und Editor-Oberfläche. Kandidaten: Player-Layout/Responsiveness; die
+Sonderzeichen-Leiste im Player sichtbar machen (Fundament `special_characters`
+liegt, Set kommt über get_attempt_exercise mit); Studio-Feinschliff
+(Timeline-Bedienung, Fehlermeldungen); Barrierefreiheit gegen die vorhandene
+Playwright+axe-Suite schärfen.
+
+**PFLICHTEN vor Auslieferung (Lehren aus Session 007):**
+(a) Nach JEDER Änderung an `amd/src/*.js` — **auch nur Kommentare** — `grunt amd`
+laufen lassen und die Builds zurückkopieren (Moodle behält den Docblock im Build →
+sonst „stale" in der CI). AMD-Idempotenz prüfen (sha vor/nach Grunt).
+(b) `moodlecheck` lokal laufen (phpcs prüft @param-Vollständigkeit nicht).
+(c) phpcs mit Blick auf **Warnings** (CI = `--max-warnings 0`): kein `@internal`,
+Inline-Kommentare großgeschrieben.
+(d) Nach Test-Einfügungen die Methodenzahl der Datei UND die Suite-Differenz
+gegenprüfen — nie nur „OK" lesen (stiller No-op-Replace ist vorgekommen).
+(e) Behat-`dry-run` fängt keine Laufzeitfehler (Regex `.*` matcht alles):
+Key-Namen/Semantik gegen Moodle-Quelle verifizieren, echter @javascript-Lauf nur
+in Ralfs CI.
+(f) EIN Claude-Chat = EINE Session (Inkremente sind Gliederung, keine neuen
+Sessions).
 
 **Stand Session 006 (Codehärtung nach Review):** Version alpha.71 —
 (Reihenfolge Review-P0/P1 → E0 → E1 → Logo → Cleanup). WICHTIG: Das Review war

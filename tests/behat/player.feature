@@ -43,12 +43,26 @@ Feature: Attempt a language exercise in the player
     And elang gap "Gap 1" should contain "chat"
     And I should see "Correct"
 
-  Scenario: An in-progress attempt keeps reading the version it started on
+  Scenario: A touched in-progress attempt keeps reading the version it started on
     Given I am on the "Listening exercise 1" "elang activity" page logged in as student1
     And I should see "Exercise ready."
     And I should see "dort"
-    When elang "Listening exercise 1" publishes transcript "Le chien court" gap "chien"
+    # Answering touches the attempt, so it must stay pinned to protect the work.
+    When I answer elang gap "Gap 1" with "chat"
+    And elang "Listening exercise 1" publishes transcript "Le chien court" gap "chien"
     And I reload the page
     Then I should see "Exercise ready."
     And I should see "dort"
     And I should not see "court"
+
+  Scenario: An untouched in-progress attempt follows a republished version
+    Given I am on the "Listening exercise 1" "elang activity" page logged in as student1
+    And I should see "Exercise ready."
+    And I should see "dort"
+    # Nothing was answered yet, so there is no work to protect: republishing
+    # (for example to fix a broken medium) reaches this learner.
+    When elang "Listening exercise 1" publishes transcript "Le chien court" gap "chien"
+    And I reload the page
+    Then I should see "Exercise ready."
+    And I should see "court"
+    And I should not see "dort"

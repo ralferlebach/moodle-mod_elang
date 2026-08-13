@@ -11,6 +11,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.1] - 2026-08-13
+
+First beta. All P0/P1/P2 items from the pre-beta release review are closed and the
+full CI matrix (Moodle 4.5 / 5.0 / 5.2, PostgreSQL and MariaDB, PHPUnit + Behat +
+lint) is green.
+
+### Changed
+- Maturity raised to MATURITY_BETA.
+
+### Fixed
+- Behat: the player scenario that asserted an in-progress attempt keeps its
+  version is split to match the current behaviour — a *touched* attempt (an answer
+  or hint exists) stays pinned, while an *untouched* attempt follows a republished
+  version. Test only.
+
 ## [2.0.0-alpha.87] - 2026-08-13
 
 ### Fixed

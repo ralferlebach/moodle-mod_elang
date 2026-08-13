@@ -19,8 +19,9 @@ Requirements
 
 This plugin requires Moodle 4.5+ (2024100700).
 
-It is developed and tested against Moodle 4.5 LTS up to Moodle 5.3, on PHP 8.1 to
-8.4, with PostgreSQL and MariaDB/MySQL.
+It is developed and supported on Moodle 4.5 LTS through Moodle 5.2, on PHP 8.1 to
+8.4, with PostgreSQL and MariaDB/MySQL. The upcoming Moodle 5.3 is additionally
+exercised in continuous integration.
 
 
 Motivation for this plugin
@@ -185,16 +186,38 @@ This plugin has not been tested with Moodle's support for right-to-left (RTL) la
 If you want to use this plugin with a RTL language and it doesn't work as-is, you are free to send us a pull request on Github with modifications.
 
 
+Provenance and licensing
+------------------------
+
+This plugin keeps the `mod_elang` component name of the original *elang*
+activity, so existing courses can be upgraded rather than rebuilt. Its history
+spans two independent code bases and two licences:
+
+| | Version 1 | Version 2 |
+| --- | --- | --- |
+| Author | Université de La Rochelle and others | Ralf Erlebach |
+| 1.x maintainer | Christophe Demko | — |
+| Licence | CeCILL-B | GNU GPL v3 or later |
+| Period | 2013–2018 | from 2026 |
+
+Moodle plugins must be licensed GPL-v3-compatibly, so version 2.0 is licensed
+GNU GPL v3 or later. It is a ground-up re-implementation from a behavioural
+specification with reference test cases, and **does not carry over any version 1
+source code**; the language files and icons are new as well. CeCILL-B is a
+permissive licence with a strong attribution obligation, and the original work is
+acknowledged here and in the release notes accordingly.
+
+The detailed provenance record — including the component-name handover and the
+log of any adopted passages (currently empty) — is kept in the repository under
+`docs/materials/`. This is not legal advice; institutions publishing the plugin
+should have a legally responsible body confirm the licensing and naming.
+
+
 Maintainers
 -----------
 
 The plugin is maintained by\
 Ralf Erlebach
-
-This plugin continues the *elang* activity originally created at the Université de
-La Rochelle (maintainer of the 1.x line: Christophe Demko), published under
-CeCILL-B. Version 2.0 is an independent re-implementation and does not carry over
-1.x source code. See `docs/materials/License_and_Provenance.md` for details.
 
 
 Copyright
@@ -202,5 +225,9 @@ Copyright
 
 The copyright of this plugin is held by\
 Ralf Erlebach
+
+This plugin continues the *elang* activity originally created at the Université de
+La Rochelle (1.x maintainer: Christophe Demko), published under CeCILL-B; see the
+Provenance and licensing section above.
 
 Individual copyrights of individual developers are tracked in PHPDoc comments and Git commits.

@@ -1,7 +1,0 @@
-{
-  "name": "mod_elang",
-  "dependencies": {
-    "enyojs": "enyojs/enyo#2.5.1.1",
-    "bootstrap": "3.3.7"
-  }
-}

@@ -62,6 +62,7 @@ behatfaildumps/
 /tests/load/k6
 /tests/load/*.jtl
 /tests/load/.load-env
+/tests/load/*.log
 /tests/playwright/playwright-report/
 /tests/playwright/test-results/
 /tests/playwright/package-lock.json

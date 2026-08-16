@@ -11,6 +11,13 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Behat: the test helper that republishes an exercise built its new version on top
+  of the content `create_draft()` inherits from the current version, so the "new"
+  version kept the old cue alongside the new one. The helper now clears the
+  inherited draft content first, so a scenario that states a whole new transcript
+  gets exactly that. Test only; the re-pin behaviour itself was already correct.
+
 ## [2.0.0-beta.1] - 2026-08-13
 
 First beta. All P0/P1/P2 items from the pre-beta release review are closed and the

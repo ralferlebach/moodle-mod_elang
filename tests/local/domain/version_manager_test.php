@@ -782,4 +782,168 @@ final class version_manager_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         $this->manager->set_draft_media($draft->id, ['kind' => 'url', 'url' => 'https://example.org/video.mp4']);
     }
+
+    /**
+     * The cue payload shape save_draft_content() expects.
+     *
+     * @param string $transcript The cue text
+     * @param string $solution The gap solution
+     * @return array One cue with one gap
+     */
+    private function draft_payload(string $transcript, string $solution): array {
+        return [[
+            'cuekey' => 'c1',
+            'sortorder' => 1,
+            'starttime' => 0,
+            'endtime' => 2000,
+            'transcript' => $transcript,
+            'transcriptformat' => FORMAT_PLAIN,
+            'gaps' => [[
+                'gapkey' => 'g1',
+                'sortorder' => 1,
+                'charstart' => 0,
+                'charlength' => strlen($solution),
+                'solution' => $solution,
+                'gradingalgorithm' => 'exact',
+                'maxlength' => 0,
+                'linkurl' => '',
+                'answers' => [],
+                'hints' => [],
+            ]],
+        ]];
+    }
+
+    /**
+     * A rejected payload leaves the previous content untouched.
+     *
+     * save_draft_content() wipes the draft's whole content before writing the
+     * new set, and a rejected payload is the ordinary case, not an exceptional
+     * one: a duplicate cue key is something an editing session can produce.
+     * Validating after the delete would leave the author with neither their old
+     * work nor their new one, so validation happens first.
+     *
+     * @return void
+     */
+    public function test_a_rejected_payload_keeps_the_previous_content(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $saved = $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chat dort', 'chat'));
+
+        $this->assertSame(1, $DB->count_records('elang_cue', ['versionid' => $draft->id]));
+        $revisionbefore = (int) $saved->revision;
+
+        // Two cues sharing one key: rejected by the shape check, and backed by
+        // a UNIQUE index that would otherwise fail mid-insert.
+        $broken = $this->draft_payload('Le chien court', 'chien');
+        $broken[] = $broken[0];
+
+        try {
+            $this->manager->save_draft_content($draft->id, $broken);
+            $this->fail('A cue set with a duplicate key should not save.');
+        } catch (\moodle_exception $e) {
+            $this->assertStringContainsString('c1', $e->getMessage());
+        }
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $draft->id]);
+        $this->assertCount(1, $cues);
+        $this->assertSame('Le chat dort', reset($cues)->transcript);
+
+        // The revision did not move either, so a client holding revision N is
+        // still in step with the server rather than silently one behind.
+        $after = $DB->get_record('elang_version', ['id' => $draft->id], '*', MUST_EXIST);
+        $this->assertSame($revisionbefore, (int) $after->revision);
+    }
+
+    /**
+     * A gap payload the grading engine could not use is refused before the
+     * delete as well.
+     *
+     * @return void
+     */
+    public function test_an_unknown_grading_algorithm_keeps_the_previous_content(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chat dort', 'chat'));
+
+        $broken = $this->draft_payload('Le chien court', 'chien');
+        $broken[0]['gaps'][0]['gradingalgorithm'] = 'guesswork';
+
+        try {
+            $this->manager->save_draft_content($draft->id, $broken);
+            $this->fail('An unknown grading algorithm should not save.');
+        } catch (\moodle_exception $e) {
+            $this->assertStringContainsString('guesswork', $e->getMessage());
+        }
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $draft->id]);
+        $this->assertCount(1, $cues);
+        $this->assertSame('Le chat dort', reset($cues)->transcript);
+    }
+
+    /**
+     * A second author saving from a stale revision is refused, and the first
+     * author's work stays.
+     *
+     * @return void
+     */
+    public function test_a_stale_revision_is_refused_and_changes_nothing(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $first = $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chat dort', 'chat'));
+        $staletoken = (int) $first->revision - 1;
+
+        $this->expectException(\moodle_exception::class);
+        try {
+            $this->manager->save_draft_content(
+                $draft->id,
+                $this->draft_payload('Le chien court', 'chien'),
+                $staletoken
+            );
+        } finally {
+            $cues = $DB->get_records('elang_cue', ['versionid' => $draft->id]);
+            $this->assertCount(1, $cues);
+            $this->assertSame('Le chat dort', reset($cues)->transcript);
+        }
+    }
+
+    /**
+     * Saving with the revision one actually holds succeeds and moves it on.
+     *
+     * The counterpart to the test above: the guard has to let real work
+     * through, or authors would be blocked rather than protected.
+     *
+     * @return void
+     */
+    public function test_saving_with_the_current_revision_succeeds(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $first = $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chat dort', 'chat'));
+
+        $second = $this->manager->save_draft_content(
+            $draft->id,
+            $this->draft_payload('Le chien court', 'chien'),
+            (int) $first->revision
+        );
+
+        $this->assertSame((int) $first->revision + 1, (int) $second->revision);
+    }
+
+    /**
+     * Content cannot be written to a version that has been published.
+     *
+     * A published version is what running attempts read from, so a late save
+     * would change an exercise underneath the people taking it.
+     *
+     * @return void
+     */
+    public function test_content_cannot_be_saved_to_a_published_version(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chat dort', 'chat'));
+        $this->manager->publish($draft->id, 2);
+
+        $this->expectException(\moodle_exception::class);
+        $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chien court', 'chien'));
+    }
 }

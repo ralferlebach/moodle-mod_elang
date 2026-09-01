@@ -11,6 +11,31 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.8] - 2026-09-01
+
+### Fixed
+- A rejected draft payload wiped the author's existing content.
+  `save_draft_content()` deleted the draft's whole content and only then
+  validated the new set, so a duplicate cue key or an unknown grading algorithm —
+  both things an editing session can produce — left the author with neither their
+  old work nor their new. Validation now happens before the delete.
+- No transaction in the plugin handled rollback. Moodle's delegated
+  transactions do not unwind on their own: starting one and letting an exception
+  escape leaves the completed statements in place. `transaction_trait` runs a
+  unit of work with a proper `rollback()`, and `save_draft_content()` uses it as
+  the backstop for a genuine database failure during the insert.
+
+### Added
+- Failure-injection tests for autosave: a rejected save must release the
+  in-flight flag, or the controller would treat every later attempt as "already
+  saving" and queue it forever — the author would see "error" and never leave it,
+  with no sign that further edits were going nowhere. Also that a failed save
+  leaves nothing queued, that an edit during a save produces exactly one more
+  save, and that cancel really stops a pending one.
+- Tests that a rejected payload and a stale draft revision each change nothing,
+  and that saving with the revision actually held still works — a guard that
+  blocks real work is no better than no guard.
+
 ## [2.0.0-beta.7] - 2026-09-01
 
 ### Added

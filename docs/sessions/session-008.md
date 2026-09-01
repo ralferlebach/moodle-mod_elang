@@ -1260,6 +1260,91 @@ actionlint:                Exit 0
 
 ---
 
+## Inkrement 15 — Failure-Injection und ein Datenverlust-Bug (2.0.0-beta.8, 2026090112)
+
+Abschnitt 4.5 des Reviews nennt „Failure-Injection für Autosave/Publish/Import"
+als offenes Gate. Beim Schreiben dieser Tests kam ein echter Fehler heraus.
+
+### Der Bug: eine abgelehnte Eingabe löschte die Arbeit
+
+`save_draft_content()` lief in dieser Reihenfolge:
+
+```
+delete_version_content()      // der gesamte Inhalt des Drafts
+insert_version_content()      // → validate_content_shape() ganz am Anfang
+```
+
+Die Validierung stand **innerhalb** des Inserts, also **nach** dem Löschen. Ein
+doppelter Cue-Key oder ein unbekannter Bewertungsalgorithmus — beides Zustände,
+die eine Bearbeitungssitzung erzeugen kann — ließen den Autor mit **weder dem
+alten noch dem neuen Inhalt** zurück.
+
+Der Kommentar an `validate_content_shape()` sagte sogar, sie halte „die
+Save-Transaktion davon ab, an einem DB-Fehler abzubrechen" — genau das konnte
+sie an dieser Stelle nicht leisten.
+
+Behoben: validieren, dann löschen. Eine abgelehnte Eingabe ist hier der
+Normalfall, nicht der Ausnahmefall, und darf nichts anfassen.
+
+### Der zweite Fund: keine einzige Transaktion rollte zurück
+
+Zehn `start_delegated_transaction()` im Plugin, **kein einziges `rollback()`**.
+Moodles delegierte Transaktionen wickeln sich nicht von selbst ab: Wer eine
+öffnet und eine Exception entkommen lässt, hinterlässt die bereits gelaufenen
+Statements. Nur die Übergabe des Fehlers an `moodle_transaction::rollback()`
+macht sie rückgängig.
+
+`transaction_trait` kapselt das. `save_draft_content()` nutzt es jetzt als
+Auffangnetz für einen echten DB-Fehler mitten im Insert.
+
+### Warum der erste Testversuch nicht funktionierte
+
+Mein erster Test wollte das Rollback direkt nachweisen — und schlug fehl, auch
+nach dem Fix. Die Instrumentierung zeigte:
+
+```
+AT TEST START tx=OPEN
+TX START depth=nested
+TX ROLLBACK
+after=0
+```
+
+**Moodles `advanced_testcase` öffnet selbst eine Transaktion pro Test**
+(`$this->testdbtransaction = $DB->start_delegated_transaction();`). Jede
+Transaktion im Test ist damit verschachtelt, und ein verschachteltes Rollback
+markiert nur den Stapel — die eigentliche Rücknahme passiert erst, wenn die
+äußere Transaktion abgewickelt wird, also nach dem Test. **Ein Unit-Test kann
+das Rollback nicht beobachten.**
+
+Statt einen Test zu schreiben, der etwas Unbeobachtbares behauptet, prüfen die
+Tests jetzt die Garantie, die tatsächlich zählt und beobachtbar ist: eine
+abgelehnte Eingabe verändert nichts.
+
+**Lehre:** Wenn ein Test nach einem korrekten Fix weiterhin fehlschlägt, ist die
+nächste Frage, ob der Test das Behauptete überhaupt sehen kann. Unter PHPUnit
+ist jede Moodle-Transaktion verschachtelt.
+
+### Autosave-Failure-Injection
+
+Vier neue Jest-Tests. Der wichtigste: ein abgelehnter Speichervorgang muss das
+`saving`-Flag freigeben. Bliebe es gesetzt, hielte der Controller jeden späteren
+Versuch für „läuft schon" und stellte ihn ewig in die Warteschlange — der Autor
+sähe „Fehler" und käme nie wieder heraus, ohne Hinweis darauf, dass weitere
+Änderungen ins Leere laufen.
+
+### Verifikation
+
+```
+PHPUnit:      418 Tests, 1213 Assertions, 1 skipped   (vorher 413/1200)
+Jest:         69/69                                    (vorher 65/65)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte aktuell
+Behat:        42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

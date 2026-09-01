@@ -117,4 +117,128 @@ describe('createAutosave', () => {
         // The pending debounce timer was cancelled by the flush.
         expect(timers.count()).toBe(0);
     });
+
+    it('recovers after a failed save instead of jamming', async() => {
+        // A save that rejects must release the in-flight flag. Left set, the
+        // controller would treat every later attempt as "already saving" and
+        // queue it forever — the author would see "error" and never get out of
+        // it, with no indication that further edits were going nowhere.
+        const timers = fakeTimers();
+        const states: AutosaveState[] = [];
+        let attempts = 0;
+        const controller = createAutosave({
+            save: async() => {
+                attempts++;
+                if (attempts === 1) {
+                    throw new Error('network down');
+                }
+            },
+            onState: (state) => states.push(state),
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        controller.markDirty();
+        timers.runAll();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(states).toContain('error');
+
+        // The very next edit gets a real attempt, and reaches saved.
+        controller.markDirty();
+        timers.runAll();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(attempts).toBe(2);
+        expect(states[states.length - 1]).toBe('saved');
+    });
+
+    it('a failed save leaves nothing queued, so a later flush saves once', async() => {
+        // Edits that arrived while a failing save was in flight are not
+        // replayed automatically: the failure is shown, and the next edit or an
+        // explicit save carries the current content. What must not happen is a
+        // stale queue flag turning one later flush into two saves.
+        const timers = fakeTimers();
+        const pending: Array<{resolve: () => void; reject: (error: Error) => void}> = [];
+        let saves = 0;
+        const controller = createAutosave({
+            save: () => {
+                saves++;
+                return new Promise<void>((resolve, reject) => {
+                    pending.push({resolve, reject});
+                });
+            },
+            onState: () => undefined,
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        controller.markDirty();
+        timers.runAll();
+        expect(saves).toBe(1);
+
+        // An edit lands while that first save is still in flight.
+        controller.markDirty();
+
+        pending[0].reject(new Error('rejected'));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        // One explicit save, one call — not two.
+        const flushed = controller.flush();
+        expect(saves).toBe(2);
+        pending[1].resolve();
+        await flushed;
+    });
+
+    it('an edit during a save produces exactly one more save', async() => {
+        // The content of that extra save is read when it runs, so a single
+        // follow-up carries everything typed in the meantime. Two would write
+        // the same state twice and bump the draft revision for nothing.
+        const timers = fakeTimers();
+        let saves = 0;
+        const controller = createAutosave({
+            save: async() => {
+                saves++;
+            },
+            onState: () => undefined,
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        controller.markDirty();
+        timers.runAll();
+        controller.markDirty();
+        controller.markDirty();
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(saves).toBe(2);
+    });
+
+    it('cancel stops a pending save from ever running', async() => {
+        // Used when the editor unmounts: a save firing into a page that has
+        // gone would report its state to a component nobody is looking at, and
+        // could overwrite a draft the author has since reopened elsewhere.
+        const timers = fakeTimers();
+        let saves = 0;
+        const controller = createAutosave({
+            save: async() => {
+                saves++;
+            },
+            onState: () => undefined,
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        controller.markDirty();
+        controller.cancel();
+        timers.runAll();
+        await Promise.resolve();
+
+        expect(saves).toBe(0);
+        expect(timers.count()).toBe(0);
+    });
 });

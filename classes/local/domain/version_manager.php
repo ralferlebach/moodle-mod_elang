@@ -54,6 +54,8 @@ namespace mod_elang\local\domain;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class version_manager {
+    use transaction_trait;
+
     /** @var string A version being edited, not yet visible to learners. */
     public const STATUS_DRAFT = 'draft';
 
@@ -282,26 +284,32 @@ class version_manager {
         return $this->with_activity_lock(
             (int) $version->elangid,
             function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
-                $transaction = $DB->start_delegated_transaction();
+                return $this->in_transaction(function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
+                    $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                    if ($version->status !== self::STATUS_DRAFT) {
+                        throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
+                    }
+                    if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
+                        throw new \moodle_exception('error:draftrevisionmismatch', 'mod_elang');
+                    }
 
-                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-                if ($version->status !== self::STATUS_DRAFT) {
-                    throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
-                }
-                if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
-                    throw new \moodle_exception('error:draftrevisionmismatch', 'mod_elang');
-                }
+                    // Validated before anything is removed. The delete wipes the
+                    // draft's whole content, so a payload rejected afterwards
+                    // would leave the author with neither their old work nor
+                    // their new — and a rejected payload is the ordinary case
+                    // here, not an exceptional one. The transaction remains the
+                    // backstop for a genuine database failure during the insert.
+                    self::validate_content_shape($cues);
 
-                $this->delete_version_content($versionid);
-                $this->insert_version_content($versionid, $cues);
+                    $this->delete_version_content($versionid);
+                    $this->insert_version_content($versionid, $cues);
 
-                $version->revision = (int) $version->revision + 1;
-                $version->usermodified = (int) $USER->id;
-                $DB->update_record('elang_version', $version);
+                    $version->revision = (int) $version->revision + 1;
+                    $version->usermodified = (int) $USER->id;
+                    $DB->update_record('elang_version', $version);
 
-                $transaction->allow_commit();
-
-                return $version;
+                    return $version;
+                });
             }
         );
     }

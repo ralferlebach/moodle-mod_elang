@@ -687,17 +687,182 @@ Modal nach dem Anwenden schließt.
 
 ---
 
+## Inkrement 8 — Issues #3 und #4 im Player (2.0.0-beta.3, 2026090106)
+
+Erst hier springt der Release-String: seit beta.2 wurde nur die Versionsnummer
+hochgezählt, wie in Rückfrage 13 vereinbart. Ralf hat den Sprung auf **beta.3**
+angefordert.
+
+### Rücknahme: keine Nutzerpräferenz
+
+Der in der vorigen Runde abgestimmte Präferenz-Layer ist auf Ralfs Korrektur
+hin **entfallen** — Untertitelposition und Auto-Scroll bleiben reine
+Aktivitätseinstellungen („Die visuelle Darstellung ist an dieser Stelle
+ungenau"). Damit entfällt die Schemaänderung, der Privacy-Provider bleibt
+unangetastet, und die Arbeit aus Inkrement 2 trägt unverändert. Der
+Issue-Nachtrag, den ich dafür geschrieben hatte, ist hinfällig.
+
+**Lehre:** Ein Mockup ist eine Absichtserklärung, keine Spezifikation. Dass
+eine Einstellung im Player *dargestellt* wird, heißt nicht, dass sie dort
+*geändert* werden soll. Rückfragen vor der Schemaänderung war richtig — die
+Umsetzung wäre sonst gebaut und wieder ausgebaut worden.
+
+### #3: eine Cue-Darstellung, drei Orte
+
+Die zentrale Entscheidung: in den Overlay-Modi wird das **aktive Cue-Element
+verschoben**, nicht neu gerendert. Es trägt bereits die Gap-Inputs mit ihren
+wiederhergestellten Werten, ihren Listenern und ihrem Bewertungszustand. Eine
+zweite Darstellung wären zwei Gap-Implementierungen, die sich darüber uneinig
+werden können, was jemand getippt hat — genau das schließt Issue #3 unter
+„Technische Hinweise" aus. Ein verstecktes Anker-Element hält den Platz in der
+Liste, damit die Reihenfolge erhalten bleibt.
+
+Beim Auto-Scroll gab es eine Falle: unser eigenes `scrollIntoView()` löst
+ebenfalls ein `scroll`-Ereignis aus. Ohne Unterscheidung hätte der erste
+automatische Scroll jeden weiteren unterdrückt. Ein Flag trennt beides;
+manuelles Scrollen setzt eine Karenz von 4 s.
+
+Zur Formulierung im Issue („erst wieder aufgenommen, wenn sich die Wiedergabe
+zu einer neuen aktiven Zeile bewegt **oder** eine Inaktivitätszeit abgelaufen
+ist"): Wörtlich genommen hebt der nächste Cue-Wechsel die Karenz sofort auf —
+dann ist sie wirkungslos, denn `scrollIntoView()` läuft ohnehin nur bei
+Cue-Wechseln. Umgesetzt ist deshalb: **die Karenz gilt, bis sie abgelaufen
+ist**; ein Cue-Wechsel während der Karenz scrollt nicht. Das erfüllt die
+Hauptforderung „nicht permanent bekämpft".
+
+### #4: eine Frage, zwei Verhaltensweisen
+
+Enter-Fluss und Pausemodus wirken getrennt, teilen aber eine Frage: **welcher
+Cue wird gerade bearbeitet?** Beides liegt deshalb in einem Controller.
+
+- `stop` hält an jeder Cue-Grenze, `nostop` nie, `auto` nur am Ende des Cues,
+  der bearbeitet wird — angeklickt oder mit dem Tastaturfokus in einer seiner
+  Lücken.
+- Nach dem Anhalten wird exakt auf die Grenze zurückgesetzt. `timeupdate`
+  feuert nur ein paar Mal pro Sekunde, die Wiedergabe steht also schon ein
+  Stück dahinter; ohne Korrektur verschluckt das Fortsetzen das erste Wort des
+  nächsten Cues.
+- `play` löscht die Merkung „für diesen Cue schon angehalten", sonst käme man
+  an einer Grenze nie vorbei.
+- Enter ist an das Promise des Submits gebunden, nicht daneben ausgelöst: der
+  Fokuswechsel triggert den Blur-Handler, und ohne Warten ginge dieselbe
+  Antwort zweimal raus.
+- Nach Ralfs Antwort 4.5 springt die Wiedergabe zur nächsten Lücke und läuft
+  bis zum nächsten End-Marker — aber nur, wenn sie nicht ohnehin schon in
+  diesem Cue steht; sonst würde eine zweite Lücke im selben Satz ihn
+  zurückspulen.
+
+### Zwei Fehler beim Bauen
+
+**ESLint im Grunt-Lauf** fand drei fehlende JSDoc-Parameter — genau wofür der
+Schritt da ist.
+
+**Ein Behat-Lauf gegen einen veralteten Build.** Der Sync
+`rm -rf moodle/mod/elang && cp -a work/elang` überschreibt die frisch gebauten
+`amd/build/`-Artefakte mit der älteren Kopie aus dem Arbeitsbaum. Der erste
+37/366-Lauf prüfte deshalb noch den Stand vor #4 — er war grün, aber er belegte
+nicht, was er zu belegen schien.
+
+**Lehre:** Nach `grunt amd` **zuerst** in den Arbeitsbaum zurückkopieren, dann
+erst wieder synchronisieren. Ein grüner Lauf gegen den falschen Build ist
+schlimmer als ein roter.
+
+### Verifikation
+
+```
+Grunt amd:   ESLint sauber, zweiter Lauf byte-identisch
+             player.min.js  ca65f884 → 7833b664
+             editor.min.js  e42af04c unverändert
+PHPUnit:     403 Tests, 1168 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings
+moodlecheck: 0 <e>-Tags
+Jest:        36/36
+Behat:       37 Szenarien / 366 Steps, alle grün (echter Browser)
+```
+
+Die fünf neuen Behat-Szenarien belegen alle drei Positionen und die
+Audio-Degradation gegen einen echten Browser.
+
+---
+
+## Inkrement 9 — Issue #8: Berichte als Auswertungsoberfläche (2026090107)
+
+Der einzige Issue ohne Mockup. Umgesetzt entlang seiner drei Ebenen:
+Kennzahlen, filter-/sortierbarer Überblick, Detailansicht.
+
+### Eine Query-Wahrheitsquelle für alle drei Ansichten
+
+`build_list_query()` liefert jetzt FROM und WHERE getrennt und wird von
+`list_for_activity()`, `count_for_activity()`, `aggregate_for_activity()` **und**
+`export_rows()` verwendet. Damit können Kopfzahlen, Tabelle, Seitenzähler und
+Export nicht mehr verschiedene Mengen beschreiben. Der Export respektiert die
+Filter: täte er das nicht, gäbe er mehr heraus, als die Lehrkraft gerade
+ansieht — im Separate-Groups-Modus wäre das eine Offenlegung.
+
+Der Durchschnitt zählt nur abgeschlossene Versuche. Ein laufender Versuch hat
+einen Score, der schlicht noch nicht vergleichbar ist; ihn einzurechnen würde
+die Zahl bewegen, wenn jemand *anfängt*, nicht wenn jemand *leistet*.
+
+### Kein Request wählt SQL
+
+Sortierspalten stehen in einer Konstante `SORT_COLUMNS`, Filter laufen durch
+`clean_filters()`. Ein Test schickt `'a.id; DROP TABLE'` als Sortierschlüssel
+und erwartet die Standardsortierung.
+
+Zusätzlich verwirft `clean_filters()` einen umgekehrten Zeitraum, statt ihn
+durchzureichen: eine leere Tabelle nach einem Tippfehler sieht aus wie eine
+Aktivität, die niemand bearbeitet hat.
+
+### Drei Fehler, die Behat gefunden hat
+
+**(a) `date_selector` liefert ein Array.** `optional_param('filterfrom', 0,
+PARAM_INT)` wirft darauf eine `coding_exception`. Gelöst durch getrennte
+Namensräume: das Formular postet seine eigenen Feldnamen, die Seite liest
+ausschließlich kanonische Skalare (`ffrom`, `fto`, …), und beim Absenden wird
+auf die kanonische URL umgeleitet. Nebeneffekt: eine gefilterte Ansicht ist ein
+Link, den man weitergeben kann — genau was das Issue verlangt.
+
+**(b) Ein `redirect()` nach der Header-Ausgabe.** Die erste Fassung baute das
+Formular im Ausgabezweig. Formularaufbau und Umleitung stehen jetzt vor
+`$OUTPUT->header()`.
+
+**(c) `moodleform` wird nicht autoloaded.** `report.php` fehlte
+`require_once($CFG->libdir . '/formslib.php')` — acht Szenarien rot mit
+„Class moodleform not found".
+
+Und ein vierter, den phpcs fand: mein eigener Kommentar begann klein
+(`moodle.Commenting.InlineComment.NotCapital`) — dieselbe Regel wie in
+Inkrement 3. Der Reflex „nur `php -l`" hält sich hartnäckig.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 411 Tests, 1193 Assertions, 1 skipped   (vorher 403/1168)
+PHPCS:       0 Errors / 0 Warnings (141 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    5 Templates, 0 Fehler
+Behat:       42 Szenarien / 426 Steps, alle grün (echter Browser)
+```
+
+Acht neue PHPUnit-Tests decken Statusfilter, Personenfilter, verworfene Werte,
+Sortierung in beide Richtungen, den Fallback bei unbekanntem Sortierschlüssel,
+die Kennzahlen (gefiltert und leer) und den gefilterten Export ab. Sechs neue
+Behat-Szenarien decken Kennzahlen, Filtern, Zurücksetzen, das Exportmenü und
+die Verlagerung von „Löschen" ins Aktionsmenü ab.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
 |---|---|---|
 | #2 | Navigation und Benennung | **erledigt (beta.2)** |
-| #3 | Untertitelposition und Auto-Scroll | Schema/Formular/Payload erledigt, Player offen |
-| #4 | Tastaturfluss und Cue-Pausemodus | Schema/Formular/Payload erledigt, Player offen |
+| #3 | Untertitelposition und Auto-Scroll | **erledigt** (JS-Tests offen) |
+| #4 | Tastaturfluss und Cue-Pausemodus | **erledigt** (JS-Tests offen) |
 | #5 | Medienverwaltung als eigener Reiter | **erledigt** |
 | #6 | Untertitelimport im Modal | **erledigt** |
 | #7 | Editor als synchronisierter Workspace | offen |
-| #8 | Berichte auswertungsorientiert | offen |
+| #8 | Berichte auswertungsorientiert | **erledigt** |
 | #9 | Transkriptexport als Exportoberfläche | **erledigt** |
 
 ## Entscheidungen dieser Sitzung

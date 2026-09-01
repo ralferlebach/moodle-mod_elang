@@ -11,6 +11,32 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added
+- The attempt report leads with four figures — attempts shown, finished, average
+  score of finished attempts, and how many used a hint — computed in one
+  aggregate query over the same FROM/WHERE as the table, so the header and the
+  rows can never describe different sets.
+- Server-side filters for person, state, start date range and attempt number,
+  plus sortable column headings. Both are whitelisted: `clean_filters()` and a
+  `SORT_COLUMNS` map decide, so no request parameter can choose SQL.
+- Filters travel as canonical URL parameters, so a filtered view is a link that
+  can be bookmarked or passed on, and paging and sorting simply carry them.
+- The export honours the filters in force. An export that ignored them would
+  hand out more than the teacher was looking at — in separate-groups mode that
+  is a disclosure.
+- `mod_elang\output\report_overview`, `templates/report_overview.mustache` and
+  `mod_elang\form\report_filter_form`, keeping query logic in the report class
+  and presentation in a template.
+
+### Changed
+- The German report heading is "Versuche".
+- Attempt state is a labelled badge and "answered" carries a bar beside its
+  numbers, so neither is read by colour alone.
+- The four export formats sit behind one "Export" menu, spreadsheet formats
+  first, instead of four equal links.
+- Deleting moved out of the row into an action menu. The capability, the
+  confirmation, the sesskey and the object access check are unchanged.
+
 ## [2.0.0-beta.3] - 2026-09-01
 
 ### Added
@@ -28,6 +54,16 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 - The player follows the medium on `seeked` as well as `timeupdate`: a seek while
   paused produces no `timeupdate` in every browser, so the visible cue lagged
   behind the position the learner had just chosen.
+- The cue pause modes of issue #4 are live: `stop` pauses at the end of every cue,
+  `nostop` never does, and `auto` pauses only at the end of the cue being worked
+  on — clicked, or holding the keyboard focus in one of its gaps. After pausing,
+  playback lands exactly on the boundary rather than a fraction past it, so
+  resuming does not clip the first word of the next cue.
+- Enter now checks the answer and moves to the next gap. It is bound to the
+  submit's own promise rather than fired alongside it: moving the focus triggers
+  the blur handler, and without waiting the same answer would be sent twice. When
+  the next gap belongs to another cue, playback jumps there and runs to that
+  cue's end marker; within the same cue it does not rewind.
 
 ### Fixed
 - Playwright: fail with a message naming the cause when the lockfile is missing

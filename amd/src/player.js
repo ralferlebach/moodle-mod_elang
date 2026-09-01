@@ -84,6 +84,21 @@ const strings = {};
 const pendingSubmits = new Set();
 
 /**
+ * Hooks the playback flow installs once the medium is known.
+ *
+ * Gaps are built before there is a medium to drive, so they call through this
+ * object rather than holding a reference to it. Both entries stay null when
+ * the medium exposes no playback clock — a provider embed, or no medium at
+ * all — and every call site tolerates that.
+ */
+const playbackFlow = {
+    /** @type {?Function} Called with a gap wrapper after its Enter submit resolved. */
+    advance: null,
+    /** @type {?Function} Called with a gap wrapper when focus enters it. */
+    engage: null,
+};
+
+/**
  * Call a single external function and return its promise.
  *
  * @param {String} methodname The external function name
@@ -440,7 +455,20 @@ const buildGap = (gap, label) => {
     input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            submitGap(wrap, input, state);
+            // Bound to the submit's own promise, not fired alongside it: moving
+            // the focus away triggers the blur handler, and without waiting the
+            // same answer would be sent twice.
+            submitGap(wrap, input, state).then(() => {
+                if (playbackFlow.advance) {
+                    playbackFlow.advance(wrap);
+                }
+                return null;
+            }).catch(Log.error);
+        }
+    });
+    input.addEventListener('focus', () => {
+        if (playbackFlow.engage) {
+            playbackFlow.engage(wrap);
         }
     });
     input.addEventListener('blur', (event) => {
@@ -547,6 +575,142 @@ const loadAllCues = async(list, totalcues, nextLabel) => {
         appendCues(list, page.cues, nextLabel);
         offset += page.cues.length;
     }
+};
+
+/**
+ * Wire the keyboard flow and the cue-boundary behaviour to the medium.
+ *
+ * Two things that look separate but share one question — which cue is being
+ * worked on:
+ *
+ * - Enter checks the answer and moves to the next gap. When that gap belongs
+ *   to another cue, playback jumps there and runs to that cue's end marker.
+ * - Whether playback stops at a cue's end depends on the mode: "stop" always,
+ *   "nostop" never, and "auto" only while that cue is the one being worked on
+ *   — clicked, or holding the keyboard focus in one of its gaps.
+ *
+ * @param {HTMLMediaElement} mediaEl The medium being played
+ * @param {Element} list The cue list
+ * @param {String} mode The effective pause mode: auto, stop or nostop
+ * @returns {void}
+ */
+const attachPlaybackFlow = (mediaEl, list, mode) => {
+    const items = Array.from(list.querySelectorAll('.mod_elang-cue'));
+
+    /** @type {?Element} The cue currently being worked on, for mode "auto". */
+    let engaged = null;
+    /** @type {?Element} The cue we are inside of, to notice crossing its end. */
+    let inside = null;
+    /** @type {?String} The cue we already stopped for, so play() gets past it. */
+    let stoppedfor = null;
+
+    const startOf = (cue) => parseFloat(cue.dataset.starttime);
+    const endOf = (cue) => parseFloat(cue.dataset.endtime);
+    const cueAt = (ms) => items.find((item) => ms >= startOf(item) && ms < endOf(item)) || null;
+
+    /**
+     * Every gap of the exercise in cue order.
+     *
+     * Read from the cue list rather than from document order: in the overlay
+     * modes the active cue lives over the medium, outside the list, and its
+     * gaps would otherwise sort as if they came first.
+     *
+     * @returns {Element[]} The gap wrappers, in reading order
+     */
+    const gapsInOrder = () => {
+        const gaps = [];
+        items.forEach((item) => {
+            item.querySelectorAll('.mod_elang-gapwrap[data-gapid]').forEach((gap) => gaps.push(gap));
+        });
+        return gaps;
+    };
+
+    playbackFlow.engage = (wrap) => {
+        engaged = wrap.closest('.mod_elang-cue');
+    };
+
+    playbackFlow.advance = (wrap) => {
+        const gaps = gapsInOrder();
+        const next = gaps[gaps.indexOf(wrap) + 1];
+        if (!next) {
+            return;
+        }
+
+        const input = next.querySelector('input');
+        if (input) {
+            input.focus();
+        }
+
+        const cue = next.closest('.mod_elang-cue');
+        if (!cue) {
+            return;
+        }
+        engaged = cue;
+
+        // Only seek when playback is not already inside that cue; otherwise a
+        // second gap in the same cue would rewind the sentence being heard.
+        const ms = mediaEl.currentTime * 1000;
+        if (ms < startOf(cue) || ms >= endOf(cue)) {
+            mediaEl.currentTime = startOf(cue) / 1000;
+        }
+        stoppedfor = null;
+        const played = mediaEl.play();
+        if (played && typeof played.catch === 'function') {
+            // Autoplay can be refused; that is not an error worth showing.
+            played.catch(() => null);
+        }
+    };
+
+    items.forEach((item) => {
+        item.addEventListener('click', () => {
+            engaged = item;
+        });
+    });
+
+    // A seek is the learner choosing a position, which ends whatever was being
+    // worked on before it unless they land back in the same cue.
+    mediaEl.addEventListener('seeked', () => {
+        const cue = cueAt(mediaEl.currentTime * 1000);
+        if (cue !== engaged) {
+            engaged = null;
+        }
+        inside = cue;
+        stoppedfor = null;
+    });
+
+    // Resuming means "carry on past this boundary", so the cue we stopped for
+    // stops counting.
+    mediaEl.addEventListener('play', () => {
+        stoppedfor = null;
+    });
+
+    mediaEl.addEventListener('timeupdate', () => {
+        if (mode === 'nostop' || mediaEl.paused) {
+            return;
+        }
+
+        const ms = mediaEl.currentTime * 1000;
+        const cue = cueAt(ms);
+
+        if (inside && cue !== inside && ms >= endOf(inside)) {
+            const shouldstop = mode === 'stop' || (mode === 'auto' && engaged === inside);
+            const crossed = inside;
+            inside = cue;
+
+            if (shouldstop && stoppedfor !== crossed.dataset.cueid) {
+                stoppedfor = crossed.dataset.cueid;
+                mediaEl.pause();
+                // timeupdate fires a few times a second, so playback is a
+                // fraction past the boundary by now. Landing exactly on it
+                // keeps the next resume from skipping the first word of the
+                // following cue.
+                mediaEl.currentTime = endOf(crossed) / 1000;
+            }
+            return;
+        }
+
+        inside = cue;
+    });
 };
 
 /**
@@ -838,6 +1002,7 @@ const bootstrap = async(cmid, player) => {
 
     if (mediaEl instanceof HTMLMediaElement) {
         attachSync(mediaEl, list, position, mediaregion.querySelector(SELECTORS.CAPTIONOVERLAY));
+        attachPlaybackFlow(mediaEl, list, playback.effectivecuepausemode || 'auto');
     }
 
     const status = player.querySelector(SELECTORS.STATUS);

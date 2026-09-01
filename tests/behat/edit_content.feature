@@ -113,7 +113,7 @@ Feature: Reach the activity's working areas from its navigation
   Scenario: A teacher reaches the attempt report from the navigation
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     When I select "Attempts" from secondary navigation
-    Then I should see "Attempt reports"
+    Then I should see "Attempts"
 
   Scenario: A teacher reaches the transcript export from the navigation
     Given I am on the "Test elang" "elang activity" page logged in as teacher1

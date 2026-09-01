@@ -330,4 +330,205 @@ final class attempt_report_test extends \advanced_testcase {
         // A perpage of 0 keeps the unpaged behaviour the export relies on.
         $this->assertCount(3, $report->list_for_activity((int) $elang->id));
     }
+
+    /**
+     * Build an activity with three attempts in known, distinguishable states.
+     *
+     * @return array The activity, the version, the gap and the three learners
+     */
+    private function make_filter_fixture(): array {
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
+        $gap = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+        // A hint has to exist before one can be taken; without it the
+        // "used a hint" figure could never be anything but zero.
+        $generator->create_gaphint(['gapid' => $gap->id, 'level' => 1, 'hinttext' => 'an animal']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+
+        $anna = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Aaltonen']);
+        $bruno = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Bianchi']);
+        $carla = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Costa']);
+
+        // Anna finishes correctly, Bruno finishes after a hint, Carla is still
+        // going — one attempt per state the filters distinguish.
+        $first = $manager->start_attempt((int) $elang->id, (int) $anna->id, (int) $version->id);
+        $manager->submit_response($first->id, (int) $gap->id, 'chat');
+        $manager->finish_attempt($first->id);
+
+        $second = $manager->start_attempt((int) $elang->id, (int) $bruno->id, (int) $version->id);
+        $manager->request_hint($second->id, (int) $gap->id);
+        $manager->submit_response($second->id, (int) $gap->id, 'chien');
+        $manager->finish_attempt($second->id);
+
+        $manager->start_attempt((int) $elang->id, (int) $carla->id, (int) $version->id);
+
+        return [$elang, $version, $gap, ['anna' => $anna, 'bruno' => $bruno, 'carla' => $carla]];
+    }
+
+    /**
+     * Filtering by state narrows the list, and the count agrees with it.
+     *
+     * @return void No return value.
+     */
+    public function test_state_filter_narrows_list_and_count(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , ] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $this->assertSame(3, $report->count_for_activity((int) $elang->id));
+
+        $finished = $report->list_for_activity((int) $elang->id, 0, 0, 0, ['state' => 'finished']);
+        $this->assertCount(2, $finished);
+        $this->assertSame(2, $report->count_for_activity((int) $elang->id, 0, ['state' => 'finished']));
+
+        $inprogress = $report->list_for_activity((int) $elang->id, 0, 0, 0, ['state' => 'inprogress']);
+        $this->assertCount(1, $inprogress);
+    }
+
+    /**
+     * Filtering by person returns only that person's attempts.
+     *
+     * @return void No return value.
+     */
+    public function test_user_filter_returns_only_that_persons_attempts(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , $users] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $rows = $report->list_for_activity((int) $elang->id, 0, 0, 0, ['userid' => (int) $users['anna']->id]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame((int) $users['anna']->id, $rows[0]['userid']);
+    }
+
+    /**
+     * A value the report does not understand is dropped rather than reaching a
+     * query — a made-up state must not silently return everything either.
+     *
+     * @return void No return value.
+     */
+    public function test_unknown_filter_values_are_discarded(): void {
+        $this->assertSame([], attempt_report::clean_filters(['state' => 'elsewhere']));
+        $this->assertSame([], attempt_report::clean_filters(['userid' => 0]));
+        $this->assertSame(['state' => 'finished'], attempt_report::clean_filters(['state' => 'finished']));
+
+        // A reversed range would return nothing and read as an empty activity,
+        // so the impossible end is dropped instead.
+        $cleaned = attempt_report::clean_filters(['from' => 2000, 'to' => 1000]);
+        $this->assertSame(['from' => 2000], $cleaned);
+    }
+
+    /**
+     * Sorting happens in the database and covers both directions.
+     *
+     * @return void No return value.
+     */
+    public function test_sorting_is_applied_server_side(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , ] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $ascending = $report->list_for_activity((int) $elang->id, 0, 0, 0, [], 'user', 'ASC');
+        $descending = $report->list_for_activity((int) $elang->id, 0, 0, 0, [], 'user', 'DESC');
+
+        $this->assertSame('Aaltonen', substr($ascending[0]['fullname'], -8));
+        $this->assertSame('Costa', substr($descending[0]['fullname'], -5));
+        $this->assertSame(
+            array_column($ascending, 'attemptid'),
+            array_reverse(array_column($descending, 'attemptid'))
+        );
+    }
+
+    /**
+     * An unknown sort key falls back to the default order instead of reaching
+     * the query, which is what keeps a request parameter from choosing SQL.
+     *
+     * @return void No return value.
+     */
+    public function test_unknown_sort_key_falls_back_to_the_default_order(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , ] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $default = $report->list_for_activity((int) $elang->id);
+        $bogus = $report->list_for_activity((int) $elang->id, 0, 0, 0, [], 'a.id; DROP TABLE', 'ASC');
+
+        $this->assertSame(array_column($default, 'attemptid'), array_column($bogus, 'attemptid'));
+    }
+
+    /**
+     * The headline figures describe exactly the filtered set.
+     *
+     * @return void No return value.
+     */
+    public function test_aggregate_describes_the_filtered_set(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , $users] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $all = $report->aggregate_for_activity((int) $elang->id);
+        $this->assertSame(3, $all['total']);
+        $this->assertSame(2, $all['finished']);
+        // Bruno took a hint; Anna and Carla did not.
+        $this->assertSame(1, $all['hinted']);
+
+        // The average covers finished attempts only, so the one still in
+        // progress cannot drag it down as a matter of timing.
+        $finished = $report->list_for_activity((int) $elang->id, 0, 0, 0, ['state' => 'finished']);
+        $expected = array_sum(array_column($finished, 'score')) / 2;
+        $this->assertEqualsWithDelta($expected, $all['averagescore'], 0.0001);
+
+        $onlyanna = $report->aggregate_for_activity((int) $elang->id, 0, ['userid' => (int) $users['anna']->id]);
+        $this->assertSame(1, $onlyanna['total']);
+        $this->assertSame(0, $onlyanna['hinted']);
+    }
+
+    /**
+     * An activity nobody has attempted reports zeroes rather than dividing by
+     * none.
+     *
+     * @return void No return value.
+     */
+    public function test_aggregate_of_an_empty_activity_is_zero(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id, 'language' => 'fr']);
+
+        $aggregate = (new attempt_report())->aggregate_for_activity((int) $elang->id);
+
+        $this->assertSame(0, $aggregate['total']);
+        $this->assertSame(0, $aggregate['finished']);
+        $this->assertSame(0.0, $aggregate['averagescore']);
+    }
+
+    /**
+     * The export sees the same set as the screen: an export that ignored the
+     * filters would hand out more than the teacher was looking at.
+     *
+     * @return void No return value.
+     */
+    public function test_export_respects_the_filters(): void {
+        $this->resetAfterTest();
+
+        [$elang, , , $users] = $this->make_filter_fixture();
+        $report = new attempt_report();
+
+        $rows = iterator_to_array($report->export_rows((int) $elang->id, 0, ['userid' => (int) $users['anna']->id]));
+
+        $this->assertCount(1, $rows);
+        $this->assertStringContainsString('Aaltonen', $rows[0]['user']);
+    }
 }

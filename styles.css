@@ -314,3 +314,12 @@
         bottom: 3rem;
     }
 }
+
+/* The "answered" bar sits beside its own numbers rather than replacing them:
+ * a bar alone is read by length and colour, which is exactly what a progress
+ * figure must not depend on. */
+.mod_elang-answered-bar {
+    height: 0.5rem;
+    min-width: 3rem;
+    max-width: 6rem;
+}

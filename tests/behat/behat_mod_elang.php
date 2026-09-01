@@ -220,8 +220,15 @@ JS;
         $context = \context_module::instance($cm->id);
         $versionid = (int) $elang->currentversionid;
 
+        // The MIME type follows the extension the scenario asked for: an audio
+        // medium has to be recognised as one, because that is what decides
+        // whether an overlay caption can be drawn at all.
+        $audio = ['mp3' => 'audio/mpeg', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav'];
+        $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+        $mime = $audio[$extension] ?? 'video/mp4';
+
         $DB->set_field('elang_version', 'mediakind', 'file', ['id' => $versionid]);
-        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $versionid]);
+        $DB->set_field('elang_version', 'mediamime', $mime, ['id' => $versionid]);
 
         get_file_storage()->create_file_from_string([
             'contextid' => $context->id,

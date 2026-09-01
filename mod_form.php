@@ -101,6 +101,16 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->setDefault('cuepausemode', 'auto');
         $mform->addHelpButton('cuepausemode', 'cuepausemode', 'mod_elang');
 
+        // Hidden for the overlay positions: an overlay shows only the cue that
+        // is playing, so running on would take the sentence being answered off
+        // the screen. playback_settings::resolve() enforces the same thing, so
+        // hiding the field does not open a gap between form and behaviour.
+        $mform->hideIf('cuepausemode', 'subtitleposition', 'eq', 'overlaybottom');
+        $mform->hideIf('cuepausemode', 'subtitleposition', 'eq', 'overlaytop');
+
+        $mform->addElement('static', 'playbackoverlayhint', '', get_string('playbackoverlayhint', 'mod_elang'));
+        $mform->hideIf('playbackoverlayhint', 'subtitleposition', 'eq', 'below');
+
         $mform->addElement('static', 'playbackproviderhint', '', get_string('playbackproviderhint', 'mod_elang'));
 
         $mform->addElement('header', 'elangtranscript', get_string('transcriptheading', 'mod_elang'));

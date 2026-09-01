@@ -11,12 +11,58 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.6] - 2026-09-01
+
+### Fixed
+- The caption vanished at the instant playback paused. Pausing at a cue boundary
+  parked playback exactly on the edge, where no cue is active, and the overlay
+  cleared — taking the sentence off the screen at the moment the learner was
+  asked to fill it in. Playback now lands just inside the cue it stopped at, and
+  an overlay keeps its caption until another cue replaces it.
+- Subtitles were lost in fullscreen. A fullscreened media element is drawn alone,
+  without the sibling overlay that carries the gaps; the request is now moved up
+  to the stage that holds both. Where a platform refuses that — notably iOS,
+  whose fullscreen is a system player that cannot contain HTML — the medium plays
+  without captions and the exercise continues unharmed on exit.
+- The medium and the transcript were not bounded, so on a normal screen the
+  learner scrolled between the picture and the sentence they were answering —
+  the coupling the "below the medium" mode exists to avoid. Both are now bounded
+  in viewport units.
+- A cue whose gaps were all filled in still held playback at its end, and Enter
+  still stopped on answered gaps.
+
+### Changed
+- Settings sits directly after the activity in the tab bar, then Media,
+  Subtitles & gaps, Attempts, Export.
+- An overlay caption always pauses at a cue boundary and the pause-mode setting
+  is hidden for it: the caption shows only the cue that is playing, so running on
+  would take the sentence being answered off the screen. There is nothing to
+  choose, so nothing is offered.
+- With captions over the picture, the transcript is no longer repeated below it.
+- The exercise starts with the cursor in the first unanswered gap when captions
+  are over the picture, which is also what makes playback stop at that cue.
+- Graded gaps show a check, a cross or a warning triangle instead of a word, and
+  "check answer" and "show hint" are quiet icon buttons. The wording is not lost:
+  it is the accessible name and the tooltip.
+- "Finish attempt" is preceded by how many gaps are answered, and finishing with
+  gaps still empty asks first. Finishing incomplete stays possible — an exercise
+  nobody can hand in unfinished is one people abandon instead.
+
 ### Fixed
 - Two lint findings the local `grunt amd` run does not cover: a comment in
   `amd/src/player.js` starting with a lowercase word, and a trailing blank line in
   `tests/behat/report.feature`. The full `grunt` task set — which adds
   `gherkinlint` and fails on warnings — is what CI runs, and is now what is run
-  locally. The minified build is unchanged, since rollup strips comments.
+  locally.
+- `amd/build/player.min.js.map` was left stale by that comment change. A source
+  map embeds the original source in `sourcesContent`, so a comment-only edit
+  leaves the .min.js byte-identical and still changes the map — which is what
+  made it easy to miss twice.
+
+### Added
+- `tools/check_amd_builds.sh`: runs the full Grunt task set and compares every
+  file under `amd/build/`, maps included, instead of the one whose change was
+  expected.
 
 ## [2.0.0-beta.5] - 2026-09-01
 

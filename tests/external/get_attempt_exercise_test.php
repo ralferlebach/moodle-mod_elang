@@ -274,7 +274,10 @@ final class get_attempt_exercise_test extends \advanced_testcase {
         $this->assertSame('overlaytop', $result['playback']['subtitleposition']);
         $this->assertSame('stop', $result['playback']['cuepausemode']);
         $this->assertSame('overlaytop', $result['playback']['effectivesubtitleposition']);
-        $this->assertSame('stop', $result['playback']['effectivecuepausemode']);
+        // An overlay always pauses at a cue boundary: the caption shows only
+        // the cue that is playing, so running on would take the sentence being
+        // answered off the screen. The stored value is reported unchanged.
+        $this->assertSame('auto', $result['playback']['effectivecuepausemode']);
     }
 
     /**

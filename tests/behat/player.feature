@@ -37,11 +37,13 @@ Feature: Attempt a language exercise in the player
     Given I am on the "Listening exercise 1" "elang activity" page logged in as student1
     And I should see "Exercise ready."
     When I answer elang gap "Gap 1" with "chat"
-    Then I should see "Correct"
+    # The graded state is a glyph now, not a word beside every gap; the wording
+    # lives on in the accessible name and the tooltip.
+    Then ".mod_elang-gapstate .fa-check" "css_element" should exist
     When I reload the page
     Then I should see "Exercise ready."
     And elang gap "Gap 1" should contain "chat"
-    And I should see "Correct"
+    And ".mod_elang-gapstate .fa-check" "css_element" should exist
 
   Scenario: A touched in-progress attempt keeps reading the version it started on
     Given I am on the "Listening exercise 1" "elang activity" page logged in as student1

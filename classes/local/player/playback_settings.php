@@ -129,6 +129,12 @@ class playback_settings {
         // command to send; a provider embed offers neither.
         if (!self::has_playback_clock($mediakind)) {
             $pausemode = self::PAUSE_NOSTOP;
+        } else if ($position !== self::POSITION_BELOW) {
+            // An overlay shows only the cue that is currently playing. If
+            // playback ran on, the sentence a learner is filling in would
+            // leave the screen while they typed, so the pause mode is not a
+            // choice here — the activity form hides it for the same reason.
+            $pausemode = self::PAUSE_AUTO;
         }
 
         return [

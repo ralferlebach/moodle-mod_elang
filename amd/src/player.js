@@ -66,11 +66,20 @@ const PROVIDER_EMBEDS = {
     vimeo: (ref) => `https://player.vimeo.com/video/${encodeURIComponent(ref)}`,
 };
 
+/**
+ * How a graded gap is shown.
+ *
+ * Each state carries a FontAwesome icon and the wording that names it. The icon
+ * is what a learner reads at a glance; the wording stays in the accessible name
+ * so the state is never conveyed by shape and colour alone. Spelling the result
+ * out beside every gap turned a transcript into a column of sentences about
+ * itself.
+ */
 const RESULT_STATES = {
-    exact: {cls: 'mod_elang-correct', key: 'player:statecorrect'},
-    wordrecognized: {cls: 'mod_elang-accepted', key: 'player:stateaccepted'},
-    incorrect: {cls: 'mod_elang-incorrect', key: 'player:stateincorrect'},
-    empty: {cls: 'mod_elang-empty', key: null},
+    exact: {cls: 'mod_elang-correct', key: 'player:statecorrect', icon: 'fa-check'},
+    wordrecognized: {cls: 'mod_elang-accepted', key: 'player:stateaccepted', icon: 'fa-exclamation-triangle'},
+    incorrect: {cls: 'mod_elang-incorrect', key: 'player:stateincorrect', icon: 'fa-times'},
+    empty: {cls: 'mod_elang-empty', key: null, icon: null},
 };
 
 const STATE_CLASSES = ['mod_elang-correct', 'mod_elang-accepted', 'mod_elang-incorrect', 'mod_elang-empty'];
@@ -229,6 +238,49 @@ const watchVideoDecoding = (element, region) => {
 };
 
 /**
+ * Keep interactive captions visible in fullscreen.
+ *
+ * The native fullscreen button belongs to the media element, and a fullscreened
+ * media element is drawn alone: its siblings — including the caption overlay
+ * with the gaps in it — are simply not there. Fullscreening the stage instead
+ * takes the overlay along, and the browser draws the same controls.
+ *
+ * Rather than hiding the native control and offering a replacement, this
+ * listens for the medium entering fullscreen and moves the request up to the
+ * stage. The swap happens inside the user gesture that started it, which is
+ * what browsers require. Where it is refused — notably iOS, whose fullscreen is
+ * a system player that cannot contain HTML — the medium simply plays
+ * fullscreen without captions and the exercise continues unharmed on exit.
+ *
+ * @param {Element} stage The positioned wrapper holding medium and overlay
+ * @param {Element} element The media element
+ * @returns {void}
+ */
+const attachFullscreenRedirect = (stage, element) => {
+    if (typeof stage.requestFullscreen !== 'function') {
+        return;
+    }
+
+    let redirecting = false;
+
+    document.addEventListener('fullscreenchange', () => {
+        if (redirecting || document.fullscreenElement !== element) {
+            return;
+        }
+
+        redirecting = true;
+        Promise.resolve(document.exitFullscreen())
+            .then(() => stage.requestFullscreen())
+            .catch((error) => Log.debug(error))
+            .then(() => {
+                redirecting = false;
+                return null;
+            })
+            .catch(() => null);
+    });
+};
+
+/**
  * Render the attempt's medium into the media region.
  *
  * @param {Element} region The media region element
@@ -265,6 +317,7 @@ const renderMedia = (region, media, position) => {
         stage.appendChild(overlay);
 
         region.appendChild(stage);
+        attachFullscreenRedirect(stage, element);
     } else {
         region.appendChild(element);
     }
@@ -295,7 +348,26 @@ const applyResultState = (wrap, state, resultstate) => {
     if (wrap.dataset.hintlevel !== '0') {
         parts.push(strings['player:statehinted']);
     }
-    state.textContent = parts.join(' — ');
+    const label = parts.join(' — ');
+
+    state.textContent = '';
+    if (info.icon === null) {
+        state.removeAttribute('title');
+        return;
+    }
+
+    const icon = document.createElement('i');
+    icon.className = 'fa ' + info.icon;
+    icon.setAttribute('aria-hidden', 'true');
+    state.appendChild(icon);
+
+    // The wording is not dropped, only moved out of the line of text: screen
+    // readers announce it through the live region, and it is the tooltip.
+    const sr = document.createElement('span');
+    sr.className = 'sr-only visually-hidden';
+    sr.textContent = label;
+    state.appendChild(sr);
+    state.setAttribute('title', label);
 };
 
 /**
@@ -388,11 +460,36 @@ const updateScore = (payload) => {
  * @returns {Element} The submit button
  */
 const buildSubmitButton = (wrap, input, state) => {
+    const button = buildIconButton('mod_elang-gapsubmit', 'fa-check-circle', strings['player:check']);
+    button.addEventListener('click', () => submitGap(wrap, input, state));
+    return button;
+};
+
+/**
+ * Build a quiet icon button carrying its wording as its accessible name.
+ *
+ * Two words of link text beside every gap add up: on a transcript of forty
+ * cues, "Check answer" and "Show hint" were most of what was on the page. The
+ * wording is not lost — it is the accessible name and the tooltip — it is
+ * simply no longer competing with the sentence the exercise is about.
+ *
+ * @param {String} cls The button's own class
+ * @param {String} icon The FontAwesome icon class
+ * @param {String} label The accessible name and tooltip
+ * @returns {Element} The button
+ */
+const buildIconButton = (cls, icon, label) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'mod_elang-gapsubmit btn btn-link btn-sm';
-    button.textContent = strings['player:check'];
-    button.addEventListener('click', () => submitGap(wrap, input, state));
+    button.className = cls + ' btn btn-link btn-sm mod_elang-iconbtn';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+
+    const glyph = document.createElement('i');
+    glyph.className = 'fa ' + icon;
+    glyph.setAttribute('aria-hidden', 'true');
+    button.appendChild(glyph);
+
     return button;
 };
 
@@ -405,10 +502,7 @@ const buildSubmitButton = (wrap, input, state) => {
  * @returns {Element} The hint button
  */
 const buildHintButton = (wrap, input, state) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'mod_elang-hintbtn btn btn-link btn-sm';
-    button.textContent = strings['player:hint'];
+    const button = buildIconButton('mod_elang-hintbtn', 'fa-lightbulb-o', strings['player:hint']);
     button.addEventListener('click', () => requestHint(wrap, input, state));
     return button;
 };
@@ -597,6 +691,18 @@ const loadAllCues = async(list, totalcues, nextLabel) => {
 const attachPlaybackFlow = (mediaEl, list, mode) => {
     const items = Array.from(list.querySelectorAll('.mod_elang-cue'));
 
+    /**
+     * Whether a cue still has something to answer.
+     *
+     * A cue whose gaps are all filled in is finished work: holding playback at
+     * its end would ask the learner to press play again for nothing.
+     *
+     * @param {Element} cue The cue element
+     * @returns {Boolean} True while at least one of its gaps is empty
+     */
+    const hasOpenGaps = (cue) => Array.from(cue.querySelectorAll('.mod_elang-gapwrap[data-gapid] input'))
+        .some((input) => input.value.trim() === '');
+
     /** @type {?Element} The cue currently being worked on, for mode "auto". */
     let engaged = null;
     /** @type {?Element} The cue we are inside of, to notice crossing its end. */
@@ -631,7 +737,14 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
 
     playbackFlow.advance = (wrap) => {
         const gaps = gapsInOrder();
-        const next = gaps[gaps.indexOf(wrap) + 1];
+        // Skip past anything already answered: Enter means "on to the next
+        // thing to do", and stopping on a filled gap would make the learner
+        // press it again for every word they had got right.
+        const next = gaps.slice(gaps.indexOf(wrap) + 1)
+            .find((candidate) => {
+                const input = candidate.querySelector('input');
+                return input !== null && input.value.trim() === '';
+            });
         if (!next) {
             return;
         }
@@ -693,7 +806,8 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
         const cue = cueAt(ms);
 
         if (inside && cue !== inside && ms >= endOf(inside)) {
-            const shouldstop = mode === 'stop' || (mode === 'auto' && engaged === inside);
+            const shouldstop = (mode === 'stop' || (mode === 'auto' && engaged === inside))
+                && hasOpenGaps(inside);
             const crossed = inside;
             inside = cue;
 
@@ -702,9 +816,11 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
                 mediaEl.pause();
                 // The timeupdate event fires only a few times a second, so
                 // playback is already a fraction past the boundary. Landing
-                // exactly on it keeps the next resume from skipping the first
-                // word of the following cue.
-                mediaEl.currentTime = endOf(crossed) / 1000;
+                // just inside the cue that was crossed keeps the next resume
+                // from skipping the first word of the following cue, and keeps
+                // that cue the active one — parking exactly on the edge would
+                // leave no cue active at all and blank an overlay caption.
+                mediaEl.currentTime = Math.max(0, endOf(crossed) - 1) / 1000;
             }
             return;
         }
@@ -771,6 +887,14 @@ const attachSync = (mediaEl, list, position, overlay) => {
      * @returns {void}
      */
     const activate = (active) => {
+        // Between two cues there is no active one, and pausing at a boundary
+        // lands exactly there. Clearing the overlay then would take the
+        // sentence off the screen at the very moment the learner is asked to
+        // fill it in — the caption stays until another cue replaces it.
+        if (active === null && overlaymode) {
+            return;
+        }
+
         if (current) {
             current.classList.remove('mod_elang-current');
             current.removeAttribute('aria-current');
@@ -871,11 +995,57 @@ const renderControls = (player) => {
         return;
     }
     controls.textContent = '';
+
+    // How far along the attempt is, next to the button that ends it. Finishing
+    // is irreversible, and the question it really asks — "have I answered
+    // everything?" — was one the page did not answer.
+    const progress = document.createElement('span');
+    progress.className = 'mod_elang-progress mr-3 me-3';
+    progress.dataset.region = 'progress';
+    progress.setAttribute('role', 'status');
+    progress.setAttribute('aria-live', 'polite');
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'mod_elang-finishbtn btn btn-primary';
     button.textContent = strings['player:finish'];
+
+    /**
+     * Count the gaps and how many of them are still empty.
+     *
+     * @returns {{total: Number, open: Number}} The counts
+     */
+    const countGaps = () => {
+        const inputs = Array.from(player.querySelectorAll('.mod_elang-gapwrap[data-gapid] input'));
+        return {
+            total: inputs.length,
+            open: inputs.filter((input) => input.value.trim() === '').length,
+        };
+    };
+
+    const refresh = () => {
+        const {total, open} = countGaps();
+        if (total === 0) {
+            progress.textContent = '';
+            return;
+        }
+        progress.textContent = strings['player:progress']
+            .replace('{$a->done}', String(total - open))
+            .replace('{$a->total}', String(total));
+        // Complete is the normal way to finish, so the button says so and
+        // leads; incomplete stays possible, because an exercise nobody can
+        // hand in unfinished is one people abandon instead.
+        button.classList.toggle('btn-primary', open === 0);
+        button.classList.toggle('btn-outline-primary', open !== 0);
+    };
+
     button.addEventListener('click', () => {
+        const {open} = countGaps();
+        // Confirmed only when something is still empty. Asking every time
+        // trains people to click through the question.
+        if (open > 0 && !window.confirm(strings['player:finishincomplete'].replace('{$a}', String(open)))) {
+            return;
+        }
         finishAttempt(player).catch((error) => {
             Log.error(error);
             const status = player.querySelector(SELECTORS.STATUS);
@@ -884,7 +1054,18 @@ const renderControls = (player) => {
             }
         });
     });
+
+    // The count follows what is typed, not only what has been submitted: a
+    // learner who filled the last gap should see that before they press.
+    player.addEventListener('input', (event) => {
+        if (event.target.closest('.mod_elang-gapwrap')) {
+            refresh();
+        }
+    });
+
+    controls.appendChild(progress);
     controls.appendChild(button);
+    refresh();
 };
 
 /**
@@ -895,6 +1076,7 @@ const renderControls = (player) => {
 const loadStrings = async() => {
     const keys = [
         'player:gaplabel', 'player:gaplink', 'player:check', 'player:hint', 'player:finish', 'player:finished',
+        'player:finishincomplete', 'player:progress',
         'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
         'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
         'player:novideotrack', 'player:outdatedattempt',
@@ -986,6 +1168,11 @@ const bootstrap = async(cmid, player) => {
     // moved out and back — but it is not the reading surface, so bounding it
     // would only add a scrollbar next to an empty-looking list.
     transcriptregion.classList.toggle('mod_elang-transcript-scroll', !overlaymode);
+    // Not shown twice: with the caption over the picture, repeating the whole
+    // transcript underneath would put the same gaps on the page in two places
+    // and leave the learner unsure which one counts. The list still exists —
+    // the active cue is moved out of it and back — it is simply not on screen.
+    transcriptregion.classList.toggle('mod_elang-transcript-hidden', overlaymode);
     const list = document.createElement('ol');
     list.className = 'mod_elang-cues';
     transcriptregion.appendChild(list);
@@ -1003,6 +1190,18 @@ const bootstrap = async(cmid, player) => {
     if (mediaEl instanceof HTMLMediaElement) {
         attachSync(mediaEl, list, position, mediaregion.querySelector(SELECTORS.CAPTIONOVERLAY));
         attachPlaybackFlow(mediaEl, list, playback.effectivecuepausemode || 'auto');
+    }
+
+    if (overlaymode) {
+        // The overlay only ever shows the cue that is playing, so the exercise
+        // starts by putting the cursor where the work is. That also engages the
+        // first cue, which is what makes playback stop at its end instead of
+        // running the sentence off the screen.
+        const firstopen = Array.from(list.querySelectorAll('.mod_elang-gapwrap[data-gapid] input'))
+            .find((input) => input.value.trim() === '');
+        if (firstopen) {
+            firstopen.focus();
+        }
     }
 
     const status = player.querySelector(SELECTORS.STATUS);

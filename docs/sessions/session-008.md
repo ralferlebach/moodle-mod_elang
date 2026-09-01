@@ -1058,10 +1058,119 @@ Prüfung, nicht `grunt amd`. Verifiziert: Exit 0 über `gherkinlint`,
 
 Ein Nebenbefund, der beim Prüfen auffiel: der Hash von `player.min.js` bleibt
 nach der Kommentaränderung `7833b664`. Rollup entfernt Kommentare, das
-Minifikat ist also byte-identisch — die AMD-Build-Regel wurde eingehalten, es
-gibt nur nichts Neues auszuliefern.
+Minifikat ist also byte-identisch.
+
+**Und genau daraus wurde der nächste Fehler.** Ich schloss aus dem
+unveränderten `.min.js`, es gäbe nichts auszuliefern — und übersah die
+Source Map:
+
+```
+File is stale and needs to be rebuilt: amd/build/player.min.js.map
+```
+
+Eine Source Map trägt in `sourcesContent` den **vollständigen Originalquelltext
+samt Kommentaren**. Eine reine Kommentaränderung lässt das Minifikat
+byte-identisch und ändert die Map. Zweimal in dieser Sitzung ist mir das
+durchgegangen.
+
+Deshalb ist die Prüfung jetzt ein Skript statt einer Handlung:
+`tools/check_amd_builds.sh` sichert `amd/build/`, lässt den vollständigen
+Grunt-Lauf laufen und vergleicht **jede** Datei — auch die Maps, und auch
+Dateien, die Grunt nicht mehr erzeugt.
+
+**Lehre:** Ein Build-Artefakt ist nie nur die eine Datei, die man im Kopf hat.
+Nach `grunt` das gesamte Verzeichnis vergleichen, nicht die Datei, deren
+Änderung man erwartet hat.
 
 Alle fünf Feature-Dateien wurden zusätzlich auf dasselbe Muster geprüft.
+
+---
+
+## Inkrement 13 — Rückmeldungen aus dem laufenden Betrieb (2.0.0-beta.6, 2026090110)
+
+Zehn Anforderungen aus Ralfs Test am echten System, in dieser Reihenfolge
+abgearbeitet.
+
+**1. Reiterreihenfolge.** Einstellungen direkt nach der Aktivität, dann Medien,
+Untertitel & Lücken, Versuche, Export. Eine Zeile in der `secondary`-Subklasse,
+Test nachgezogen.
+
+**2. Overlay erzwingt den Pausemodus.** Eine Einblendung zeigt nur den gerade
+laufenden Cue. Liefe die Wiedergabe weiter, verschwände genau der Satz vom
+Bildschirm, den jemand gerade ausfüllt. Das ist keine Wahl, also wird sie nicht
+angeboten: `hideIf` im Formular **und** `playback_settings::resolve()` erzwingt
+`auto`. Nur eines von beidem hätte eine Lücke zwischen Formular und Verhalten
+gelassen.
+
+**3. Untertitel verschwanden beim Anhalten.** Der eigentliche Bug, und die
+Ursache lag in meinem Fix aus Inkrement 8: Beim Anhalten setzte ich
+`currentTime = endOf(crossed)`. Der Cue-Test ist `ms >= start && ms < end` —
+genau auf der Kante ist **kein** Cue aktiv, `activate(null)` leerte das Overlay.
+Ralfs Beobachtung „exakt in der Millisekunde des Anhaltens" war wörtlich
+zutreffend.
+
+Zwei Korrekturen: die Wiedergabe landet 1 ms **innerhalb** des Cues, und im
+Overlay-Modus wird die Einblendung bei fehlendem aktiven Cue gar nicht mehr
+geleert — auch zwischen zwei Cues bliebe sonst kurz nichts stehen.
+
+**Lehre:** Eine Bereichsprüfung mit halboffenem Intervall und ein Seek genau auf
+die obere Grenze schließen sich aus. Wer auf eine Kante springt, muss wissen, zu
+welcher Seite sie gehört.
+
+**4. Ausgefüllte Lücken halten nicht mehr an.** `hasOpenGaps()` entscheidet, ob
+eine Cue-Grenze überhaupt anhält, und die Enter-Navigation überspringt bereits
+beantwortete Lücken. Eine fertige Lücke ist erledigte Arbeit; an ihr anzuhalten
+verlangt einen Tastendruck für nichts.
+
+**5. Fokus in die erste offene Lücke bei Overlay.** Damit steht der Cursor
+sofort dort, wo gearbeitet wird — und das ist zugleich, was den ersten Cue
+„engaged" macht und die Wiedergabe an seinem Ende anhalten lässt.
+
+**6. Kein doppeltes Transkript.** Bei Overlay wird die Liste unter dem Medium
+ausgeblendet. Sie existiert weiter (der aktive Cue wird aus ihr heraus- und
+wieder hineinbewegt), sie steht nur nicht mehr auf der Seite. Dieselben Lücken
+an zwei Stellen ließen offen, welche zählt.
+
+**7. Größe.** Video und Transkript waren beide unbegrenzt. Jetzt `max-height:
+45vh` für das Medium (mit `object-fit: contain`, damit nichts weggeschnitten
+wird) und `35vh` für den Transkriptbereich, auf niedrigen Viewports weicht
+zuerst das Bild.
+
+**8. Vollbild.** Ein im Vollbild dargestelltes Medienelement wird **allein**
+gezeichnet; das Geschwister-Overlay mit den Lücken ist dort schlicht nicht
+vorhanden. `attachFullscreenRedirect()` hört auf `fullscreenchange` und hebt die
+Anforderung auf die Bühne, die beides enthält. Auf iOS ist das Vollbild ein
+Systemplayer, der kein HTML aufnehmen kann — dort spielt das Medium ohne
+Einblendung, und beim Verlassen geht nichts verloren. Issue #3 lässt den
+dokumentierten Fallback ausdrücklich zu.
+
+**9. Symbole statt Text.** Haken, Kreuz und Warndreieck statt „Richtig/Falsch",
+Prüfen und Hinweis als dezente Icon-Buttons. Die Wortlaute sind **nicht**
+verschwunden, sondern in den zugänglichen Namen und den Tooltip gewandert — der
+Zustand darf nicht an Form und Farbe allein hängen.
+
+**10. „Versuch abschließen".** Vor der Schaltfläche steht jetzt „x von y Lücken
+beantwortet". Sind alle gefüllt, ist die Schaltfläche primär; sind welche offen,
+ist sie eine Umriss-Schaltfläche und fragt einmal nach. Bewusst **nicht**
+gesperrt: eine Übung, die man unfertig nicht abgeben kann, gibt man gar nicht
+ab.
+
+### Verifikation
+
+```
+tools/check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+                           player.min.js  7833b664 → c3d4b025
+Grunt (vollständig):       Exit 0
+stylelint:                 0 Fehler
+PHPUnit:                   413 Tests, 1200 Assertions, 1 skipped
+PHPCS:                     0 Errors / 0 Warnings
+moodlecheck:               0 <e>-Tags
+Behat:                     42 Szenarien / 426 Steps, alle grün
+```
+
+Das neue `check_amd_builds.sh` hat beim ersten Lauf sofort zugeschlagen und
+`player.min.js` **und** die Map als veraltet gemeldet — genau der Fehler, den es
+verhindern soll.
 
 ---
 

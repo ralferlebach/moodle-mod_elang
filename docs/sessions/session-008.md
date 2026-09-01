@@ -365,9 +365,87 @@ Runner-Ausstattung: eine Lastzahl ohne ihre Bedingungen ist nicht vergleichbar.
 k6, braucht XML-Testpläne und eine JVM im Runner. `elang-read-endpoints.jmx`
 bleibt liegen, wird aber nicht weitergepflegt.
 
+### Nachträge aus dem ersten CI-Lauf
+
+Der erste Lauf gegen die neuen Pipelines legte drei Fehler offen — zwei davon
+in meinen eigenen Workflows. Die Instrumentierung hat dabei genau geleistet,
+wofür sie gebaut wurde: die Artefakte enthielten die Ursache.
+
+**(a) `moodle-release.yml` war syntaktisch ungültig.** Die Datei hatte bereits
+einen `concurrency:`-Block; ich hatte einen zweiten eingefügt. GitHub lehnt
+solche Workflows vollständig ab — sichtbar an „Total duration –", „Artifacts –"
+und „This workflow graph cannot be shown". Das erklärt auch, warum sie auf
+`development` lief, obwohl sie nur auf `main` triggert: ungültige Workflows
+meldet GitHub bei jedem Push.
+
+**Lehre:** PyYAML ist **kein** GitHub-Actions-Validator — es akzeptiert
+doppelte Keys stillschweigend (der letzte gewinnt). Ab jetzt gilt
+**`actionlint`** als Prüfwerkzeug für Workflows; es findet genau diese Klasse
+von Fehlern:
+
+```
+moodle-release.yml:56:1: key "concurrency" is duplicated in workflow.
+                        previously defined at line:42,col:1  [syntax-check]
+```
+
+**(b) Die vier Editor-Schritte verloren ihre Logs.** Sie laufen mit
+`working-directory: plugin`; mein `tee ci-logs/…` war relativ und zeigte damit
+auf `plugin/ci-logs/`, das es nicht gibt. `tee` scheiterte und riss den Schritt
+mit — der Job starb an genau der Stelle, an der der Beweis dafür hätte landen
+sollen. Alle vier Ziele sind jetzt auf `$GITHUB_WORKSPACE/ci-logs/` verankert.
+
+**(c) Eine phpcs-Warnung aus meinem eigenen Behat-Kommentar**
+(`moodle.Commenting.InlineComment.NotCapital`). Ich hatte nach der Änderung nur
+`php -l` laufen lassen, nicht phpcs. Gegengeprüft: das lokale phpcs erkennt die
+Regel — sie war einfach nicht mehr ausgeführt worden.
+
+**(d) Selenium-Image-Pull scheiterte an Docker Hub.** In Moodle 4.5:
+
+```
+Unable to find image 'selenium/standalone-chrome:4' locally
+docker: Error response from daemon: received unexpected HTTP status: 500
+In BehatCommand.php line 183: Can't start Selenium server
+```
+
+Moodle 5.2 lief mit demselben Image durch — also Registry-Infrastruktur, kein
+Code. `moodle-plugin-ci` startet Selenium mit `docker run`, das implizit zieht
+und beim ersten Fehlschlag aufgibt; ein fremder 500er liest sich dann wie ein
+Behat-Problem. Alle vier Behat-Jobs ziehen das Image jetzt in einem eigenen
+Schritt vorher, mit fünf Versuchen und linear wachsender Wartezeit
+(15/30/45/60s). Danach findet `docker run` es lokal und spricht die Registry
+gar nicht mehr an. Der Tag ist über `MOODLE_BEHAT_SELENIUM_IMAGE` auf
+Workflow-Ebene gepinnt, damit Vorab-Pull und `moodle-plugin-ci` nicht
+auseinanderlaufen können. Scheitern alle fünf Versuche, sagt die Meldung
+ausdrücklich, dass es Infrastruktur ist.
+
+**(e) Der experimentelle Behat-Job scheiterte am MariaDB-Mindeststand.** Exakt
+dieselbe Klasse wie (b), nur die andere Datenbank:
+
+```
+!! database mariadb (10.11.19-MariaDB-ubu2204) !!
+[System] version 11.4.0 is required and you are running 10.11.19
+```
+
+Auf `mariadb:11.4` angehoben. Die blockierenden Jobs bleiben auf ihren
+bewährten Ständen.
+
+Der Folgefehler im selben Job — `Not enough arguments (missing: "plugin")` —
+war **keine** eigenständige Ursache: `moodle-plugin-ci` nimmt das
+Plugin-Verzeichnis aus der Umgebung, die der Install-Schritt schreibt. Ohne
+gelungenen Install wird das Argument zwingend und der Behat-Schritt endet in
+einem Usage-Fehler, der den eigentlichen Install-Fehlschlag verdeckt. Der
+Schritt läuft jetzt nur noch bei `steps.install.outcome == 'success'` und
+übergibt `./plugin` ausdrücklich.
+
+**Lehre:** In einer Kette mit `continue-on-error` erzeugt jeder gescheiterte
+Schritt Folgefehler in den nachfolgenden. Immer den **ersten** Fehler im Job
+suchen, nicht den lautesten.
+
 ### Verifikation
 
 ```
+actionlint (4 Workflows): exit 0, keine Befunde
+phpcs --standard=moodle:  0 Errors / 0 Warnings über 137 Dateien
 Behat (echter Browser):  28 Szenarien / 261 Steps  — alle grün
 Jest:                    36/36
 tsc --noEmit:            sauber

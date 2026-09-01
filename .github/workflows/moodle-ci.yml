@@ -57,6 +57,8 @@ concurrency:
 
 env:
   MOODLE_CI: '^4'
+  # Pinned so the pre-pull step and moodle-plugin-ci agree on the image.
+  MOODLE_BEHAT_SELENIUM_IMAGE: 'selenium/standalone-chrome:4'
   PGPASSWORD: moodle
   # Make npm resilient to transient GitHub download failures (ECONNRESET / 503 /
   # socket hang up) while moodle-plugin-ci's node setup fetches tarballs such as
@@ -515,6 +517,29 @@ jobs:
           DB: mariadb
           MOODLE_BRANCH: ${{ matrix.moodle }}
 
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
+        run: |
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
+
       - name: Behat – plugin scenarios
         id: behat
         if: ${{ always() }}
@@ -644,8 +669,13 @@ jobs:
     needs: [lint-php, lint-js]
 
     services:
+      # MariaDB 11.4, not 10.11: Moodle main (5.3) raised its minimum and
+      # refuses to install on the older one with "[System] version 11.4.0 is
+      # required and you are running 10.11.19". The same class of failure the
+      # experimental PHPUnit job had with PostgreSQL 16 against a required 17.
+      # The blocking jobs stay on their proven versions.
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:11.4
         env:
           MYSQL_ROOT_PASSWORD: root
         ports: ['3306:3306']
@@ -685,6 +715,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
       - name: Install Moodle and plugin
+        id: install
         continue-on-error: true
         run: |
           moodle-plugin-ci install \
@@ -700,10 +731,40 @@ jobs:
           DB: mariadb
           MOODLE_BRANCH: main
 
-      - name: Behat – plugin scenarios
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
         continue-on-error: true
         run: |
-          moodle-plugin-ci behat \
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
+
+      # Skipped when the install did not succeed. moodle-plugin-ci takes the
+      # plugin directory from the environment the install writes; without it the
+      # plugin argument becomes mandatory and the step ends in
+      # "Not enough arguments (missing: \"plugin\")" — which hides the install
+      # failure that actually caused it behind a usage error.
+      - name: Behat – plugin scenarios
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci behat ./plugin \
             --profile chrome \
             --tags "@mod_elang&&~@broken" \
             --start-servers

@@ -455,6 +455,64 @@ Workflows:               alle vier YAML-validiert
 
 ---
 
+## Inkrement 4 — Issue #9: Transkriptexport als Exportoberfläche (2026090103)
+
+Ralf hat sieben Mockups geliefert. Für #9 war der Entwurf vollständig, deshalb
+zuerst umgesetzt.
+
+**Vorher:** eine Überschrift je Produkt und darunter `PDF · DOCX · ODT · TXT`
+als vier gleichrangige Links. Die Seite las sich als Formatliste, nicht als
+zwei Dinge, die man mitnehmen kann.
+
+**Jetzt:** zwei Karten, jede mit Titel, Beschreibung, PDF als primärer
+Schaltfläche und den übrigen Formaten in einem Dropdown. Markup in
+`templates/transcript_page.mustache`, Aufbereitung in
+`mod_elang\output\transcript_page` — `transcript.php` ruft nur noch beides auf.
+Reine Bootstrap-Klassen, damit die Seite dem Theme folgt.
+
+**Eine bewusste Abweichung vom Mockup.** Dort trägt die Lösungskarte das feste
+Abzeichen „Nur für Lehrende · Nicht sichtbar für Lernende". Seit Inkrement 1
+stimmt das nur noch in einem von drei Fällen: `solutionavailability` kann
+`never`, `aftersubmission` oder `always` sein. Das Abzeichen leitet sich jetzt
+aus der Einstellung ab und sagt für jeden Fall die Wahrheit. Ein statischer
+Text hätte Lehrende über ihre eigene Konfiguration getäuscht.
+
+Der Reiter heißt außerdem nur noch **„Export"** statt „Transkriptexport", wie
+im Mockup; der volle Name steht als Seitenüberschrift.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 393 Tests, 1148 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings (138 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    3 Templates, 0 Fehler
+Behat:       28 Szenarien / 262 Steps, alle grün (echter Browser)
+```
+
+Ein Behat-Befund am Rande: `I should not see "Export" in the
+".secondary-navigation" "css_element"` schlug fehl, weil Moodle einem
+Lernenden **ohne eigenen Modus gar keine** Sekundärnavigation rendert — der
+Locator fand das Element nicht und der Test scheiterte aus dem falschen Grund.
+Als fehlender Link formuliert prüft er jetzt das, was gemeint war.
+
+### CI-Nachtrag: der experimentelle Behat-Job
+
+`mariadb:11.4` startete sauber („ready for connections"), der Runner meldete
+trotzdem `Failed to initialize container`. Ursache ist die Health-Probe:
+MariaDB 11 hat die `mysql*`-Befehlsaliase entfernt, `mysqladmin ping` existiert
+dort nicht mehr. Die 10.11-Services der blockierenden Jobs sind davon nicht
+betroffen — deshalb traf es nur diesen einen Job. Jetzt wird MariaDBs eigenes
+`healthcheck.sh --connect --innodb_initialized` verwendet, das im Image
+mitgeliefert wird und zusätzlich auf InnoDB wartet.
+
+**Lehre:** Eine Datenbank-Hauptversion anzuheben heißt nicht nur, die Bildmarke
+zu ändern — die Health-Probe gehört mitgeprüft. „Container startet, wird aber
+nie healthy" sieht wie ein Infrastrukturfehler aus und ist eine
+Konfigurationsfrage.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
@@ -466,7 +524,7 @@ Workflows:               alle vier YAML-validiert
 | #6 | Untertitelimport im Modal | offen |
 | #7 | Editor als synchronisierter Workspace | offen |
 | #8 | Berichte auswertungsorientiert | offen |
-| #9 | Transkriptexport als Exportoberfläche | offen |
+| #9 | Transkriptexport als Exportoberfläche | **erledigt** |
 
 ## Entscheidungen dieser Sitzung
 

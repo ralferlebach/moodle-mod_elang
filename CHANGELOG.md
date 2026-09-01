@@ -11,6 +11,20 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added
+- The transcript export page is now two product cards rather than a heading and a
+  row of four equal format links: each leads with PDF and keeps DOCX, ODT and TXT
+  in a menu, because PDF is the one teachers actually print.
+- `mod_elang\output\transcript_page` and `templates/transcript_page.mustache`, so
+  the page's markup lives in a template rather than in `html_writer` calls.
+- The solution card states who may take it, derived from the activity's own
+  setting. The previous wording claimed teachers only, which two of the three
+  settings make untrue.
+
+### Changed
+- The export tab is labelled "Export" rather than "Export transcript"; the page
+  heading carries the full name.
+
 ### Fixed
 - Behat: the helper that publishes a version called `create_draft()`, which always
   branches a fresh version from the published one and ignores a draft that is
@@ -23,6 +37,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   `<data dir>/behat_dump`.
 - CI: the experimental jobs against Moodle `main` failed at install because Moodle 5.3
   requires PostgreSQL 17 and the service provided 16. The blocking jobs stay on 16.
+- CI: `moodle-release.yml` carried two `concurrency` blocks, which GitHub rejects
+  outright — the whole workflow failed to parse on every push, on any branch.
+- CI: the editor steps run in the plugin checkout, so their relative `tee ci-logs/…`
+  targets resolved to a directory that does not exist; `tee` failed and took the step
+  with it, losing exactly the output needed to diagnose it. Anchored to the workspace.
+- CI: every Behat job now pre-pulls the Selenium image with retries. `docker run`
+  pulls implicitly and gives up on the first failure, so a transient Docker Hub 500
+  surfaced as "Can't start Selenium server" and read like a Behat fault.
 
 ### Added
 - `elang.subtitleposition` (`below` | `overlaybottom` | `overlaytop`) and

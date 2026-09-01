@@ -132,37 +132,13 @@ $PAGE->set_activity_record($elang);
 $PAGE->set_secondary_active_tab('mod_elang_exporttranscript');
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('exporttranscript', 'mod_elang'));
 
-if ($version === null) {
-    echo html_writer::div(get_string('export:nocontent', 'mod_elang'));
-} else {
-    $formatlinks = function (bool $sol) use ($cm): string {
-        $formats = ['pdf' => 'export:pdf', 'docx' => 'export:docx', 'odt' => 'export:odt', 'txt' => 'export:text'];
-        $links = [];
-        foreach ($formats as $format => $stringkey) {
-            $params = ['id' => $cm->id, 'format' => $format];
-            if ($sol) {
-                $params['solution'] = 1;
-            }
-            $links[] = html_writer::link(
-                new moodle_url('/mod/elang/transcript.php', $params),
-                get_string($stringkey, 'mod_elang')
-            );
-        }
-        return implode(' · ', $links);
-    };
-
-    if ($canworksheet) {
-        echo $OUTPUT->heading(get_string('export:worksheet', 'mod_elang'), 3);
-        echo html_writer::div($formatlinks(false));
-    }
-
-    if ($cansolution) {
-        echo $OUTPUT->heading(get_string('export:solution', 'mod_elang'), 3);
-        echo html_writer::div(get_string('export:solutionhint', 'mod_elang'));
-        echo html_writer::div($formatlinks(true));
-    }
-}
+echo $OUTPUT->render_from_template('mod_elang/transcript_page', (new \mod_elang\output\transcript_page(
+    (int) $cm->id,
+    $canworksheet,
+    $cansolution,
+    (string) ($elang->solutionavailability ?? 'never'),
+    $version !== null
+))->export_for_template($OUTPUT));
 
 echo $OUTPUT->footer();

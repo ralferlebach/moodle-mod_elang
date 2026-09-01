@@ -446,6 +446,11 @@
 
 .mod_elang-cuelist-times {
     font-variant-numeric: tabular-nums;
+    /* Not Bootstrap's .text-muted: at #6a737b it reaches 4.36:1 on the selected
+     * row's background, just under the 4.5:1 WCAG AA threshold — a shortfall
+     * this stylesheet introduced by tinting that row. This grey clears the
+     * threshold on both the plain and the selected background. */
+    color: #565e66;
 }
 
 .mod_elang-timefield input {

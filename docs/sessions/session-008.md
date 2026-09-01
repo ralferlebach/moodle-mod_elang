@@ -1174,6 +1174,92 @@ verhindern soll.
 
 ---
 
+## Inkrement 14 — Testabdeckung im Player, CI-Fix, Review-Befunde (2.0.0-beta.7, 2026090111)
+
+### Die Player-Logik ist jetzt unit-testbar
+
+In dieser Sitzung sind vier Playback-Fehler aufgetreten — verschwindende
+Einblendung, anhalten an fertigen Cues, Enter auf beantworteten Lücken, Seek
+innerhalb desselben Cues. **Alle vier wurden im Browser gefunden, keiner von
+einem Test.** Der Grund war strukturell: die Entscheidungen steckten in
+`attachSync()` und `attachPlaybackFlow()` und waren nur über ein Medienelement,
+eine Cue-Liste und einen Browser erreichbar.
+
+`amd/src/playback.js` zieht sie heraus — bewusst **ohne jeden Import**, denn
+genau das macht sie testbar:
+
+| Funktion | Frage |
+|---|---|
+| `activeCueIndex()` | Welcher Cue läuft gerade? |
+| `pauseLandingTime()` | Wo parkt die Wiedergabe nach dem Anhalten? |
+| `shouldStopAtBoundary()` | Hält diese Cue-Grenze an? |
+| `nextOpenGapIndex()` | Welche Lücke kommt als Nächste? |
+| `needsSeekToCue()` | Muss überhaupt gesprungen werden? |
+| `autoScrollSuppressed()` | Ist Auto-Scroll gerade unerwünscht? |
+
+18 Jest-Tests, geschrieben **aus den Fehlermeldungen**: ein Cue besitzt seinen
+Start und nicht sein Ende; das Anhalten parkt innerhalb des Cues und nicht auf
+der Kante (`activeCueIndex(cues, pauseLandingTime(cue))` muss denselben Cue
+liefern); ein vollständig beantworteter Cue hält nie an; die Lückennavigation
+läuft nicht im Kreis.
+
+`player.js` ruft dieselben Funktionen auf — die Tests prüfen also das reale
+Verhalten und nicht eine zweite Kopie davon.
+
+Damit Jest ein AMD-JS-Modul lädt: `allowJs` in `tsconfig.json` und eine
+`transform`-Regel für `.js` in der Jest-Konfiguration.
+
+**Lehre:** Wenn Fehler nur im Browser auffallen, ist das ein Struktur- und kein
+Sorgfaltsproblem. Entscheidungslogik, die nur über DOM und Medienelement
+erreichbar ist, wird nicht getestet — egal wie gut man es vorhat.
+
+### CI: Ralfs Fassung war besser
+
+Ralf lieferte eine korrigierte `moodle-ci.yml`. Sein Fix: **Node 22 vor**
+Moodles eigenem `npm install`, dazu `npm ci` und
+`npx browserslist@latest --update-db`.
+
+Mein Aufbau setzte Node erst *nach* dem Moodle-Install — Moodles Grunt lief also
+auf dem Standard-Node des Runners, und nur der Editor-Build bekam 22. Datei
+übernommen und dieselbe Korrektur in `moodle-release.yml` nachgezogen (dort steht
+sie vor `moodle-plugin-ci install`, das Moodles npm-Abhängigkeiten mitinstalliert).
+
+### Review-Befunde
+
+**esbuild (Abschnitt 4.6 des Reviews):** `^0.23.0` fällt unter
+GHSA-67mh-4wv8-2f99 (Dev-Server, moderate). Auf `^0.25` gehoben; `npm audit`
+meldet **0 vulnerabilities**, das Bundle baut weiterhin reproduzierbar.
+
+**Playwright-Kontrast:** Der letzte Fehlschlag war von mir verursacht. Bootstraps
+`.text-muted` (#6a737b) erreicht auf dem getönten Hintergrund der ausgewählten
+Cue-Zeile nur 4,36:1 — unter der 4,5:1-Schwelle, und die Tönung stammt aus
+meinem eigenen Stylesheet. Eigene Farbe (#565e66), die auf beiden Hintergründen
+besteht. Real verifiziert: **Playwright 5/5 gegen eine echte Site**.
+
+**Zum Reviewdokument selbst:** Es beschreibt den `development`-Stand *vor* den
+Patches 2.0.88 ff. — es führt `MediaPanel.tsx` und `ImportPanel.tsx` als
+vorhanden und die Aktionsbuttons auf `view.php` als offen. Die Issues 01 bis 08
+sind seither umgesetzt. Verwertbar sind vor allem Abschnitt 4.5 (Testgates) und
+4.6 (Bibliotheken).
+
+### Verifikation
+
+```
+npm audit:                 0 vulnerabilities
+Jest:                      65/65   (vorher 47/47, +18 Playback)
+tsc --noEmit:              sauber
+check_amd_builds.sh:       6 Artefakte, alle entsprechen ihren Quellen
+esbuild-Bundle:            de8a4b07 → 3e1cf12a, idempotent
+PHPUnit:                   413 Tests, 1200 Assertions, 1 skipped
+PHPCS:                     0 Errors / 0 Warnings
+moodlecheck:               0 <e>-Tags
+Behat:                     42 Szenarien / 426 Steps, alle grün
+Playwright:                5/5 gegen eine echte Moodle-Site
+actionlint:                Exit 0
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

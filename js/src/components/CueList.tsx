@@ -142,7 +142,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                     aria-current={selected ? 'true' : undefined}
                                     onClick={() => onSelect(cue)}
                                 >
-                                    <span className="mod_elang-cuelist-times text-muted small">
+                                    <span className="mod_elang-cuelist-times small">
                                         {formatTime(cue.starttime)} – {formatTime(cue.endtime)}
                                     </span>
                                     <span className="d-block mod_elang-cuelist-preview">

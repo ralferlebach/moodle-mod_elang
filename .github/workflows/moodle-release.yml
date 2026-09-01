@@ -45,6 +45,8 @@ concurrency:
 
 env:
   MOODLE_CI: '^4'
+  # Pinned so the pre-pull step and moodle-plugin-ci agree on the image.
+  MOODLE_BEHAT_SELENIUM_IMAGE: 'selenium/standalone-chrome:4'
   COMPOSER_NO_INTERACTION: 1
   COMPOSER_PROCESS_TIMEOUT: 0
   COMPOSER_NO_AUDIT: 1
@@ -128,6 +130,16 @@ jobs:
           BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
           echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
 
+      # Before the install, not after: moodle-plugin-ci installs Moodle's own
+      # npm dependencies as part of it, and Grunt then runs on whatever Node is
+      # active at that moment. Setting it afterwards left Moodle's toolchain on
+      # the runner's default while only the editor build used 22.
+      - name: Set Node.js to 22
+        if: ${{ always() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install Moodle and plugin
         run: |
           moodle-plugin-ci install \
@@ -187,12 +199,6 @@ jobs:
       # ci-logs/ would resolve inside the plugin directory, where it does not
       # exist — tee then fails and the step's output is lost precisely when it
       # is needed.
-      - name: Set up Node for the editor toolchain
-        if: ${{ always() }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Install editor dependencies
         if: ${{ always() }}
         run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
@@ -232,6 +238,29 @@ jobs:
       - name: PHPUnit
         if: ${{ always() }}
         run: set -o pipefail; moodle-plugin-ci phpunit --fail-on-warning --testdox 2>&1 | tee ci-logs/phpunit.log
+
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
+        run: |
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
 
       - name: Behat
         id: behat
@@ -379,6 +408,30 @@ jobs:
       - name: PHPUnit
         continue-on-error: true
         run: moodle-plugin-ci phpunit --fail-on-warning
+
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
+        continue-on-error: true
+        run: |
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
 
       - name: Behat
         continue-on-error: true

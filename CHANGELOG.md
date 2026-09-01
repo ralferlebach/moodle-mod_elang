@@ -11,6 +11,33 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.7] - 2026-09-01
+
+### Added
+- `amd/src/playback.js`: the four decisions the player makes about playback —
+  which cue is playing, where to park after pausing, whether a boundary should
+  stop, and which gap comes next — extracted as pure functions with no imports.
+  Every playback bug reported against this plugin has lived in one of them, and
+  each was found in a browser because they were reachable only through a media
+  element and a cue list. 18 Jest tests now ask them directly, written from those
+  reports: a cue owns its start and not its end, pausing parks inside the cue
+  rather than on its edge, a fully answered cue never holds playback, and
+  advancing does not wrap around.
+
+### Fixed
+- The cue list's timestamps used Bootstrap's `.text-muted`, which at #6a737b
+  reaches 4.36:1 on the selected row's tinted background — under the 4.5:1 WCAG AA
+  threshold, and a shortfall this stylesheet introduced by tinting that row. They
+  now carry a colour that clears the threshold on both backgrounds.
+- `esbuild` moved from the `0.23.x` range to `^0.25`, out of GHSA-67mh-4wv8-2f99.
+  Build tooling only, not the plugin runtime, but `npm audit` now reports nothing.
+  The bundle still builds reproducibly.
+
+### Changed
+- CI: Node 22 is selected before Moodle's own npm install rather than after it,
+  so Moodle's Grunt runs on it too, and Moodle's dependencies are installed with
+  `npm ci` plus a browserslist refresh. Applied to both pipelines.
+
 ## [2.0.0-beta.6] - 2026-09-01
 
 ### Fixed

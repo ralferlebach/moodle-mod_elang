@@ -35,6 +35,13 @@
 import Ajax from 'core/ajax';
 import {getString, getStrings} from 'core/str';
 import Log from 'core/log';
+import {
+    activeCueIndex,
+    autoScrollSuppressed,
+    needsSeekToCue,
+    pauseLandingTime,
+    shouldStopAtBoundary,
+} from 'mod_elang/playback';
 
 const SELECTORS = {
     PLAYER: '[data-region="mod_elang/player"]',
@@ -712,7 +719,11 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
 
     const startOf = (cue) => parseFloat(cue.dataset.starttime);
     const endOf = (cue) => parseFloat(cue.dataset.endtime);
-    const cueAt = (ms) => items.find((item) => ms >= startOf(item) && ms < endOf(item)) || null;
+    const bounds = items.map((item) => ({starttime: startOf(item), endtime: endOf(item)}));
+    const cueAt = (ms) => {
+        const index = activeCueIndex(bounds, ms);
+        return index >= 0 ? items[index] : null;
+    };
 
     /**
      * Every gap of the exercise in cue order.
@@ -763,7 +774,7 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
         // Only seek when playback is not already inside that cue; otherwise a
         // second gap in the same cue would rewind the sentence being heard.
         const ms = mediaEl.currentTime * 1000;
-        if (ms < startOf(cue) || ms >= endOf(cue)) {
+        if (needsSeekToCue({starttime: startOf(cue), endtime: endOf(cue)}, ms)) {
             mediaEl.currentTime = startOf(cue) / 1000;
         }
         stoppedfor = null;
@@ -806,8 +817,11 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
         const cue = cueAt(ms);
 
         if (inside && cue !== inside && ms >= endOf(inside)) {
-            const shouldstop = (mode === 'stop' || (mode === 'auto' && engaged === inside))
-                && hasOpenGaps(inside);
+            const shouldstop = shouldStopAtBoundary({
+                mode,
+                engaged: engaged === inside,
+                hasopengaps: hasOpenGaps(inside),
+            });
             const crossed = inside;
             inside = cue;
 
@@ -820,7 +834,7 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
                 // from skipping the first word of the following cue, and keeps
                 // that cue the active one — parking exactly on the edge would
                 // leave no cue active at all and blank an overlay caption.
-                mediaEl.currentTime = Math.max(0, endOf(crossed) - 1) / 1000;
+                mediaEl.currentTime = pauseLandingTime({endtime: endOf(crossed)}) / 1000;
             }
             return;
         }
@@ -864,7 +878,7 @@ const attachSync = (mediaEl, list, position, overlay) => {
     }
 
     const scrollToCurrent = () => {
-        if (Date.now() < suppressuntil) {
+        if (autoScrollSuppressed(Date.now(), suppressuntil)) {
             return;
         }
         selfscrolling = true;
@@ -929,11 +943,14 @@ const attachSync = (mediaEl, list, position, overlay) => {
         }
     };
 
+    const bounds = items.map((item) => ({
+        starttime: parseFloat(item.dataset.starttime),
+        endtime: parseFloat(item.dataset.endtime),
+    }));
+
     const syncToTime = () => {
-        const ms = mediaEl.currentTime * 1000;
-        const active = items.find(
-            (item) => ms >= parseFloat(item.dataset.starttime) && ms < parseFloat(item.dataset.endtime)
-        ) || null;
+        const index = activeCueIndex(bounds, mediaEl.currentTime * 1000);
+        const active = index >= 0 ? items[index] : null;
         if (active !== current) {
             activate(active);
         }

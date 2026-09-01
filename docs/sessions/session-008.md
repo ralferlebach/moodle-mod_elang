@@ -631,6 +631,62 @@ installierte Moodle-Site mit Seed. Das entscheidet der nächste CI-Lauf.
 
 ---
 
+## Inkrement 7 — Issue #6: Untertitelimport im Modal (2026090105)
+
+Vorher: ein `<details>`-Block mit Textarea, eingeklemmt zwischen Timeline und
+Cue-Liste. Nur Text, keine Datei, kein Vorher-Wissen — wer „Importieren"
+drückte, erfuhr erst danach, wie viele Cues jetzt in seiner Arbeit stehen.
+
+Jetzt ein Modal nach Mockup 6, mit drei Entscheidungen dahinter:
+
+**Ein Parserpfad für beide Reiter.** Datei und eingefügter Text sind nach dem
+Einlesen dasselbe: WebVTT- oder SubRip-Inhalt. Beide Reiter füttern deshalb
+**einen** String in **einen** serverseitigen Parse. Das ist die Bedingung
+dafür, dass eine Datei und ihr Inhalt als Text nie unterschiedlich verstanden
+werden. Die Datei wird per `FileReader` clientseitig gelesen — kein Upload,
+kein zweiter Endpunkt.
+
+**Import ist zweistufig.** „Inhalt prüfen" ruft `preview_import` und zeigt
+Quelle, Format, erkannte Cues, erkannte Lücken und Dauer; erst danach sind
+„Anhängen" und „Alle Cues ersetzen" überhaupt aktiv. Genau das macht die Wahl
+zwischen beiden zu einer informierten. Angewandt wird das **bereits geparste**
+Ergebnis, nicht ein zweiter Parse — sonst könnten Vorschau und Ergebnis
+auseinanderlaufen.
+
+**Das Format kommt aus dem Inhalt, nicht aus der Endung.** Eine Dateiendung ist
+eine Behauptung, eingefügter Text hat gar keine. WebVTT muss mit seiner
+Signatur beginnen; alles andere, was der Parser annimmt, ist SubRip.
+
+„Alle Cues ersetzen" erscheint nur, wenn es Cues zu verlieren gibt. Auf einer
+leeren Version täten beide Schaltflächen dasselbe, und die Wahl wäre Lärm.
+
+Kein `core/modal`: der Editor ist ein React-Baum, der sein Rendering selbst
+besitzt. Einen Teilbaum an Moodles Modal-API zu übergeben hieße, zwei
+Lebenszyklen für einen Dialog zu führen. Fokusführung beim Öffnen, Escape und
+Klick auf den Hintergrund sind stattdessen in der Komponente umgesetzt.
+
+### Verifikation
+
+```
+tsc --noEmit:  sauber
+Jest:          36/36 (Mount-Test auf den zweistufigen Ablauf umgeschrieben)
+Grunt amd:     gelaufen, Artefakte zurückkopiert, zweiter Lauf byte-identisch
+               editor.min.js  e99c3b54 → e42af04c
+               player.min.js  ca65f884 → unverändert
+esbuild:       d80b6f53 → 6507e4b6
+PHPUnit:       403 Tests, 1168 Assertions, 1 skipped
+PHPCS:         0 Errors / 0 Warnings
+moodlecheck:   0 <e>-Tags
+Behat:         32 Szenarien / 309 Steps, alle grün (echter Browser)
+```
+
+Der Jest-Mount-Test hat den Umbau sofort erwischt: er klickte auf
+`[data-action="import"]`, das es nicht mehr gibt. Umgeschrieben prüft er jetzt
+zusätzlich, dass „Importieren" **vor** der Prüfung deaktiviert ist und das
+Modal nach dem Anwenden schließt.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
@@ -639,7 +695,7 @@ installierte Moodle-Site mit Seed. Das entscheidet der nächste CI-Lauf.
 | #3 | Untertitelposition und Auto-Scroll | Schema/Formular/Payload erledigt, Player offen |
 | #4 | Tastaturfluss und Cue-Pausemodus | Schema/Formular/Payload erledigt, Player offen |
 | #5 | Medienverwaltung als eigener Reiter | **erledigt** |
-| #6 | Untertitelimport im Modal | offen |
+| #6 | Untertitelimport im Modal | **erledigt** |
 | #7 | Editor als synchronisierter Workspace | offen |
 | #8 | Berichte auswertungsorientiert | offen |
 | #9 | Transkriptexport als Exportoberfläche | **erledigt** |

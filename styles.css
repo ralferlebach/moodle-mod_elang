@@ -196,3 +196,121 @@
 .mod_elang-editor-cue.focused {
     box-shadow: 0 0 0 2px #d9534f;
 }
+
+/* Import modal.
+ *
+ * A plain fixed overlay rather than Moodle's modal API: the editor is a React
+ * tree that owns its own rendering, and handing a subtree to core/modal would
+ * mean managing two lifecycles for one dialog. Focus handling and Escape are
+ * implemented in the component instead. */
+.mod_elang-import-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 3rem 1rem;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.mod_elang-import-dialog {
+    width: 100%;
+    max-width: 40rem;
+}
+
+/* ── Subtitle positions ─────────────────────────────────────────────────────
+ *
+ * One cue renderer serves all three positions; only where the active cue is
+ * placed differs. Below the medium the whole transcript is the reading
+ * surface and gets a bounded, self-scrolling region so a long exercise does
+ * not stretch the Moodle page to the length of its transcript. In the overlay
+ * modes the active cue element is moved over the picture and the transcript
+ * behind it is not the reading surface. */
+
+.mod_elang-transcript-scroll {
+    display: block;
+    max-height: 22rem;
+    overflow-y: auto;
+    /* A visible edge, so it reads as its own region rather than as a page
+     * that happens to stop. */
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+}
+
+@media (max-height: 600px) {
+    /* On a short viewport a fixed height would leave the medium and the
+     * transcript fighting for the fold. */
+    .mod_elang-transcript-scroll {
+        max-height: 40vh;
+    }
+}
+
+.mod_elang-media-stage {
+    position: relative;
+    display: block;
+    max-width: 100%;
+}
+
+.mod_elang-media-stage video,
+.mod_elang-media-stage audio,
+.mod_elang-media-stage iframe {
+    display: block;
+    width: 100%;
+}
+
+.mod_elang-caption-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Above the picture, below anything the browser draws for itself. */
+    z-index: 2;
+    padding: 0.5rem 1rem;
+    /* Solid enough for WCAG AA on white text at normal size, over any frame. */
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    /* Long words must wrap rather than push the caption past the picture. */
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: auto;
+}
+
+.mod_elang-caption-overlaybottom {
+    /* Clear of the native controls, which sit at the bottom edge. */
+    bottom: 3.5rem;
+}
+
+.mod_elang-caption-overlaytop {
+    top: 0;
+}
+
+.mod_elang-caption-overlay .mod_elang-cue {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mod_elang-caption-overlay .mod_elang-gapwrap input {
+    /* Inputs keep a light field on the dark caption: a transparent input over
+     * a dark background reads as decoration rather than as something to type
+     * in, and its own text would need a second contrast decision. */
+    background: #fff;
+    color: #000;
+}
+
+.mod_elang-cue-anchor {
+    display: none;
+}
+
+@media (max-width: 576px) {
+    .mod_elang-caption-overlay {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .mod_elang-caption-overlaybottom {
+        bottom: 3rem;
+    }
+}

@@ -11,6 +11,38 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.3] - 2026-09-01
+
+### Added
+- The three subtitle positions of issue #3 are live in the player. One cue
+  renderer serves all of them: in the overlay modes the active cue element is
+  *moved* over the picture rather than re-rendered, so the gap inputs keep their
+  restored values, their listeners and their graded state. A second render would
+  have meant two gap implementations that could disagree about what was typed.
+- Below the medium, the transcript is a bounded self-scrolling region rather than
+  page content as long as the exercise, and automatic scrolling stays out of the
+  way for four seconds after a learner scrolls. Our own `scrollIntoView()` also
+  fires a scroll event, so a flag separates it from a learner reaching for the
+  scrollbar — without that the first automatic scroll would suppress every one
+  after it.
+- The player follows the medium on `seeked` as well as `timeupdate`: a seek while
+  paused produces no `timeupdate` in every browser, so the visible cue lagged
+  behind the position the learner had just chosen.
+
+### Fixed
+- Playwright: fail with a message naming the cause when the lockfile is missing
+  from the checked-out ref, instead of `npm ci` printing its usage text.
+
+### Added
+- Subtitle import is a modal with a file tab and a paste tab, replacing the
+  collapsible textarea buried between the timeline and the cue list. Both tabs
+  feed one string into one server-side parse, so a file and pasted text can never
+  be understood differently.
+- Import is now two steps: "check content" reports the source, format, cue count,
+  gap count and duration before anything is applied. Without that summary,
+  choosing between appending and replacing was a guess.
+- "Replace all cues" alongside "append", offered only when there are cues to lose.
+
 ### Fixed
 - Playwright never got past dependency installation: `tests/playwright/package-lock.json`
   was listed in `.gitignore` from when the browser tests were a local-only tool, and

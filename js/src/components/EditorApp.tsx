@@ -26,12 +26,12 @@
 
 import {useEffect, useRef, useState} from 'react';
 import {ApiClient} from '../api/service';
-import {Cue, FORMAT_PLAIN, Media, ProviderOption, Translator} from '../types';
+import {Cue, FORMAT_PLAIN, ImportResult, Media, ProviderOption, Translator} from '../types';
 import {newKey} from '../keys';
 import {AutosaveController, AutosaveState, createAutosave} from '../studio/autosave';
 import {videoTrackUndecodable} from '../studio/mediacheck';
 import {CueRow} from './CueRow';
-import {ImportPanel} from './ImportPanel';
+import {ImportModal} from './ImportModal';
 import {MediaPanel} from './MediaPanel';
 import {Onboarding} from './Onboarding';
 import {Timeline} from './Timeline';
@@ -72,6 +72,7 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
     const [currentms, setCurrentms] = useState(0);
     const [durationms, setDurationms] = useState(0);
     const [savestate, setSavestate] = useState<AutosaveState>('idle');
+    const [importopen, setImportopen] = useState(false);
 
     const revisionRef = useRef(0);
     const mediaRef = useRef<HTMLVideoElement>(null);
@@ -187,12 +188,21 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
         }]);
     };
 
-    const handleImport = async(subtitles: string, parsegaps: boolean): Promise<boolean> => {
+    const handlePreviewImport = async(subtitles: string, parsegaps: boolean): Promise<ImportResult | null> => {
         try {
-            const result = await api.previewImport(subtitles, parsegaps);
-            setCues((current) => [...current, ...result.cues.map((imported, index) => ({
+            return await api.previewImport(subtitles, parsegaps);
+        } catch (error) {
+            setStatus(errorMessage(error, t('editor:saveerror')));
+            return null;
+        }
+    };
+
+    const handleApplyImport = (result: ImportResult, replace: boolean): void => {
+        setCues((current) => {
+            const base = replace ? [] : current;
+            return [...base, ...result.cues.map((imported, index) => ({
                 cuekey: newKey('c'),
-                sortorder: current.length + index + 1,
+                sortorder: base.length + index + 1,
                 starttime: imported.starttime,
                 endtime: imported.endtime,
                 transcript: imported.transcript,
@@ -214,13 +224,12 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                         ? [{level: 1, hinttype: 'solution', hinttext: gap.solution, penalty: 0}]
                         : [],
                 })),
-            }))]);
-            setStatus(t('editor:importedcues').replace('{$a}', String(result.cuecount)));
-            return true;
-        } catch (error) {
-            setStatus(errorMessage(error, t('editor:saveerror')));
-            return false;
-        }
+            }))];
+        });
+
+        setStatus(t(replace ? 'editor:importreplacedcues' : 'editor:importedcues')
+            .replace('{$a}', String(result.cuecount)));
+        setImportopen(false);
     };
 
     const handleSaveMedia = async(kind: string, url: string, provider: string, providerref: string): Promise<void> => {
@@ -273,6 +282,14 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                 <button type="button" className="btn btn-secondary" data-action="addcue" onClick={handleAddCue}>
                     {t('editor:addcue')}
                 </button>
+                <button
+                    type="button"
+                    className="btn btn-secondary"
+                    data-action="openimport"
+                    onClick={() => setImportopen(true)}
+                >
+                    {t('editor:import')}
+                </button>
                 <span
                     className={'mod_elang-editor-savestate ' + savestate}
                     data-region="savestate"
@@ -321,8 +338,14 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                 <Onboarding t={t} hasmedia={media !== null && media.mediakind !== '' && media.mediakind !== 'none'} />
             )}
 
-            {loaded && (
-                <ImportPanel t={t} onImport={handleImport} />
+            {loaded && importopen && (
+                <ImportModal
+                    t={t}
+                    hascues={cues.length > 0}
+                    onPreview={handlePreviewImport}
+                    onApply={handleApplyImport}
+                    onClose={() => setImportopen(false)}
+                />
             )}
 
             {loaded && media !== null && (

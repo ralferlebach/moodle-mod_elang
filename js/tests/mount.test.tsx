@@ -101,21 +101,43 @@ describe('editor mount()', () => {
             mount(host, {versionid: 7, callService: transport, getString: t});
         });
 
-        // Enable gap parsing, paste subtitle text and import it.
-        const checkbox = host.querySelector('[data-region="parsegaps"]') as HTMLInputElement;
-        const importtext = host.querySelector('[data-region="importtext"]') as HTMLTextAreaElement;
-        const importbutton = host.querySelector('[data-action="import"]') as HTMLButtonElement;
+        // Open the import modal, switch to the paste tab, enable gap parsing,
+        // paste subtitle text, have it checked, then apply it. Import is now a
+        // two-step: nothing reaches the cue list until the parse summary has
+        // been shown.
         await act(async() => {
-            checkbox.click();
+            (host.querySelector('[data-action="openimport"]') as HTMLButtonElement).click();
+        });
+        expect(host.querySelector('[data-region="importmodal"]')).not.toBeNull();
+
+        await act(async() => {
+            (host.querySelector('[data-action="importtabtext"]') as HTMLButtonElement).click();
         });
         await act(async() => {
+            (host.querySelector('[data-region="parsegaps"]') as HTMLInputElement).click();
+        });
+        await act(async() => {
+            const importtext = host.querySelector('[data-region="importtext"]') as HTMLTextAreaElement;
             const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
             setter?.call(importtext, 'WEBVTT stub');
             importtext.dispatchEvent(new Event('input', {bubbles: true}));
         });
+
+        // Applying is refused until the content has actually been checked.
+        expect((host.querySelector('[data-action="importapply"]') as HTMLButtonElement).disabled).toBe(true);
+
         await act(async() => {
-            importbutton.click();
+            (host.querySelector('[data-action="importpreview"]') as HTMLButtonElement).click();
         });
+        expect(host.querySelector('[data-region="summarycues"]')?.textContent).toBe('1');
+        expect(host.querySelector('[data-region="summarygaps"]')?.textContent).toBe('1');
+
+        await act(async() => {
+            (host.querySelector('[data-action="importapply"]') as HTMLButtonElement).click();
+        });
+
+        // Applying closes the modal.
+        expect(host.querySelector('[data-region="importmodal"]')).toBeNull();
 
         // The imported cue is rendered with a gap whose solution came from
         // the marker and whose bracket form seeded one solution hint.

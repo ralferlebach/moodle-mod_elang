@@ -43,7 +43,17 @@ const SELECTORS = {
     TRANSCRIPT: '[data-region="transcript"]',
     CONTROLS: '[data-region="controls"]',
     SCORE: '[data-region="score"]',
+    CAPTIONOVERLAY: '[data-region="captionoverlay"]',
 };
+
+/**
+ * How long automatic scrolling stays out of the way after a learner scrolls.
+ *
+ * Long enough that reading back a few lines is not snatched away at the next
+ * cue boundary, short enough that simply watching resumes on its own without
+ * anything to click.
+ */
+const MANUAL_SCROLL_GRACE = 4000;
 
 const GAP_TOKEN = /\{\{gap:([^}]+)\}\}/g;
 
@@ -208,9 +218,10 @@ const watchVideoDecoding = (element, region) => {
  *
  * @param {Element} region The media region element
  * @param {Object} media The media descriptor from get_attempt_exercise
+ * @param {String} position The effective subtitle position: below, overlaytop or overlaybottom
  * @returns {Element|null} The media element created, or null if none
  */
-const renderMedia = (region, media) => {
+const renderMedia = (region, media, position) => {
     region.textContent = '';
     let element = null;
     if (media.kind === 'provider') {
@@ -220,10 +231,31 @@ const renderMedia = (region, media) => {
     } else if (media.kind === 'url') {
         element = buildUrlMedia(media);
     }
-    if (element) {
-        region.appendChild(element);
-        watchVideoDecoding(element, region);
+    if (!element) {
+        return null;
     }
+
+    if (position === 'overlaytop' || position === 'overlaybottom') {
+        // A positioned wrapper so the caption can sit over the picture. The
+        // overlay is a sibling of the medium, never a child: a media element
+        // may not contain flow content, and the gaps inside the caption have
+        // to stay real focusable inputs.
+        const stage = document.createElement('div');
+        stage.className = 'mod_elang-media-stage';
+        stage.appendChild(element);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'mod_elang-caption-overlay mod_elang-caption-' + position;
+        overlay.dataset.region = 'captionoverlay';
+        stage.appendChild(overlay);
+
+        region.appendChild(stage);
+    } else {
+        region.appendChild(element);
+    }
+
+    watchVideoDecoding(element, region);
+
     return element;
 };
 
@@ -518,38 +550,111 @@ const loadAllCues = async(list, totalcues, nextLabel) => {
 };
 
 /**
- * Keep the transcript in step with a native audio/video element: highlight the
- * cue covering the current playback time and let a click on a cue seek to it.
- * Provider embeds (cross-origin iframes) do not expose playback time, so they
- * are simply not synchronised.
+ * Keep the visible cue in step with the medium, and place it according to the
+ * subtitle position.
  *
- * @param {HTMLMediaElement} mediaEl The audio or video element
- * @param {Element} list The transcript list element
+ * This is the single source of truth for which cue is active; the three
+ * positions differ only in where that cue is put, never in how it is built.
+ *
+ * @param {HTMLMediaElement} mediaEl The medium being played
+ * @param {Element} list The cue list
+ * @param {String} position The effective subtitle position: below, overlaytop or overlaybottom
+ * @param {Element|null} overlay The caption overlay, or null below the medium
  * @returns {void}
  */
-const attachSync = (mediaEl, list) => {
+const attachSync = (mediaEl, list, position, overlay) => {
     const items = Array.from(list.querySelectorAll('.mod_elang-cue'));
+    const overlaymode = overlay !== null;
     let current = null;
 
-    mediaEl.addEventListener('timeupdate', () => {
+    // Auto-scroll suppression. Our own scrollIntoView() also fires a scroll
+    // event, so a flag distinguishes it from a learner reaching for the
+    // scrollbar; without that the first automatic scroll would suppress every
+    // one after it.
+    let selfscrolling = false;
+    let suppressuntil = 0;
+
+    if (!overlaymode) {
+        list.parentElement.addEventListener('scroll', () => {
+            if (selfscrolling) {
+                return;
+            }
+            suppressuntil = Date.now() + MANUAL_SCROLL_GRACE;
+        }, {passive: true});
+    }
+
+    const scrollToCurrent = () => {
+        if (Date.now() < suppressuntil) {
+            return;
+        }
+        selfscrolling = true;
+        current.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Long enough to cover the smooth scroll the call above starts.
+        window.setTimeout(() => {
+            selfscrolling = false;
+        }, 700);
+    };
+
+    /**
+     * Show a cue as the active one, moving it into the overlay in overlay modes.
+     *
+     * The very same element is moved, not a copy: it already carries the gap
+     * inputs with their restored values, their event listeners and their
+     * graded state. Rendering a second copy would mean two gap implementations
+     * that could disagree about what the learner has typed.
+     *
+     * @param {Element|null} active The cue to activate, or null for none
+     * @returns {void}
+     */
+    const activate = (active) => {
+        if (current) {
+            current.classList.remove('mod_elang-current');
+            current.removeAttribute('aria-current');
+            if (overlaymode && current.parentElement === overlay) {
+                // Back to its anchor, so the transcript keeps its order for
+                // when the mode or the medium changes under it.
+                const anchor = list.querySelector('[data-anchorfor="' + current.dataset.cueid + '"]');
+                if (anchor) {
+                    anchor.parentElement.replaceChild(current, anchor);
+                }
+            }
+        }
+
+        current = active;
+
+        if (!current) {
+            return;
+        }
+
+        current.classList.add('mod_elang-current');
+        current.setAttribute('aria-current', 'true');
+
+        if (overlaymode) {
+            const anchor = document.createElement('li');
+            anchor.className = 'mod_elang-cue-anchor';
+            anchor.dataset.anchorfor = current.dataset.cueid;
+            current.parentElement.replaceChild(anchor, current);
+            overlay.textContent = '';
+            overlay.appendChild(current);
+        } else {
+            scrollToCurrent();
+        }
+    };
+
+    const syncToTime = () => {
         const ms = mediaEl.currentTime * 1000;
         const active = items.find(
             (item) => ms >= parseFloat(item.dataset.starttime) && ms < parseFloat(item.dataset.endtime)
         ) || null;
-        if (active === current) {
-            return;
+        if (active !== current) {
+            activate(active);
         }
-        if (current) {
-            current.classList.remove('mod_elang-current');
-            current.removeAttribute('aria-current');
-        }
-        current = active;
-        if (current) {
-            current.classList.add('mod_elang-current');
-            current.setAttribute('aria-current', 'true');
-            current.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-        }
-    });
+    };
+
+    mediaEl.addEventListener('timeupdate', syncToTime);
+    // A seek while paused produces no timeupdate in every browser, so the
+    // visible cue would lag behind the position the learner just chose.
+    mediaEl.addEventListener('seeked', syncToTime);
 
     items.forEach((item) => {
         item.addEventListener('click', (event) => {
@@ -688,7 +793,17 @@ const bootstrap = async(cmid, player) => {
     attemptId = attempt.attemptid;
 
     const exercise = await callWs('mod_elang_get_attempt_exercise', {attemptid: attemptId});
-    const mediaEl = renderMedia(player.querySelector(SELECTORS.MEDIA), exercise.media);
+
+    // The effective position, not the stored one: the server has already
+    // resolved what this medium can honour, so the client never has to decide
+    // whether an audio track can carry an overlay.
+    const playback = exercise.playback || {};
+    const position = playback.effectivesubtitleposition || 'below';
+    const overlaymode = position === 'overlaytop' || position === 'overlaybottom';
+
+    const mediaregion = player.querySelector(SELECTORS.MEDIA);
+    const mediaEl = renderMedia(mediaregion, exercise.media, position);
+    player.classList.add('mod_elang-position-' + position);
 
     if (exercise.outdated) {
         // The exercise was republished after this attempt was touched; the
@@ -702,6 +817,11 @@ const bootstrap = async(cmid, player) => {
 
     const transcriptregion = player.querySelector(SELECTORS.TRANSCRIPT);
     transcriptregion.textContent = '';
+    // The bounded, self-scrolling region only exists below the medium. In an
+    // overlay mode the transcript still holds every cue — the active one is
+    // moved out and back — but it is not the reading surface, so bounding it
+    // would only add a scrollbar next to an empty-looking list.
+    transcriptregion.classList.toggle('mod_elang-transcript-scroll', !overlaymode);
     const list = document.createElement('ol');
     list.className = 'mod_elang-cues';
     transcriptregion.appendChild(list);
@@ -717,7 +837,7 @@ const bootstrap = async(cmid, player) => {
     renderControls(player);
 
     if (mediaEl instanceof HTMLMediaElement) {
-        attachSync(mediaEl, list);
+        attachSync(mediaEl, list, position, mediaregion.querySelector(SELECTORS.CAPTIONOVERLAY));
     }
 
     const status = player.querySelector(SELECTORS.STATUS);

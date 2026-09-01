@@ -30,6 +30,7 @@ import {resyncGaps} from '../studio/resync';
 import {maskTranscript} from '../studio/mask';
 import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
+import {TimeField} from './TimeField';
 import {RuleGapControl} from './RuleGapControl';
 
 interface Props {
@@ -109,13 +110,11 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                 <div className="mb-2">
                     <label className="mr-2">
                         {t('editor:starttime')}{' '}
-                        <input
-                            type="number"
-                            className="form-control d-inline-block"
-                            style={{width: '8rem'}}
-                            min={0}
+                        <TimeField
                             value={cue.starttime}
-                            onChange={(event) => onChange({...cue, starttime: parseInt(event.target.value, 10) || 0})}
+                            label={t('editor:starttime')}
+                            invalidmessage={t('editor:invalidtime')}
+                            onChange={(ms) => onChange({...cue, starttime: ms})}
                         />
                     </label>
                     <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('starttime')}>
@@ -123,13 +122,11 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                     </button>
                     <label className="mr-2">
                         {t('editor:endtime')}{' '}
-                        <input
-                            type="number"
-                            className="form-control d-inline-block"
-                            style={{width: '8rem'}}
-                            min={0}
+                        <TimeField
                             value={cue.endtime}
-                            onChange={(event) => onChange({...cue, endtime: parseInt(event.target.value, 10) || 0})}
+                            label={t('editor:endtime')}
+                            invalidmessage={t('editor:invalidtime')}
+                            onChange={(ms) => onChange({...cue, endtime: ms})}
                         />
                     </label>
                     <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('endtime')}>

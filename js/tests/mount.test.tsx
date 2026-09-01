@@ -159,4 +159,58 @@ describe('editor mount()', () => {
         expect(cues[1].gaps[0].solution).toBe('Hund');
         expect(cues[1].gaps[0].hints.length).toBe(1);
     });
+
+    test('the cue list shows every cue but opens only one editor', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // Every cue is listed...
+        const items = host.querySelectorAll('[data-region="cuelist"] .mod_elang-cuelist-item');
+        expect(items.length).toBeGreaterThan(0);
+
+        // ...but the inspector holds exactly one open cue editor, which is what
+        // replaced the wall of fully expanded forms.
+        expect(host.querySelectorAll('[data-region="cueinspector"] .mod_elang-editor-cue').length).toBe(1);
+    });
+
+    test('selecting a cue in the list opens that cue in the inspector', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // Add a second cue so there is something to switch between.
+        await act(async() => {
+            (host.querySelector('[data-action="addcue"]') as HTMLButtonElement).click();
+        });
+
+        const items = Array.from(host.querySelectorAll('[data-region="cuelist"] .mod_elang-cuelist-item'));
+        expect(items.length).toBe(2);
+
+        const secondkey = (items[1] as HTMLElement).dataset.cuekey;
+        await act(async() => {
+            (items[1].querySelector('[data-action="selectcue"]') as HTMLButtonElement).click();
+        });
+
+        const open = host.querySelector('[data-region="cueinspector"] .mod_elang-editor-cue') as HTMLElement;
+        expect(open.dataset.cuekey).toBe(secondkey);
+        // The list marks the same cue, so list and inspector cannot disagree.
+        expect(items[1].querySelector('[aria-current="true"]')).not.toBeNull();
+    });
+
+    test('cue times are shown as timestamps, not as milliseconds', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        const field = host.querySelector('[data-region="timefield"]') as HTMLInputElement;
+        expect(field).not.toBeNull();
+        expect(field.value).toMatch(/^\d{2}:\d{2}\.\d{3}$/);
+    });
 });

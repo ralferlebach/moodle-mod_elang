@@ -59,7 +59,12 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
 
     return (
         <div className="mod_elang-editor-gap border rounded p-2 mt-2">
-            <div className="text-muted small">
+            {/* The character offsets are how a gap is stored and graded, and they
+                are maintained by selecting text and by resyncGaps(); nobody
+                types them. Showing them made an internal coordinate look like a
+                field to fill in. They remain available for support work through
+                the data attribute below. */}
+            <div className="sr-only visually-hidden" data-gaprange={gap.charstart + '-' + (gap.charstart + gap.charlength)}>
                 {t('editor:gaprange')}: {gap.charstart}–{gap.charstart + gap.charlength}
             </div>
 

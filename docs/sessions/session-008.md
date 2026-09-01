@@ -943,6 +943,91 @@ Behat:       42 Szenarien / 426 Steps, alle grün
 
 ---
 
+## Inkrement 11 — Issue #7: Editor als synchronisierter Workspace (2.0.0-beta.5, 2026090109)
+
+Der letzte der acht Issues und der größte. Kein Neubau: Timeline, Waveform,
+`addGapFromSelection()`, `resyncGaps()`, `utf16ToCodepoint()`, `createAutosave()`
+und der Publish-Weg bleiben unverändert. Was sich ändert, ist die Präsentation.
+
+### Eine Auswahl, drei Ansichten
+
+`EditorApp` bleibt Owner von `cues`; neu ist allein `selectedcuekey`. Der
+geöffnete Cue wird **abgeleitet**, nicht gespeichert:
+
+```ts
+const selectedindex = cues.findIndex((cue) => cue.cuekey === selectedcuekey);
+```
+
+Eine Kopie des ausgewählten Cues im State wäre eine zweite Wahrheitsquelle, die
+von der Liste abdriften kann — genau das, was der Issue unter „nicht in
+parallele Wahrheitsquellen zerlegen" ausschließt. `seekToCue()` ist der einzige
+Einstiegspunkt für „diesen Cue bearbeiten", egal ob der Klick aus der Liste oder
+aus der Timeline kam; Listenmarkierung, Inspector und Medienposition bewegen
+sich dadurch zwangsläufig gemeinsam.
+
+### Zeiten, die man lesen kann
+
+`studio/time.ts` ist bewusst ein eigenes Modul mit eigenen Tests. Zwei
+Entscheidungen darin:
+
+- **`parseTime()` gibt bei Unlesbarem `null` zurück, nicht `0`.** Null ist eine
+  legitime Cue-Zeit; sie als Fehlerwert zu verwenden würde einen Tippfehler in
+  einen Cue verwandeln, der stillschweigend an den Anfang springt.
+- **„1:75" wird abgelehnt.** Sonst gäbe es zwei Schreibweisen für denselben
+  Moment, und zwei Schreibweisen für einen Wert sind der Weg, auf dem aus einer
+  Rundungsdifferenz ein Fehler wird.
+
+`TimeField` hält beim Tippen einen eigenen Entwurf und übernimmt erst bei Blur
+oder Enter. Bei jedem Tastendruck neu zu formatieren hieße, gegen die
+schreibende Person zu arbeiten: „1:0" würde zu „01:00.000", bevor die zweite
+Ziffer der Minute ankommt.
+
+### Autosave nach vorn, Speichern nach hinten
+
+Der dominante „Speichern"-Button stand neben einem laufenden Autosave. Das lehrt
+Autor:innen, dem Autosave nicht zu trauen. Jetzt führt der Speicherzustand die
+Toolbar an, „Speichern" ist ein Link, und „Cue hinzufügen" steht bei den Cues
+statt neben „Veröffentlichen" — Cue anlegen und Veröffentlichen sind keine
+gleichrangigen Schritte.
+
+### Zwei Befunde aus den Tests
+
+**Behat fand eine echte Lücke:** „Cue hinzufügen" hängte einen Cue an, wählte ihn
+aber nicht aus — der Inspector blieb leer, die Aktion wirkte folgenlos.
+`handleAddCue()` delegiert jetzt an `insertCueAt(cues.length)`; eine
+Implementierung statt zweier, die auseinanderlaufen können.
+
+**jsdom kennt `scrollIntoView` nicht.** Statt die Komponente mit einer
+`typeof`-Prüfung zu belasten — die ein Testanliegen in Produktionscode trägt und
+außerdem einen echten Fehler verdecken würde — steht der Stub in
+`js/tests/setup.ts`.
+
+### Bewusst nicht gemacht
+
+`MediaPanel.tsx` ist entfernt: Medienkonfiguration gehört seit beta.2 in den
+Medienreiter, und der Issue schließt sie hier ausdrücklich aus. **Erfordert ein
+explizites `git rm`.**
+
+Offen aus #7: die Verlagerung von Varianten und Hinweisen in einen eigenen
+`GapInspector` mit „Erweiterte Einstellungen", sowie der Playwright-Visual-Test
+für lange Cue-Listen.
+
+### Verifikation
+
+```
+tsc --noEmit: sauber
+Jest:         47/47   (vorher 36/36; +12 Zeit, +3 Workspace, −4 MediaPanel)
+esbuild:      6507e4b6 → de8a4b07, idempotent
+Grunt amd:    e42af04c → 03af31c1, idempotent
+stylelint:    0 Fehler
+PHPUnit:      411 Tests, 1193 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Behat:        42 Szenarien / 426 Steps, alle grün (echter Browser)
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

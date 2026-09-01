@@ -29,6 +29,9 @@
     "testMatch": [
       "**/js/tests/**/*.test.ts",
       "**/js/tests/**/*.test.tsx"
+    ],
+    "setupFiles": [
+      "<rootDir>/js/tests/setup.ts"
     ]
   }
 }

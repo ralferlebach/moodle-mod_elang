@@ -330,3 +330,63 @@
     min-width: 3rem;
     max-width: 6rem;
 }
+
+/* ── Cue workspace ──────────────────────────────────────────────────────────
+ *
+ * The list is a scrolling region of its own so that a long transcript does not
+ * push the inspector — and with it the medium and the timeline — off the
+ * screen. That coupling was the actual complaint about the old editor: every
+ * cue form expanded at once, and the connection between what was playing and
+ * what was being edited was lost in the scrolling. */
+
+.mod_elang-cuelist-items {
+    max-height: 30rem;
+    overflow-y: auto;
+}
+
+.mod_elang-cuelist-search {
+    max-width: 14rem;
+}
+
+.mod_elang-cuelist-item.selected {
+    /* Not colour alone: the selected row also carries a left edge, and its
+     * button carries aria-current. */
+    background: #eef4fb;
+    border-left: 4px solid #2b6cb0;
+}
+
+.mod_elang-cuelist-select {
+    /* A button that reads as a row: the list has to be keyboard operable, and
+     * a div with a click handler is not. */
+    white-space: normal;
+    text-decoration: none;
+}
+
+.mod_elang-cuelist-select:hover,
+.mod_elang-cuelist-select:focus {
+    text-decoration: none;
+}
+
+.mod_elang-cuelist-preview {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: #1d2125;
+}
+
+.mod_elang-cuelist-times {
+    font-variant-numeric: tabular-nums;
+}
+
+.mod_elang-timefield input {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 991px) {
+    /* Stacked on narrow screens, and the list gets a shorter run so the
+     * inspector below it is still reachable without a long scroll. */
+    .mod_elang-cuelist-items {
+        max-height: 18rem;
+    }
+}

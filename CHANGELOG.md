@@ -11,6 +11,46 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.5] - 2026-09-01
+
+Subtitle editor workspace (issue #7). Every cue used to render its whole form at
+once — timing, transcript, preview, gaps, solutions, algorithms, variants and
+hints, stacked — so forty cues meant a wall of forms metres long and the
+connection between the medium, the timeline and the cue being worked on was lost
+in the scrolling.
+
+### Added
+- A compact cue list beside a single open cue inspector. Each row shows its
+  formatted times, a text preview, its gap count and any warning; exactly one cue
+  is open at a time. Selection is held by `EditorApp`, so the list, the timeline
+  and the inspector cannot disagree about which cue that is.
+- Search and a "only cues with warnings" filter over the list, and a per-cue
+  action menu with insert-before, insert-after and delete.
+- `js/src/studio/time.ts` plus `TimeField`: cue boundaries are entered as
+  `mm:ss.SSS` (`hh:mm:ss.SSS` past an hour). The field keeps its own draft while
+  typing and only commits on blur or Enter, so it does not reformat mid-keystroke;
+  an unparseable entry is rejected rather than silently rounded. Milliseconds
+  remain the stored representation.
+- 12 Jest tests for the time module and 3 for the workspace, plus a Jest setup
+  file stubbing `scrollIntoView`, which jsdom does not implement.
+
+### Changed
+- Autosave leads the toolbar and manual save is a link, not the primary button.
+  Presenting "Save" as the main action taught authors to distrust the autosave
+  that was already running. The toolbar is now save state, import and publish.
+- "Add cue" moved out of the publish toolbar and next to the cues it acts on.
+  Adding a cue and publishing are not comparable steps.
+- Adding, inserting or importing a cue opens it, so the action has a visible
+  result.
+- The gap's character offsets are no longer shown as a field. They are
+  maintained by selecting text and by `resyncGaps()`; showing them made an
+  internal coordinate look like something to fill in. They remain in the DOM for
+  support work.
+
+### Removed
+- `js/src/components/MediaPanel.tsx` and its test. Media configuration belongs to
+  the media tab, which took it over in beta.2. Needs an explicit `git rm`.
+
 ## [2.0.0-beta.4] - 2026-09-01
 
 ### Fixed

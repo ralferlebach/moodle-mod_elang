@@ -566,6 +566,71 @@ Behat:       32 Szenarien / 309 Steps, alle grün (echter Browser)
 
 ---
 
+## Inkrement 6 — Playwright lauffähig machen (kein Version-Bump)
+
+Der erste geplante Playwright-Lauf scheiterte. k6 lief im selben Anlauf grün
+durch und lieferte ein brauchbares Ergebnis:
+
+```
+25 VUs, 90 s, 4-CPU-Runner
+5259 Requests, 45,7 req/s
+p95 414 → 574 ms, max 1283 ms   (Schwelle 1500 ms)
+```
+
+Der Kontext-Anhang (`k6-run-context.txt`) tut genau das, wofür er gedacht war:
+die Zahlen sind ohne „4 CPUs, 25 VUs, 90 s" nicht mit dem nächsten Lauf
+vergleichbar.
+
+### Drei Fehler, einer sichtbar, zwei dahinter
+
+**(a) `npm ci` ohne Lockfile.**
+
+```
+npm error The `npm ci` command can only install with an existing package-lock.json
+```
+
+Ursache steht in unserer eigenen `.gitignore`:
+`/tests/playwright/package-lock.json`. Aus Session 006, als die Browsertests ein
+rein lokales Werkzeug waren. Jetzt läuft CI damit, also gehört der Lockfile
+eingecheckt — er pinnt zusätzlich `@playwright/test` und `@axe-core/playwright`,
+damit ein Release des Testwerkzeugs nicht stillschweigend ändert, was der
+geplante Lauf prüft.
+
+**(b) Der Fixture hätte danach sofort wieder gerissen.** `seed.php`
+veröffentlicht eine Version **ohne Medium**. Seit Inkrement 1 verweigert
+`edit.php` genau das — beide Editor-Tests wären auf dem Hinweis „Legen Sie
+zuerst im Reiter Medien die Datei an" gelandet. Der Seed setzt jetzt vor dem
+Veröffentlichen ein URL-Medium.
+
+**Lehre:** Eine neue serverseitige Vorbedingung betrifft *jeden* Fixture, nicht
+nur den, an dem sie auffällt. Behat wurde in Inkrement 1 nachgezogen, der
+Playwright-Seed nicht — weil er damals nirgends lief.
+
+**(c) Der Erfolgsartefakt wäre leer gewesen.** `playwright.config.ts` deklarierte
+nur den `list`-Reporter. Der Workflow lädt bei Erfolg `playwright-report/` hoch —
+ein Verzeichnis, das ohne HTML-Reporter nie entsteht. Ebenso waren Video und
+Trace aus, obwohl der Workflow bei Fehlschlag ausdrücklich `.webm` löscht und bei
+Erfolg die Videos behält. Jetzt: `list` + `html`, `video: 'on'`,
+`trace: 'retain-on-failure'`.
+
+Das war Ralfs Vorgabe „bei Playwright immer hochladen" — die Konfiguration hat
+sie nicht erfüllt, und aufgefallen wäre es erst beim ersten grünen Lauf mit
+leerem Artefakt.
+
+### Verifikation
+
+```
+npx playwright test --list:  5 Tests in 2 Dateien, Konfiguration gültig
+npm ci (mit Lockfile):       erfolgreich
+php -l seed.php:             sauber
+PHPCS:                       0 Errors / 0 Warnings
+```
+
+Die Tests selbst kann ich hier nicht ausführen — dafür braucht es eine
+installierte Moodle-Site mit Seed. Das entscheidet der nächste CI-Lauf.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

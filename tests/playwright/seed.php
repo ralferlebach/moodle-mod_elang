@@ -93,6 +93,18 @@ $cues = [[
 $manager = new \mod_elang\local\domain\version_manager();
 $draft = $manager->get_or_create_draft($elangid, (int) $admin->id);
 $manager->save_draft_content((int) $draft->id, $cues);
+
+// A medium, before publishing. Subtitles are timed against one, so edit.php
+// refuses to open without it and the editor tests would land on the "add a
+// medium first" notice instead of the studio. A URL medium needs no file to be
+// uploaded, and the browser tests never play it — they check that the editor
+// mounts and is operable.
+$manager->set_draft_media((int) $draft->id, [
+    'kind' => 'url',
+    'url' => 'https://example.org/elang-playwright-fixture.mp4',
+    'mime' => 'video/mp4',
+]);
+
 $manager->publish((int) $draft->id, (int) $admin->id);
 $version = $manager->get_published($elangid);
 if ($version === null) {

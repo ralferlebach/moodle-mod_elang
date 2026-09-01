@@ -11,6 +11,18 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Playwright never got past dependency installation: `tests/playwright/package-lock.json`
+  was listed in `.gitignore` from when the browser tests were a local-only tool, and
+  `npm ci` refuses to run without a lockfile. The lockfile is now committed, which also
+  stops a Playwright release from silently changing what the scheduled run tests.
+- The Playwright fixture published a version with no medium, so both editor tests would
+  have landed on the "add a medium first" notice that `edit.php` has shown since the
+  navigation rework. The seed now sets a URL medium before publishing.
+- `playwright.config.ts` declared only the `list` reporter, so `playwright-report/` was
+  never written and the green-run artefact would have been empty. It now also writes the
+  HTML report, records video, and keeps a trace on failure.
+
 ### Added
 - The media page is a working area rather than a bare upload form: the form on
   the left, the medium currently set on the right, with a preview, its file name

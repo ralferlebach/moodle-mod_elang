@@ -239,11 +239,10 @@ jobs:
           node-version: 22
     
       - name: Install Node dependencies
-        run: {
-               npm install
-               npm audit fix --force
-               npx browserslist@latest --update-db
-             }
+        run: |
+             npm install
+             npm audit fix --force
+             npx browserslist@latest --update-db
         working-directory: ${{ github.workspace }}/moodle
 
       - name: Grunt – AMD / ESLint / Stylelint

@@ -261,6 +261,11 @@ jobs:
       # js/. Its 36 unit tests, its type checking and the reproducibility of the
       # committed bundle had no CI coverage at all until now — they were only
       # ever verified by hand before a release.
+      # These four steps run in the plugin checkout, not the workspace root, so
+      # their log targets are anchored to $GITHUB_WORKSPACE. A relative
+      # ci-logs/ would resolve inside the plugin directory, where it does not
+      # exist — tee then fails and the step's output is lost precisely when it
+      # is needed.
       - name: Set up Node for the editor toolchain
         if: ${{ always() }}
         uses: actions/setup-node@v4
@@ -269,17 +274,17 @@ jobs:
 
       - name: Install editor dependencies
         if: ${{ always() }}
-        run: set -o pipefail; npm ci 2>&1 | tee ci-logs/npm-ci.log
+        run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: TypeScript type check
         if: ${{ always() }}
-        run: set -o pipefail; npm run typecheck 2>&1 | tee ci-logs/tsc.log
+        run: set -o pipefail; npm run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/tsc.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: Jest – editor unit tests
         if: ${{ always() }}
-        run: set -o pipefail; npm test 2>&1 | tee ci-logs/jest.log
+        run: set -o pipefail; npm test 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/jest.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: The committed React bundle must be reproducible
@@ -302,7 +307,7 @@ jobs:
               exit 1
             fi
             echo "Bundle ist reproduzierbar."
-          } 2>&1 | tee ci-logs/bundle.log
+          } 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/bundle.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: Collect diagnostics

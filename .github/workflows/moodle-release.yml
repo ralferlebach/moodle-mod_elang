@@ -40,7 +40,7 @@ on:
       - main
 
 concurrency:
-  group: ci-release-${{ github.ref }}
+  group: ci-release-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -49,13 +49,6 @@ env:
   COMPOSER_PROCESS_TIMEOUT: 0
   COMPOSER_NO_AUDIT: 1
   PGPASSWORD: moodle
-
-# A second push to main makes the first run's result irrelevant, and the
-# sequential matrix is long enough that letting superseded runs finish delays
-# the one people are waiting for.
-concurrency:
-  group: ci-main-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
 
@@ -189,6 +182,11 @@ jobs:
       # that moodle-plugin-ci does not know about. Its unit tests, its type
       # checking and the reproducibility of the committed bundle were verified
       # only by hand before a release until now.
+      # These four steps run in the plugin checkout, not the workspace root, so
+      # their log targets are anchored to $GITHUB_WORKSPACE. A relative
+      # ci-logs/ would resolve inside the plugin directory, where it does not
+      # exist — tee then fails and the step's output is lost precisely when it
+      # is needed.
       - name: Set up Node for the editor toolchain
         if: ${{ always() }}
         uses: actions/setup-node@v4
@@ -197,17 +195,17 @@ jobs:
 
       - name: Install editor dependencies
         if: ${{ always() }}
-        run: set -o pipefail; npm ci 2>&1 | tee ci-logs/npm-ci.log
+        run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: TypeScript type check
         if: ${{ always() }}
-        run: set -o pipefail; npm run typecheck 2>&1 | tee ci-logs/tsc.log
+        run: set -o pipefail; npm run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/tsc.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: Jest – editor unit tests
         if: ${{ always() }}
-        run: set -o pipefail; npm test 2>&1 | tee ci-logs/jest.log
+        run: set -o pipefail; npm test 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/jest.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: The committed React bundle must be reproducible
@@ -228,7 +226,7 @@ jobs:
               exit 1
             fi
             echo "Bundle ist reproduzierbar."
-          } 2>&1 | tee ci-logs/bundle.log
+          } 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/bundle.log"
         working-directory: ${{ github.workspace }}/plugin
 
       - name: PHPUnit

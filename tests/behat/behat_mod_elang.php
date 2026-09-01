@@ -130,12 +130,12 @@ JS;
 
         $manager = new \mod_elang\local\domain\version_manager();
 
-        // get_or_create_draft(), not create_draft(): the latter always branches
-        // a fresh version from the published one and ignores any draft that is
-        // already open. A scenario that first gives the activity a medium and
-        // then states a transcript would leave that medium behind on an orphan
-        // draft — which get_or_create_draft() then hands back to edit.php,
-        // empty and without a medium. Building on the open draft keeps both.
+        // Build on the draft that is already open rather than branching a new
+        // one: create_draft() always branches from the published version and
+        // ignores an open draft. A scenario that first gives the activity a
+        // medium and then states a transcript would leave that medium behind
+        // on an orphan draft, which get_or_create_draft() then hands back to
+        // edit.php — empty and without a medium.
         $draft = $manager->get_or_create_draft((int) $elang->id);
 
         // A draft branched from the published version carries that version's

@@ -11,6 +11,28 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.4] - 2026-09-01
+
+### Fixed
+- The Playwright login helper filled the password before the login page's own
+  scripts had run. Moodle initialises a "show password" control on that field
+  after load, and the initialisation resets it: the form posted `password=`
+  empty and Moodle answered "Invalid login" with correct credentials. The helper
+  now waits for the page to settle, and asserts the value survived to the moment
+  of submitting.
+- That failure went unnoticed because the helper accepted any URL containing
+  "/index.php" as proof of a successful login — which matches
+  `/login/index.php?loginredirect=1`, exactly where a failed login lands. It now
+  asserts it left the login page, so a broken login fails at the login rather
+  than three assertions later against a page nobody reached.
+- The authoring timeline failed WCAG AA: white labels on the cue colours reached
+  3.3:1 and 4.0:1 against a 4.5:1 threshold, and the inactive cue's opacity
+  washed the text against whatever sat behind it. Both colours are darkened, the
+  opacity is gone, and the active cue additionally carries an outline so the
+  distinction does not rest on colour alone.
+- `amd/build/editor.min.js` was left behind when `amd/src/editor.js` changed in
+  the import-modal work, so `moodle-plugin-ci grunt` failed the build as stale.
+
 ### Added
 - The attempt report leads with four figures — attempts shown, finished, average
   score of finished attempts, and how many used a hint — computed in one

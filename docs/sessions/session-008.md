@@ -852,6 +852,97 @@ die Verlagerung von „Löschen" ins Aktionsmenü ab.
 
 ---
 
+## Inkrement 10 — Playwright real repariert (2.0.0-beta.4, 2026090108)
+
+Zweimal hatte ich vorher „vermutlich behoben" geliefert. Diesmal habe ich in
+der Sandbox eine **echte Moodle-Site** installiert
+(`admin/cli/install_database.php`), den Seed laufen lassen und die Suite
+tatsächlich ausgeführt — und den Fehler damit reproduziert statt erraten.
+
+### Der Fehler: das Passwort wurde leer abgeschickt
+
+Die Instrumentierung des POST-Bodys zeigte es in einer Zeile:
+
+```
+POST BODY: anchor=&logintoken=el5R…&username=elang_pw_1788267415&password=
+```
+
+Das Feld **war** gefüllt — `inputValue('#password')` gab den richtigen Wert
+zurück. Beim Absenden war es leer. Ursache: Moodle initialisiert auf dem
+Login-Feld nach dem Laden ein „Passwort anzeigen"-Bedienelement, und diese
+Initialisierung setzt das Feld zurück. Der Helper tippte vorher.
+
+Mit `await page.waitForLoadState('networkidle')` vor dem Ausfüllen:
+
+```
+POST BODY: …&username=elang_pw_1788267415&password=Elang-pw-1788267415%21
+URL AFTER: http://localhost:8000/my/
+```
+
+### Warum es zweimal an mir vorbeigelaufen ist
+
+Der Helper prüfte den Erfolg so:
+
+```ts
+await expect(page).toHaveURL(/\/(my|course)\b|\/index\.php/);
+```
+
+`\/index\.php` matcht **`/login/index.php?loginredirect=1`** — genau die
+Seite, auf der ein *fehlgeschlagener* Login landet. Der Login galt als
+erfolgreich, und die eigentliche Ursache trat drei Assertions später als
+„Element nicht gefunden" auf einer Seite auf, die niemand erreicht hatte.
+
+**Lehre:** Eine Erfolgsprüfung, die auch den Misserfolg akzeptiert, ist
+schlimmer als keine — sie verschiebt den Fehler an eine Stelle, an der er
+falsch aussieht. Positiv formulierte Muster („wir sind auf /my") sind hier
+sicherer als lockere Alternativen.
+
+### Zwei echte Barrierefreiheitsfehler
+
+Nach dem Login-Fix meldete axe, was vorher nie zur Ausführung kam: die
+Autoren-Timeline erfüllt WCAG AA nicht. Weiße Beschriftung auf `#4a90d9`
+erreicht 3,3:1, auf `#d9534f` 4,0:1 — verlangt sind 4,5:1. Die `opacity: 0.6`
+des inaktiven Cues verwässerte den Text zusätzlich gegen das, was dahinter
+liegt, sodass der reale Kontrast nicht einmal vorhersagbar war.
+
+Jetzt `#2b6cb0` (5,4:1) und `#9b2c2c` (7,5:1), ohne Opacity, und der aktive Cue
+trägt zusätzlich eine Outline — die Unterscheidung hängt damit nicht mehr an
+der Farbe allein.
+
+Ein Detail, das mich fast erneut fehlleiten hätte: nach dem CSS-Fix blieb der
+Test rot, bis `php admin/cli/purge_caches.php` lief. Moodle liefert
+gecachtes CSS aus.
+
+### Der Grunt-Fehler: ein Auslieferungsfehler von mir
+
+```
+File is stale and needs to be rebuilt: amd/build/editor.min.js
+```
+
+`patch-2.0.97` enthielt `amd/src/editor.js` mit der erweiterten String-Liste,
+aber **nicht** den dazugehörigen Build. Ich hatte ihn lokal erzeugt
+(`e99c3b54` → `e42af04c`) und dann nicht in die Dateiliste des Patches
+aufgenommen.
+
+**Lehre:** Nach `grunt amd` gehört das Build-Artefakt in **dieselbe**
+Patch-Dateiliste wie die Quelle. Die Idempotenzprüfung, die ich durchgeführt
+hatte, beweist nur, dass der Build korrekt ist — nicht, dass er ausgeliefert
+wurde.
+
+### Verifikation
+
+```
+Playwright:  5/5 grün, gegen eine echte Moodle-Site in dieser Sandbox
+PHPUnit:     411 Tests, 1193 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings
+moodlecheck: 0 <e>-Tags
+stylelint:   0 Fehler
+Grunt amd:   nicht mehr stale, byte-identisch
+Behat:       42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

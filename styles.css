@@ -99,8 +99,11 @@
     min-width: 2px;
     padding: 0 4px;
     overflow: hidden;
-    background: #4a90d9;
-    opacity: 0.6;
+    /* Darkened from #4a90d9 and without the opacity it used to carry: the
+     * label is white, and both the lighter blue (3.3:1) and the wash of
+     * opacity against whatever sits behind the timeline put it under the 4.5:1
+     * WCAG AA threshold. This blue reaches 5.4:1 on its own. */
+    background: #2b6cb0;
     border-radius: 3px;
     color: #fff;
     font-size: 11px;
@@ -110,8 +113,12 @@
 }
 
 .mod_elang-editor-timeline-cue.active {
-    opacity: 1;
-    background: #d9534f;
+    /* #d9534f reached only 4.0:1 against white; this red reaches 7.5:1. The
+     * active cue is additionally marked by its outline, so the distinction
+     * does not rest on colour alone either. */
+    background: #9b2c2c;
+    outline: 2px solid #fff;
+    outline-offset: -2px;
 }
 
 .mod_elang-editor-timeline-playhead {

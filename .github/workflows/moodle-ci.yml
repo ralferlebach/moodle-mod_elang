@@ -232,14 +232,16 @@ jobs:
           DB: mysqli
           MOODLE_BRANCH: MOODLE_405_STABLE
 
-      - name: Set up Node.js 22
+      - name: Set Node.js to 22
         if: ${{ always() }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
     
       - name: Install Node dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npx browserslist@latest --update-db
         working-directory: ${{ github.workspace }}/moodle
 
       - name: Grunt – AMD / ESLint / Stylelint

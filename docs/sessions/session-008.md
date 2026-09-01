@@ -513,6 +513,59 @@ Konfigurationsfrage.
 
 ---
 
+## Inkrement 5 — Issue #5: Medienverwaltung als eigener Reiter (2026090104)
+
+Mockup 5 zeigt zwei Spalten: links die Auswahl, rechts das aktuell eingestellte
+Medium mit Vorschau, Dateiname, Typ, Dauer und Größe. Genau so gebaut.
+
+**Warum die rechte Spalte mehr ist als Zierde:** Der Reiter existiert, weil der
+Untertiteleditor ohne Medium nicht öffnet — er ist die erste Station des
+Autorenablaufs. Ein Medium zu *ersetzen*, während schon Cues daran hängen, ist
+dagegen eine Entscheidung mit Folgen. Die vorher/nachher-Ansicht macht sie
+sichtbar. Der Hinweis zu erhaltenen Untertiteln erscheint nur, wenn der Draft
+tatsächlich Cues hat: einer Übung ohne Cues kann nichts kaputtgehen, und eine
+Warnung ohne Gegenstand stumpft ab.
+
+**Abweichung von Ralfs Antwort 4.11 — nach seinem eigenen Mockup.** Er hatte
+gesagt, URL/Provider solle je nach Selektor ein-/ausgeblendet werden. Mockup 5
+zeigt stattdessen einen dauerhaft sichtbaren, klar untergeordneten Abschnitt
+„Andere Quelle (optional)". Das ist besser: kein Moduswechsel, die Hierarchie
+trägt die Aussage. Umgesetzt als eingeklappter `header` unter dem Filepicker.
+
+**Ein Feld statt zwei.** Der bisherige Weg über die WS-API verlangt
+`provider` **und** `providerref` getrennt. Auf der Seite gibt es nur „Adresse
+der Quelle": Lehrende fügen ein, was in ihrer Adresszeile steht.
+`provider_registry::detect()` beantwortet, welcher Anbieter das ist — die
+Klasse kennt die URL-Formen ohnehin schon.
+
+Ein Detail, das ohne Test durchgerutscht wäre: eine **nackte Video-ID**
+(`dQw4w9WgXcQ`) normalisiert unter *jedem* Anbieter. Die Erkennung darf sie
+deshalb nicht dem erstbesten zuordnen; sie verlangt, dass die Referenz den
+Anbieter auch benennt — inklusive der Kurzdomain `youtu.be`, die die
+Zeichenfolge „youtube" nicht enthält.
+
+**Kein `create_module()`-Fehler mehr im Blindflug:** `get_or_create_draft()`
+liefert bei einem frisch angelegten Draft ein Objekt, auf dem die nullbaren
+Medienspalten nicht gesetzt sind. Direkter Zugriff warnt dort. Behat hat das
+sofort aufgedeckt — mit `Undefined property: stdClass::$mediakind` und einem
+roten Szenario, nicht mit einer stillen leeren Seite.
+
+Nach dem Speichern führt die Seite jetzt **auf sich selbst** zurück statt in
+den Editor: das Ergebnis steht rechts und kann bestätigt werden, bevor es
+weitergeht.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 403 Tests, 1168 Assertions, 1 skipped   (vorher 393/1148)
+PHPCS:       0 Errors / 0 Warnings (139 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    4 Templates, 0 Fehler
+Behat:       32 Szenarien / 309 Steps, alle grün (echter Browser)
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
@@ -520,7 +573,7 @@ Konfigurationsfrage.
 | #2 | Navigation und Benennung | **erledigt (beta.2)** |
 | #3 | Untertitelposition und Auto-Scroll | Schema/Formular/Payload erledigt, Player offen |
 | #4 | Tastaturfluss und Cue-Pausemodus | Schema/Formular/Payload erledigt, Player offen |
-| #5 | Medienverwaltung als eigener Reiter | offen |
+| #5 | Medienverwaltung als eigener Reiter | **erledigt** |
 | #6 | Untertitelimport im Modal | offen |
 | #7 | Editor als synchronisierter Workspace | offen |
 | #8 | Berichte auswertungsorientiert | offen |

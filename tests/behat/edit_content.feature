@@ -69,7 +69,46 @@ Feature: Reach the activity's working areas from its navigation
   Scenario: The media page is reachable as its own mode
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     When I select "Media" from secondary navigation
-    Then I should see "Upload media files"
+    Then I should see "Media"
+    And I should see "Current medium"
+    And I should see "No medium has been set for this exercise yet."
+    And I should see "Other source"
+
+  Scenario: A source address is stored as the medium and shown back
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "https://example.org/lesson/clip.mp4"
+    And I press "Save changes"
+    Then I should see "https://example.org/lesson/clip.mp4"
+    And I should not see "No medium has been set for this exercise yet."
+
+  Scenario: A YouTube link is recognised as a provider rather than a plain URL
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    And I press "Save changes"
+    Then I should see "YouTube"
+    And I should see "dQw4w9WgXcQ"
+
+  Scenario: An address that is neither a media URL nor a provider is refused
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "not-an-address"
+    And I press "Save changes"
+    Then I should see "Enter a full address starting with"
+    And I should see "No medium has been set for this exercise yet."
+
+  Scenario: Setting a medium lets the subtitle editor open
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    And I expand all fieldsets
+    And I set the field "Source address" to "https://example.org/lesson/clip.mp4"
+    And I press "Save changes"
+    When I select "Subtitles & gaps" from secondary navigation
+    Then I should not see "Add the video or audio file on the Media tab first"
 
   Scenario: A teacher reaches the attempt report from the navigation
     Given I am on the "Test elang" "elang activity" page logged in as teacher1

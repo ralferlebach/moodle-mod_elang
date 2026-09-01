@@ -151,6 +151,7 @@ $string['error:invalidpenalty'] = 'Ein Hinweis-Punktabzug muss zwischen 0 und 1 
 $string['error:invalidproviderref'] = '\'{$a}\' ist keine erkennbare Video-ID und kein erkennbarer Link für diesen Anbieter.';
 $string['error:invalidregexpattern'] = '\'{$a}\' ist kein gültiger regulärer Ausdruck.';
 $string['error:invalidsolutionavailability'] = 'Wählen Sie eine der angebotenen Optionen dafür, wann Lernende die Musterlösung sehen dürfen.';
+$string['error:invalidsourceurl'] = 'Geben Sie eine vollständige Adresse mit http:// oder https:// an, oder einen YouTube- bzw. Vimeo-Link.';
 $string['error:invalidsubtitleposition'] = 'Wählen Sie eine der angebotenen Optionen dafür, wo die Untertitel angezeigt werden.';
 $string['error:invalidv1cuejson'] = 'Dieser Version-1-Cue konnte nicht verarbeitet werden.';
 $string['error:negativegapoffset'] = 'Position und Länge einer Lücke dürfen nicht negativ sein.';
@@ -195,6 +196,19 @@ $string['jarothresholdrange'] = 'Der Schwellwert muss zwischen 0 und 1 liegen.';
 $string['language'] = 'Inhaltssprache';
 $string['language_help'] = 'Der Sprach- oder Skriptcode des Übungsinhalts, zum Beispiel de, fr, zh-Hans oder ja. Er steuert, wie Antworten verglichen werden, einschließlich Groß-/Kleinschreibung und Transliteration. Für generische Behandlung leer lassen. Neue Versionen dieser Aktivität übernehmen diesen Wert.';
 $string['language_none'] = 'Generisch (nicht angegeben)';
+$string['media:cuenote'] = 'Vorhandene Untertitel und Lücken bleiben beim Wechsel des Mediums erhalten. Ihre Zeiten werden nicht angepasst — prüfen Sie sie danach im Editor.';
+$string['media:current'] = 'Aktuell eingestelltes Medium';
+$string['media:heading'] = 'Medien';
+$string['media:intro'] = 'Wählen Sie das Video oder Audio, auf dem diese Übung aufbaut. Untertitel werden dagegen getimt, deshalb steht dies am Anfang.';
+$string['media:none'] = 'Für diese Übung ist noch kein Medium eingestellt.';
+$string['media:othersource'] = 'Andere Quelle';
+$string['media:providerhint'] = 'Erkannte Anbieter: {$a}. Jede andere Adresse wird als direkte Medien-URL verwendet.';
+$string['media:sourceurl'] = 'Adresse der Quelle';
+$string['media:sourceurl_help'] = 'Fügen Sie die Adresse eines Videos ein, statt eine Datei hochzuladen — einen YouTube- oder Vimeo-Link oder die direkte Adresse einer Mediendatei.
+
+Eine hier eingetragene Adresse ersetzt eine hochgeladene Datei. Lassen Sie das Feld leer, um den Upload oben zu verwenden.
+
+Ein Anbietervideo wird im Rahmen des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an.';
 $string['migratev1:approvalheading'] = 'Migriert, wartet auf Prüfung';
 $string['migratev1:approvebutton'] = 'Diese Migration freigeben';
 $string['migratev1:approved'] = 'elang {$a} wurde als freigegeben markiert.';

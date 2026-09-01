@@ -58,6 +58,65 @@ final class provider_registry {
     }
 
     /**
+     * Work out which provider a pasted URL belongs to, if any.
+     *
+     * The media page asks for one "other source" field rather than a provider
+     * selector plus a reference field: a teacher pastes the URL they have,
+     * from the address bar of whatever site they were on. Deciding which
+     * provider that is belongs here, next to the patterns that already know
+     * every shape those URLs take.
+     *
+     * @param string $reference A URL, or a bare video id
+     * @return array|null ['provider' => key, 'reference' => canonical id], or null when no provider matches
+     */
+    public static function detect(string $reference): ?array {
+        $reference = trim($reference);
+        if ($reference === '') {
+            return null;
+        }
+
+        foreach (self::PROVIDERS as $provider) {
+            // A bare id normalises under every provider, so it cannot identify
+            // one. Only a reference that actually names the provider counts.
+            if (stripos($reference, $provider) === false && !self::mentions_short_domain($provider, $reference)) {
+                continue;
+            }
+
+            $normalised = self::normalise_reference($provider, $reference);
+            if ($normalised !== null) {
+                return ['provider' => $provider, 'reference' => $normalised];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a reference uses one of a provider's short domains.
+     *
+     * youtu.be does not contain the string "youtube", so matching on the
+     * provider key alone would miss every short link.
+     *
+     * @param string $provider A known provider key
+     * @param string $reference The teacher-supplied reference
+     * @return bool True when a short domain of this provider appears
+     */
+    private static function mentions_short_domain(string $provider, string $reference): bool {
+        $shortdomains = [
+            'youtube' => ['youtu.be'],
+            'vimeo' => [],
+        ];
+
+        foreach ($shortdomains[$provider] ?? [] as $domain) {
+            if (stripos($reference, $domain) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Normalise a teacher-supplied reference to the canonical video id, or
      * null when neither a bare id nor a recognised URL shape matches.
      *

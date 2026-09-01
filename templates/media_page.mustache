@@ -1,0 +1,118 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/media_page
+
+    The media page of the activity.
+
+    The form on the left, what is currently set on the right, so replacing a
+    medium is never done blind. Bootstrap classes only.
+
+    Context variables required for this template:
+    * heading - The page heading
+    * intro - One sentence describing what this page is for
+    * formhtml - The rendered media form
+    * currenttitle - Heading of the current-medium panel
+    * hasmedium - Whether a medium is set on the draft
+    * medium - The current medium
+    * nomedium - Message shown when no medium is set
+    * showcuenote - Whether the draft already carries cues
+    * cuenote - Note about what happens to existing cues
+
+    Example context (json):
+    {
+        "heading": "Media",
+        "intro": "Choose the video or audio file this exercise is built on.",
+        "formhtml": "<form></form>",
+        "currenttitle": "Current medium",
+        "hasmedium": true,
+        "medium": {
+            "kind": "file",
+            "isfile": true,
+            "isurl": false,
+            "isprovider": false,
+            "isaudio": false,
+            "url": "https://example.org/clip.mp4",
+            "filename": "clip.mp4",
+            "meta": "video/mp4 · 12.4 MB · 1 min 10 secs",
+            "posterurl": ""
+        },
+        "nomedium": "No medium has been set for this exercise yet.",
+        "showcuenote": true,
+        "cuenote": "Existing subtitles and gaps are kept."
+    }
+}}
+<div class="mod_elang-media">
+    <h2 class="h3">{{heading}}</h2>
+    <p class="text-muted">{{intro}}</p>
+
+    <div class="row">
+        <div class="col-12 col-lg-7">
+            {{{formhtml}}}
+        </div>
+
+        <div class="col-12 col-lg-5">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h3 class="h5 card-title">{{currenttitle}}</h3>
+
+                    {{#hasmedium}}
+                        {{#medium}}
+                            {{#isfile}}
+                                {{^isaudio}}
+                                    <video class="w-100 mb-3" controls preload="metadata"
+                                           {{#posterurl}}poster="{{posterurl}}"{{/posterurl}}>
+                                        <source src="{{url}}">
+                                    </video>
+                                {{/isaudio}}
+                                {{#isaudio}}
+                                    <audio class="w-100 mb-3" controls preload="metadata">
+                                        <source src="{{url}}">
+                                    </audio>
+                                {{/isaudio}}
+                            {{/isfile}}
+
+                            {{#isurl}}
+                                <video class="w-100 mb-3" controls preload="metadata"
+                                       {{#posterurl}}poster="{{posterurl}}"{{/posterurl}}>
+                                    <source src="{{url}}">
+                                </video>
+                            {{/isurl}}
+
+                            {{#isprovider}}
+                                {{#posterurl}}
+                                    <img src="{{posterurl}}" alt="" class="w-100 mb-3">
+                                {{/posterurl}}
+                            {{/isprovider}}
+
+                            <p class="mb-1"><strong>{{filename}}</strong></p>
+                            {{#meta}}<p class="text-muted small mb-0">{{meta}}</p>{{/meta}}
+                        {{/medium}}
+                    {{/hasmedium}}
+
+                    {{^hasmedium}}
+                        <p class="text-muted mb-0">{{nomedium}}</p>
+                    {{/hasmedium}}
+                </div>
+            </div>
+
+            {{#showcuenote}}
+                <div class="alert alert-info" role="note">{{cuenote}}</div>
+            {{/showcuenote}}
+        </div>
+    </div>
+</div>

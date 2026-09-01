@@ -151,6 +151,7 @@ $string['error:invalidpenalty'] = 'A hint penalty must be between 0 and 1.';
 $string['error:invalidproviderref'] = '\'{$a}\' is not a recognised video ID or link for this provider.';
 $string['error:invalidregexpattern'] = '\'{$a}\' is not a valid regular expression.';
 $string['error:invalidsolutionavailability'] = 'Choose one of the offered options for when learners may see the solution transcript.';
+$string['error:invalidsourceurl'] = 'Enter a full address starting with http:// or https://, or a YouTube or Vimeo link.';
 $string['error:invalidsubtitleposition'] = 'Choose one of the offered options for where the subtitles are shown.';
 $string['error:invalidv1cuejson'] = 'This version 1 cue could not be parsed.';
 $string['error:negativegapoffset'] = 'A gap offset and length must not be negative.';
@@ -195,6 +196,19 @@ $string['jarothresholdrange'] = 'The threshold must be between 0 and 1.';
 $string['language'] = 'Content language';
 $string['language_help'] = 'The language or script code of the exercise content, for example de, fr, zh-Hans or ja. It controls how answers are compared, including case folding and transliteration. Leave it empty for generic handling. New versions of this activity start from this value.';
 $string['language_none'] = 'Generic (not specified)';
+$string['media:cuenote'] = 'Existing subtitles and gaps are kept when you change the medium. Their timings are not adjusted, so check them in the editor afterwards.';
+$string['media:current'] = 'Current medium';
+$string['media:heading'] = 'Media';
+$string['media:intro'] = 'Choose the video or audio this exercise is built on. Subtitles are timed against it, so this comes first.';
+$string['media:none'] = 'No medium has been set for this exercise yet.';
+$string['media:othersource'] = 'Other source';
+$string['media:providerhint'] = 'Recognised providers: {$a}. Any other address is used as a direct media URL.';
+$string['media:sourceurl'] = 'Source address';
+$string['media:sourceurl_help'] = 'Paste the address of a video instead of uploading a file — a YouTube or Vimeo link, or a direct address of a media file.
+
+An address entered here replaces an uploaded file. Leave it empty to use the upload above.
+
+A provider video is played in the provider\\\'s own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries.';
 $string['migratev1:approvalheading'] = 'Migrated, awaiting review';
 $string['migratev1:approvebutton'] = 'Approve this migration';
 $string['migratev1:approved'] = 'elang {$a} has been marked as approved.';

@@ -12,6 +12,20 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [Unreleased]
 
 ### Added
+- The media page is a working area rather than a bare upload form: the form on
+  the left, the medium currently set on the right, with a preview, its file name
+  and its type, size and duration. Replacing the medium of an activity that
+  already has cues is a decision, and it should not be made without seeing what
+  is being replaced.
+- A source address can be given instead of an upload, in one field rather than a
+  provider selector plus a reference field: `provider_registry::detect()` works
+  out from the address itself whether it is a YouTube or Vimeo link, and anything
+  else is kept as a direct media URL. An address that is neither is refused.
+- `mod_elang\output\media_page` and `templates/media_page.mustache`.
+- Ten tests for address detection, including that a bare video id names no
+  provider and must not be claimed by the first one in the list.
+
+### Added
 - The transcript export page is now two product cards rather than a heading and a
   row of four equal format links: each leads with PDF and keeps DOCX, ODT and TXT
   in a menu, because PDF is the one teachers actually print.

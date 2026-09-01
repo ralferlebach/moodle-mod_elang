@@ -58,6 +58,53 @@ class media_form extends \moodleform {
             $this->_customdata['posteroptions']
         );
 
+        // One field rather than a provider selector plus a reference field: a
+        // teacher pastes whatever is in their address bar, and which provider
+        // that is can be worked out from the URL itself.
+        $mform->addElement('header', 'othersource', get_string('media:othersource', 'mod_elang'));
+        $mform->setExpanded('othersource', false);
+
+        $mform->addElement('text', 'mediaurl', get_string('media:sourceurl', 'mod_elang'), ['size' => 60]);
+        $mform->setType('mediaurl', PARAM_RAW_TRIMMED);
+        $mform->addHelpButton('mediaurl', 'media:sourceurl', 'mod_elang');
+
+        $mform->addElement(
+            'static',
+            'providerhint',
+            '',
+            get_string('media:providerhint', 'mod_elang', $this->_customdata['providers'])
+        );
+
         $this->add_action_buttons();
+    }
+
+    /**
+     * Reject a source URL that is neither a usable media URL nor a provider we
+     * can embed, rather than storing something the player cannot play.
+     *
+     * @param array $data The submitted values
+     * @param array $files The submitted files
+     * @return array Field name => error message
+     */
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+
+        $url = trim((string) ($data['mediaurl'] ?? ''));
+        if ($url === '') {
+            return $errors;
+        }
+
+        // A recognised provider link is fine whatever its shape.
+        if (\mod_elang\local\media\provider_registry::detect($url) !== null) {
+            return $errors;
+        }
+
+        // Otherwise it has to be a plain http(s) URL the browser can load
+        // directly.
+        if (!preg_match('~^https?://~i', $url)) {
+            $errors['mediaurl'] = get_string('error:invalidsourceurl', 'mod_elang');
+        }
+
+        return $errors;
     }
 }

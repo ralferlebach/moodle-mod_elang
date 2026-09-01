@@ -11,6 +11,13 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Two lint findings the local `grunt amd` run does not cover: a comment in
+  `amd/src/player.js` starting with a lowercase word, and a trailing blank line in
+  `tests/behat/report.feature`. The full `grunt` task set — which adds
+  `gherkinlint` and fails on warnings — is what CI runs, and is now what is run
+  locally. The minified build is unchanged, since rollup strips comments.
+
 ## [2.0.0-beta.5] - 2026-09-01
 
 Subtitle editor workspace (issue #7). Every cue used to render its whole form at

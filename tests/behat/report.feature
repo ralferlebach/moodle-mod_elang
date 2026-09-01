@@ -89,4 +89,3 @@ Feature: Review learner attempts in the report
     # The destructive action lives in the row's action menu, not next to the
     # primary one, so it cannot be hit by aiming at "View".
     Then "Delete" "link" should exist in the ".action-menu" "css_element"
-

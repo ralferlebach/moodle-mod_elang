@@ -1028,6 +1028,43 @@ Behat:        42 Szenarien / 426 Steps, alle grün (echter Browser)
 
 ---
 
+## Inkrement 12 — Zwei Lint-Befunde aus dem CI-Lauf (kein Version-Bump)
+
+Reine Stilkorrektur an einem Kommentar und an Leerzeilen; nach der Bump-Regel
+kein Version-Bump, und das Build-Artefakt ist unverändert.
+
+```
+player.js 703:17  warning  Comments should not begin with a lowercase character
+report.feature 93          Multiple empty lines are not allowed
+```
+
+Der Kommentar begann mit `// timeupdate fires …` — der Ereignisname in
+Kleinschreibung als erstes Wort. Umformuliert zu „The timeupdate event fires …".
+Und `report.feature` endete mit einer Leerzeile zu viel; mein
+Python-Anhängeskript hatte `\n` an einen bereits mit Zeilenumbruch endenden
+String gehängt.
+
+### Die eigentliche Lehre: `grunt amd` ist nicht `grunt`
+
+Ich habe die ganze Sitzung über nur `grunt amd` ausgeführt. Das deckt
+`eslint:amd` und `rollup:dist` ab — aber **nicht** `gherkinlint`, und es
+scheitert nicht an Warnungen, weil `--max-lint-warnings 0` fehlte. Die CI führt
+`moodle-plugin-ci grunt --max-lint-warnings 0` aus, also den vollständigen
+Standardtask.
+
+Ab jetzt gilt lokal der **vollständige** `grunt`-Lauf im Plugin-Verzeichnis als
+Prüfung, nicht `grunt amd`. Verifiziert: Exit 0 über `gherkinlint`,
+`eslint:amd`, `rollup:dist`, `eslint:yui`, `stylelint:css`.
+
+Ein Nebenbefund, der beim Prüfen auffiel: der Hash von `player.min.js` bleibt
+nach der Kommentaränderung `7833b664`. Rollup entfernt Kommentare, das
+Minifikat ist also byte-identisch — die AMD-Build-Regel wurde eingehalten, es
+gibt nur nichts Neues auszuliefern.
+
+Alle fünf Feature-Dateien wurden zusätzlich auf dasselbe Muster geprüft.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

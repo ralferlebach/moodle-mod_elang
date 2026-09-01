@@ -700,10 +700,10 @@ const attachPlaybackFlow = (mediaEl, list, mode) => {
             if (shouldstop && stoppedfor !== crossed.dataset.cueid) {
                 stoppedfor = crossed.dataset.cueid;
                 mediaEl.pause();
-                // timeupdate fires a few times a second, so playback is a
-                // fraction past the boundary by now. Landing exactly on it
-                // keeps the next resume from skipping the first word of the
-                // following cue.
+                // The timeupdate event fires only a few times a second, so
+                // playback is already a fraction past the boundary. Landing
+                // exactly on it keeps the next resume from skipping the first
+                // word of the following cue.
                 mediaEl.currentTime = endOf(crossed) / 1000;
             }
             return;

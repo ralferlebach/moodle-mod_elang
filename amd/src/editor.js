@@ -50,7 +50,7 @@ const STRING_KEYS = [
     'editor:loaderror', 'editor:loading', 'editor:media', 'editor:mediafile', 'editor:mediakind',
     'editor:medianone', 'editor:mediaprovider', 'editor:mediaproviderref', 'editor:mediaproviderrefhint',
     'editor:mediasaved',
-    'editor:mediaurl', 'editor:nocues', 'editor:nogaps', 'editor:nomedia',
+    'editor:mediaurl', 'editor:nocues', 'editor:nogaps', 'editor:nomedia', 'editor:novideotrack',
     'editor:onboardinggaps', 'editor:onboardingimport', 'editor:onboardingintro', 'editor:onboardingmedia',
     'editor:onboardingtitle', 'editor:parsegaps',
     'editor:penalty', 'editor:poster', 'editor:preview', 'editor:publish', 'editor:published', 'editor:removehint',

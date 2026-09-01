@@ -41,14 +41,23 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/elang:exporttranscript', $context);
 
-// The solution copy carries the full, unmasked text, so it is gated behind the
-// higher capability that learners do not hold. Everything else is the masked
-// learner worksheet.
-$cansolution = has_capability('mod/elang:exportsolution', $context);
-$masked = !($solution && $cansolution);
-if ($solution) {
-    require_capability('mod/elang:exportsolution', $context);
+// The capability alone is not the whole answer: learners hold it by default,
+// so the activity's own settings decide whether they get a worksheet at all,
+// and whether (and when) they may also see the solutions. Staff hold
+// mod/elang:exportsolution and are unaffected by either setting.
+$canworksheet = elang_can_export_worksheet($elang, $context);
+$cansolution = elang_can_export_solution($elang, $context);
+if (!$canworksheet && !$cansolution) {
+    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
 }
+if ($solution && !$cansolution) {
+    throw new moodle_exception('error:solutionnotavailable', 'mod_elang');
+}
+if (!$solution && !$canworksheet) {
+    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
+}
+
+$masked = !$solution;
 $suffix = $masked ? '' : '-solution';
 
 $version = (new \mod_elang\local\domain\version_manager())->get_published((int) $elang->id);
@@ -119,6 +128,8 @@ $PAGE->set_url('/mod/elang/transcript.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->set_activity_record($elang);
+$PAGE->set_secondary_active_tab('mod_elang_exporttranscript');
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('exporttranscript', 'mod_elang'));
@@ -142,8 +153,10 @@ if ($version === null) {
         return implode(' · ', $links);
     };
 
-    echo $OUTPUT->heading(get_string('export:worksheet', 'mod_elang'), 3);
-    echo html_writer::div($formatlinks(false));
+    if ($canworksheet) {
+        echo $OUTPUT->heading(get_string('export:worksheet', 'mod_elang'), 3);
+        echo html_writer::div($formatlinks(false));
+    }
 
     if ($cansolution) {
         echo $OUTPUT->heading(get_string('export:solution', 'mod_elang'), 3);

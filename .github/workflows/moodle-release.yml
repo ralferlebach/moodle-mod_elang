@@ -40,7 +40,7 @@ on:
       - main
 
 concurrency:
-  group: ci-release-${{ github.ref }}
+  group: ci-release-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -103,8 +103,18 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Prepare log directory
+        run: mkdir -p ci-logs
+
       - name: Install en_AU.UTF-8 locale
         run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ github.sha }}
+          restore-keys: composer-${{ runner.os }}-
 
       - name: Initialise moodle-plugin-ci
         run: |
@@ -131,39 +141,141 @@ jobs:
           DB:            ${{ matrix.db.type }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
 
+      # Every check runs even when an earlier one failed, and every one keeps
+      # its full output in ci-logs/. Without both, the first failure hides the
+      # state of all the others and a release run reports one problem per
+      # attempt. `set -o pipefail` is required or `tee` would mask exit codes.
       - name: PHP Lint
-        run: moodle-plugin-ci phplint
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phplint 2>&1 | tee ci-logs/phplint.log
 
       - name: PHP Copy/Paste Detector
-        run: moodle-plugin-ci phpcpd || true
+        if: ${{ always() }}
+        continue-on-error: true
+        run: set -o pipefail; moodle-plugin-ci phpcpd 2>&1 | tee ci-logs/phpcpd.log
 
       - name: Moodle Code Checker (PHPCS)
-        run: moodle-plugin-ci phpcs --max-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpcs --max-warnings 0 2>&1 | tee ci-logs/phpcs.log
 
       - name: Moodle PHPDoc Checker
-        run: moodle-plugin-ci phpdoc --max-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpdoc --max-warnings 0 2>&1 | tee ci-logs/phpdoc.log
 
       - name: Validate plugin structure
-        run: moodle-plugin-ci validate
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci validate 2>&1 | tee ci-logs/validate.log
 
       - name: Check upgrade savepoints
-        run: moodle-plugin-ci savepoints
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci savepoints 2>&1 | tee ci-logs/savepoints.log
 
       - name: Mustache lint
-        run: moodle-plugin-ci mustache
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci mustache 2>&1 | tee ci-logs/mustache.log
 
       - name: Grunt
-        run: moodle-plugin-ci grunt --max-lint-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci grunt --max-lint-warnings 0 2>&1 | tee ci-logs/grunt.log
+
+      # The React/TypeScript editor under js/ is a separate esbuild/Jest project
+      # that moodle-plugin-ci does not know about. Its unit tests, its type
+      # checking and the reproducibility of the committed bundle were verified
+      # only by hand before a release until now.
+      # These four steps run in the plugin checkout, not the workspace root, so
+      # their log targets are anchored to $GITHUB_WORKSPACE. A relative
+      # ci-logs/ would resolve inside the plugin directory, where it does not
+      # exist — tee then fails and the step's output is lost precisely when it
+      # is needed.
+      - name: Set up Node for the editor toolchain
+        if: ${{ always() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install editor dependencies
+        if: ${{ always() }}
+        run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: TypeScript type check
+        if: ${{ always() }}
+        run: set -o pipefail; npm run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/tsc.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: Jest – editor unit tests
+        if: ${{ always() }}
+        run: set -o pipefail; npm test 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/jest.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: The committed React bundle must be reproducible
+        if: ${{ always() }}
+        run: |
+          # The production server ships js/vendor/react/editor.bundle.js and
+          # never builds it, so a bundle that no longer matches its sources is
+          # invisible until a user hits the stale behaviour.
+          set -o pipefail
+          {
+            before=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+            npm run build
+            after=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+            echo "committed: $before"
+            echo "rebuilt:   $after"
+            if [ "$before" != "$after" ]; then
+              echo "Das eingecheckte React-Bundle entspricht nicht seinen Quellen."
+              exit 1
+            fi
+            echo "Bundle ist reproduzierbar."
+          } 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/bundle.log"
+        working-directory: ${{ github.workspace }}/plugin
 
       - name: PHPUnit
-        run: moodle-plugin-ci phpunit --fail-on-warning
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpunit --fail-on-warning --testdox 2>&1 | tee ci-logs/phpunit.log
 
       - name: Behat
+        id: behat
+        if: ${{ always() }}
         run: |
+          set -o pipefail
           moodle-plugin-ci behat \
             --profile chrome \
             --tags "@mod_elang&&~@broken" \
-            --start-servers
+            --start-servers \
+            --dump 2>&1 | tee ci-logs/behat.log
+
+      - name: Collect diagnostics and Behat failure dumps
+        if: ${{ always() }}
+        run: |
+          # moodle-plugin-ci writes failure HTML and screenshots to
+          # $CFG->behat_faildump_path, which it sets to <data dir>/behat_dump
+          # (see MoodleConfig::BEHATDUMP) — not into the Moodle tree.
+          dump="$GITHUB_WORKSPACE/moodledata/behat_dump"
+          if [ -d "$dump" ]; then
+            mkdir -p ci-logs/behat_dump
+            cp -a "$dump/." ci-logs/behat_dump/
+            echo "Behat-Dumps eingesammelt: $(find ci-logs/behat_dump -type f | wc -l) Dateien"
+          else
+            echo "Kein Behat-Dump-Verzeichnis unter $dump."
+          fi
+          {
+            echo "job:    ci (${{ matrix.moodle-branch }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
+            echo "status: ${{ job.status }}"
+            echo "ref:    ${{ github.ref }}"
+            echo "sha:    ${{ github.sha }}"
+            echo ""
+            ls -1 ci-logs
+          } > ci-logs/summary.txt
+          cat ci-logs/summary.txt
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-main-${{ matrix.moodle-branch }}-${{ matrix.php }}-${{ matrix.db.engine }}
+          path: ci-logs
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── Moodle main (non-blocking — see header note) ─────────────────────────
   ci-experimental:
@@ -171,8 +283,14 @@ jobs:
     runs-on: ubuntu-24.04
 
     services:
+      # PostgreSQL 17, not 16 as the blocking job uses: Moodle main (5.3) raised
+      # its minimum to 17 and refuses to install on 16 with
+      # "[System] version 17 is required and you are running 16.15". That, and
+      # not the plugin, is what failed this job; moodle-plugin-ci prints its
+      # install usage text after any install error, which reads misleadingly
+      # like a bad option.
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER:     moodle
           POSTGRES_PASSWORD: moodle
@@ -271,18 +389,53 @@ jobs:
             --start-servers
 
   # ── Gate — only the blocking job decides the outcome ─────────────────────
+  # ── Stale files removed in earlier releases must not still be present ────
+  stale-files:
+    name: Stale files
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Files removed in earlier releases must not still be present
+        run: |
+          # Unpacking a plugin ZIP adds and overwrites files but never deletes
+          # any, so a file removed upstream survives in an installed copy or in
+          # a repository updated that way. It then still autoloads, duplicates a
+          # class, or reads columns that no longer exist.
+          list=db/removed_files.txt
+          if [[ ! -f "$list" ]]; then
+            echo "Keine Liste entfernter Dateien vorhanden – nichts zu pruefen."
+            exit 0
+          fi
+          rc=0
+          while IFS= read -r path; do
+            [[ -z "$path" || "$path" == \#* ]] && continue
+            if [[ -e "$path" ]]; then
+              echo "Veraltete Datei ist noch vorhanden: $path"
+              rc=1
+            fi
+          done < "$list"
+          if [[ $rc -ne 0 ]]; then
+            echo "Diese Dateien wurden in frueheren Releases entfernt und muessen geloescht werden."
+            exit 1
+          fi
+          echo "Keine veralteten Dateien gefunden."
+
+  # ── Gate — only the blocking jobs decide the outcome ─────────────────────
   ci-complete:
     name: CI complete
-    needs: ci
+    needs: [ci, stale-files]
     runs-on: ubuntu-24.04
     if: always()
     steps:
       - name: All blocking matrix jobs must have succeeded
         run: |
-          result="${{ needs.ci.result }}"
-          if [[ "$result" == "success" ]]; then
+          result="${{ needs.ci.result }}-${{ needs.stale-files.result }}"
+          if [[ "$result" == "success-success" ]]; then
             echo "All blocking CI jobs passed. (main/5.3-dev result is informational only — see the ci-experimental job.)"
           else
-            echo "CI result: $result — one or more blocking matrix jobs failed or were cancelled."
+            echo "CI result: $result — one or more blocking jobs failed or were cancelled."
+            echo "ci:          ${{ needs.ci.result }}"
+            echo "stale-files: ${{ needs.stale-files.result }}"
             exit 1
           fi

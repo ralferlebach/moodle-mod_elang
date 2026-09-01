@@ -18,7 +18,8 @@
  * Content authoring page for mod_elang.
  *
  * Ensures the activity has a draft version to edit (branching a copy from the
- * published version when there is one) and hands off to the mod_elang/editor
+ * published version when there is one), refuses to open without a medium (that
+ * belongs on the media page) and hands off to the mod_elang/editor
  * AMD module, which loads the draft through the external API and drives editing,
  * subtitle import, saving and publishing, including the timeline with draggable
  * cue edges.
@@ -44,8 +45,23 @@ $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 $PAGE->set_activity_record($elang);
+$PAGE->set_secondary_active_tab('mod_elang_editcontent');
 
 $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((int) $elang->id);
+
+// Subtitles are timed against a medium, so editing them before one exists
+// produces a timeline with nothing to scrub and cue times that cannot be
+// captured from playback. The check is server side rather than a disabled
+// button, so calling this URL directly lands on the same notice.
+$mediakind = (string) ($draft->mediakind ?? '');
+if ($mediakind === '' || $mediakind === 'none') {
+    $mediaurl = new moodle_url('/mod/elang/media.php', ['id' => $cm->id]);
+    echo $OUTPUT->header();
+    echo $OUTPUT->notification(get_string('editor:nomedianotice', 'mod_elang'), 'info');
+    echo $OUTPUT->single_button($mediaurl, get_string('editor:gotomedia', 'mod_elang'), 'get');
+    echo $OUTPUT->footer();
+    exit;
+}
 
 // Load the prebuilt React editor bundle as a regular page script. It lives in
 // js/vendor/react/ (not amd/build/, which moodle-plugin-ci wipes and rebuilds)

@@ -106,6 +106,59 @@ final class attempt_manager_test extends \advanced_testcase {
     }
 
     /**
+     * Resuming an UNTOUCHED attempt after the exercise was republished follows
+     * the new current version — there is no learner data to protect yet, and
+     * without this a broken medium that the author fixed would stay broken for
+     * everyone who had merely opened the exercise once.
+     *
+     * @return void
+     */
+    public function test_resume_of_untouched_attempt_follows_a_new_version(): void {
+        global $DB;
+
+        $first = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->assertSame((int) $this->version->id, (int) $first->versionid);
+
+        // The author republishes: a second published version with two gaps.
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $newversion = $generator->create_version(['elangid' => $this->elang->id, 'status' => 'published']);
+        $newcue = $generator->create_cue(['versionid' => $newversion->id]);
+        $generator->create_gap(['cueid' => $newcue->id, 'solution' => 'chien']);
+        $generator->create_gap(['cueid' => $newcue->id, 'solution' => 'dort', 'charstart' => 8, 'charlength' => 4]);
+        $DB->set_field('elang', 'currentversionid', $newversion->id, ['id' => $this->elang->id]);
+
+        $resumed = $this->manager->start_attempt($this->elang->id, $this->student->id, (int) $newversion->id);
+
+        $this->assertSame((int) $first->id, (int) $resumed->id, 'The same attempt is resumed, not a new one');
+        $this->assertSame((int) $newversion->id, (int) $resumed->versionid, 'The untouched attempt follows the new version');
+        $this->assertSame(2, (int) $resumed->totalgaps, 'The gap total matches the new version');
+    }
+
+    /**
+     * A TOUCHED attempt (a response or hint exists) stays pinned to the version
+     * it started on even when a newer version is published.
+     *
+     * @return void
+     */
+    public function test_resume_of_touched_attempt_stays_pinned(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response((int) $attempt->id, (int) $this->gap->id, 'chat');
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $newversion = $generator->create_version(['elangid' => $this->elang->id, 'status' => 'published']);
+        $DB->set_field('elang', 'currentversionid', $newversion->id, ['id' => $this->elang->id]);
+
+        $resumed = $this->manager->start_attempt($this->elang->id, $this->student->id, (int) $newversion->id);
+
+        $this->assertSame((int) $attempt->id, (int) $resumed->id);
+        $this->assertSame((int) $this->version->id, (int) $resumed->versionid, 'The touched attempt keeps its version');
+    }
+
+    /**
      * An exact response is recorded as exact, accepted, and updates the
      * attempt's aggregate counters.
      *

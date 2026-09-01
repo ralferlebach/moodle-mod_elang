@@ -29,6 +29,7 @@ import {ApiClient} from '../api/service';
 import {Cue, FORMAT_PLAIN, Media, ProviderOption, Translator} from '../types';
 import {newKey} from '../keys';
 import {AutosaveController, AutosaveState, createAutosave} from '../studio/autosave';
+import {videoTrackUndecodable} from '../studio/mediacheck';
 import {CueRow} from './CueRow';
 import {ImportPanel} from './ImportPanel';
 import {MediaPanel} from './MediaPanel';
@@ -245,6 +246,7 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
         }
     };
 
+    const [novideotrack, setNovideotrack] = useState(false);
     const mediasrc = media ? (media.mediafileurl || media.mediaurl || '') : '';
     const showpreview = media !== null && (media.mediakind === 'file' || media.mediakind === 'url') && mediasrc !== '';
 
@@ -282,6 +284,11 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
             </div>
 
             <div className="mod_elang-editor-timeline-wrap mb-3" data-region="timelinewrap">
+                {showpreview && novideotrack && (
+                    <div className="alert alert-warning" role="alert" data-region="novideotrack">
+                        {t('editor:novideotrack')}
+                    </div>
+                )}
                 {showpreview && (
                     <video
                         ref={mediaRef}
@@ -291,7 +298,12 @@ export function EditorApp({api, t, mediauploadurl}: Props): JSX.Element {
                         preload="metadata"
                         src={mediasrc}
                         onTimeUpdate={() => setCurrentms(Math.round((mediaRef.current?.currentTime || 0) * 1000))}
-                        onLoadedMetadata={() => setDurationms(Math.round((mediaRef.current?.duration || 0) * 1000))}
+                        onLoadedMetadata={() => {
+                            const el = mediaRef.current;
+                            setDurationms(Math.round((el?.duration || 0) * 1000));
+                            setNovideotrack(el !== null
+                                && videoTrackUndecodable(mediasrc, el.videoWidth, el.readyState));
+                        }}
                     />
                 )}
                 <Timeline

@@ -8,7 +8,7 @@ bleiben als chronologische Gliederung erhalten (eigenständige, abgeschlossene
 Inkremente mit je eigener Versionsnummer/Patch), nur die „Session"-Zählung war
 falsch.
 
-**Version am Ende:** 2.0.0-alpha.81 (2026081111)
+**Version am Ende:** 2.0.0-beta.1 (2026081303)
 **Vorher (Ende Session 006):** 2.0.0-alpha.71 (2026081101)
 **CI-Status:** grün (von Ralf bestätigt, Moodle 4.5 + 5.2, MariaDB + PostgreSQL).
 
@@ -325,14 +325,70 @@ Externes Code-Review zu alpha.80. Ich habe jede Feststellung am Code gegengeprü
    neue `count_pending_approval()`, Blocker-Meldungen nennen exakte Zahl + max. 20
    Beispiel-IDs statt aller.
 
-## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand alpha.81)
+## Inkrement 14 — Undekodierbare Videospur nutzerfreundlich abfangen (alpha.86)
 
-PHPUnit **389/1257** grün (1 skipped: Overview nur 5.x), Jest **32/32**, phpcs `--standard=moodle` **0/0**, phpdoc
-(moodle-local_moodlecheck) **0/0**, tsc sauber, Jest **29/29**, esbuild
-reproduzierbar, Grunt eslint:amd + gherkinlint grün, Behat nicht-JS **9/72**
-grün + dry-run aller @mod_elang-Features ohne undefined Steps. Anschließend von
-Ralf in der Projekt-CI (4.5 + 5.2, MariaDB + PostgreSQL, Chrome) **grün
-bestätigt**.
+Ralfs Testvideo: MPEG-4 Part 2 (mp4v, DivX/Xvid-Ära) — VLC spielt es, Browser
+dekodieren nur die AAC-Tonspur (schwarzes Bild). Laufzeitsignal: VIDEO-Element mit
+geladenen Metadaten und `videoWidth === 0`.
+
+- **Player** (`amd/src/player.js`): `watchVideoDecoding()` zeigt Lernenden eine
+  Warnung („Ton läuft weiter, Lehrkraft informieren") statt stummem Schwarzbild.
+- **Editor** (`js/src/studio/mediacheck.ts` + EditorApp): warnt Autor:innen beim
+  Laden der Vorschau, mit Re-Encode-Hinweis (H.264/MP4).
+- **False-Positive-Schutz**: Audio-Dateien in einem VIDEO-Element haben legitim
+  keine Bildgröße — Extension-Guard (mp3/m4a/aac/ogg/opus/wav/flac), pure Helfer
+  mit 4 Jest-Tests (36/36 gesamt). 2 Strings EN+DE (282/282).
+- Beide AMD-Builds + React-Bundle neu erzeugt, **Idempotenz verifiziert** (sha
+  vor/nach Grunt identisch — Lektion aus dem player.min.js-stale-Fail).
+
+## Inkrement 15 — Unberührte Versuche folgen der aktuellen Version (alpha.87)
+
+Ralfs Folge-Befund zum Video-Fix: Nach Re-Upload + Veröffentlichen spielte der
+Player weiter die alte Datei — sein laufender Versuch war auf die alte Version
+gepinnt (by design; `start_attempt` resumed ohne Versionsvergleich).
+
+- **Re-Pin**: `attempt_manager::start_attempt()` — ein UNBERÜHRTER Versuch (keine
+  `elang_response`-Zeile; deckt Antworten UND Hints ab) folgt beim Fortsetzen der
+  aktuellen veröffentlichten Version (versionid + totalgaps aktualisiert).
+  Berührte Versuche bleiben gepinnt (Lernerdaten-Integrität).
+- **Hinweis**: `get_attempt_exercise` liefert `outdated`; der Player zeigt bei
+  gepinnten älteren Versuchen eine Info („läuft auf früherem Stand weiter").
+  String EN+DE (283/283). AMD-Build neu, Idempotenz verifiziert.
+- 2 Tests (untouched folgt / touched bleibt). **LEHRE/Fehler unterwegs:** Die
+  Tests waren zunächst per stillem No-op-Replace „eingefügt" — Grün war der
+  Altbestand (29), nicht 27+2. Aufgefallen an der Suite-Zählung (392 statt 394).
+  Konsequenz: Nach Test-Einfügungen immer die Methodenzahl der Datei UND die
+  Suite-Differenz verifizieren, nie nur „OK" lesen.
+
+## Inkrement 16 — Behat an neue Resume-Semantik angepasst + Beta-Tag (beta.1)
+
+- **Behat**: `player.feature` — das Szenario „in-progress attempt keeps reading
+  its version" kodierte die alte, bedingungslose Pinning-Semantik und schlug nach
+  Inkrement 15 fehl (unberührter Versuch folgt jetzt der neuen Version). In zwei
+  Szenarien aufgeteilt: „touched bleibt gepinnt" (Antwort vor Republish → sieht
+  weiter „dort", nicht „court") und „untouched folgt" (kein Antworten → sieht nach
+  Republish „court", nicht „dort"). `publish()` setzt `currentversionid`, daher
+  greift das Re-Pin — am Code verifiziert; @javascript nur in Ralfs CI.
+- **Beta-Tag**: `version.php` → `MATURITY_BETA`, `release = '2.0.0-beta.1'`,
+  `version = 2026081303`. Kein Code außer den Metadaten.
+
+Zwischen dieser und Inkrement 13 lagen die extern gemeldeten P2-Runden
+(alpha.82–85: Kommentar-/PHPDoc-/i18n-/Third-Party-/Doku-Cleanup, `supported`
+[405,502], React-über-Core-Entscheidung dokumentiert, Bulk-Grade-Chunking) sowie
+die CI-Stabilisierung (npm-Retry, player.min.js-Rebuild, Behat-Key-Fix) — alle im
+CHANGELOG unter den jeweiligen Versionen dokumentiert.
+
+## Gesamt-Verifikation (real gegen Moodle 4.5.13, finaler Stand 2.0.0-beta.1)
+
+PHPUnit **394/1268** grün (1 skipped: Overview nur 5.x), Jest **36/36**, phpcs
+`--standard=moodle` **0 Errors / 0 Warnings** (CI `--max-warnings 0`), phpdoc
+(moodle-local_moodlecheck) **0**, tsc sauber, esbuild-Bundle byte-reproduzierbar,
+Grunt `amd` idempotent (kein „stale"), `eslint:amd` + `gherkinlint` + `stylelint`
+grün, Behat-dry-run aller @mod_elang-Features (21 Szenarien / 196 Steps) ohne
+undefined Steps. Anschließend von Ralf in der Projekt-CI **grün bestätigt**:
+Moodle 4.5 / 5.0 / 5.2, PostgreSQL + MariaDB, PHP 8.1–8.4, Chrome-Behat, PHP-Lint,
+JS/Mustache/PHPDoc-Lint. Damit ist das vom Release-Review geforderte
+„nachgewiesen grüner CI-Lauf"-Gate erfüllt und `MATURITY_BETA` gesetzt.
 
 ## Lehren (konsolidiert)
 
@@ -376,3 +432,65 @@ bestätigt**.
   weitere @javascript-Interaktionen (Timing-Drag) nach CI-Feedback.
 - Die harten Produktiv-Gates (Backup/Restore) sind erfüllt; Beta rückt in
   Reichweite, sobald E7 grün ist und die @javascript-/E5-Läufe in der CI stehen.
+
+---
+
+## Sitzungsende — Session 007
+
+**Datum:** 2026-08-13
+**Ergebnis:** von alpha.71 zur **2.0.0-beta.1**.
+
+### Was wurde erledigt?
+
+- **Skalierung/Härtung** (alpha.72): N+1-Batching (version_validator/manager,
+  v1_detector), Report-Pagination, Draft-Invariante, README.
+- **Subtitle Studio** (alpha.73): React/TS-Editor, Timeline mit Waveform,
+  Resync (codepoint-sicher), Autosave, maskierte Vorschau, Onboarding.
+- **Write-Pfad-Härtung** + Backup/Restore (alpha.74/75), Load-/A11y-Artefakte
+  (k6/JMeter/Playwright+axe), echter V1→V2-Upgrade-Test.
+- **2.1-Bausteine**: regelbasierte Lücken (Engine → WS → Editor-UI,
+  alpha.77–79), Sonderzeichen-Leiste-Fundament (alpha.80).
+- **Externes Release-Review** vollständig abgearbeitet: alle **P1**-Gates
+  (Separate-Groups-Delete, Privacy-Lifecycle, Restore-User-ID, Report-Export-
+  Streaming, Migration-Batching; alpha.81) und alle **P2**-Punkte (PHPDoc-
+  Beschreibungen, Kommentar-Cleanup, i18n der Browser-Meldungen, tote Strings,
+  Third-Party-Doku + readme_moodle.txt + MIT, Source-Map dev-only, `supported`
+  [405,502], Bulk-Grade-Chunking, README/Provenienz; alpha.82–85).
+- **CI-Stabilisierung**: npm-Retry gegen transiente GitHub-Downloads,
+  player.min.js-Rebuild (stale), Behat-Key-Syntax.
+- **Praxis-Fixes aus Ralfs Betrieb**: `mod_elang_pluginfile()`-Callback (Video
+  wurde nie ausgeliefert; alpha.84), nutzerfreundliche Warnung bei
+  undekodierbarer Videospur (alpha.86), unberührte Versuche folgen der
+  aktuellen Version nach Republish (alpha.87).
+- **Beta-Tag** (beta.1) nach grüner CI.
+
+### Entscheidungen getroffen
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Unterstützte Moodle-Range | `supported = [405, 502]` | 5.3 noch nicht stable; nur in CI getestet |
+| React über Core | vertagt bis Mindestversion 5.2 (nach EOL 5.1) | 4.5–5.1 haben kein Core-React; Bundle muss bleiben |
+| Sechs deutsche Design-Docs | nicht übersetzt | auf Ralfs Wunsch |
+| Provenienz | in README integriert (self-contained) | toter docs/-Link vermieden |
+| db/upgrade 2N-Writes | belassen | einmaliger Step, kein Release-Blocker |
+| Resume nach Republish | unberührte Versuche folgen; berührte bleiben gepinnt | Praxis-Fix, ohne Lernerdaten zu gefährden |
+
+### Testlauf-Ergebnis (final, beta.1)
+
+```
+PHPUnit: OK — 394 tests, 1268 assertions (1 skipped: Overview nur 5.x)
+PHPCS:   OK — 0 errors, 0 warnings
+PHPDoc:  OK — 0 errors
+Jest:    OK — 36/36
+Behat:   OK (CI: 4.5/5.0/5.2, Chrome) — dry-run 21 Szenarien/196 Steps, 0 undefined
+Bundle:  reproduzierbar; AMD-Build idempotent (kein stale)
+```
+
+### Für die nächste Session (UI-Verbesserung)
+
+- Fokus laut Ralf: **konkrete UI-Verbesserungen** (Player- und Editor-Oberfläche).
+- Ausgangsbasis: beta.1, alle P0/P1/P2 geschlossen, CI grün.
+- Kandidaten (unverbindlich): Player-Layout/Responsiveness, Sonderzeichen-Leiste
+  im Player sichtbar machen (Fundament liegt in special_characters), Studio-
+  Feinschliff (Timeline-Bedienung, Fehlermeldungen), Barrierefreiheit gegen die
+  vorhandene Playwright+axe-Suite schärfen.

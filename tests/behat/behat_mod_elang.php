@@ -129,7 +129,31 @@ JS;
         }
 
         $manager = new \mod_elang\local\domain\version_manager();
-        $draft = $manager->create_draft((int) $elang->id);
+
+        // Build on the draft that is already open rather than branching a new
+        // one: create_draft() always branches from the published version and
+        // ignores an open draft. A scenario that first gives the activity a
+        // medium and then states a transcript would leave that medium behind
+        // on an orphan draft, which get_or_create_draft() then hands back to
+        // edit.php — empty and without a medium.
+        $draft = $manager->get_or_create_draft((int) $elang->id);
+
+        // A draft branched from the published version carries that version's
+        // content so an author can build on it. For a test that states the whole
+        // new transcript, that inherited content would linger alongside the cue
+        // set below; remove it so the published version contains exactly this cue.
+        $inheritedcueids = $DB->get_fieldset_select('elang_cue', 'id', 'versionid = ?', [$draft->id]);
+        if (!empty($inheritedcueids)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($inheritedcueids);
+            $inheritedgapids = $DB->get_fieldset_select('elang_gap', 'id', "cueid $insql", $inparams);
+            if (!empty($inheritedgapids)) {
+                [$gapinsql, $gapinparams] = $DB->get_in_or_equal($inheritedgapids);
+                $DB->delete_records_select('elang_gaphint', "gapid $gapinsql", $gapinparams);
+                $DB->delete_records_select('elang_gapanswer', "gapid $gapinsql", $gapinparams);
+                $DB->delete_records_select('elang_gap', "id $gapinsql", $gapinparams);
+            }
+            $DB->delete_records('elang_cue', ['versionid' => $draft->id]);
+        }
 
         $cue = (object) [
             'versionid' => $draft->id,
@@ -154,6 +178,28 @@ JS;
         $gap->id = $DB->insert_record('elang_gap', $gap);
 
         $manager->publish((int) $draft->id);
+    }
+
+    /**
+     * Give the named activity's draft version a medium, so the subtitle editor
+     * opens rather than showing its "add a medium first" notice.
+     *
+     * A URL medium is used because it needs no stored file, and the editor only
+     * asks whether the draft has a medium at all.
+     *
+     * @Given /^elang "(?P<name>[^"]*)" has a draft medium$/
+     * @param string $name The activity name
+     * @return void
+     */
+    public function elang_has_a_draft_medium(string $name): void {
+        global $DB;
+
+        $elang = $DB->get_record('elang', ['name' => $name], '*', MUST_EXIST);
+        $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((int) $elang->id);
+
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $draft->id]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/behat.mp4', ['id' => $draft->id]);
+        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $draft->id]);
     }
 
     /**

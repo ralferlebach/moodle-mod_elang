@@ -42,7 +42,9 @@ class backup_elang_activity_structure_step extends backup_activity_structure_ste
 
         $elang = new backup_nested_element('elang', ['id'], [
             'name', 'intro', 'introformat', 'language', 'currentversionid', 'grade',
-            'completionfinishattempt', 'jarothreshold', 'options', 'timecreated', 'timemodified',
+            'completionfinishattempt', 'jarothreshold', 'subtitleposition', 'cuepausemode',
+            'allowtranscriptdownload', 'solutionavailability',
+            'options', 'timecreated', 'timemodified',
             'migrationapproveduserid', 'migrationapprovedtime',
         ]);
 

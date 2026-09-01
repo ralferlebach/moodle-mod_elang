@@ -534,26 +534,51 @@ function elang_pluginfile($course, $cm, $context, string $filearea, array $args,
 }
 
 /**
- * Add an "Edit content" link to the activity's settings navigation for users
- * who may author it.
+ * Build the activity's own navigation nodes.
+ *
+ * This is the single source of truth for the capability-driven mode navigation
+ * of the activity. Moodle turns these nodes into the secondary navigation of
+ * the activity page (see mod_elang\\navigation\\views\\secondary for their
+ * order), so no page renders action buttons of its own alongside them.
  *
  * @param settings_navigation $settingsnav The settings navigation tree
  * @param navigation_node $elangnode The activity's node within it
  * @return void No return value.
  */
 function elang_extend_settings_navigation(settings_navigation $settingsnav, navigation_node $elangnode): void {
-    global $PAGE;
+    global $DB;
 
-    if (empty($PAGE->cm) || $PAGE->cm->modname !== 'elang') {
+    // The page the navigation is being built for comes from the navigation
+    // object itself, not from the $PAGE global: Moodle builds this tree for
+    // its own page instance, which is not necessarily the global one.
+    //
+    // The course module is read into a variable before it is tested. Every
+    // property of moodle_page is served by __get(), and the class defines no
+    // __isset(), so empty() and isset() on one of them answer for a property
+    // that does not literally exist: always "empty", never "set", whatever
+    // the page actually holds. Testing the read value is the only check here
+    // that reflects reality.
+    $cm = $settingsnav->get_page()->cm;
+    if ($cm === null || $cm->modname !== 'elang') {
         return;
     }
 
-    $context = context_module::instance($PAGE->cm->id);
+    $context = context_module::instance($cm->id);
+    $cmid = (int) $cm->id;
 
     if (has_capability('mod/elang:manage', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('editcontent', 'mod_elang'),
-            new moodle_url('/mod/elang/edit.php', ['id' => $PAGE->cm->id]),
+            get_string('nav:media', 'mod_elang'),
+            new moodle_url('/mod/elang/media.php', ['id' => $cmid]),
+            navigation_node::TYPE_SETTING,
+            null,
+            'mod_elang_media',
+            new pix_icon('i/media', '')
+        ));
+
+        $elangnode->add_node(navigation_node::create(
+            get_string('nav:subtitles', 'mod_elang'),
+            new moodle_url('/mod/elang/edit.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
             'mod_elang_editcontent',
@@ -563,8 +588,8 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
 
     if (has_capability('mod/elang:viewreports', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('reports', 'mod_elang'),
-            new moodle_url('/mod/elang/report.php', ['id' => $PAGE->cm->id]),
+            get_string('nav:reports', 'mod_elang'),
+            new moodle_url('/mod/elang/report.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
             'mod_elang_reports',
@@ -572,16 +597,103 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
         ));
     }
 
-    if (has_capability('mod/elang:exporttranscript', $context)) {
+    // The transcript tab is not shown on the capability alone: learners hold
+    // mod/elang:exporttranscript by default, so it would otherwise appear for
+    // every learner even when the activity offers them nothing to download.
+    $elang = $DB->get_record('elang', ['id' => $cm->instance]);
+    if ($elang !== false && elang_can_export_transcript($elang, $context)) {
         $elangnode->add_node(navigation_node::create(
             get_string('exporttranscript', 'mod_elang'),
-            new moodle_url('/mod/elang/transcript.php', ['id' => $PAGE->cm->id]),
+            new moodle_url('/mod/elang/transcript.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
             'mod_elang_exporttranscript',
             new pix_icon('i/export', '')
         ));
     }
+}
+
+/**
+ * Whether the current user may download the transcript worksheet of an activity.
+ *
+ * Holders of mod/elang:exportsolution (staff) always may. Learners may when the
+ * activity says so, because they hold mod/elang:exporttranscript by default and
+ * handing out the worksheet has to remain the teacher's decision.
+ *
+ * @param stdClass $elang The activity record, carrying allowtranscriptdownload
+ * @param context $context The module context
+ * @param int|null $userid The user to check, or null for the current user
+ * @return bool True when the masked worksheet may be downloaded
+ */
+function elang_can_export_worksheet(stdClass $elang, context $context, ?int $userid = null): bool {
+    if (!has_capability('mod/elang:exporttranscript', $context, $userid)) {
+        return false;
+    }
+
+    if (has_capability('mod/elang:exportsolution', $context, $userid)) {
+        return true;
+    }
+
+    return !empty($elang->allowtranscriptdownload);
+}
+
+/**
+ * Whether the current user may open the transcript export page of an activity.
+ *
+ * True when either export product is available to them, so that an activity
+ * which offers a learner neither the worksheet nor the solution does not
+ * advertise an export page to them at all.
+ *
+ * @param stdClass $elang The activity record, carrying allowtranscriptdownload and solutionavailability
+ * @param context $context The module context
+ * @param int|null $userid The user to check, or null for the current user
+ * @return bool True when the export page should be reachable
+ */
+function elang_can_export_transcript(stdClass $elang, context $context, ?int $userid = null): bool {
+    return elang_can_export_worksheet($elang, $context, $userid)
+        || elang_can_export_solution($elang, $context, $userid);
+}
+
+/**
+ * Whether the current user may download the solution transcript of an activity.
+ *
+ * Holders of mod/elang:exportsolution always may. Learners without it may when
+ * the activity says so: 'always' from the start, 'aftersubmission' once they
+ * have finished an attempt at this activity themselves. This function is the
+ * only place that decision is made; transcript.php calls it before it streams
+ * any unmasked content, so the answer is never inferred from UI visibility.
+ *
+ * @param stdClass $elang The activity record, carrying solutionavailability
+ * @param context $context The module context
+ * @param int|null $userid The user to check, or null for the current user
+ * @return bool True when the solution transcript may be downloaded
+ */
+function elang_can_export_solution(stdClass $elang, context $context, ?int $userid = null): bool {
+    global $DB, $USER;
+
+    if (has_capability('mod/elang:exportsolution', $context, $userid)) {
+        return true;
+    }
+
+    if (!has_capability('mod/elang:exporttranscript', $context, $userid)) {
+        return false;
+    }
+
+    $availability = (string) ($elang->solutionavailability ?? 'never');
+    if ($availability === 'always') {
+        return true;
+    }
+    if ($availability !== 'aftersubmission') {
+        return false;
+    }
+
+    $checkuserid = $userid ?? (int) $USER->id;
+
+    return $DB->record_exists('elang_attempt', [
+        'elangid' => (int) $elang->id,
+        'userid' => $checkuserid,
+        'state' => 'finished',
+    ]);
 }
 
 /**

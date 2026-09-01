@@ -48,8 +48,17 @@ on:
     branches-ignore:
       - main
 
+# A second push to the same branch makes the first run's result irrelevant, and
+# the matrix is wide enough that letting superseded runs finish wastes minutes
+# that queue behind the run people are actually waiting for.
+concurrency:
+  group: ci-dev-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   MOODLE_CI: '^4'
+  # Pinned so the pre-pull step and moodle-plugin-ci agree on the image.
+  MOODLE_BEHAT_SELENIUM_IMAGE: 'selenium/standalone-chrome:4'
   PGPASSWORD: moodle
   # Make npm resilient to transient GitHub download failures (ECONNRESET / 503 /
   # socket hang up) while moodle-plugin-ci's node setup fetches tarballs such as
@@ -82,20 +91,60 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Prepare log directory
+        run: mkdir -p ci-logs
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ github.sha }}
+          restore-keys: composer-${{ runner.os }}-
+
       - name: Install moodle-plugin-ci
         run: |
           composer create-project -n --no-dev moodlehq/moodle-plugin-ci ci ${{ env.MOODLE_CI }}
           echo "$GITHUB_WORKSPACE/ci/bin"        >> "$GITHUB_PATH"
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
+      # Every check below runs even when an earlier one failed, and every one
+      # keeps its full output in ci-logs/. Without both, the first failing check
+      # hides the state of all the others and the run tells you one problem at a
+      # time. `set -o pipefail` is required or `tee` would mask the exit code.
       - name: PHP Lint
-        run: moodle-plugin-ci phplint plugin
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phplint plugin 2>&1 | tee ci-logs/phplint.log
 
       - name: PHP CodeSniffer (Moodle coding standard)
-        run: moodle-plugin-ci phpcs plugin --max-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpcs plugin --max-warnings 0 2>&1 | tee ci-logs/phpcs.log
 
       - name: PHP Mess Detector
-        run: moodle-plugin-ci phpmd plugin || true
+        if: ${{ always() }}
+        continue-on-error: true
+        run: set -o pipefail; moodle-plugin-ci phpmd plugin 2>&1 | tee ci-logs/phpmd.log
+
+      - name: Collect diagnostics
+        if: ${{ always() }}
+        run: |
+          {
+            echo "job:    lint-php (PHP ${{ matrix.php }})"
+            echo "status: ${{ job.status }}"
+            echo "ref:    ${{ github.ref }}"
+            echo "sha:    ${{ github.sha }}"
+            echo ""
+            ls -1 ci-logs
+          } > ci-logs/summary.txt
+          cat ci-logs/summary.txt
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-lint-php-${{ matrix.php }}
+          path: ci-logs
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── 1b. JS / Mustache / PHPDoc Lint (against the 4.5 LTS baseline) ───────
   #
@@ -134,6 +183,9 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Prepare log directory
+        run: mkdir -p ci-logs
+
       - name: Install en_AU.UTF-8 locale
         run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
 
@@ -141,6 +193,13 @@ jobs:
         run: |
           BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
           echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ github.sha }}
+          restore-keys: composer-${{ runner.os }}-
 
       - name: Install moodle-plugin-ci
         run: |
@@ -178,19 +237,102 @@ jobs:
         working-directory: ${{ github.workspace }}/moodle
 
       - name: Grunt – AMD / ESLint / Stylelint
-        run: moodle-plugin-ci grunt --max-lint-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci grunt --max-lint-warnings 0 2>&1 | tee ci-logs/grunt.log
 
       - name: PHPDoc check
-        run: moodle-plugin-ci phpdoc --max-warnings 0
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpdoc --max-warnings 0 2>&1 | tee ci-logs/phpdoc.log
 
       - name: Mustache lint
-        run: moodle-plugin-ci mustache
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci mustache 2>&1 | tee ci-logs/mustache.log
 
       - name: Validate plugin structure
-        run: moodle-plugin-ci validate
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci validate 2>&1 | tee ci-logs/validate.log
 
       - name: Check upgrade savepoints
-        run: moodle-plugin-ci savepoints
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci savepoints 2>&1 | tee ci-logs/savepoints.log
+
+      # ── The React/TypeScript editor ──────────────────────────────────────
+      #
+      # moodle-plugin-ci knows nothing about this part of the plugin: grunt
+      # covers amd/src, but the editor is a separate esbuild/Jest project under
+      # js/. Its 36 unit tests, its type checking and the reproducibility of the
+      # committed bundle had no CI coverage at all until now — they were only
+      # ever verified by hand before a release.
+      # These four steps run in the plugin checkout, not the workspace root, so
+      # their log targets are anchored to $GITHUB_WORKSPACE. A relative
+      # ci-logs/ would resolve inside the plugin directory, where it does not
+      # exist — tee then fails and the step's output is lost precisely when it
+      # is needed.
+      - name: Set up Node for the editor toolchain
+        if: ${{ always() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install editor dependencies
+        if: ${{ always() }}
+        run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: TypeScript type check
+        if: ${{ always() }}
+        run: set -o pipefail; npm run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/tsc.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: Jest – editor unit tests
+        if: ${{ always() }}
+        run: set -o pipefail; npm test 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/jest.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: The committed React bundle must be reproducible
+        if: ${{ always() }}
+        run: |
+          # The production server ships js/vendor/react/editor.bundle.js and
+          # never builds it, so a bundle that no longer matches its sources is
+          # invisible until a user hits the stale behaviour. Rebuilding and
+          # comparing turns that into a build failure.
+          set -o pipefail
+          {
+            before=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+            npm run build
+            after=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+            echo "committed: $before"
+            echo "rebuilt:   $after"
+            if [ "$before" != "$after" ]; then
+              echo "Das eingecheckte React-Bundle entspricht nicht seinen Quellen."
+              echo "Bitte 'npm run build' ausfuehren und das Ergebnis mit einchecken."
+              exit 1
+            fi
+            echo "Bundle ist reproduzierbar."
+          } 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/bundle.log"
+        working-directory: ${{ github.workspace }}/plugin
+
+      - name: Collect diagnostics
+        if: ${{ always() }}
+        run: |
+          {
+            echo "job:    lint-js"
+            echo "status: ${{ job.status }}"
+            echo "ref:    ${{ github.ref }}"
+            echo "sha:    ${{ github.sha }}"
+            echo ""
+            ls -1 ci-logs
+          } > ci-logs/summary.txt
+          cat ci-logs/summary.txt
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-lint-js
+          path: ci-logs
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.2 only) ────────────────────
   phpunit:
@@ -239,6 +381,9 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Prepare log directory
+        run: mkdir -p ci-logs
+
       - name: Install en_AU.UTF-8 locale
         run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
 
@@ -246,6 +391,13 @@ jobs:
         run: |
           BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
           echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ github.sha }}
+          restore-keys: composer-${{ runner.os }}-
 
       - name: Install moodle-plugin-ci
         run: |
@@ -267,7 +419,30 @@ jobs:
           MOODLE_BRANCH: ${{ matrix.moodle }}
 
       - name: PHPUnit – all tests
-        run: moodle-plugin-ci phpunit --fail-on-warning
+        if: ${{ always() }}
+        run: set -o pipefail; moodle-plugin-ci phpunit --fail-on-warning --testdox 2>&1 | tee ci-logs/phpunit.log
+
+      - name: Collect diagnostics
+        if: ${{ always() }}
+        run: |
+          {
+            echo "job:    phpunit (${{ matrix.moodle }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
+            echo "status: ${{ job.status }}"
+            echo "ref:    ${{ github.ref }}"
+            echo "sha:    ${{ github.sha }}"
+            echo ""
+            ls -1 ci-logs
+          } > ci-logs/summary.txt
+          cat ci-logs/summary.txt
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-phpunit-${{ matrix.moodle }}-${{ matrix.php }}-${{ matrix.db.engine }}
+          path: ci-logs
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── 3. Behat (blocking — Moodle 4.5, 5.2 only) ───────────────────────────
   behat:
@@ -303,6 +478,9 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Prepare log directory
+        run: mkdir -p ci-logs
+
       - name: Install en_AU.UTF-8 locale
         run: sudo locale-gen en_AU.UTF-8 && sudo update-locale
 
@@ -310,6 +488,13 @@ jobs:
         run: |
           BRANCH=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
           echo "TRAVIS_BRANCH=${BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ github.sha }}
+          restore-keys: composer-${{ runner.os }}-
 
       - name: Install moodle-plugin-ci
         run: |
@@ -332,20 +517,74 @@ jobs:
           DB: mariadb
           MOODLE_BRANCH: ${{ matrix.moodle }}
 
-      - name: Behat – plugin scenarios
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
         run: |
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
+
+      - name: Behat – plugin scenarios
+        id: behat
+        if: ${{ always() }}
+        run: |
+          set -o pipefail
           moodle-plugin-ci behat \
             --profile chrome \
             --tags "@mod_elang&&~@broken" \
-            --start-servers
+            --start-servers \
+            --dump 2>&1 | tee ci-logs/behat.log
 
-      - name: Upload failure screenshots
-        if: failure()
+      - name: Collect diagnostics and Behat failure dumps
+        if: ${{ always() }}
+        run: |
+          # moodle-plugin-ci writes failure HTML and screenshots to
+          # $CFG->behat_faildump_path, which it sets to <data dir>/behat_dump
+          # (see MoodleConfig::BEHATDUMP). The path used before this change,
+          # moodle/behatfaildumps/, never existed — every failed Behat run
+          # uploaded nothing and logged only "No files were found".
+          dump="$GITHUB_WORKSPACE/moodledata/behat_dump"
+          if [ -d "$dump" ]; then
+            mkdir -p ci-logs/behat_dump
+            cp -a "$dump/." ci-logs/behat_dump/
+            echo "Behat-Dumps eingesammelt: $(find ci-logs/behat_dump -type f | wc -l) Dateien"
+          else
+            echo "Kein Behat-Dump-Verzeichnis unter $dump."
+          fi
+          {
+            echo "job:    behat (${{ matrix.moodle }} / PHP ${{ matrix.php }})"
+            echo "status: ${{ job.status }}"
+            echo "ref:    ${{ github.ref }}"
+            echo "sha:    ${{ github.sha }}"
+            echo ""
+            ls -1 ci-logs
+          } > ci-logs/summary.txt
+          cat ci-logs/summary.txt
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: behat-screenshots-${{ matrix.moodle }}-php${{ matrix.php }}
-          path: ${{ github.workspace }}/moodle/behatfaildumps/
+          name: diagnostics-behat-${{ matrix.moodle }}-${{ matrix.php }}
+          path: ci-logs
           retention-days: 7
+          if-no-files-found: ignore
 
   # ── 4. PHPUnit against Moodle main (non-blocking — see header note) ─────
   phpunit-experimental:
@@ -354,8 +593,17 @@ jobs:
     needs: [lint-php]
 
     services:
+      # PostgreSQL 17, not 16 as the blocking jobs use: Moodle main (5.3)
+      # raised its minimum to 17 and refuses to install on 16 with
+      # "[System] version 17 is required and you are running 16.15". That is
+      # what actually failed this job — not the plugin, and not the install
+      # arguments, whose usage text moodle-plugin-ci prints after any install
+      # error and which reads misleadingly like a bad option.
+      #
+      # The blocking jobs stay on 16 deliberately: 4.5 and 5.2 are supported
+      # against it and that coverage is proven green.
       pgsql:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER:     moodle
           POSTGRES_PASSWORD: moodle
@@ -421,8 +669,13 @@ jobs:
     needs: [lint-php, lint-js]
 
     services:
+      # MariaDB 11.4, not 10.11: Moodle main (5.3) raised its minimum and
+      # refuses to install on the older one with "[System] version 11.4.0 is
+      # required and you are running 10.11.19". The same class of failure the
+      # experimental PHPUnit job had with PostgreSQL 16 against a required 17.
+      # The blocking jobs stay on their proven versions.
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:11.4
         env:
           MYSQL_ROOT_PASSWORD: root
         ports: ['3306:3306']
@@ -462,6 +715,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/ci/vendor/bin" >> "$GITHUB_PATH"
 
       - name: Install Moodle and plugin
+        id: install
         continue-on-error: true
         run: |
           moodle-plugin-ci install \
@@ -477,36 +731,108 @@ jobs:
           DB: mariadb
           MOODLE_BRANCH: main
 
-      - name: Behat – plugin scenarios
+      # moodle-plugin-ci starts Selenium with `docker run`, which pulls the image
+      # implicitly and gives up on the first failure — a transient Docker Hub
+      # 500 then surfaces as "Can't start Selenium server" and reads like a
+      # Behat problem. Pulling it here first, with backoff, means `docker run`
+      # finds the image locally and never talks to the registry. The image tag
+      # is pinned through MOODLE_BEHAT_SELENIUM_IMAGE so this step and
+      # moodle-plugin-ci cannot disagree about which one to use.
+      - name: Pre-pull the Selenium image
         continue-on-error: true
         run: |
-          moodle-plugin-ci behat \
+          image="${MOODLE_BEHAT_SELENIUM_IMAGE}"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then
+              echo "Selenium-Image nach Versuch $attempt vorhanden."
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "Docker-Hub-Pull fehlgeschlagen (Versuch $attempt/5), erneut in ${wait}s ..."
+            sleep "$wait"
+          done
+          echo "Docker Hub hat $image nach 5 Versuchen nicht geliefert."
+          echo "Das ist Registry-Infrastruktur, kein Plugin-Fehler - Job bitte neu starten."
+          exit 1
+
+      # Skipped when the install did not succeed. moodle-plugin-ci takes the
+      # plugin directory from the environment the install writes; without it the
+      # plugin argument becomes mandatory and the step ends in
+      # "Not enough arguments (missing: \"plugin\")" — which hides the install
+      # failure that actually caused it behind a usage error.
+      - name: Behat – plugin scenarios
+        if: ${{ steps.install.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          moodle-plugin-ci behat ./plugin \
             --profile chrome \
             --tags "@mod_elang&&~@broken" \
             --start-servers
 
+      # Same corrected path as the blocking Behat job: moodle-plugin-ci writes
+      # its fail dumps to <data dir>/behat_dump, not into the Moodle tree.
       - name: Upload failure screenshots
         if: failure()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: behat-screenshots-main-experimental
-          path: ${{ github.workspace }}/moodle/behatfaildumps/
+          path: ${{ github.workspace }}/moodledata/behat_dump
           retention-days: 7
+          if-no-files-found: ignore
+
+  # ── Gate — only the blocking jobs decide the outcome ─────────────────────
+  # ── Stale files removed in earlier releases must not still be present ────
+  stale-files:
+    name: Stale files
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Files removed in earlier releases must not still be present
+        run: |
+          # Unpacking a plugin ZIP adds and overwrites files but never deletes
+          # any, so a file removed upstream survives in an installed copy or in
+          # a repository updated that way. It then still autoloads, duplicates a
+          # class, or reads columns that no longer exist. This turns that into a
+          # loud failure instead of confusing downstream errors.
+          list=db/removed_files.txt
+          if [[ ! -f "$list" ]]; then
+            echo "Keine Liste entfernter Dateien vorhanden – nichts zu pruefen."
+            exit 0
+          fi
+          rc=0
+          while IFS= read -r path; do
+            [[ -z "$path" || "$path" == \#* ]] && continue
+            if [[ -e "$path" ]]; then
+              echo "Veraltete Datei ist noch vorhanden: $path"
+              rc=1
+            fi
+          done < "$list"
+          if [[ $rc -ne 0 ]]; then
+            echo "Diese Dateien wurden in frueheren Releases entfernt und muessen geloescht werden."
+            exit 1
+          fi
+          echo "Keine veralteten Dateien gefunden."
 
   # ── Gate — only the blocking jobs decide the outcome ─────────────────────
   ci-complete:
     name: CI complete
-    needs: [phpunit, behat]
+    needs: [lint-php, lint-js, phpunit, behat, stale-files]
     runs-on: ubuntu-24.04
     if: always()
     steps:
       - name: All blocking matrix jobs must have succeeded
         run: |
-          result="${{ needs.phpunit.result }}-${{ needs.behat.result }}"
-          if [[ "$result" == "success-success" ]]; then
+          result="${{ needs.lint-php.result }}-${{ needs.lint-js.result }}-${{ needs.phpunit.result }}-${{ needs.behat.result }}-${{ needs.stale-files.result }}"
+          if [[ "$result" == "success-success-success-success-success" ]]; then
             echo "All blocking CI jobs passed. (main/5.3-dev results are informational only — see the phpunit-experimental / behat-experimental jobs.)"
           else
             echo "CI result: $result – one or more blocking jobs failed or were cancelled."
+            echo "lint-php:    ${{ needs.lint-php.result }}"
+            echo "lint-js:     ${{ needs.lint-js.result }}"
+            echo "phpunit:     ${{ needs.phpunit.result }}"
+            echo "behat:       ${{ needs.behat.result }}"
+            echo "stale-files: ${{ needs.stale-files.result }}"
             exit 1
           fi

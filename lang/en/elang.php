@@ -26,8 +26,22 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Allowed content languages';
 $string['allowedlanguages_desc'] = 'The content languages offered when creating or editing an eLang activity. Select none to offer the full language list. An activity keeps its stored language even if you later remove it here.';
+$string['allowtranscriptdownload'] = 'Transcript download for learners';
+$string['allowtranscriptdownload_help'] = 'When enabled, learners can download the transcript worksheet, with every gap blanked out, as a PDF, Word, OpenDocument or text file.
+
+This is off by default. Teachers can always download the transcript regardless of this setting.';
+$string['allowtranscriptdownload_label'] = 'Learners may download the worksheet';
 $string['completiondetail:completionfinishattempt'] = 'Finish an attempt';
 $string['completionfinishattempt'] = 'Student must finish an attempt';
+$string['cuepausemode'] = 'Playback at subtitle boundaries';
+$string['cuepausemode:auto'] = 'Automatic';
+$string['cuepausemode:nostop'] = 'Never stop';
+$string['cuepausemode:stop'] = 'Always stop';
+$string['cuepausemode_help'] = 'Whether the medium stops at the end of a subtitle.
+
+* Automatic — playback runs on, and stops at the end of a subtitle only while that subtitle is being worked on, that is after clicking it or one of its gaps, or moving the keyboard focus into one.
+* Always stop — playback stops at the end of every subtitle and waits to be resumed.
+* Never stop — playback runs through to the end of the medium.';
 $string['editcontent'] = 'Edit content';
 $string['editor:addcue'] = 'Add cue';
 $string['editor:addgap'] = 'Mark gap from selection';
@@ -46,6 +60,7 @@ $string['editor:deletecue'] = 'Delete cue';
 $string['editor:deletegap'] = 'Delete gap';
 $string['editor:endtime'] = 'End (ms)';
 $string['editor:gaprange'] = 'Gap position (characters)';
+$string['editor:gotomedia'] = 'Go to Media';
 $string['editor:heading'] = 'Exercise content editor';
 $string['editor:hints'] = 'Hints';
 $string['editor:hinttext'] = 'Hint text';
@@ -73,6 +88,8 @@ $string['editor:mediaurl'] = 'Direct URL';
 $string['editor:nocues'] = 'No cues yet. Add one or import subtitles.';
 $string['editor:nogaps'] = 'No gaps';
 $string['editor:nomedia'] = 'none';
+$string['editor:nomedianotice'] = 'Add the video or audio file on the Media tab first. Subtitles are timed against the medium, so the editor needs one before you can work on cues and gaps.';
+$string['editor:novideotrack'] = 'This browser cannot decode the video track of this medium (only the audio plays); learners would see a black picture. Please re-encode the file as H.264/MP4 (e.g. with ffmpeg or HandBrake) and upload it again.';
 $string['editor:onboardinggaps'] = 'Select a word in a cue and mark it as a gap.';
 $string['editor:onboardingimport'] = 'Import WebVTT/SubRip subtitles, or add cues by hand.';
 $string['editor:onboardingintro'] = 'Build an exercise in three steps:';
@@ -125,6 +142,7 @@ $string['error:duplicatecuekey'] = 'Two cues share the key \'{$a}\'; each cue ne
 $string['error:duplicategapkey'] = 'Two gaps in one cue share the key \'{$a}\'; each gap needs a unique key.';
 $string['error:duplicatehintlevel'] = 'A gap has two hints at level {$a}; each hint level must be unique.';
 $string['error:gapnotinattemptversion'] = 'This gap does not belong to the exercise version of this attempt.';
+$string['error:invalidcuepausemode'] = 'Choose one of the offered options for playback at subtitle boundaries.';
 $string['error:invalidgradingalgorithm'] = 'The grading algorithm \'{$a}\' is not one of exact or wordrecognized.';
 $string['error:invalidhinttype'] = 'The hint type \'{$a}\' is not one of the allowed hint types.';
 $string['error:invalidisregex'] = 'The regex marker of an answer variant must be 0 or 1.';
@@ -132,13 +150,17 @@ $string['error:invalidmediakind'] = 'The chosen media kind is not one of file, u
 $string['error:invalidpenalty'] = 'A hint penalty must be between 0 and 1.';
 $string['error:invalidproviderref'] = '\'{$a}\' is not a recognised video ID or link for this provider.';
 $string['error:invalidregexpattern'] = '\'{$a}\' is not a valid regular expression.';
+$string['error:invalidsolutionavailability'] = 'Choose one of the offered options for when learners may see the solution transcript.';
+$string['error:invalidsubtitleposition'] = 'Choose one of the offered options for where the subtitles are shown.';
 $string['error:invalidv1cuejson'] = 'This version 1 cue could not be parsed.';
 $string['error:negativegapoffset'] = 'A gap offset and length must not be negative.';
 $string['error:noaccesstoattempt'] = 'You do not have access to this attempt.';
 $string['error:nomorehints'] = 'No further hints are available for this gap.';
 $string['error:nopublishedversion'] = 'This exercise has no published content yet.';
 $string['error:responsetoolong'] = 'Your response is too long. The maximum for this gap is {$a} characters.';
+$string['error:solutionnotavailable'] = 'The solution transcript is not available to you for this activity.';
 $string['error:staleattemptstate'] = 'Your view of this attempt is out of date. Please reload the current state and try again.';
+$string['error:transcriptnotavailable'] = 'There is no transcript available for you to download in this activity.';
 $string['error:unknowngaprule'] = 'Unknown gap rule type \'{$a}\'.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' is not one of the supported media providers.';
 $string['error:versionnotadraft'] = 'Only a draft version can be edited.';
@@ -149,7 +171,7 @@ $string['export:nocontent'] = 'There is no published transcript to export yet.';
 $string['export:odt'] = 'Download as OpenDocument (ODT)';
 $string['export:pdf'] = 'Download as PDF';
 $string['export:solution'] = 'Solution transcript';
-$string['export:solutionhint'] = 'The full text with every gap solution shown. Learners cannot download this.';
+$string['export:solutionhint'] = 'The full text with every gap solution shown. Whether learners may download it is set per activity.';
 $string['export:text'] = 'Download as text';
 $string['export:worksheet'] = 'Worksheet (gaps blanked out)';
 $string['exporttranscript'] = 'Export transcript';
@@ -198,8 +220,13 @@ $string['modulename_help'] = 'The language exercise activity lets learners fill 
 
 Teachers import a WebVTT or SubRip subtitle file, mark words or phrases as gaps, and configure how strictly answers are compared. Learners work through the transcript segment by segment, request graded hints and receive immediate feedback.';
 $string['modulenameplural'] = 'Language exercises';
+$string['nav:media'] = 'Media';
+$string['nav:reports'] = 'Attempts';
+$string['nav:subtitles'] = 'Subtitles & gaps';
 $string['noinstances'] = 'There are no language exercises in this course.';
 $string['overview:attempts'] = 'Attempts';
+$string['playbackheading'] = 'Playback and subtitles';
+$string['playbackproviderhint'] = 'A YouTube or Vimeo video is played by the provider in its own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries, whatever is chosen above. Uploaded files and direct media URLs honour both settings.';
 $string['player:check'] = 'Check answer';
 $string['player:finish'] = 'Finish attempt';
 $string['player:finished'] = 'Attempt finished. Score: %score%%';
@@ -209,6 +236,8 @@ $string['player:hint'] = 'Show a hint';
 $string['player:loaderror'] = 'The exercise could not be loaded. Please reload the page.';
 $string['player:loading'] = 'Loading the exercise…';
 $string['player:nocontent'] = 'No exercise content has been published yet. Please check back later.';
+$string['player:novideotrack'] = 'Your browser cannot display the video track of this medium; the audio will still play. Please inform your teacher.';
+$string['player:outdatedattempt'] = 'This exercise has been updated since you started this attempt. You are continuing on the earlier content; finish this attempt to work with the updated exercise next time.';
 $string['player:ready'] = 'Exercise ready.';
 $string['player:scorelabel'] = 'Score: %score%%';
 $string['player:stateaccepted'] = 'Accepted';
@@ -280,9 +309,31 @@ $string['report:tries'] = 'Tries';
 $string['report:user'] = 'User';
 $string['report:view'] = 'View';
 $string['reports'] = 'Reports';
+$string['solutionavailability'] = 'Solution transcript for learners';
+$string['solutionavailability:aftersubmission'] = 'After the attempt is finished';
+$string['solutionavailability:always'] = 'Any time';
+$string['solutionavailability:never'] = 'Never';
+$string['solutionavailability_help'] = 'When learners may download the full transcript with every gap solution shown.
+
+* Never — only teachers can download it.
+* After the attempt is finished — a learner may download it once they have finished an attempt at this activity.
+* Any time — a learner may download it before answering as well.
+
+Teachers can always download it regardless of this setting.';
 $string['subplugintype_elangscript'] = 'Script handler';
 $string['subplugintype_elangscript_plural'] = 'Script handlers';
+$string['subtitleposition'] = 'Subtitle display';
+$string['subtitleposition:below'] = 'Below the medium';
+$string['subtitleposition:overlaybottom'] = 'On the medium — bottom';
+$string['subtitleposition:overlaytop'] = 'On the medium — top';
+$string['subtitleposition_help'] = 'Where the interactive subtitles are shown.
+
+* Below the medium — the whole transcript sits under the medium in its own scrolling area, following playback.
+* On the medium, bottom / top — only the subtitle currently playing is drawn over the medium.
+
+An audio-only medium has no picture to draw on, so it always uses the display below the medium. The setting itself is kept, and applies again as soon as the activity uses a video.';
 $string['task:migratev1activities'] = 'Migrate version 1 activities';
+$string['transcriptheading'] = 'Transcript for learners';
 $string['validate:emptysolution'] = 'The solution for {$a} is empty.';
 $string['validate:hintlevels'] = 'The hint levels for {$a} are not a contiguous sequence starting at 1.';
 $string['validate:nocues'] = 'The version has no cues.';

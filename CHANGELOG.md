@@ -12,6 +12,142 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [Unreleased]
 
 ### Fixed
+- Behat: the helper that publishes a version called `create_draft()`, which always
+  branches a fresh version from the published one and ignores a draft that is
+  already open. A scenario that first gave the activity a medium and then stated a
+  transcript left that medium behind on an orphan draft, which `edit.php` then
+  received back — empty and without a medium. It now builds on the open draft.
+- CI: both pipelines uploaded Behat failure screenshots from `moodle/behatfaildumps/`,
+  a path that does not exist, so every failed Behat run collected nothing and logged
+  only "No files were found". `moodle-plugin-ci` writes its fail dumps to
+  `<data dir>/behat_dump`.
+- CI: the experimental jobs against Moodle `main` failed at install because Moodle 5.3
+  requires PostgreSQL 17 and the service provided 16. The blocking jobs stay on 16.
+
+### Added
+- `elang.subtitleposition` (`below` | `overlaybottom` | `overlaytop`) and
+  `elang.cuepausemode` (`auto` | `stop` | `nostop`), set per activity in a new
+  "Playback and subtitles" section of the settings form. Both default to the
+  behaviour activities had before they existed, so an upgraded activity plays
+  exactly as it did.
+- `mod_elang\local\player\playback_settings`: resolves what the activity asked
+  for against what the medium can honour. An audio track has no picture to draw
+  captions on, and a provider embed reports no playback time and takes no pause
+  command, so those degrade — without touching the stored setting, which applies
+  again as soon as the activity uses a video file or direct URL.
+- `get_attempt_exercise` returns a `playback` structure carrying both the stored
+  and the resolved values, so the player renders the resolved pair and can still
+  explain why an overlay was not used.
+- `tests/local/player/playback_settings_test.php` (9 tests) and four payload
+  tests covering the defaults and both degradation paths.
+- CI: Jest, `tsc --noEmit` and a reproducibility gate for the committed React bundle.
+  None of the three ran in CI before; they were verified by hand before a release.
+- CI: `.github/workflows/playwright.yml` — browser and axe accessibility tests against
+  a live site, covering what Behat structurally cannot (media playback against a real
+  clock, overlay placement, fullscreen, real focus events).
+- CI: `.github/workflows/load-k6.yml` — manual load runs, available on every branch,
+  in a self-contained or external mode.
+- CI: a `stale-files` job and `db/removed_files.txt`, so a file removed in an earlier
+  release cannot survive in an installation updated by unpacking a ZIP.
+
+### Changed
+- CI: every check step keeps its full output under `ci-logs/` and runs even when an
+  earlier step failed, so a run reports the whole picture instead of one problem per
+  attempt. Diagnostics upload on failure; Playwright and k6 artefacts upload always.
+- CI: `concurrency` with `cancel-in-progress` and a Composer download cache.
+
+## [2.0.0-beta.2] - 2026-09-01
+
+Activity navigation (issue #2). The working areas of the activity — the exercise,
+media, subtitles and gaps, reports, settings and the transcript export — are now
+modes of one activity in Moodle's own secondary navigation instead of a row of
+action buttons above the player.
+
+### Fixed
+- `elang_extend_settings_navigation()` returned immediately on every page, so the
+  activity contributed no navigation entries at all. Its guard used
+  `empty($PAGE->cm)`, and `moodle_page` serves every property through `__get()`
+  without defining `__isset()` — which makes `empty()` and `isset()` on such a
+  property always report "empty" and "not set" whatever the page holds. The guard
+  now tests the read value, and it reads the page from `$settingsnav->get_page()`
+  rather than the `$PAGE` global, which is not necessarily the page the tree is
+  being built for.
+- The German solution-export hint claimed learners could never download the
+  solution transcript, which the new per-activity setting makes untrue.
+- Behat: the test helper that republishes an exercise built its new version on top
+  of the content `create_draft()` inherits from the current version, so the "new"
+  version kept the old cue alongside the new one. The helper now clears the
+  inherited draft content first, so a scenario that states a whole new transcript
+  gets exactly that. Test only; the re-pin behaviour itself was already correct.
+
+### Added
+- `mod_elang\navigation\views\secondary`: orders the activity's own modes ahead
+  of the generic administrative entries and shows six tabs rather than core's
+  five, so the transcript export stays a tab instead of falling into "More".
+- Separate "Media" and "Subtitles & gaps" modes, both gated on `mod/elang:manage`.
+- `elang.allowtranscriptdownload` and `elang.solutionavailability`: per-activity
+  control over what learners may download. Both default to the closed setting, so
+  existing activities keep handing out nothing. Learners hold
+  `mod/elang:exporttranscript` by default, so the capability alone could not carry
+  this decision.
+- `elang_can_export_worksheet()`, `elang_can_export_solution()` and
+  `elang_can_export_transcript()` in `lib.php`, the single place that decision is
+  made. `transcript.php` calls them before it streams anything.
+- `edit.php` refuses to mount the editor while the draft has no medium and points
+  at the media mode instead, including on a direct URL call.
+- `tests/navigation_test.php`: tab visibility per role read from the real
+  navigation tree, plus the full export access matrix.
+- `docs/dev/deutsche-bezeichnung-sprachpaket.md`: why a downloaded language pack
+  overrides the plugin's own German strings, and how to override it in turn.
+
+### Changed
+- German activity name is now "Video-Diktat" ("Video-Diktate"). Note that a site
+  with the German language pack installed needs a local language customisation for
+  this to take effect; see the document above.
+- `view.php` no longer renders "Edit content", "Reports" and "Export transcript"
+  as buttons. Nothing became unreachable; all three are modes now.
+- Every activity page marks its own secondary tab active via
+  `set_secondary_active_tab()`.
+
+## [2.0.0-beta.1] - 2026-08-13
+
+First beta. All P0/P1/P2 items from the pre-beta release review are closed and the
+full CI matrix (Moodle 4.5 / 5.0 / 5.2, PostgreSQL and MariaDB, PHPUnit + Behat +
+lint) is green.
+
+### Changed
+- Maturity raised to MATURITY_BETA.
+
+### Fixed
+- Behat: the player scenario that asserted an in-progress attempt keeps its
+  version is split to match the current behaviour — a *touched* attempt (an answer
+  or hint exists) stays pinned, while an *untouched* attempt follows a republished
+  version. Test only.
+
+## [2.0.0-alpha.87] - 2026-08-13
+
+### Fixed
+- Republishing an exercise now reaches learners whose attempt exists but is
+  untouched. An attempt is pinned to the version it started on so content edits
+  never change a running attempt — but that pin also meant a learner who had
+  merely opened the exercise once kept resuming stale content forever (for
+  example a broken medium the author had already replaced). Resuming an attempt
+  with no response and no hint yet now follows the current published version;
+  touched attempts stay pinned and the player shows a notice that the attempt
+  continues on the earlier content (new `outdated` flag in the exercise web
+  service).
+
+## [2.0.0-alpha.86] - 2026-08-13
+
+### Added
+- Friendly handling of media whose video track the browser cannot decode (for
+  example MPEG-4 Part 2 / Xvid-era files, which VLC plays fine but browsers show
+  as a black picture with working audio). The authoring editor warns the author
+  with a re-encode hint (H.264/MP4) as soon as the preview loads, and the player
+  shows learners a notice that the audio still plays instead of leaving a silent
+  black frame. Audio files are recognised and never trigger the warning.
+
+### Fixed
 - Behat: the keyboard-nudge scenario used a quoted key name (`"ArrowRight"`, then
   `"right"`) for the key press. Moodle's named-key step takes the key unquoted and
   keyed by its own name, so it is now `I press the right key`, which the browser

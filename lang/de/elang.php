@@ -26,6 +26,11 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Erlaubte Inhaltssprachen';
 $string['allowedlanguages_desc'] = 'Die Inhaltssprachen, die beim Anlegen oder Bearbeiten einer eLang-Aktivität angeboten werden. Ohne Auswahl wird die vollständige Sprachliste angeboten. Eine Aktivität behält ihre gespeicherte Sprache, auch wenn Sie diese hier später entfernen.';
+$string['allowtranscriptdownload'] = 'Transkript-Download für Lernende';
+$string['allowtranscriptdownload_help'] = 'Wenn aktiviert, können Lernende das Transkript als Arbeitsblatt — mit allen Lücken leer — als PDF-, Word-, OpenDocument- oder Textdatei herunterladen.
+
+Standardmäßig ist das ausgeschaltet. Lehrende können das Transkript unabhängig von dieser Einstellung immer herunterladen.';
+$string['allowtranscriptdownload_label'] = 'Lernende dürfen das Arbeitsblatt herunterladen';
 $string['completiondetail:completionfinishattempt'] = 'Einen Versuch abschließen';
 $string['completionfinishattempt'] = 'Die Person muss einen Versuch abschließen';
 $string['editcontent'] = 'Inhalt bearbeiten';
@@ -46,6 +51,7 @@ $string['editor:deletecue'] = 'Cue löschen';
 $string['editor:deletegap'] = 'Lücke löschen';
 $string['editor:endtime'] = 'Ende (ms)';
 $string['editor:gaprange'] = 'Lückenposition (Zeichen)';
+$string['editor:gotomedia'] = 'Zu den Medien';
 $string['editor:heading'] = 'Übungsinhalt-Editor';
 $string['editor:hints'] = 'Hinweise';
 $string['editor:hinttext'] = 'Hinweistext';
@@ -73,6 +79,7 @@ $string['editor:mediaurl'] = 'Direkte URL';
 $string['editor:nocues'] = 'Noch keine Cues. Fügen Sie einen hinzu oder importieren Sie Untertitel.';
 $string['editor:nogaps'] = 'Keine Lücken';
 $string['editor:nomedia'] = 'keins';
+$string['editor:nomedianotice'] = 'Legen Sie zuerst im Reiter „Medien" die Video- oder Audiodatei an. Untertitel werden gegen das Medium getimt, deshalb braucht der Editor eines, bevor Sie Cues und Lücken bearbeiten können.';
 $string['editor:novideotrack'] = 'Dieser Browser kann die Videospur dieses Mediums nicht dekodieren (nur der Ton läuft); Lernende sähen ein schwarzes Bild. Bitte die Datei als H.264/MP4 neu kodieren (z. B. mit ffmpeg oder HandBrake) und erneut hochladen.';
 $string['editor:onboardinggaps'] = 'Ein Wort in einem Cue markieren und als Lücke festlegen.';
 $string['editor:onboardingimport'] = 'WebVTT-/SubRip-Untertitel importieren oder Cues von Hand anlegen.';
@@ -109,15 +116,15 @@ $string['editor:transcript'] = 'Transkript';
 $string['editor:unsaved'] = 'Nicht gespeicherte Änderungen';
 $string['editor:uploadmedia'] = 'Mediendateien hochladen';
 $string['editor:waveform'] = 'Audio-Wellenform';
-$string['elang:addinstance'] = 'Neue Sprachübung anlegen';
-$string['elang:attempt'] = 'Sprachübung bearbeiten';
+$string['elang:addinstance'] = 'Neues Video-Diktat anlegen';
+$string['elang:attempt'] = 'Video-Diktat bearbeiten';
 $string['elang:deleteattempts'] = 'Versuche von Lernenden löschen';
 $string['elang:exportreports'] = 'Berichte mit personenbezogenen Daten exportieren';
 $string['elang:exportsolution'] = 'Vollständiges Lösungstranskript exportieren';
 $string['elang:exporttranscript'] = 'Transkript-Arbeitsblatt als Dokument exportieren';
 $string['elang:manage'] = 'Übungsinhalte erstellen und bearbeiten';
 $string['elang:useregex'] = 'Reguläre Ausdrücke in akzeptierten Antworten verwenden';
-$string['elang:view'] = 'Sprachübung ansehen';
+$string['elang:view'] = 'Video-Diktat ansehen';
 $string['elang:viewreports'] = 'Berichte zu Lernenden ansehen';
 $string['error:attemptnotinprogress'] = 'Dieser Versuch läuft nicht mehr.';
 $string['error:couldnotobtainlock'] = 'Für diesen Vorgang konnte keine Sperre erlangt werden. Bitte erneut versuchen.';
@@ -133,13 +140,16 @@ $string['error:invalidmediakind'] = 'Die gewählte Medienart ist keine von file,
 $string['error:invalidpenalty'] = 'Ein Hinweis-Punktabzug muss zwischen 0 und 1 liegen.';
 $string['error:invalidproviderref'] = '\'{$a}\' ist keine erkennbare Video-ID und kein erkennbarer Link für diesen Anbieter.';
 $string['error:invalidregexpattern'] = '\'{$a}\' ist kein gültiger regulärer Ausdruck.';
+$string['error:invalidsolutionavailability'] = 'Wählen Sie eine der angebotenen Optionen dafür, wann Lernende die Musterlösung sehen dürfen.';
 $string['error:invalidv1cuejson'] = 'Dieser Version-1-Cue konnte nicht verarbeitet werden.';
 $string['error:negativegapoffset'] = 'Position und Länge einer Lücke dürfen nicht negativ sein.';
 $string['error:noaccesstoattempt'] = 'Sie haben keinen Zugriff auf diesen Versuch.';
 $string['error:nomorehints'] = 'Für diese Lücke sind keine weiteren Hilfen verfügbar.';
 $string['error:nopublishedversion'] = 'Für diese Übung ist noch kein Inhalt veröffentlicht.';
 $string['error:responsetoolong'] = 'Ihre Antwort ist zu lang. Das Maximum für diese Lücke beträgt {$a} Zeichen.';
+$string['error:solutionnotavailable'] = 'Die Musterlösung steht Ihnen in dieser Aktivität nicht zur Verfügung.';
 $string['error:staleattemptstate'] = 'Ihre Ansicht dieses Versuchs ist veraltet. Bitte laden Sie den aktuellen Stand neu und versuchen Sie es erneut.';
+$string['error:transcriptnotavailable'] = 'In dieser Aktivität steht Ihnen kein Transkript zum Herunterladen zur Verfügung.';
 $string['error:unknowngaprule'] = 'Unbekannter Lückenregel-Typ \'{$a}\'.';
 $string['error:unknownmediaprovider'] = '\'{$a}\' gehört nicht zu den unterstützten Medienanbietern.';
 $string['error:versionnotadraft'] = 'Nur eine Entwurfsversion kann bearbeitet werden.';
@@ -150,7 +160,7 @@ $string['export:nocontent'] = 'Es ist noch kein veröffentlichtes Transkript zum
 $string['export:odt'] = 'Als OpenDocument (ODT) herunterladen';
 $string['export:pdf'] = 'Als PDF herunterladen';
 $string['export:solution'] = 'Lösungstranskript';
-$string['export:solutionhint'] = 'Der vollständige Text mit allen Lückenlösungen. Lernende können dies nicht herunterladen.';
+$string['export:solutionhint'] = 'Der vollständige Text mit allen Lückenlösungen. Ob Lernende ihn herunterladen dürfen, wird je Aktivität eingestellt.';
 $string['export:text'] = 'Als Text herunterladen';
 $string['export:worksheet'] = 'Arbeitsblatt (Lücken ausgeblendet)';
 $string['exporttranscript'] = 'Transkript exportieren';
@@ -194,12 +204,15 @@ $string['migratev1:queued'] = 'Der Migrations-Task wurde eingereiht. Er läuft b
 $string['migratev1:verifiedclean'] = 'Verifiziert: Die migrierten Daten stimmen ohne Abweichungen mit der Version-1-Quelle überein.';
 $string['migratev1:verifieddiscrepancies'] = 'Die Verifikation fand {$a} Abweichung(en) gegenüber der Version-1-Quelle:';
 $string['migratev1:verifyfailed'] = 'Diese Aktivität konnte nicht verifiziert werden: {$a}';
-$string['modulename'] = 'Sprachübung';
-$string['modulename_help'] = 'Die Aktivität Sprachübung lässt Lernende Lücken in zeitcodierten Untertiteln ausfüllen, während sie ein Video ansehen oder anhören.
+$string['modulename'] = 'Video-Diktat';
+$string['modulename_help'] = 'Die Aktivität Video-Diktat lässt Lernende Lücken in zeitcodierten Untertiteln ausfüllen, während sie ein Video ansehen oder anhören.
 
 Lehrende importieren eine WebVTT- oder SubRip-Datei, markieren Wörter oder Wendungen als Lücken und legen fest, wie streng Antworten verglichen werden. Lernende arbeiten das Transkript Segment für Segment durch, können abgestufte Hilfen anfordern und erhalten unmittelbare Rückmeldung.';
-$string['modulenameplural'] = 'Sprachübungen';
-$string['noinstances'] = 'In diesem Kurs gibt es keine Sprachübungen.';
+$string['modulenameplural'] = 'Video-Diktate';
+$string['nav:media'] = 'Medien';
+$string['nav:reports'] = 'Versuche';
+$string['nav:subtitles'] = 'Untertitel & Lücken';
+$string['noinstances'] = 'In diesem Kurs gibt es keine Video-Diktate.';
 $string['overview:attempts'] = 'Versuche';
 $string['player:check'] = 'Antwort prüfen';
 $string['player:finish'] = 'Versuch abschließen';
@@ -220,8 +233,8 @@ $string['player:statehinted'] = 'Hinweis benutzt';
 $string['player:stateincorrect'] = 'Falsch';
 $string['player:submitfailed'] = 'Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.';
 $string['player:transcriptheading'] = 'Transkript';
-$string['pluginadministration'] = 'Sprachübung-Administration';
-$string['pluginname'] = 'Sprachübung';
+$string['pluginadministration'] = 'Video-Diktat-Administration';
+$string['pluginname'] = 'Video-Diktat';
 $string['privacy:metadata:elang'] = 'Zu jeder Aktivität wird festgehalten, wer die einmalige Migration der 1.x-Inhalte freigegeben hat.';
 $string['privacy:metadata:elang:migrationapproveduserid'] = 'Die Person, die die Migration dieser Aktivität aus mod_elang 1.x freigegeben hat. Wird gespeichert, damit die Freigabe nachvollziehbar bleibt.';
 $string['privacy:metadata:elang_attempt'] = 'Für jeden Versuch an einer Übung speichert die Aktivität, wer ihn unternommen hat, wann, wie weit er kam und wie er bewertet wurde.';
@@ -283,9 +296,21 @@ $string['report:tries'] = 'Versuche';
 $string['report:user'] = 'Person';
 $string['report:view'] = 'Ansehen';
 $string['reports'] = 'Berichte';
+$string['solutionavailability'] = 'Musterlösung für Lernende';
+$string['solutionavailability:aftersubmission'] = 'Nach Abgabe';
+$string['solutionavailability:always'] = 'Jederzeit';
+$string['solutionavailability:never'] = 'Keine Musterlösung';
+$string['solutionavailability_help'] = 'Wann Lernende das vollständige Transkript mit allen Lückenlösungen herunterladen dürfen.
+
+* Keine Musterlösung — nur Lehrende können sie herunterladen.
+* Nach Abgabe — Lernende dürfen sie herunterladen, sobald sie einen Versuch in dieser Aktivität abgeschlossen haben.
+* Jederzeit — Lernende dürfen sie auch schon vor dem Bearbeiten herunterladen.
+
+Lehrende können sie unabhängig von dieser Einstellung immer herunterladen.';
 $string['subplugintype_elangscript'] = 'Schrift-Handler';
 $string['subplugintype_elangscript_plural'] = 'Schrift-Handler';
 $string['task:migratev1activities'] = 'Version-1-Aktivitäten migrieren';
+$string['transcriptheading'] = 'Transkript für Lernende';
 $string['validate:emptysolution'] = 'Die Lösung für {$a} ist leer.';
 $string['validate:hintlevels'] = 'Die Hinweisstufen für {$a} bilden keine lückenlose Folge ab 1.';
 $string['validate:nocues'] = 'Die Version enthält keine Untertitelblöcke.';

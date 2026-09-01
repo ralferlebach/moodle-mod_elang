@@ -78,6 +78,8 @@ $PAGE->set_url('/mod/elang/media.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->set_activity_record($elang);
+$PAGE->set_secondary_active_tab('mod_elang_media');
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('editor:uploadmedia', 'mod_elang'));

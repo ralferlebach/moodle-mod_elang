@@ -23,20 +23,20 @@ Feature: Review learner attempts in the report
 
   Scenario: The report shows an empty state before anyone attempts
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
-    When I press "Reports"
+    When I select "Attempts" from secondary navigation
     Then I should see "Attempt reports"
     And I should see "No attempts yet."
 
   Scenario: A finished attempt appears in the report
     Given elang "Test elang" has a finished attempt by "student1" answering "chat"
     And I am on the "Test elang" "elang activity" page logged in as teacher1
-    When I press "Reports"
+    When I select "Attempts" from secondary navigation
     Then I should see "Attempt reports"
     And I should see "Student One"
     And I should not see "No attempts yet."
 
-  Scenario: A learner sees only the learner actions on the activity
+  Scenario: A learner is offered no teaching mode on the activity
     Given I am on the "Test elang" "elang activity" page logged in as student1
-    Then I should see "Export transcript" in the ".mod_elang-actions" "css_element"
-    And I should not see "Edit content" in the ".mod_elang-actions" "css_element"
-    And I should not see "Reports" in the ".mod_elang-actions" "css_element"
+    Then I should not see "Subtitles & gaps"
+    And I should not see "Media"
+    And I should not see "Attempts"

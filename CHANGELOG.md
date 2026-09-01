@@ -11,12 +11,58 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.2] - 2026-09-01
+
+Activity navigation (issue #2). The working areas of the activity — the exercise,
+media, subtitles and gaps, reports, settings and the transcript export — are now
+modes of one activity in Moodle's own secondary navigation instead of a row of
+action buttons above the player.
+
 ### Fixed
+- `elang_extend_settings_navigation()` returned immediately on every page, so the
+  activity contributed no navigation entries at all. Its guard used
+  `empty($PAGE->cm)`, and `moodle_page` serves every property through `__get()`
+  without defining `__isset()` — which makes `empty()` and `isset()` on such a
+  property always report "empty" and "not set" whatever the page holds. The guard
+  now tests the read value, and it reads the page from `$settingsnav->get_page()`
+  rather than the `$PAGE` global, which is not necessarily the page the tree is
+  being built for.
+- The German solution-export hint claimed learners could never download the
+  solution transcript, which the new per-activity setting makes untrue.
 - Behat: the test helper that republishes an exercise built its new version on top
   of the content `create_draft()` inherits from the current version, so the "new"
   version kept the old cue alongside the new one. The helper now clears the
   inherited draft content first, so a scenario that states a whole new transcript
   gets exactly that. Test only; the re-pin behaviour itself was already correct.
+
+### Added
+- `mod_elang\navigation\views\secondary`: orders the activity's own modes ahead
+  of the generic administrative entries and shows six tabs rather than core's
+  five, so the transcript export stays a tab instead of falling into "More".
+- Separate "Media" and "Subtitles & gaps" modes, both gated on `mod/elang:manage`.
+- `elang.allowtranscriptdownload` and `elang.solutionavailability`: per-activity
+  control over what learners may download. Both default to the closed setting, so
+  existing activities keep handing out nothing. Learners hold
+  `mod/elang:exporttranscript` by default, so the capability alone could not carry
+  this decision.
+- `elang_can_export_worksheet()`, `elang_can_export_solution()` and
+  `elang_can_export_transcript()` in `lib.php`, the single place that decision is
+  made. `transcript.php` calls them before it streams anything.
+- `edit.php` refuses to mount the editor while the draft has no medium and points
+  at the media mode instead, including on a direct URL call.
+- `tests/navigation_test.php`: tab visibility per role read from the real
+  navigation tree, plus the full export access matrix.
+- `docs/dev/deutsche-bezeichnung-sprachpaket.md`: why a downloaded language pack
+  overrides the plugin's own German strings, and how to override it in turn.
+
+### Changed
+- German activity name is now "Video-Diktat" ("Video-Diktate"). Note that a site
+  with the German language pack installed needs a local language customisation for
+  this to take effect; see the document above.
+- `view.php` no longer renders "Edit content", "Reports" and "Export transcript"
+  as buttons. Nothing became unreachable; all three are modes now.
+- Every activity page marks its own secondary tab active via
+  `set_secondary_active_tab()`.
 
 ## [2.0.0-beta.1] - 2026-08-13
 

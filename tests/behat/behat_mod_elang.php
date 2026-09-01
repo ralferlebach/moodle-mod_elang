@@ -174,6 +174,28 @@ JS;
     }
 
     /**
+     * Give the named activity's draft version a medium, so the subtitle editor
+     * opens rather than showing its "add a medium first" notice.
+     *
+     * A URL medium is used because it needs no stored file, and the editor only
+     * asks whether the draft has a medium at all.
+     *
+     * @Given /^elang "(?P<name>[^"]*)" has a draft medium$/
+     * @param string $name The activity name
+     * @return void
+     */
+    public function elang_has_a_draft_medium(string $name): void {
+        global $DB;
+
+        $elang = $DB->get_record('elang', ['name' => $name], '*', MUST_EXIST);
+        $draft = (new \mod_elang\local\domain\version_manager())->get_or_create_draft((int) $elang->id);
+
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $draft->id]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/behat.mp4', ['id' => $draft->id]);
+        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $draft->id]);
+    }
+
+    /**
      * Attach a media file to a named activity's current version, so a scenario
      * can assert the player's media pluginfile URL actually serves (the callback
      * mod_elang_pluginfile that once was missing).

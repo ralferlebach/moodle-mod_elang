@@ -53,6 +53,8 @@ $PAGE->set_url('/mod/elang/report.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+$PAGE->set_activity_record($elang);
+$PAGE->set_secondary_active_tab('mod_elang_reports');
 
 $groupmode = groups_get_activity_groupmode($cm, $course);
 $currentgroup = $groupmode != NOGROUPS ? groups_get_activity_group($cm, true) : 0;

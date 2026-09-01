@@ -22,6 +22,11 @@
  * lifecycle (start/resume the attempt, load the pinned version's media and
  * cues), answering and resume entirely through the external API.
  *
+ * The page carries no action buttons of its own: authoring, reports and the
+ * transcript export are reached through the activity's secondary navigation,
+ * which elang_extend_settings_navigation() builds. A learner therefore lands
+ * straight on the exercise.
+ *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -44,6 +49,7 @@ $PAGE->set_title(format_string($elang->name));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 $PAGE->set_activity_record($elang);
+$PAGE->set_secondary_active_tab('modulepage');
 
 $event = \mod_elang\event\course_module_viewed::create([
     'objectid' => $elang->id,
@@ -65,32 +71,6 @@ if ($published !== null) {
 }
 
 echo $OUTPUT->header();
-
-$actions = '';
-if (has_capability('mod/elang:manage', $context)) {
-    $actions .= $OUTPUT->single_button(
-        new moodle_url('/mod/elang/edit.php', ['id' => $cm->id]),
-        get_string('editcontent', 'mod_elang'),
-        'get'
-    );
-}
-if (has_capability('mod/elang:viewreports', $context)) {
-    $actions .= $OUTPUT->single_button(
-        new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
-        get_string('reports', 'mod_elang'),
-        'get'
-    );
-}
-if (has_capability('mod/elang:exporttranscript', $context)) {
-    $actions .= $OUTPUT->single_button(
-        new moodle_url('/mod/elang/transcript.php', ['id' => $cm->id]),
-        get_string('exporttranscript', 'mod_elang'),
-        'get'
-    );
-}
-if ($actions !== '') {
-    echo html_writer::div($actions, 'mod_elang-actions mb-3');
-}
 
 if ($published === null) {
     echo $OUTPUT->notification(get_string('player:nocontent', 'mod_elang'), 'info');

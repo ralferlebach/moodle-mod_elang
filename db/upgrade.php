@@ -438,5 +438,45 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026072519, 'elang');
     }
 
+    if ($oldversion < 2026090101) {
+        // Learner-facing transcript export becomes an activity decision rather
+        // than a pure capability one: learners hold mod/elang:exporttranscript
+        // by default, so without these two settings every activity offered its
+        // worksheet to every learner. Both columns carry a meaningful default,
+        // so existing activities keep the conservative behaviour (no learner
+        // download, no solution) until a teacher opts in.
+        $table = new xmldb_table('elang');
+
+        $allowdownload = new xmldb_field(
+            'allowtranscriptdownload',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'jarothreshold'
+        );
+        if (!$dbman->field_exists($table, $allowdownload)) {
+            $dbman->add_field($table, $allowdownload);
+        }
+
+        $solutionavailability = new xmldb_field(
+            'solutionavailability',
+            XMLDB_TYPE_CHAR,
+            '20',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            'never',
+            'allowtranscriptdownload'
+        );
+        if (!$dbman->field_exists($table, $solutionavailability)) {
+            $dbman->add_field($table, $solutionavailability);
+        }
+
+        upgrade_mod_savepoint(true, 2026090101, 'elang');
+    }
+
     return true;
 }

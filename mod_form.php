@@ -19,9 +19,9 @@
  *
  * General section, the standard grading elements (grade, grade category,
  * grade to pass) and the elang-specific completion rule (see
- * add_completion_rules()), plus the exercise language and the answer-comparison
- * threshold. Media, subtitle import and gaps are edited in the authoring editor
- * (edit.php), not here.
+ * add_completion_rules()), plus the exercise language, the answer-comparison
+ * threshold and what of the transcript learners may download. Media, subtitle
+ * import and gaps are edited in the authoring editor (edit.php), not here.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -81,6 +81,31 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->setDefault('jarothreshold', 1.0);
         $mform->addHelpButton('jarothreshold', 'jarothreshold', 'mod_elang');
 
+        $mform->addElement('header', 'elangtranscript', get_string('transcriptheading', 'mod_elang'));
+
+        // Learners hold mod/elang:exporttranscript by default, so without these
+        // two settings every activity would offer its worksheet to everyone.
+        // Both start closed; handing out a worksheet or the solutions stays a
+        // deliberate decision per activity.
+        $mform->addElement(
+            'advcheckbox',
+            'allowtranscriptdownload',
+            get_string('allowtranscriptdownload', 'mod_elang'),
+            get_string('allowtranscriptdownload_label', 'mod_elang')
+        );
+        $mform->setType('allowtranscriptdownload', PARAM_INT);
+        $mform->setDefault('allowtranscriptdownload', 0);
+        $mform->addHelpButton('allowtranscriptdownload', 'allowtranscriptdownload', 'mod_elang');
+
+        $mform->addElement('select', 'solutionavailability', get_string('solutionavailability', 'mod_elang'), [
+            'never' => get_string('solutionavailability:never', 'mod_elang'),
+            'aftersubmission' => get_string('solutionavailability:aftersubmission', 'mod_elang'),
+            'always' => get_string('solutionavailability:always', 'mod_elang'),
+        ]);
+        $mform->setType('solutionavailability', PARAM_ALPHA);
+        $mform->setDefault('solutionavailability', 'never');
+        $mform->addHelpButton('solutionavailability', 'solutionavailability', 'mod_elang');
+
         $this->standard_grading_coursemodule_elements();
 
         $this->standard_coursemodule_elements();
@@ -99,6 +124,13 @@ class mod_elang_mod_form extends moodleform_mod {
 
         if (isset($data['jarothreshold']) && ((float) $data['jarothreshold'] < 0 || (float) $data['jarothreshold'] > 1)) {
             $errors['jarothreshold'] = get_string('jarothresholdrange', 'mod_elang');
+        }
+
+        // The select only ever offers these three, but a hand-crafted post must
+        // not be able to store a value the export page would not understand.
+        $allowed = ['never', 'aftersubmission', 'always'];
+        if (isset($data['solutionavailability']) && !in_array($data['solutionavailability'], $allowed, true)) {
+            $errors['solutionavailability'] = get_string('error:invalidsolutionavailability', 'mod_elang');
         }
 
         return $errors;

@@ -33,6 +33,15 @@ This is off by default. Teachers can always download the transcript regardless o
 $string['allowtranscriptdownload_label'] = 'Learners may download the worksheet';
 $string['completiondetail:completionfinishattempt'] = 'Finish an attempt';
 $string['completionfinishattempt'] = 'Student must finish an attempt';
+$string['cuepausemode'] = 'Playback at subtitle boundaries';
+$string['cuepausemode:auto'] = 'Automatic';
+$string['cuepausemode:nostop'] = 'Never stop';
+$string['cuepausemode:stop'] = 'Always stop';
+$string['cuepausemode_help'] = 'Whether the medium stops at the end of a subtitle.
+
+* Automatic — playback runs on, and stops at the end of a subtitle only while that subtitle is being worked on, that is after clicking it or one of its gaps, or moving the keyboard focus into one.
+* Always stop — playback stops at the end of every subtitle and waits to be resumed.
+* Never stop — playback runs through to the end of the medium.';
 $string['editcontent'] = 'Edit content';
 $string['editor:addcue'] = 'Add cue';
 $string['editor:addgap'] = 'Mark gap from selection';
@@ -133,6 +142,7 @@ $string['error:duplicatecuekey'] = 'Two cues share the key \'{$a}\'; each cue ne
 $string['error:duplicategapkey'] = 'Two gaps in one cue share the key \'{$a}\'; each gap needs a unique key.';
 $string['error:duplicatehintlevel'] = 'A gap has two hints at level {$a}; each hint level must be unique.';
 $string['error:gapnotinattemptversion'] = 'This gap does not belong to the exercise version of this attempt.';
+$string['error:invalidcuepausemode'] = 'Choose one of the offered options for playback at subtitle boundaries.';
 $string['error:invalidgradingalgorithm'] = 'The grading algorithm \'{$a}\' is not one of exact or wordrecognized.';
 $string['error:invalidhinttype'] = 'The hint type \'{$a}\' is not one of the allowed hint types.';
 $string['error:invalidisregex'] = 'The regex marker of an answer variant must be 0 or 1.';
@@ -141,6 +151,7 @@ $string['error:invalidpenalty'] = 'A hint penalty must be between 0 and 1.';
 $string['error:invalidproviderref'] = '\'{$a}\' is not a recognised video ID or link for this provider.';
 $string['error:invalidregexpattern'] = '\'{$a}\' is not a valid regular expression.';
 $string['error:invalidsolutionavailability'] = 'Choose one of the offered options for when learners may see the solution transcript.';
+$string['error:invalidsubtitleposition'] = 'Choose one of the offered options for where the subtitles are shown.';
 $string['error:invalidv1cuejson'] = 'This version 1 cue could not be parsed.';
 $string['error:negativegapoffset'] = 'A gap offset and length must not be negative.';
 $string['error:noaccesstoattempt'] = 'You do not have access to this attempt.';
@@ -214,6 +225,8 @@ $string['nav:reports'] = 'Attempts';
 $string['nav:subtitles'] = 'Subtitles & gaps';
 $string['noinstances'] = 'There are no language exercises in this course.';
 $string['overview:attempts'] = 'Attempts';
+$string['playbackheading'] = 'Playback and subtitles';
+$string['playbackproviderhint'] = 'A YouTube or Vimeo video is played by the provider in its own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries, whatever is chosen above. Uploaded files and direct media URLs honour both settings.';
 $string['player:check'] = 'Check answer';
 $string['player:finish'] = 'Finish attempt';
 $string['player:finished'] = 'Attempt finished. Score: %score%%';
@@ -309,6 +322,16 @@ $string['solutionavailability_help'] = 'When learners may download the full tran
 Teachers can always download it regardless of this setting.';
 $string['subplugintype_elangscript'] = 'Script handler';
 $string['subplugintype_elangscript_plural'] = 'Script handlers';
+$string['subtitleposition'] = 'Subtitle display';
+$string['subtitleposition:below'] = 'Below the medium';
+$string['subtitleposition:overlaybottom'] = 'On the medium — bottom';
+$string['subtitleposition:overlaytop'] = 'On the medium — top';
+$string['subtitleposition_help'] = 'Where the interactive subtitles are shown.
+
+* Below the medium — the whole transcript sits under the medium in its own scrolling area, following playback.
+* On the medium, bottom / top — only the subtitle currently playing is drawn over the medium.
+
+An audio-only medium has no picture to draw on, so it always uses the display below the medium. The setting itself is kept, and applies again as soon as the activity uses a video.';
 $string['task:migratev1activities'] = 'Migrate version 1 activities';
 $string['transcriptheading'] = 'Transcript for learners';
 $string['validate:emptysolution'] = 'The solution for {$a} is empty.';

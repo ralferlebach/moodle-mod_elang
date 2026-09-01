@@ -251,4 +251,92 @@ final class get_attempt_exercise_test extends \advanced_testcase {
         $this->assertStringContainsString("/media/{$versionid}/clip.mp4", $result['media']['files'][0]['url']);
         $this->assertStringContainsString('poster.jpg', $result['media']['posterurl']);
     }
+
+    /**
+     * The activity's playback settings reach the player alongside the values
+     * actually applied to this medium.
+     *
+     * @return void
+     */
+    public function test_returns_the_playback_settings_for_a_video(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/clip.mp4', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediamime', 'video/mp4', ['id' => $attempt->versionid]);
+        $DB->set_field('elang', 'subtitleposition', 'overlaytop', ['id' => $attempt->elangid]);
+        $DB->set_field('elang', 'cuepausemode', 'stop', ['id' => $attempt->elangid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('overlaytop', $result['playback']['subtitleposition']);
+        $this->assertSame('stop', $result['playback']['cuepausemode']);
+        $this->assertSame('overlaytop', $result['playback']['effectivesubtitleposition']);
+        $this->assertSame('stop', $result['playback']['effectivecuepausemode']);
+    }
+
+    /**
+     * A new activity gets the documented defaults without anything being set.
+     *
+     * @return void
+     */
+    public function test_playback_settings_default_to_below_and_auto(): void {
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('below', $result['playback']['subtitleposition']);
+        $this->assertSame('auto', $result['playback']['cuepausemode']);
+    }
+
+    /**
+     * An audio medium keeps the stored overlay setting but is told to render
+     * below the medium, because there is no picture to draw on.
+     *
+     * @return void
+     */
+    public function test_audio_media_degrade_the_overlay_but_keep_the_setting(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaurl', 'https://example.org/clip.mp3', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediamime', 'audio/mpeg', ['id' => $attempt->versionid]);
+        $DB->set_field('elang', 'subtitleposition', 'overlaybottom', ['id' => $attempt->elangid]);
+        $DB->set_field('elang', 'cuepausemode', 'stop', ['id' => $attempt->elangid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('overlaybottom', $result['playback']['subtitleposition']);
+        $this->assertSame('below', $result['playback']['effectivesubtitleposition']);
+        // An audio element reports its time like any other, so it still stops.
+        $this->assertSame('stop', $result['playback']['effectivecuepausemode']);
+    }
+
+    /**
+     * A provider embed reports no playback time, so both settings degrade
+     * while the stored values stay untouched.
+     *
+     * @return void
+     */
+    public function test_provider_media_degrade_both_playback_settings(): void {
+        global $DB;
+
+        $attempt = $DB->get_record('elang_attempt', ['id' => $this->attemptid], '*', MUST_EXIST);
+        $DB->set_field('elang_version', 'mediakind', 'provider', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaprovider', 'youtube', ['id' => $attempt->versionid]);
+        $DB->set_field('elang_version', 'mediaproviderref', 'dQw4w9WgXcQ', ['id' => $attempt->versionid]);
+        $DB->set_field('elang', 'subtitleposition', 'overlaytop', ['id' => $attempt->elangid]);
+        $DB->set_field('elang', 'cuepausemode', 'stop', ['id' => $attempt->elangid]);
+
+        $result = get_attempt_exercise::execute($this->attemptid);
+        $result = external_api::clean_returnvalue(get_attempt_exercise::execute_returns(), $result);
+
+        $this->assertSame('overlaytop', $result['playback']['subtitleposition']);
+        $this->assertSame('stop', $result['playback']['cuepausemode']);
+        $this->assertSame('below', $result['playback']['effectivesubtitleposition']);
+        $this->assertSame('nostop', $result['playback']['effectivecuepausemode']);
+    }
 }

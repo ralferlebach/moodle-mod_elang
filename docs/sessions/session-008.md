@@ -214,13 +214,67 @@ Grunt-Lauf nötig; die AMD-Builds bleiben unverändert.
 
 ---
 
+## Inkrement 2 — Issues #3 und #4: Datenmodell, Formular und Payload (beta.2, 2026090102)
+
+Beide Player-Issues teilen sich einen Abschnitt im Aktivitätsformular und
+brauchen je eine Spalte. Sie kommen deshalb als **ein** Schema-Schritt mit
+**einem** Savepoint; die Umsetzung im Player folgt in den nächsten
+Inkrementen.
+
+| Spalte | Typ | Default | Werte |
+|---|---|---|---|
+| `subtitleposition` | CHAR(20) | `below` | `below`, `overlaybottom`, `overlaytop` |
+| `cuepausemode` | CHAR(20) | `auto` | `auto`, `stop`, `nostop` |
+
+Beide Defaults entsprechen exakt dem Verhalten vor ihrer Existenz, ein
+aktualisiertes Video-Diktat spielt also unverändert.
+
+### `playback_settings` — gespeichert und wirksam getrennt halten
+
+Nicht jedes Medium kann jede Einstellung erfüllen. Issue #3 fordert
+ausdrücklich, dass die **gespeicherte** Einstellung dabei unverändert bleibt.
+`\mod_elang\local\player\playback_settings` beantwortet deshalb getrennt, was
+die Aktivität möchte und was der Player tatsächlich tun soll:
+
+- **Audio** hat kein Bild, auf dem eine Einblendung liegen könnte →
+  `overlay*` wird zu `below`. Der Pausemodus bleibt: ein Audio-Element meldet
+  seine Zeit wie jedes andere.
+- **Provider-Embed** (YouTube/Vimeo) meldet keine Wiedergabezeit und nimmt
+  kein Pause-Kommando entgegen → `below` **und** `nostop`. Das ist Ralfs
+  Entscheidung zu Rückfrage 4.6 (Option A); ein postMessage-Adapter bleibt
+  einem eigenen Issue vorbehalten, weil er in dieser Sandbox nicht
+  cross-origin verifizierbar ist.
+- **Kein Medium** → dieselbe sichere Kombination.
+
+`get_attempt_exercise` liefert beide Wertepaare (`subtitleposition` /
+`cuepausemode` und `effective…`). Der Player rendert das wirksame Paar und
+kann trotzdem erklären, warum keine Einblendung verwendet wurde — statt
+Lehrende rätseln zu lassen, ob die Einstellung überhaupt gespeichert wurde.
+
+Im Formular steht unter beiden Auswahlfeldern ein statischer Hinweis
+(`playbackproviderhint`), der die Provider-Degradation benennt, bevor jemand
+sie im Betrieb entdeckt.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 393 Tests, 1148 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings
+moodlecheck: 0 <e>-Tags
+Behat:       dry-run 28 Szenarien / 261 Steps, 0 undefined
+```
+
+Auch hier keine Änderung an `amd/src/*.js`, also kein Grunt-Lauf nötig.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
 |---|---|---|
 | #2 | Navigation und Benennung | **erledigt (beta.2)** |
-| #3 | Untertitelposition und Auto-Scroll | offen |
-| #4 | Tastaturfluss und Cue-Pausemodus | offen |
+| #3 | Untertitelposition und Auto-Scroll | Schema/Formular/Payload erledigt, Player offen |
+| #4 | Tastaturfluss und Cue-Pausemodus | Schema/Formular/Payload erledigt, Player offen |
 | #5 | Medienverwaltung als eigener Reiter | offen |
 | #6 | Untertitelimport im Modal | offen |
 | #7 | Editor als synchronisierter Workspace | offen |

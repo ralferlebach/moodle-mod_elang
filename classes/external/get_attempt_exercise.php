@@ -21,6 +21,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use mod_elang\local\player\playback_settings;
 
 /**
  * Return the static shape of the version an attempt is pinned to: counts and
@@ -84,6 +85,8 @@ class get_attempt_exercise extends external_api {
             [$attempt->versionid]
         );
 
+        $media = self::build_media($context, $version);
+
         return [
             'attemptid' => (int) $attempt->id,
             'elangid' => (int) $elang->id,
@@ -92,12 +95,48 @@ class get_attempt_exercise extends external_api {
             'totalcues' => $totalcues,
             'totalgaps' => $totalgaps,
             'contenthash' => (string) $version->contenthash,
-            'media' => self::build_media($context, $version),
+            'media' => $media,
+            'playback' => self::build_playback($elang, $media),
             'specialcharacters' => \mod_elang\local\player\special_characters::for_language((string) $elang->language),
             // A touched attempt stays pinned to the version it started on even
             // after the exercise is republished; the player uses this flag to
             // tell the learner they are continuing on the earlier content.
             'outdated' => (int) $elang->currentversionid !== (int) $attempt->versionid,
+        ];
+    }
+
+    /**
+     * Build the playback descriptor: what the activity asked for, and what the
+     * player can actually do with the medium this attempt is pinned to.
+     *
+     * Both are sent. The player renders the resolved values; the stored ones
+     * are there so it can say why an overlay was not used, rather than leaving
+     * a teacher wondering whether the setting saved.
+     *
+     * @param \stdClass $elang The activity record
+     * @param array $media The media descriptor built by build_media()
+     * @return array The playback descriptor, see execute_returns()
+     */
+    private static function build_playback(\stdClass $elang, array $media): array {
+        $position = playback_settings::normalise_position((string) ($elang->subtitleposition ?? ''));
+        $pausemode = playback_settings::normalise_pausemode((string) ($elang->cuepausemode ?? ''));
+
+        // The version's own MIME hint wins; for an uploaded file without one,
+        // the first file's type answers instead. A medium of unknown type is
+        // treated as carrying a picture, which is what the player assumes too.
+        $mimetype = (string) $media['mimetype'];
+        if ($mimetype === '' && !empty($media['files'])) {
+            $mimetype = (string) $media['files'][0]['mimetype'];
+        }
+        $audioonly = strpos($mimetype, 'audio/') === 0;
+
+        $resolved = playback_settings::resolve($position, $pausemode, (string) $media['kind'], $audioonly);
+
+        return [
+            'subtitleposition' => $position,
+            'cuepausemode' => $pausemode,
+            'effectivesubtitleposition' => $resolved['subtitleposition'],
+            'effectivecuepausemode' => $resolved['cuepausemode'],
         ];
     }
 
@@ -209,6 +248,24 @@ class get_attempt_exercise extends external_api {
                     'Media files when kind=file (several encodings possible), otherwise empty'
                 ),
                 'posterurl' => new external_value(PARAM_RAW, 'pluginfile URL of the poster image, or empty'),
+            ]),
+            'playback' => new external_single_structure([
+                'subtitleposition' => new external_value(
+                    PARAM_ALPHA,
+                    'Subtitle position the activity is set to: below, overlaybottom or overlaytop'
+                ),
+                'cuepausemode' => new external_value(
+                    PARAM_ALPHA,
+                    'Cue boundary behaviour the activity is set to: auto, stop or nostop'
+                ),
+                'effectivesubtitleposition' => new external_value(
+                    PARAM_ALPHA,
+                    'Subtitle position to render, after degrading what this medium cannot honour'
+                ),
+                'effectivecuepausemode' => new external_value(
+                    PARAM_ALPHA,
+                    'Cue boundary behaviour to apply, after degrading what this medium cannot honour'
+                ),
             ]),
             'outdated' => new external_value(
                 PARAM_BOOL,

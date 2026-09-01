@@ -81,6 +81,28 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->setDefault('jarothreshold', 1.0);
         $mform->addHelpButton('jarothreshold', 'jarothreshold', 'mod_elang');
 
+        $mform->addElement('header', 'elangplayback', get_string('playbackheading', 'mod_elang'));
+
+        $mform->addElement('select', 'subtitleposition', get_string('subtitleposition', 'mod_elang'), [
+            'below' => get_string('subtitleposition:below', 'mod_elang'),
+            'overlaybottom' => get_string('subtitleposition:overlaybottom', 'mod_elang'),
+            'overlaytop' => get_string('subtitleposition:overlaytop', 'mod_elang'),
+        ]);
+        $mform->setType('subtitleposition', PARAM_ALPHA);
+        $mform->setDefault('subtitleposition', 'below');
+        $mform->addHelpButton('subtitleposition', 'subtitleposition', 'mod_elang');
+
+        $mform->addElement('select', 'cuepausemode', get_string('cuepausemode', 'mod_elang'), [
+            'auto' => get_string('cuepausemode:auto', 'mod_elang'),
+            'stop' => get_string('cuepausemode:stop', 'mod_elang'),
+            'nostop' => get_string('cuepausemode:nostop', 'mod_elang'),
+        ]);
+        $mform->setType('cuepausemode', PARAM_ALPHA);
+        $mform->setDefault('cuepausemode', 'auto');
+        $mform->addHelpButton('cuepausemode', 'cuepausemode', 'mod_elang');
+
+        $mform->addElement('static', 'playbackproviderhint', '', get_string('playbackproviderhint', 'mod_elang'));
+
         $mform->addElement('header', 'elangtranscript', get_string('transcriptheading', 'mod_elang'));
 
         // Learners hold mod/elang:exporttranscript by default, so without these
@@ -124,6 +146,18 @@ class mod_elang_mod_form extends moodleform_mod {
 
         if (isset($data['jarothreshold']) && ((float) $data['jarothreshold'] < 0 || (float) $data['jarothreshold'] > 1)) {
             $errors['jarothreshold'] = get_string('jarothresholdrange', 'mod_elang');
+        }
+
+        // The selects only ever offer these values, but a hand-crafted post must
+        // not be able to store one the player would not understand.
+        $positions = \mod_elang\local\player\playback_settings::positions();
+        if (isset($data['subtitleposition']) && !in_array($data['subtitleposition'], $positions, true)) {
+            $errors['subtitleposition'] = get_string('error:invalidsubtitleposition', 'mod_elang');
+        }
+
+        $pausemodes = \mod_elang\local\player\playback_settings::pausemodes();
+        if (isset($data['cuepausemode']) && !in_array($data['cuepausemode'], $pausemodes, true)) {
+            $errors['cuepausemode'] = get_string('error:invalidcuepausemode', 'mod_elang');
         }
 
         // The select only ever offers these three, but a hand-crafted post must

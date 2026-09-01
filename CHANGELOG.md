@@ -11,6 +11,23 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added
+- `elang.subtitleposition` (`below` | `overlaybottom` | `overlaytop`) and
+  `elang.cuepausemode` (`auto` | `stop` | `nostop`), set per activity in a new
+  "Playback and subtitles" section of the settings form. Both default to the
+  behaviour activities had before they existed, so an upgraded activity plays
+  exactly as it did.
+- `mod_elang\local\player\playback_settings`: resolves what the activity asked
+  for against what the medium can honour. An audio track has no picture to draw
+  captions on, and a provider embed reports no playback time and takes no pause
+  command, so those degrade — without touching the stored setting, which applies
+  again as soon as the activity uses a video file or direct URL.
+- `get_attempt_exercise` returns a `playback` structure carrying both the stored
+  and the resolved values, so the player renders the resolved pair and can still
+  explain why an overlay was not used.
+- `tests/local/player/playback_settings_test.php` (9 tests) and four payload
+  tests covering the defaults and both degradation paths.
+
 ## [2.0.0-beta.2] - 2026-09-01
 
 Activity navigation (issue #2). The working areas of the activity — the exercise,

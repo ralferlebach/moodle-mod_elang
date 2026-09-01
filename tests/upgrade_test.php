@@ -59,6 +59,7 @@ final class upgrade_test extends \advanced_testcase {
     /** The elang columns the 2.0 upgrade adds (absent in V1). */
     private const V2_ELANG_FIELDS = [
         'currentversionid', 'completionfinishattempt', 'jarothreshold',
+        'subtitleposition', 'cuepausemode',
         'allowtranscriptdownload', 'solutionavailability',
         'migrationapproveduserid', 'migrationapprovedtime',
     ];

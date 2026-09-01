@@ -80,4 +80,20 @@ Feature: Reach the activity's working areas from its navigation
   Scenario: The settings form offers the answer-grading options
     Given I am on the "Test elang" "elang activity editing" page logged in as teacher1
     Then I should see "Answer grading"
+    And I should see "Playback and subtitles"
     And I should see "Transcript for learners"
+
+  Scenario: A new activity starts with the subtitles below the medium
+    Given I am on the "Test elang" "elang activity editing" page logged in as teacher1
+    Then the field "Subtitle display" matches value "Below the medium"
+    And the field "Playback at subtitle boundaries" matches value "Automatic"
+
+  Scenario: The playback settings are stored per activity
+    Given I am on the "Test elang" "elang activity editing" page logged in as teacher1
+    When I set the following fields to these values:
+      | Subtitle display                | On the medium — top |
+      | Playback at subtitle boundaries | Always stop         |
+    And I press "Save and display"
+    And I am on the "Test elang" "elang activity editing" page
+    Then the field "Subtitle display" matches value "On the medium — top"
+    And the field "Playback at subtitle boundaries" matches value "Always stop"

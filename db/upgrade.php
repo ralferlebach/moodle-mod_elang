@@ -478,5 +478,43 @@ function xmldb_elang_upgrade(int $oldversion): bool {
         upgrade_mod_savepoint(true, 2026090101, 'elang');
     }
 
+    if ($oldversion < 2026090102) {
+        // Where the subtitles sit and whether playback stops at cue boundaries
+        // become per-activity decisions. Both columns carry the value that
+        // matches the behaviour activities had before they existed, so an
+        // upgraded activity plays exactly as it did.
+        $table = new xmldb_table('elang');
+
+        $subtitleposition = new xmldb_field(
+            'subtitleposition',
+            XMLDB_TYPE_CHAR,
+            '20',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            'below',
+            'jarothreshold'
+        );
+        if (!$dbman->field_exists($table, $subtitleposition)) {
+            $dbman->add_field($table, $subtitleposition);
+        }
+
+        $cuepausemode = new xmldb_field(
+            'cuepausemode',
+            XMLDB_TYPE_CHAR,
+            '20',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            'auto',
+            'subtitleposition'
+        );
+        if (!$dbman->field_exists($table, $cuepausemode)) {
+            $dbman->add_field($table, $cuepausemode);
+        }
+
+        upgrade_mod_savepoint(true, 2026090102, 'elang');
+    }
+
     return true;
 }

@@ -33,6 +33,15 @@ Standardmäßig ist das ausgeschaltet. Lehrende können das Transkript unabhäng
 $string['allowtranscriptdownload_label'] = 'Lernende dürfen das Arbeitsblatt herunterladen';
 $string['completiondetail:completionfinishattempt'] = 'Einen Versuch abschließen';
 $string['completionfinishattempt'] = 'Die Person muss einen Versuch abschließen';
+$string['cuepausemode'] = 'Wiedergabe an Untertitelgrenzen';
+$string['cuepausemode:auto'] = 'Automatisch';
+$string['cuepausemode:nostop'] = 'Nicht anhalten';
+$string['cuepausemode:stop'] = 'Immer anhalten';
+$string['cuepausemode_help'] = 'Ob das Medium am Ende eines Untertitels anhält.
+
+* Automatisch — die Wiedergabe läuft durch und hält am Ende eines Untertitels nur an, solange dieser gerade bearbeitet wird, also nach einem Klick auf ihn oder eine seiner Lücken oder wenn der Tastaturfokus in einer davon steht.
+* Immer anhalten — die Wiedergabe hält am Ende jedes Untertitels an und wartet auf das Fortsetzen.
+* Nicht anhalten — die Wiedergabe läuft bis zum Ende des Mediums durch.';
 $string['editcontent'] = 'Inhalt bearbeiten';
 $string['editor:addcue'] = 'Cue hinzufügen';
 $string['editor:addgap'] = 'Lücke aus Auswahl markieren';
@@ -133,6 +142,7 @@ $string['error:duplicatecuekey'] = 'Zwei Cues teilen sich den Schlüssel \'{$a}\
 $string['error:duplicategapkey'] = 'Zwei Lücken eines Cues teilen sich den Schlüssel \'{$a}\'; jede Lücke braucht einen eindeutigen Schlüssel.';
 $string['error:duplicatehintlevel'] = 'Eine Lücke hat zwei Hinweise auf Stufe {$a}; jede Hinweisstufe muss eindeutig sein.';
 $string['error:gapnotinattemptversion'] = 'Diese Lücke gehört nicht zur Übungsversion dieses Versuchs.';
+$string['error:invalidcuepausemode'] = 'Wählen Sie eine der angebotenen Optionen für die Wiedergabe an Untertitelgrenzen.';
 $string['error:invalidgradingalgorithm'] = 'Der Bewertungsalgorithmus \'{$a}\' ist weder exact noch wordrecognized.';
 $string['error:invalidhinttype'] = 'Der Hinweistyp \'{$a}\' gehört nicht zu den erlaubten Hinweistypen.';
 $string['error:invalidisregex'] = 'Der Regex-Marker einer Antwortvariante muss 0 oder 1 sein.';
@@ -141,6 +151,7 @@ $string['error:invalidpenalty'] = 'Ein Hinweis-Punktabzug muss zwischen 0 und 1 
 $string['error:invalidproviderref'] = '\'{$a}\' ist keine erkennbare Video-ID und kein erkennbarer Link für diesen Anbieter.';
 $string['error:invalidregexpattern'] = '\'{$a}\' ist kein gültiger regulärer Ausdruck.';
 $string['error:invalidsolutionavailability'] = 'Wählen Sie eine der angebotenen Optionen dafür, wann Lernende die Musterlösung sehen dürfen.';
+$string['error:invalidsubtitleposition'] = 'Wählen Sie eine der angebotenen Optionen dafür, wo die Untertitel angezeigt werden.';
 $string['error:invalidv1cuejson'] = 'Dieser Version-1-Cue konnte nicht verarbeitet werden.';
 $string['error:negativegapoffset'] = 'Position und Länge einer Lücke dürfen nicht negativ sein.';
 $string['error:noaccesstoattempt'] = 'Sie haben keinen Zugriff auf diesen Versuch.';
@@ -214,6 +225,8 @@ $string['nav:reports'] = 'Versuche';
 $string['nav:subtitles'] = 'Untertitel & Lücken';
 $string['noinstances'] = 'In diesem Kurs gibt es keine Video-Diktate.';
 $string['overview:attempts'] = 'Versuche';
+$string['playbackheading'] = 'Wiedergabe und Untertitel';
+$string['playbackproviderhint'] = 'Ein YouTube- oder Vimeo-Video wird vom Anbieter in einem eigenen Rahmen abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an, unabhängig von der Auswahl oben. Hochgeladene Dateien und direkte Medien-URLs berücksichtigen beide Einstellungen.';
 $string['player:check'] = 'Antwort prüfen';
 $string['player:finish'] = 'Versuch abschließen';
 $string['player:finished'] = 'Versuch abgeschlossen. Ergebnis: %score%%';
@@ -309,6 +322,16 @@ $string['solutionavailability_help'] = 'Wann Lernende das vollständige Transkri
 Lehrende können sie unabhängig von dieser Einstellung immer herunterladen.';
 $string['subplugintype_elangscript'] = 'Schrift-Handler';
 $string['subplugintype_elangscript_plural'] = 'Schrift-Handler';
+$string['subtitleposition'] = 'Darstellung der Untertitel';
+$string['subtitleposition:below'] = 'Unter dem Medium';
+$string['subtitleposition:overlaybottom'] = 'Auf dem Medium — unten';
+$string['subtitleposition:overlaytop'] = 'Auf dem Medium — oben';
+$string['subtitleposition_help'] = 'Wo die interaktiven Untertitel angezeigt werden.
+
+* Unter dem Medium — das gesamte Transkript steht unter dem Medium in einem eigenen Scrollbereich und folgt der Wiedergabe.
+* Auf dem Medium, unten / oben — nur der gerade laufende Untertitel wird über dem Medium angezeigt.
+
+Ein reines Audiomedium hat kein Bild, auf dem etwas liegen könnte, und verwendet deshalb immer die Darstellung unter dem Medium. Die Einstellung bleibt erhalten und greift wieder, sobald die Aktivität ein Video verwendet.';
 $string['task:migratev1activities'] = 'Version-1-Aktivitäten migrieren';
 $string['transcriptheading'] = 'Transkript für Lernende';
 $string['validate:emptysolution'] = 'Die Lösung für {$a} ist leer.';

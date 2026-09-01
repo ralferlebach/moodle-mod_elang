@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component    = 'mod_elang';
-$plugin->version      = 2026090101;
+$plugin->version      = 2026090102;
 
 // Moodle 4.5.0 LTS — hard minimum. The plugin runs on PHP 8.1 (Moodle 4.5)
 // through PHP 8.4 (Moodle 5.2+), so no language feature above PHP 8.1 may be used.

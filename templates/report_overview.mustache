@@ -1,0 +1,168 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/report_overview
+
+    The attempt overview: four figures, then the table they describe.
+
+    The state is a labelled badge rather than a colour, and "answered" carries
+    a bar next to its numbers, so neither has to be read by colour alone.
+
+    Context variables required for this template:
+    * figures - The four headline figures
+    * headings - The sortable column headings
+    * rows - The attempts on this page
+    * hasrows - Whether there is anything to show
+    * noattempts - The message when there is not
+    * filtered - Whether any filter is in force
+    * reseturl - URL that clears every filter
+    * resetlabel - Label of the reset link
+    * exportlabel - Label of the export menu
+    * exportformats - The export formats
+    * hasexport - Whether the user may export
+    * headexact, headhinted, headactions - Headings of the unsorted columns
+
+    Example context (json):
+    {
+        "figures": [{"label": "Attempts", "value": "12"}],
+        "headings": [
+            {"key": "user", "label": "Person", "url": "https://example.org/", "active": true, "ariasort": "ascending"}
+        ],
+        "rows": [
+            {
+                "fullname": "Student One",
+                "attemptnumber": 1,
+                "state": "finished",
+                "statelabel": "Finished",
+                "stateclass": "badge-success bg-success",
+                "score": "0.80",
+                "answered": "4 / 5",
+                "answeredpercent": 80,
+                "correct": 4,
+                "exact": 3,
+                "hinted": 1,
+                "finished": "1/09/26, 12:00",
+                "viewurl": "https://example.org/",
+                "actions": ""
+            }
+        ],
+        "hasrows": true,
+        "noattempts": "Nobody has attempted this exercise yet.",
+        "filtered": false,
+        "reseturl": "https://example.org/",
+        "resetlabel": "Clear filters",
+        "exportlabel": "Export",
+        "exportformats": [{"label": "XLSX", "url": "https://example.org/"}],
+        "hasexport": true,
+        "headexact": "Exact",
+        "headhinted": "With hint",
+        "headactions": "Actions"
+    }
+}}
+<div class="mod_elang-report">
+    <div class="row mb-3" data-region="reportfigures">
+        {{#figures}}
+            <div class="col-6 col-lg-3 mb-2">
+                <div class="card h-100">
+                    <div class="card-body py-2">
+                        <div class="text-muted small">{{label}}</div>
+                        <div class="h4 mb-0">{{value}}</div>
+                    </div>
+                </div>
+            </div>
+        {{/figures}}
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
+        <div>
+            {{#filtered}}
+                <a href="{{reseturl}}" class="btn btn-link px-0" data-action="resetfilters">{{resetlabel}}</a>
+            {{/filtered}}
+        </div>
+
+        {{#hasexport}}
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle"
+                        type="button"
+                        id="mod_elang-exportmenu"
+                        data-toggle="dropdown"
+                        data-bs-toggle="dropdown"
+                        aria-haspopup="true"
+                        aria-expanded="false">
+                    {{exportlabel}}
+                </button>
+                <div class="dropdown-menu dropdown-menu-right dropdown-menu-end mod_elang-exportformats"
+                     aria-labelledby="mod_elang-exportmenu">
+                    {{#exportformats}}
+                        <a class="dropdown-item" href="{{url}}">{{label}}</a>
+                    {{/exportformats}}
+                </div>
+            </div>
+        {{/hasexport}}
+    </div>
+
+    {{#hasrows}}
+        <div class="table-responsive">
+            <table class="table table-hover generaltable">
+                <thead>
+                    <tr>
+                        {{#headings}}
+                            <th scope="col" aria-sort="{{ariasort}}" data-column="{{key}}">
+                                <a href="{{url}}">{{label}}</a>
+                            </th>
+                        {{/headings}}
+                        <th scope="col">{{headexact}}</th>
+                        <th scope="col">{{headhinted}}</th>
+                        <th scope="col"><span class="sr-only visually-hidden">{{headactions}}</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#rows}}
+                        <tr>
+                            <td><a href="{{viewurl}}">{{fullname}}</a></td>
+                            <td>{{attemptnumber}}</td>
+                            <td><span class="badge {{stateclass}}">{{statelabel}}</span></td>
+                            <td>{{score}}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="mr-2 me-2 text-nowrap">{{answered}}</span>
+                                    <div class="progress mod_elang-answered-bar flex-grow-1">
+                                        <div class="progress-bar"
+                                             role="progressbar"
+                                             style="width: {{answeredpercent}}%"
+                                             aria-valuenow="{{answeredpercent}}"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{correct}}</td>
+                            <td>{{finished}}</td>
+                            <td>{{exact}}</td>
+                            <td>{{hinted}}</td>
+                            <td>{{{actions}}}</td>
+                        </tr>
+                    {{/rows}}
+                </tbody>
+            </table>
+        </div>
+    {{/hasrows}}
+
+    {{^hasrows}}
+        <div class="alert alert-info" role="status">{{noattempts}}</div>
+    {{/hasrows}}
+</div>

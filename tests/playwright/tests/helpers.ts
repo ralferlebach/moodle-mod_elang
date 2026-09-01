@@ -37,10 +37,28 @@ export const PASS = process.env.ELANG_PASS || '';
  */
 export async function login(page: Page): Promise<void> {
     await page.goto('/login/index.php');
+
+    // Wait for the page's own scripts before typing. Moodle initialises a
+    // "show password" control on the login field after load, and that
+    // initialisation resets the field: a value filled before it runs is
+    // silently discarded, the form posts `password=` empty, and Moodle answers
+    // with "Invalid login" — with the correct credentials.
+    await page.waitForLoadState('networkidle');
+
     await page.fill('#username', USER);
     await page.fill('#password', PASS);
+    // Confirm the value survived to the moment of submitting, rather than
+    // trusting that filling it was enough.
+    await expect(page.locator('#password')).toHaveValue(PASS);
+
     await page.click('#loginbtn');
-    await expect(page).toHaveURL(/\/(my|course)\b|\/index\.php/);
+
+    // Assert we actually left the login page. The previous check accepted any
+    // URL containing "/index.php", which matches /login/index.php?loginredirect=1
+    // — precisely where a failed login lands. A wrong password therefore looked
+    // like a successful one, and every later assertion failed against the login
+    // page instead of the page under test.
+    await expect(page).not.toHaveURL(/\/login\/index\.php/);
 }
 
 /**

@@ -33,12 +33,20 @@ export default defineConfig({
     expect: {timeout: 10000},
     fullyParallel: false,
     workers: 1,
-    reporter: [['list']],
+    // Two reporters: 'list' for the readable job log, 'html' because CI uploads
+    // playwright-report/ after a green run — without the html reporter that
+    // directory is never written and the artefact would be empty.
+    reporter: [['list'], ['html', {open: 'never'}]],
     use: {
         baseURL: process.env.ELANG_BASE_URL || 'http://localhost',
         headless: true,
         ignoreHTTPSErrors: true,
         screenshot: 'only-on-failure',
+        // A green run's videos are the point of keeping the report: they
+        // document the intended journey. CI strips them from the failure
+        // bundle, where a trace is the more useful artefact anyway.
+        video: 'on',
+        trace: 'retain-on-failure',
     },
     projects: [
         {name: 'chromium', use: {...devices['Desktop Chrome']}},

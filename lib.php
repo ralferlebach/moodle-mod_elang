@@ -603,7 +603,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
     $elang = $DB->get_record('elang', ['id' => $cm->instance]);
     if ($elang !== false && elang_can_export_transcript($elang, $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('exporttranscript', 'mod_elang'),
+            get_string('nav:exportshort', 'mod_elang'),
             new moodle_url('/mod/elang/transcript.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,

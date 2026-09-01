@@ -232,8 +232,16 @@ jobs:
           DB: mysqli
           MOODLE_BRANCH: MOODLE_405_STABLE
 
+      - name: Set up Node.js 22
+        if: ${{ always() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+    
       - name: Install Node dependencies
-        run: npm install
+        run: |
+          npm ci
+          npx browserslist@latest --update-db
         working-directory: ${{ github.workspace }}/moodle
 
       - name: Grunt – AMD / ESLint / Stylelint
@@ -674,13 +682,21 @@ jobs:
       # required and you are running 10.11.19". The same class of failure the
       # experimental PHPUnit job had with PostgreSQL 16 against a required 17.
       # The blocking jobs stay on their proven versions.
+      #
+      # The health check is MariaDB's own healthcheck.sh, not `mysqladmin ping`
+      # as the 10.11 services use. MariaDB 11 dropped the mysql* command
+      # aliases, so the old probe never succeeds against this image: the server
+      # log shows "ready for connections" and the runner still reports "Failed
+      # to initialize container mariadb:11.4", because the container never
+      # turns healthy. healthcheck.sh ships inside the image and additionally
+      # waits for InnoDB, so the first connection cannot land mid-startup.
       mariadb:
         image: mariadb:11.4
         env:
           MYSQL_ROOT_PASSWORD: root
         ports: ['3306:3306']
         options: >-
-          --health-cmd="mysqladmin ping --silent"
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=10s --health-retries=10
 
     steps:

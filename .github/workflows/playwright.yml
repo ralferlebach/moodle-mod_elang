@@ -129,6 +129,20 @@ jobs:
       - name: Install Playwright and browsers
         run: |
           cd moodle/mod/elang/tests/playwright
+          # `npm ci` without a lockfile aborts with its own usage text, which
+          # says nothing about why. The lockfile is committed, so its absence
+          # means this run is against a ref that predates it — most often the
+          # default branch, because the "Run workflow" button starts there
+          # unless another branch is picked in the selector.
+          if [ ! -f package-lock.json ]; then
+            echo "tests/playwright/package-lock.json fehlt in diesem Ref."
+            echo "Ref: $GITHUB_REF_NAME (SHA $GITHUB_SHA)"
+            echo "Die Datei ist Teil des Plugins. Fehlt sie, laeuft dieser Job"
+            echo "gegen einen aelteren Stand - im Branch-Selektor den Branch"
+            echo "waehlen, der sie enthaelt, oder ihn in den Default-Branch"
+            echo "mergen."
+            exit 1
+          fi
           npm ci
           npx playwright install --with-deps chromium
 

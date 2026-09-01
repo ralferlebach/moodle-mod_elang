@@ -65,4 +65,9 @@ behatfaildumps/
 /tests/load/*.log
 /tests/playwright/playwright-report/
 /tests/playwright/test-results/
-/tests/playwright/package-lock.json
+# tests/playwright/package-lock.json IS committed, like the plugin's own.
+# It was ignored while the browser tests were a local-only tool; now that CI
+# runs them, `npm ci` needs it and fails outright without one:
+#   "The `npm ci` command can only install with an existing package-lock.json".
+# Pinning it also means a Playwright release cannot silently change what the
+# scheduled run tests.

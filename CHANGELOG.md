@@ -12,6 +12,183 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [Unreleased]
 
 ### Fixed
+- Two lint findings the local `grunt amd` run does not cover: a comment in
+  `amd/src/player.js` starting with a lowercase word, and a trailing blank line in
+  `tests/behat/report.feature`. The full `grunt` task set — which adds
+  `gherkinlint` and fails on warnings — is what CI runs, and is now what is run
+  locally. The minified build is unchanged, since rollup strips comments.
+
+## [2.0.0-beta.5] - 2026-09-01
+
+Subtitle editor workspace (issue #7). Every cue used to render its whole form at
+once — timing, transcript, preview, gaps, solutions, algorithms, variants and
+hints, stacked — so forty cues meant a wall of forms metres long and the
+connection between the medium, the timeline and the cue being worked on was lost
+in the scrolling.
+
+### Added
+- A compact cue list beside a single open cue inspector. Each row shows its
+  formatted times, a text preview, its gap count and any warning; exactly one cue
+  is open at a time. Selection is held by `EditorApp`, so the list, the timeline
+  and the inspector cannot disagree about which cue that is.
+- Search and a "only cues with warnings" filter over the list, and a per-cue
+  action menu with insert-before, insert-after and delete.
+- `js/src/studio/time.ts` plus `TimeField`: cue boundaries are entered as
+  `mm:ss.SSS` (`hh:mm:ss.SSS` past an hour). The field keeps its own draft while
+  typing and only commits on blur or Enter, so it does not reformat mid-keystroke;
+  an unparseable entry is rejected rather than silently rounded. Milliseconds
+  remain the stored representation.
+- 12 Jest tests for the time module and 3 for the workspace, plus a Jest setup
+  file stubbing `scrollIntoView`, which jsdom does not implement.
+
+### Changed
+- Autosave leads the toolbar and manual save is a link, not the primary button.
+  Presenting "Save" as the main action taught authors to distrust the autosave
+  that was already running. The toolbar is now save state, import and publish.
+- "Add cue" moved out of the publish toolbar and next to the cues it acts on.
+  Adding a cue and publishing are not comparable steps.
+- Adding, inserting or importing a cue opens it, so the action has a visible
+  result.
+- The gap's character offsets are no longer shown as a field. They are
+  maintained by selecting text and by `resyncGaps()`; showing them made an
+  internal coordinate look like something to fill in. They remain in the DOM for
+  support work.
+
+### Removed
+- `js/src/components/MediaPanel.tsx` and its test. Media configuration belongs to
+  the media tab, which took it over in beta.2. Needs an explicit `git rm`.
+
+## [2.0.0-beta.4] - 2026-09-01
+
+### Fixed
+- The Playwright login helper filled the password before the login page's own
+  scripts had run. Moodle initialises a "show password" control on that field
+  after load, and the initialisation resets it: the form posted `password=`
+  empty and Moodle answered "Invalid login" with correct credentials. The helper
+  now waits for the page to settle, and asserts the value survived to the moment
+  of submitting.
+- That failure went unnoticed because the helper accepted any URL containing
+  "/index.php" as proof of a successful login — which matches
+  `/login/index.php?loginredirect=1`, exactly where a failed login lands. It now
+  asserts it left the login page, so a broken login fails at the login rather
+  than three assertions later against a page nobody reached.
+- The authoring timeline failed WCAG AA: white labels on the cue colours reached
+  3.3:1 and 4.0:1 against a 4.5:1 threshold, and the inactive cue's opacity
+  washed the text against whatever sat behind it. Both colours are darkened, the
+  opacity is gone, and the active cue additionally carries an outline so the
+  distinction does not rest on colour alone.
+- `amd/build/editor.min.js` was left behind when `amd/src/editor.js` changed in
+  the import-modal work, so `moodle-plugin-ci grunt` failed the build as stale.
+
+### Added
+- The attempt report leads with four figures — attempts shown, finished, average
+  score of finished attempts, and how many used a hint — computed in one
+  aggregate query over the same FROM/WHERE as the table, so the header and the
+  rows can never describe different sets.
+- Server-side filters for person, state, start date range and attempt number,
+  plus sortable column headings. Both are whitelisted: `clean_filters()` and a
+  `SORT_COLUMNS` map decide, so no request parameter can choose SQL.
+- Filters travel as canonical URL parameters, so a filtered view is a link that
+  can be bookmarked or passed on, and paging and sorting simply carry them.
+- The export honours the filters in force. An export that ignored them would
+  hand out more than the teacher was looking at — in separate-groups mode that
+  is a disclosure.
+- `mod_elang\output\report_overview`, `templates/report_overview.mustache` and
+  `mod_elang\form\report_filter_form`, keeping query logic in the report class
+  and presentation in a template.
+
+### Changed
+- The German report heading is "Versuche".
+- Attempt state is a labelled badge and "answered" carries a bar beside its
+  numbers, so neither is read by colour alone.
+- The four export formats sit behind one "Export" menu, spreadsheet formats
+  first, instead of four equal links.
+- Deleting moved out of the row into an action menu. The capability, the
+  confirmation, the sesskey and the object access check are unchanged.
+
+## [2.0.0-beta.3] - 2026-09-01
+
+### Added
+- The three subtitle positions of issue #3 are live in the player. One cue
+  renderer serves all of them: in the overlay modes the active cue element is
+  *moved* over the picture rather than re-rendered, so the gap inputs keep their
+  restored values, their listeners and their graded state. A second render would
+  have meant two gap implementations that could disagree about what was typed.
+- Below the medium, the transcript is a bounded self-scrolling region rather than
+  page content as long as the exercise, and automatic scrolling stays out of the
+  way for four seconds after a learner scrolls. Our own `scrollIntoView()` also
+  fires a scroll event, so a flag separates it from a learner reaching for the
+  scrollbar — without that the first automatic scroll would suppress every one
+  after it.
+- The player follows the medium on `seeked` as well as `timeupdate`: a seek while
+  paused produces no `timeupdate` in every browser, so the visible cue lagged
+  behind the position the learner had just chosen.
+- The cue pause modes of issue #4 are live: `stop` pauses at the end of every cue,
+  `nostop` never does, and `auto` pauses only at the end of the cue being worked
+  on — clicked, or holding the keyboard focus in one of its gaps. After pausing,
+  playback lands exactly on the boundary rather than a fraction past it, so
+  resuming does not clip the first word of the next cue.
+- Enter now checks the answer and moves to the next gap. It is bound to the
+  submit's own promise rather than fired alongside it: moving the focus triggers
+  the blur handler, and without waiting the same answer would be sent twice. When
+  the next gap belongs to another cue, playback jumps there and runs to that
+  cue's end marker; within the same cue it does not rewind.
+
+### Fixed
+- Playwright: fail with a message naming the cause when the lockfile is missing
+  from the checked-out ref, instead of `npm ci` printing its usage text.
+
+### Added
+- Subtitle import is a modal with a file tab and a paste tab, replacing the
+  collapsible textarea buried between the timeline and the cue list. Both tabs
+  feed one string into one server-side parse, so a file and pasted text can never
+  be understood differently.
+- Import is now two steps: "check content" reports the source, format, cue count,
+  gap count and duration before anything is applied. Without that summary,
+  choosing between appending and replacing was a guess.
+- "Replace all cues" alongside "append", offered only when there are cues to lose.
+
+### Fixed
+- Playwright never got past dependency installation: `tests/playwright/package-lock.json`
+  was listed in `.gitignore` from when the browser tests were a local-only tool, and
+  `npm ci` refuses to run without a lockfile. The lockfile is now committed, which also
+  stops a Playwright release from silently changing what the scheduled run tests.
+- The Playwright fixture published a version with no medium, so both editor tests would
+  have landed on the "add a medium first" notice that `edit.php` has shown since the
+  navigation rework. The seed now sets a URL medium before publishing.
+- `playwright.config.ts` declared only the `list` reporter, so `playwright-report/` was
+  never written and the green-run artefact would have been empty. It now also writes the
+  HTML report, records video, and keeps a trace on failure.
+
+### Added
+- The media page is a working area rather than a bare upload form: the form on
+  the left, the medium currently set on the right, with a preview, its file name
+  and its type, size and duration. Replacing the medium of an activity that
+  already has cues is a decision, and it should not be made without seeing what
+  is being replaced.
+- A source address can be given instead of an upload, in one field rather than a
+  provider selector plus a reference field: `provider_registry::detect()` works
+  out from the address itself whether it is a YouTube or Vimeo link, and anything
+  else is kept as a direct media URL. An address that is neither is refused.
+- `mod_elang\output\media_page` and `templates/media_page.mustache`.
+- Ten tests for address detection, including that a bare video id names no
+  provider and must not be claimed by the first one in the list.
+
+### Added
+- The transcript export page is now two product cards rather than a heading and a
+  row of four equal format links: each leads with PDF and keeps DOCX, ODT and TXT
+  in a menu, because PDF is the one teachers actually print.
+- `mod_elang\output\transcript_page` and `templates/transcript_page.mustache`, so
+  the page's markup lives in a template rather than in `html_writer` calls.
+- The solution card states who may take it, derived from the activity's own
+  setting. The previous wording claimed teachers only, which two of the three
+  settings make untrue.
+
+### Changed
+- The export tab is labelled "Export" rather than "Export transcript"; the page
+  heading carries the full name.
+
+### Fixed
 - Behat: the helper that publishes a version called `create_draft()`, which always
   branches a fresh version from the published one and ignores a draft that is
   already open. A scenario that first gave the activity a medium and then stated a
@@ -23,6 +200,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   `<data dir>/behat_dump`.
 - CI: the experimental jobs against Moodle `main` failed at install because Moodle 5.3
   requires PostgreSQL 17 and the service provided 16. The blocking jobs stay on 16.
+- CI: `moodle-release.yml` carried two `concurrency` blocks, which GitHub rejects
+  outright — the whole workflow failed to parse on every push, on any branch.
+- CI: the editor steps run in the plugin checkout, so their relative `tee ci-logs/…`
+  targets resolved to a directory that does not exist; `tee` failed and took the step
+  with it, losing exactly the output needed to diagnose it. Anchored to the workspace.
+- CI: every Behat job now pre-pulls the Selenium image with retries. `docker run`
+  pulls implicitly and gives up on the first failure, so a transient Docker Hub 500
+  surfaced as "Can't start Selenium server" and read like a Behat fault.
 
 ### Added
 - `elang.subtitleposition` (`below` | `overlaybottom` | `overlaytop`) and

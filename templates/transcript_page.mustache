@@ -1,0 +1,116 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/transcript_page
+
+    The transcript export page.
+
+    One card per export product, each leading with PDF and keeping the other
+    formats in a dropdown. Bootstrap classes only, so the page follows the
+    site theme rather than carrying a look of its own.
+
+    Context variables required for this template:
+    * heading - The page heading
+    * intro - One sentence describing what can be downloaded here
+    * haspublished - Whether a published version exists
+    * nocontent - Message shown when nothing is published yet
+    * hascards - Whether at least one export product is available
+    * cards - The export products
+    * moreformats - Label of the secondary format menu
+    * versionnote - Note stating which version exports are based on
+
+    Example context (json):
+    {
+        "heading": "Export transcript",
+        "intro": "Download transcripts of this exercise in several formats.",
+        "haspublished": true,
+        "nocontent": "There is no published transcript to export yet.",
+        "hascards": true,
+        "cards": [
+            {
+                "key": "worksheet",
+                "title": "Worksheet",
+                "description": "The text with every gap blanked out.",
+                "audience": "",
+                "hasaudience": false,
+                "primaryurl": "https://example.org/transcript.php?id=1&format=pdf",
+                "primarylabel": "Download PDF",
+                "formats": [
+                    {"label": "Download as Word (DOCX)", "url": "https://example.org/", "format": "docx"}
+                ]
+            }
+        ],
+        "moreformats": "More formats",
+        "versionnote": "Exports are based on the currently published version."
+    }
+}}
+<div class="mod_elang-export">
+    <h2 class="h3">{{heading}}</h2>
+    <p class="text-muted">{{intro}}</p>
+
+    {{#haspublished}}
+        {{#hascards}}
+            <div class="row">
+                {{#cards}}
+                    <div class="col-12 col-lg-6 mb-3">
+                        <div class="card h-100" data-product="{{key}}">
+                            <div class="card-body d-flex flex-column">
+                                <h3 class="h5 card-title">{{title}}</h3>
+                                <p class="card-text text-muted">{{description}}</p>
+
+                                {{#hasaudience}}
+                                    <p class="mb-3">
+                                        <span class="badge badge-info bg-info text-wrap">{{audience}}</span>
+                                    </p>
+                                {{/hasaudience}}
+
+                                <div class="mt-auto">
+                                    <a href="{{primaryurl}}" class="btn btn-primary btn-block w-100 mb-2">
+                                        {{primarylabel}}
+                                    </a>
+
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-block w-100 dropdown-toggle"
+                                                type="button"
+                                                id="mod_elang-formats-{{key}}"
+                                                data-toggle="dropdown"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false">
+                                            {{moreformats}}
+                                        </button>
+                                        <div class="dropdown-menu w-100" aria-labelledby="mod_elang-formats-{{key}}">
+                                            {{#formats}}
+                                                <a class="dropdown-item" href="{{url}}">{{label}}</a>
+                                            {{/formats}}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {{/cards}}
+            </div>
+
+            <div class="alert alert-info" role="note">{{versionnote}}</div>
+        {{/hascards}}
+    {{/haspublished}}
+
+    {{^haspublished}}
+        <div class="alert alert-info" role="status">{{nocontent}}</div>
+    {{/haspublished}}
+</div>

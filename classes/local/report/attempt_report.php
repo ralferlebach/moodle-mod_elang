@@ -29,19 +29,91 @@ namespace mod_elang\local\report;
  */
 final class attempt_report {
     /**
-     * List every attempt for an activity, newest first, optionally restricted
-     * to the members of one group and to a single page.
+     * The columns the overview may be sorted by, mapped to their SQL.
+     *
+     * A whitelist, not a passthrough: the sort column arrives in a request
+     * parameter, and no request may ever choose SQL. Anything not named here
+     * falls back to the default order.
+     */
+    private const SORT_COLUMNS = [
+        'user' => 'u.lastname, u.firstname',
+        'attemptnumber' => 'a.attemptnumber',
+        'state' => 'a.state',
+        'score' => 'a.score',
+        'answered' => 'a.answeredgaps',
+        'correct' => 'a.correctgaps',
+        'finished' => 'a.timefinish',
+    ];
+
+    /** The states an attempt may be filtered to. */
+    private const STATES = ['inprogress', 'finished', 'abandoned'];
+
+    /**
+     * Normalise a set of request filters to the ones this report understands.
+     *
+     * Every value is cast and range-checked here rather than at the call site,
+     * so a filter can only ever reach the query in a shape the query expects.
+     *
+     * @param array $filters Raw filters: userid, state, from, to, attemptnumber
+     * @return array The accepted filters, with anything unusable removed
+     */
+    public static function clean_filters(array $filters): array {
+        $clean = [];
+
+        if (!empty($filters['userid'])) {
+            $clean['userid'] = (int) $filters['userid'];
+        }
+        if (!empty($filters['state']) && in_array($filters['state'], self::STATES, true)) {
+            $clean['state'] = (string) $filters['state'];
+        }
+        if (!empty($filters['from'])) {
+            $clean['from'] = (int) $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $clean['to'] = (int) $filters['to'];
+        }
+        if (!empty($filters['attemptnumber'])) {
+            $clean['attemptnumber'] = (int) $filters['attemptnumber'];
+        }
+
+        // A reversed range would silently return nothing and look like a bug in
+        // the data rather than a typo in the form.
+        if (isset($clean['from'], $clean['to']) && $clean['from'] > $clean['to']) {
+            unset($clean['to']);
+        }
+
+        return $clean;
+    }
+
+    /**
+     * List the attempts for an activity, optionally restricted to one group and
+     * to a set of filters, sorted and paged.
      *
      * @param int $elangid The activity id
      * @param int $groupid Only attempts by members of this group, or 0 for all
      * @param int $page The zero-based page to return
      * @param int $perpage The page size, or 0 to return every attempt unpaged
+     * @param array $filters Filters as accepted by clean_filters()
+     * @param string $sort A key of SORT_COLUMNS, or an empty string for the default order
+     * @param string $direction ASC or DESC
      * @return array A list of attempt summary arrays
      */
-    public function list_for_activity(int $elangid, int $groupid = 0, int $page = 0, int $perpage = 0): array {
+    public function list_for_activity(
+        int $elangid,
+        int $groupid = 0,
+        int $page = 0,
+        int $perpage = 0,
+        array $filters = [],
+        string $sort = '',
+        string $direction = 'DESC'
+    ): array {
         global $DB;
 
-        [$sql, , $params] = $this->build_list_query($elangid, $groupid);
+        [$from, $where, $params] = $this->build_list_query($elangid, $groupid, $filters);
+
+        $usernamefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
+        $sql = "SELECT a.*, {$usernamefields} FROM $from WHERE $where ORDER BY " . $this->order_by($sort, $direction);
+
         $limitfrom = $perpage > 0 ? $page * $perpage : 0;
         $rows = $DB->get_records_sql($sql, $params, $limitfrom, $perpage);
 
@@ -58,7 +130,12 @@ final class attempt_report {
                 'exactgaps' => (int) $row->exactgaps,
                 'hintedgaps' => (int) $row->hintedgaps,
                 'score' => (float) $row->score,
+                'timestart' => (int) $row->timestart,
                 'timefinish' => (int) $row->timefinish,
+                // The learner name is joined in SQL: sorting by it has to
+                // happen in the database anyway, and having it here spares the
+                // page a second query over every user on the page.
+                'fullname' => fullname($row),
             ];
         }
 
@@ -66,47 +143,132 @@ final class attempt_report {
     }
 
     /**
-     * Count the attempts an activity listing would return, so the report can
-     * page through them without loading the whole history into memory.
+     * Build the ORDER BY clause from a whitelisted sort key.
      *
-     * @param int $elangid The activity id
-     * @param int $groupid Only attempts by members of this group, or 0 for all
-     * @return int The total number of matching attempts
+     * @param string $sort A key of SORT_COLUMNS, or an empty string
+     * @param string $direction ASC or DESC
+     * @return string The ORDER BY body
      */
-    public function count_for_activity(int $elangid, int $groupid = 0): int {
-        global $DB;
+    private function order_by(string $sort, string $direction): string {
+        if (!isset(self::SORT_COLUMNS[$sort])) {
+            return 'a.timestart DESC, a.id DESC';
+        }
 
-        [, $countsql, $params] = $this->build_list_query($elangid, $groupid);
+        $dir = strtoupper($direction) === 'ASC' ? 'ASC' : 'DESC';
+        $column = self::SORT_COLUMNS[$sort];
 
-        return (int) $DB->count_records_sql($countsql, $params);
+        // A stable tiebreak, so paging cannot show the same attempt twice or
+        // skip one when several rows share a sort value.
+        return str_replace(', ', " $dir, ", $column) . " $dir, a.id DESC";
     }
 
     /**
-     * Build the shared listing query for an activity, optionally restricted to
-     * one group, and a matching COUNT query. Both use the same WHERE clause so
-     * the paged list and its total can never disagree.
+     * Count the attempts an activity has, honouring the same group and filters
+     * as the listing, so a paged list and its total can never disagree.
      *
      * @param int $elangid The activity id
      * @param int $groupid Only attempts by members of this group, or 0 for all
-     * @return array{0: string, 1: string, 2: array} The list SQL, the count SQL and their shared params
+     * @param array $filters Filters as accepted by clean_filters()
+     * @return int The total number of matching attempts
      */
-    private function build_list_query(int $elangid, int $groupid = 0): array {
+    public function count_for_activity(int $elangid, int $groupid = 0, array $filters = []): int {
+        global $DB;
+
+        [$from, $where, $params] = $this->build_list_query($elangid, $groupid, $filters);
+
+        return (int) $DB->count_records_sql("SELECT COUNT(1) FROM $from WHERE $where", $params);
+    }
+
+    /**
+     * The headline figures for the attempts currently in view.
+     *
+     * One aggregate query over the same FROM/WHERE as the listing: the numbers
+     * describe exactly the set the table is showing, and reading them costs one
+     * query rather than one per attempt.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @param array $filters Filters as accepted by clean_filters()
+     * @return array total, finished, averagescore (of finished attempts) and hinted counts
+     */
+    public function aggregate_for_activity(int $elangid, int $groupid = 0, array $filters = []): array {
+        global $DB;
+
+        [$from, $where, $params] = $this->build_list_query($elangid, $groupid, $filters);
+
+        $sql = "SELECT COUNT(1) AS total,
+                       SUM(CASE WHEN a.state = 'finished' THEN 1 ELSE 0 END) AS finished,
+                       SUM(CASE WHEN a.state = 'finished' THEN a.score ELSE 0 END) AS finishedscore,
+                       SUM(CASE WHEN a.hintedgaps > 0 THEN 1 ELSE 0 END) AS hinted
+                  FROM $from
+                 WHERE $where";
+
+        $row = $DB->get_record_sql($sql, $params);
+
+        $total = (int) ($row->total ?? 0);
+        $finished = (int) ($row->finished ?? 0);
+
+        return [
+            'total' => $total,
+            'finished' => $finished,
+            // Averaged over finished attempts only: an attempt still in
+            // progress has a score that is simply not comparable yet, and
+            // including it would drag the figure down as a matter of timing
+            // rather than of performance.
+            'averagescore' => $finished > 0 ? ((float) ($row->finishedscore ?? 0)) / $finished : 0.0,
+            'hinted' => (int) ($row->hinted ?? 0),
+        ];
+    }
+
+    /**
+     * Build the shared FROM and WHERE for the listing, the count and the
+     * aggregate, so all three describe the same set of attempts.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @param array $filters Filters as accepted by clean_filters()
+     * @return array{0: string, 1: string, 2: array} The FROM, the WHERE and their params
+     */
+    private function build_list_query(int $elangid, int $groupid = 0, array $filters = []): array {
         $params = ['elangid' => $elangid];
+        $where = ['a.elangid = :elangid'];
+
+        // Joined unconditionally: the overview sorts and displays by name, and
+        // a LEFT JOIN keeps an attempt visible even when its user record has
+        // gone.
+        $from = "{elang_attempt} a
+            LEFT JOIN {user} u ON u.id = a.userid";
 
         if ($groupid > 0) {
-            $from = "{elang_attempt} a
-                       JOIN {groups_members} gm ON gm.userid = a.userid";
-            $where = "a.elangid = :elangid AND gm.groupid = :groupid";
+            $from .= "\n                 JOIN {groups_members} gm ON gm.userid = a.userid";
+            $where[] = 'gm.groupid = :groupid';
             $params['groupid'] = $groupid;
-        } else {
-            $from = "{elang_attempt} a";
-            $where = "a.elangid = :elangid";
         }
 
-        $listsql = "SELECT a.* FROM $from WHERE $where ORDER BY a.timestart DESC, a.id DESC";
-        $countsql = "SELECT COUNT(1) FROM $from WHERE $where";
+        $filters = self::clean_filters($filters);
 
-        return [$listsql, $countsql, $params];
+        if (isset($filters['userid'])) {
+            $where[] = 'a.userid = :filteruserid';
+            $params['filteruserid'] = $filters['userid'];
+        }
+        if (isset($filters['state'])) {
+            $where[] = 'a.state = :filterstate';
+            $params['filterstate'] = $filters['state'];
+        }
+        if (isset($filters['from'])) {
+            $where[] = 'a.timestart >= :filterfrom';
+            $params['filterfrom'] = $filters['from'];
+        }
+        if (isset($filters['to'])) {
+            $where[] = 'a.timestart <= :filterto';
+            $params['filterto'] = $filters['to'];
+        }
+        if (isset($filters['attemptnumber'])) {
+            $where[] = 'a.attemptnumber = :filterattemptnumber';
+            $params['filterattemptnumber'] = $filters['attemptnumber'];
+        }
+
+        return [$from, implode(' AND ', $where), $params];
     }
 
     /**
@@ -140,35 +302,37 @@ final class attempt_report {
      *
      * @param int $elangid The activity id
      * @param int $groupid Only attempts by members of this group, or 0 for all
+     * @param array $filters Filters as accepted by clean_filters()
+     * @param string $sort A key of SORT_COLUMNS, or an empty string for the default order
+     * @param string $direction ASC or DESC
      * @return \Generator<int, array<string, string|int|float>> One associative row per attempt, yielded lazily
      */
-    public function export_rows(int $elangid, int $groupid = 0): \Generator {
+    public function export_rows(
+        int $elangid,
+        int $groupid = 0,
+        array $filters = [],
+        string $sort = '',
+        string $direction = 'DESC'
+    ): \Generator {
         global $DB;
+
+        // The same FROM/WHERE as the overview: an export that ignored the
+        // filters on screen would quietly hand out more than the teacher was
+        // looking at, which in separate-groups mode is a disclosure and
+        // everywhere else is a surprise.
+        [$from, $where, $params] = $this->build_list_query($elangid, $groupid, $filters);
 
         // Streamed rather than materialised: the export must not grow in memory
         // with the whole attempt history of a large activity. The user record is
         // joined in SQL so there is no second pass over every user, and the
         // recordset yields one row at a time straight into the Dataformat API.
-        $params = ['elangid' => $elangid];
         $usernamefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
 
-        if ($groupid > 0) {
-            $from = "{elang_attempt} a
-                       JOIN {groups_members} gm ON gm.userid = a.userid
-                  LEFT JOIN {user} u ON u.id = a.userid";
-            $where = "a.elangid = :elangid AND gm.groupid = :groupid";
-            $params['groupid'] = $groupid;
-        } else {
-            $from = "{elang_attempt} a
-                  LEFT JOIN {user} u ON u.id = a.userid";
-            $where = "a.elangid = :elangid";
-        }
-
         $sql = "SELECT a.id, a.userid, a.attemptnumber, a.state, a.score, a.answeredgaps,
-                       a.correctgaps, a.exactgaps, a.hintedgaps, a.timefinish, $usernamefields
+                       a.correctgaps, a.exactgaps, a.hintedgaps, a.timefinish, {$usernamefields}
                   FROM $from
                  WHERE $where
-              ORDER BY a.timestart DESC, a.id DESC";
+              ORDER BY " . $this->order_by($sort, $direction);
 
         $recordset = $DB->get_recordset_sql($sql, $params);
         try {

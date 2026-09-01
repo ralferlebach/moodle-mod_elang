@@ -110,4 +110,77 @@ final class provider_registry_test extends \basic_testcase {
     public function test_unrecognised_references_are_rejected(string $provider, string $reference): void {
         $this->assertNull(provider_registry::normalise_reference($provider, $reference));
     }
+
+    /**
+     * A pasted address is resolved to the provider it belongs to.
+     *
+     * @dataProvider detected_urls_provider
+     * @param string $reference The address a teacher would paste
+     * @param string $provider The provider it belongs to
+     * @param string $expected The canonical video id
+     * @return void No return value.
+     */
+    public function test_addresses_are_resolved_to_their_provider(
+        string $reference,
+        string $provider,
+        string $expected
+    ): void {
+        $detected = provider_registry::detect($reference);
+
+        $this->assertNotNull($detected);
+        $this->assertSame($provider, $detected['provider']);
+        $this->assertSame($expected, $detected['reference']);
+    }
+
+    /**
+     * Addresses that belong to a known provider.
+     *
+     * @return array The reference, its provider and the canonical id
+     */
+    public static function detected_urls_provider(): array {
+        return [
+            'youtube watch url' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'youtube', 'dQw4w9WgXcQ'],
+            'youtube with extra parameters' => [
+                'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',
+                'youtube',
+                'dQw4w9WgXcQ',
+            ],
+            'youtube short link' => ['https://youtu.be/dQw4w9WgXcQ', 'youtube', 'dQw4w9WgXcQ'],
+            'youtube nocookie embed' => [
+                'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+                'youtube',
+                'dQw4w9WgXcQ',
+            ],
+            'vimeo url' => ['https://vimeo.com/123456789', 'vimeo', '123456789'],
+        ];
+    }
+
+    /**
+     * Anything that is not a provider address is left alone, so the media page
+     * stores it as a direct media URL rather than inventing an embed.
+     *
+     * @dataProvider undetected_urls_provider
+     * @param string $reference The address a teacher would paste
+     * @return void No return value.
+     */
+    public function test_other_addresses_belong_to_no_provider(string $reference): void {
+        $this->assertNull(provider_registry::detect($reference));
+    }
+
+    /**
+     * Addresses that belong to no known provider.
+     *
+     * @return array The reference
+     */
+    public static function undetected_urls_provider(): array {
+        return [
+            'direct media url' => ['https://example.org/lesson/clip.mp4'],
+            'a site that is not a provider' => ['https://example.org/watch?v=dQw4w9WgXcQ'],
+            'empty' => [''],
+            'whitespace' => ['   '],
+            // A bare id normalises under every provider, so it names none of
+            // them and must not be silently claimed by the first in the list.
+            'bare id' => ['dQw4w9WgXcQ'],
+        ];
+    }
 }

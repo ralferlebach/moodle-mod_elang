@@ -27,7 +27,7 @@ Feature: Reach the activity's working areas from its navigation
     Then I should see "Media"
     And I should see "Subtitles & gaps"
     And I should see "Attempts"
-    And I should see "Export transcript"
+    And I should see "Export" in the ".secondary-navigation" "css_element"
 
   Scenario: The old action buttons are gone from the exercise page
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
@@ -40,14 +40,18 @@ Feature: Reach the activity's working areas from its navigation
     Then I should not see "Subtitles & gaps"
     And I should not see "Media"
     And I should not see "Attempts"
-    And I should not see "Export transcript"
+    # Asserted as a missing link rather than as missing text inside the
+    # secondary navigation: with no mode of their own to reach, a learner gets
+    # no secondary navigation region at all, and a locator for it would fail
+    # for the wrong reason.
+    And "Export" "link" should not exist
 
   Scenario: Allowing the worksheet download offers the export to a learner
     Given the following "activities" exist:
       | activity | course | name       | idnumber | allowtranscriptdownload |
       | elang    | C1     | Open elang | elang2   | 1                       |
     When I am on the "Open elang" "elang activity" page logged in as student1
-    Then I should see "Export transcript"
+    Then I should see "Export" in the ".secondary-navigation" "css_element"
     And I should not see "Subtitles & gaps"
 
   Scenario: Reports follow their own capability
@@ -65,17 +69,57 @@ Feature: Reach the activity's working areas from its navigation
   Scenario: The media page is reachable as its own mode
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     When I select "Media" from secondary navigation
-    Then I should see "Upload media files"
+    Then I should see "Media"
+    And I should see "Current medium"
+    And I should see "No medium has been set for this exercise yet."
+    And I should see "Other source"
+
+  Scenario: A source address is stored as the medium and shown back
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "https://example.org/lesson/clip.mp4"
+    And I press "Save changes"
+    Then I should see "https://example.org/lesson/clip.mp4"
+    And I should not see "No medium has been set for this exercise yet."
+
+  Scenario: A YouTube link is recognised as a provider rather than a plain URL
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    And I press "Save changes"
+    Then I should see "YouTube"
+    And I should see "dQw4w9WgXcQ"
+
+  Scenario: An address that is neither a media URL nor a provider is refused
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    When I expand all fieldsets
+    And I set the field "Source address" to "not-an-address"
+    And I press "Save changes"
+    Then I should see "Enter a full address starting with"
+    And I should see "No medium has been set for this exercise yet."
+
+  Scenario: Setting a medium lets the subtitle editor open
+    Given I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Media" from secondary navigation
+    And I expand all fieldsets
+    And I set the field "Source address" to "https://example.org/lesson/clip.mp4"
+    And I press "Save changes"
+    When I select "Subtitles & gaps" from secondary navigation
+    Then I should not see "Add the video or audio file on the Media tab first"
 
   Scenario: A teacher reaches the attempt report from the navigation
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     When I select "Attempts" from secondary navigation
-    Then I should see "Attempt reports"
+    Then I should see "Attempts"
 
   Scenario: A teacher reaches the transcript export from the navigation
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
-    When I select "Export transcript" from secondary navigation
-    Then I should see "There is no published transcript to export yet."
+    When I select "Export" from secondary navigation
+    Then I should see "Export transcript"
+    And I should see "There is no published transcript to export yet."
 
   Scenario: The settings form offers the answer-grading options
     Given I am on the "Test elang" "elang activity editing" page logged in as teacher1

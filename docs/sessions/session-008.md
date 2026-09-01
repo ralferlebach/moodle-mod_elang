@@ -455,18 +455,628 @@ Workflows:               alle vier YAML-validiert
 
 ---
 
+## Inkrement 4 — Issue #9: Transkriptexport als Exportoberfläche (2026090103)
+
+Ralf hat sieben Mockups geliefert. Für #9 war der Entwurf vollständig, deshalb
+zuerst umgesetzt.
+
+**Vorher:** eine Überschrift je Produkt und darunter `PDF · DOCX · ODT · TXT`
+als vier gleichrangige Links. Die Seite las sich als Formatliste, nicht als
+zwei Dinge, die man mitnehmen kann.
+
+**Jetzt:** zwei Karten, jede mit Titel, Beschreibung, PDF als primärer
+Schaltfläche und den übrigen Formaten in einem Dropdown. Markup in
+`templates/transcript_page.mustache`, Aufbereitung in
+`mod_elang\output\transcript_page` — `transcript.php` ruft nur noch beides auf.
+Reine Bootstrap-Klassen, damit die Seite dem Theme folgt.
+
+**Eine bewusste Abweichung vom Mockup.** Dort trägt die Lösungskarte das feste
+Abzeichen „Nur für Lehrende · Nicht sichtbar für Lernende". Seit Inkrement 1
+stimmt das nur noch in einem von drei Fällen: `solutionavailability` kann
+`never`, `aftersubmission` oder `always` sein. Das Abzeichen leitet sich jetzt
+aus der Einstellung ab und sagt für jeden Fall die Wahrheit. Ein statischer
+Text hätte Lehrende über ihre eigene Konfiguration getäuscht.
+
+Der Reiter heißt außerdem nur noch **„Export"** statt „Transkriptexport", wie
+im Mockup; der volle Name steht als Seitenüberschrift.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 393 Tests, 1148 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings (138 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    3 Templates, 0 Fehler
+Behat:       28 Szenarien / 262 Steps, alle grün (echter Browser)
+```
+
+Ein Behat-Befund am Rande: `I should not see "Export" in the
+".secondary-navigation" "css_element"` schlug fehl, weil Moodle einem
+Lernenden **ohne eigenen Modus gar keine** Sekundärnavigation rendert — der
+Locator fand das Element nicht und der Test scheiterte aus dem falschen Grund.
+Als fehlender Link formuliert prüft er jetzt das, was gemeint war.
+
+### CI-Nachtrag: der experimentelle Behat-Job
+
+`mariadb:11.4` startete sauber („ready for connections"), der Runner meldete
+trotzdem `Failed to initialize container`. Ursache ist die Health-Probe:
+MariaDB 11 hat die `mysql*`-Befehlsaliase entfernt, `mysqladmin ping` existiert
+dort nicht mehr. Die 10.11-Services der blockierenden Jobs sind davon nicht
+betroffen — deshalb traf es nur diesen einen Job. Jetzt wird MariaDBs eigenes
+`healthcheck.sh --connect --innodb_initialized` verwendet, das im Image
+mitgeliefert wird und zusätzlich auf InnoDB wartet.
+
+**Lehre:** Eine Datenbank-Hauptversion anzuheben heißt nicht nur, die Bildmarke
+zu ändern — die Health-Probe gehört mitgeprüft. „Container startet, wird aber
+nie healthy" sieht wie ein Infrastrukturfehler aus und ist eine
+Konfigurationsfrage.
+
+---
+
+## Inkrement 5 — Issue #5: Medienverwaltung als eigener Reiter (2026090104)
+
+Mockup 5 zeigt zwei Spalten: links die Auswahl, rechts das aktuell eingestellte
+Medium mit Vorschau, Dateiname, Typ, Dauer und Größe. Genau so gebaut.
+
+**Warum die rechte Spalte mehr ist als Zierde:** Der Reiter existiert, weil der
+Untertiteleditor ohne Medium nicht öffnet — er ist die erste Station des
+Autorenablaufs. Ein Medium zu *ersetzen*, während schon Cues daran hängen, ist
+dagegen eine Entscheidung mit Folgen. Die vorher/nachher-Ansicht macht sie
+sichtbar. Der Hinweis zu erhaltenen Untertiteln erscheint nur, wenn der Draft
+tatsächlich Cues hat: einer Übung ohne Cues kann nichts kaputtgehen, und eine
+Warnung ohne Gegenstand stumpft ab.
+
+**Abweichung von Ralfs Antwort 4.11 — nach seinem eigenen Mockup.** Er hatte
+gesagt, URL/Provider solle je nach Selektor ein-/ausgeblendet werden. Mockup 5
+zeigt stattdessen einen dauerhaft sichtbaren, klar untergeordneten Abschnitt
+„Andere Quelle (optional)". Das ist besser: kein Moduswechsel, die Hierarchie
+trägt die Aussage. Umgesetzt als eingeklappter `header` unter dem Filepicker.
+
+**Ein Feld statt zwei.** Der bisherige Weg über die WS-API verlangt
+`provider` **und** `providerref` getrennt. Auf der Seite gibt es nur „Adresse
+der Quelle": Lehrende fügen ein, was in ihrer Adresszeile steht.
+`provider_registry::detect()` beantwortet, welcher Anbieter das ist — die
+Klasse kennt die URL-Formen ohnehin schon.
+
+Ein Detail, das ohne Test durchgerutscht wäre: eine **nackte Video-ID**
+(`dQw4w9WgXcQ`) normalisiert unter *jedem* Anbieter. Die Erkennung darf sie
+deshalb nicht dem erstbesten zuordnen; sie verlangt, dass die Referenz den
+Anbieter auch benennt — inklusive der Kurzdomain `youtu.be`, die die
+Zeichenfolge „youtube" nicht enthält.
+
+**Kein `create_module()`-Fehler mehr im Blindflug:** `get_or_create_draft()`
+liefert bei einem frisch angelegten Draft ein Objekt, auf dem die nullbaren
+Medienspalten nicht gesetzt sind. Direkter Zugriff warnt dort. Behat hat das
+sofort aufgedeckt — mit `Undefined property: stdClass::$mediakind` und einem
+roten Szenario, nicht mit einer stillen leeren Seite.
+
+Nach dem Speichern führt die Seite jetzt **auf sich selbst** zurück statt in
+den Editor: das Ergebnis steht rechts und kann bestätigt werden, bevor es
+weitergeht.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 403 Tests, 1168 Assertions, 1 skipped   (vorher 393/1148)
+PHPCS:       0 Errors / 0 Warnings (139 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    4 Templates, 0 Fehler
+Behat:       32 Szenarien / 309 Steps, alle grün (echter Browser)
+```
+
+---
+
+## Inkrement 6 — Playwright lauffähig machen (kein Version-Bump)
+
+Der erste geplante Playwright-Lauf scheiterte. k6 lief im selben Anlauf grün
+durch und lieferte ein brauchbares Ergebnis:
+
+```
+25 VUs, 90 s, 4-CPU-Runner
+5259 Requests, 45,7 req/s
+p95 414 → 574 ms, max 1283 ms   (Schwelle 1500 ms)
+```
+
+Der Kontext-Anhang (`k6-run-context.txt`) tut genau das, wofür er gedacht war:
+die Zahlen sind ohne „4 CPUs, 25 VUs, 90 s" nicht mit dem nächsten Lauf
+vergleichbar.
+
+### Drei Fehler, einer sichtbar, zwei dahinter
+
+**(a) `npm ci` ohne Lockfile.**
+
+```
+npm error The `npm ci` command can only install with an existing package-lock.json
+```
+
+Ursache steht in unserer eigenen `.gitignore`:
+`/tests/playwright/package-lock.json`. Aus Session 006, als die Browsertests ein
+rein lokales Werkzeug waren. Jetzt läuft CI damit, also gehört der Lockfile
+eingecheckt — er pinnt zusätzlich `@playwright/test` und `@axe-core/playwright`,
+damit ein Release des Testwerkzeugs nicht stillschweigend ändert, was der
+geplante Lauf prüft.
+
+**(b) Der Fixture hätte danach sofort wieder gerissen.** `seed.php`
+veröffentlicht eine Version **ohne Medium**. Seit Inkrement 1 verweigert
+`edit.php` genau das — beide Editor-Tests wären auf dem Hinweis „Legen Sie
+zuerst im Reiter Medien die Datei an" gelandet. Der Seed setzt jetzt vor dem
+Veröffentlichen ein URL-Medium.
+
+**Lehre:** Eine neue serverseitige Vorbedingung betrifft *jeden* Fixture, nicht
+nur den, an dem sie auffällt. Behat wurde in Inkrement 1 nachgezogen, der
+Playwright-Seed nicht — weil er damals nirgends lief.
+
+**(c) Der Erfolgsartefakt wäre leer gewesen.** `playwright.config.ts` deklarierte
+nur den `list`-Reporter. Der Workflow lädt bei Erfolg `playwright-report/` hoch —
+ein Verzeichnis, das ohne HTML-Reporter nie entsteht. Ebenso waren Video und
+Trace aus, obwohl der Workflow bei Fehlschlag ausdrücklich `.webm` löscht und bei
+Erfolg die Videos behält. Jetzt: `list` + `html`, `video: 'on'`,
+`trace: 'retain-on-failure'`.
+
+Das war Ralfs Vorgabe „bei Playwright immer hochladen" — die Konfiguration hat
+sie nicht erfüllt, und aufgefallen wäre es erst beim ersten grünen Lauf mit
+leerem Artefakt.
+
+### Verifikation
+
+```
+npx playwright test --list:  5 Tests in 2 Dateien, Konfiguration gültig
+npm ci (mit Lockfile):       erfolgreich
+php -l seed.php:             sauber
+PHPCS:                       0 Errors / 0 Warnings
+```
+
+Die Tests selbst kann ich hier nicht ausführen — dafür braucht es eine
+installierte Moodle-Site mit Seed. Das entscheidet der nächste CI-Lauf.
+
+---
+
+## Inkrement 7 — Issue #6: Untertitelimport im Modal (2026090105)
+
+Vorher: ein `<details>`-Block mit Textarea, eingeklemmt zwischen Timeline und
+Cue-Liste. Nur Text, keine Datei, kein Vorher-Wissen — wer „Importieren"
+drückte, erfuhr erst danach, wie viele Cues jetzt in seiner Arbeit stehen.
+
+Jetzt ein Modal nach Mockup 6, mit drei Entscheidungen dahinter:
+
+**Ein Parserpfad für beide Reiter.** Datei und eingefügter Text sind nach dem
+Einlesen dasselbe: WebVTT- oder SubRip-Inhalt. Beide Reiter füttern deshalb
+**einen** String in **einen** serverseitigen Parse. Das ist die Bedingung
+dafür, dass eine Datei und ihr Inhalt als Text nie unterschiedlich verstanden
+werden. Die Datei wird per `FileReader` clientseitig gelesen — kein Upload,
+kein zweiter Endpunkt.
+
+**Import ist zweistufig.** „Inhalt prüfen" ruft `preview_import` und zeigt
+Quelle, Format, erkannte Cues, erkannte Lücken und Dauer; erst danach sind
+„Anhängen" und „Alle Cues ersetzen" überhaupt aktiv. Genau das macht die Wahl
+zwischen beiden zu einer informierten. Angewandt wird das **bereits geparste**
+Ergebnis, nicht ein zweiter Parse — sonst könnten Vorschau und Ergebnis
+auseinanderlaufen.
+
+**Das Format kommt aus dem Inhalt, nicht aus der Endung.** Eine Dateiendung ist
+eine Behauptung, eingefügter Text hat gar keine. WebVTT muss mit seiner
+Signatur beginnen; alles andere, was der Parser annimmt, ist SubRip.
+
+„Alle Cues ersetzen" erscheint nur, wenn es Cues zu verlieren gibt. Auf einer
+leeren Version täten beide Schaltflächen dasselbe, und die Wahl wäre Lärm.
+
+Kein `core/modal`: der Editor ist ein React-Baum, der sein Rendering selbst
+besitzt. Einen Teilbaum an Moodles Modal-API zu übergeben hieße, zwei
+Lebenszyklen für einen Dialog zu führen. Fokusführung beim Öffnen, Escape und
+Klick auf den Hintergrund sind stattdessen in der Komponente umgesetzt.
+
+### Verifikation
+
+```
+tsc --noEmit:  sauber
+Jest:          36/36 (Mount-Test auf den zweistufigen Ablauf umgeschrieben)
+Grunt amd:     gelaufen, Artefakte zurückkopiert, zweiter Lauf byte-identisch
+               editor.min.js  e99c3b54 → e42af04c
+               player.min.js  ca65f884 → unverändert
+esbuild:       d80b6f53 → 6507e4b6
+PHPUnit:       403 Tests, 1168 Assertions, 1 skipped
+PHPCS:         0 Errors / 0 Warnings
+moodlecheck:   0 <e>-Tags
+Behat:         32 Szenarien / 309 Steps, alle grün (echter Browser)
+```
+
+Der Jest-Mount-Test hat den Umbau sofort erwischt: er klickte auf
+`[data-action="import"]`, das es nicht mehr gibt. Umgeschrieben prüft er jetzt
+zusätzlich, dass „Importieren" **vor** der Prüfung deaktiviert ist und das
+Modal nach dem Anwenden schließt.
+
+---
+
+## Inkrement 8 — Issues #3 und #4 im Player (2.0.0-beta.3, 2026090106)
+
+Erst hier springt der Release-String: seit beta.2 wurde nur die Versionsnummer
+hochgezählt, wie in Rückfrage 13 vereinbart. Ralf hat den Sprung auf **beta.3**
+angefordert.
+
+### Rücknahme: keine Nutzerpräferenz
+
+Der in der vorigen Runde abgestimmte Präferenz-Layer ist auf Ralfs Korrektur
+hin **entfallen** — Untertitelposition und Auto-Scroll bleiben reine
+Aktivitätseinstellungen („Die visuelle Darstellung ist an dieser Stelle
+ungenau"). Damit entfällt die Schemaänderung, der Privacy-Provider bleibt
+unangetastet, und die Arbeit aus Inkrement 2 trägt unverändert. Der
+Issue-Nachtrag, den ich dafür geschrieben hatte, ist hinfällig.
+
+**Lehre:** Ein Mockup ist eine Absichtserklärung, keine Spezifikation. Dass
+eine Einstellung im Player *dargestellt* wird, heißt nicht, dass sie dort
+*geändert* werden soll. Rückfragen vor der Schemaänderung war richtig — die
+Umsetzung wäre sonst gebaut und wieder ausgebaut worden.
+
+### #3: eine Cue-Darstellung, drei Orte
+
+Die zentrale Entscheidung: in den Overlay-Modi wird das **aktive Cue-Element
+verschoben**, nicht neu gerendert. Es trägt bereits die Gap-Inputs mit ihren
+wiederhergestellten Werten, ihren Listenern und ihrem Bewertungszustand. Eine
+zweite Darstellung wären zwei Gap-Implementierungen, die sich darüber uneinig
+werden können, was jemand getippt hat — genau das schließt Issue #3 unter
+„Technische Hinweise" aus. Ein verstecktes Anker-Element hält den Platz in der
+Liste, damit die Reihenfolge erhalten bleibt.
+
+Beim Auto-Scroll gab es eine Falle: unser eigenes `scrollIntoView()` löst
+ebenfalls ein `scroll`-Ereignis aus. Ohne Unterscheidung hätte der erste
+automatische Scroll jeden weiteren unterdrückt. Ein Flag trennt beides;
+manuelles Scrollen setzt eine Karenz von 4 s.
+
+Zur Formulierung im Issue („erst wieder aufgenommen, wenn sich die Wiedergabe
+zu einer neuen aktiven Zeile bewegt **oder** eine Inaktivitätszeit abgelaufen
+ist"): Wörtlich genommen hebt der nächste Cue-Wechsel die Karenz sofort auf —
+dann ist sie wirkungslos, denn `scrollIntoView()` läuft ohnehin nur bei
+Cue-Wechseln. Umgesetzt ist deshalb: **die Karenz gilt, bis sie abgelaufen
+ist**; ein Cue-Wechsel während der Karenz scrollt nicht. Das erfüllt die
+Hauptforderung „nicht permanent bekämpft".
+
+### #4: eine Frage, zwei Verhaltensweisen
+
+Enter-Fluss und Pausemodus wirken getrennt, teilen aber eine Frage: **welcher
+Cue wird gerade bearbeitet?** Beides liegt deshalb in einem Controller.
+
+- `stop` hält an jeder Cue-Grenze, `nostop` nie, `auto` nur am Ende des Cues,
+  der bearbeitet wird — angeklickt oder mit dem Tastaturfokus in einer seiner
+  Lücken.
+- Nach dem Anhalten wird exakt auf die Grenze zurückgesetzt. `timeupdate`
+  feuert nur ein paar Mal pro Sekunde, die Wiedergabe steht also schon ein
+  Stück dahinter; ohne Korrektur verschluckt das Fortsetzen das erste Wort des
+  nächsten Cues.
+- `play` löscht die Merkung „für diesen Cue schon angehalten", sonst käme man
+  an einer Grenze nie vorbei.
+- Enter ist an das Promise des Submits gebunden, nicht daneben ausgelöst: der
+  Fokuswechsel triggert den Blur-Handler, und ohne Warten ginge dieselbe
+  Antwort zweimal raus.
+- Nach Ralfs Antwort 4.5 springt die Wiedergabe zur nächsten Lücke und läuft
+  bis zum nächsten End-Marker — aber nur, wenn sie nicht ohnehin schon in
+  diesem Cue steht; sonst würde eine zweite Lücke im selben Satz ihn
+  zurückspulen.
+
+### Zwei Fehler beim Bauen
+
+**ESLint im Grunt-Lauf** fand drei fehlende JSDoc-Parameter — genau wofür der
+Schritt da ist.
+
+**Ein Behat-Lauf gegen einen veralteten Build.** Der Sync
+`rm -rf moodle/mod/elang && cp -a work/elang` überschreibt die frisch gebauten
+`amd/build/`-Artefakte mit der älteren Kopie aus dem Arbeitsbaum. Der erste
+37/366-Lauf prüfte deshalb noch den Stand vor #4 — er war grün, aber er belegte
+nicht, was er zu belegen schien.
+
+**Lehre:** Nach `grunt amd` **zuerst** in den Arbeitsbaum zurückkopieren, dann
+erst wieder synchronisieren. Ein grüner Lauf gegen den falschen Build ist
+schlimmer als ein roter.
+
+### Verifikation
+
+```
+Grunt amd:   ESLint sauber, zweiter Lauf byte-identisch
+             player.min.js  ca65f884 → 7833b664
+             editor.min.js  e42af04c unverändert
+PHPUnit:     403 Tests, 1168 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings
+moodlecheck: 0 <e>-Tags
+Jest:        36/36
+Behat:       37 Szenarien / 366 Steps, alle grün (echter Browser)
+```
+
+Die fünf neuen Behat-Szenarien belegen alle drei Positionen und die
+Audio-Degradation gegen einen echten Browser.
+
+---
+
+## Inkrement 9 — Issue #8: Berichte als Auswertungsoberfläche (2026090107)
+
+Der einzige Issue ohne Mockup. Umgesetzt entlang seiner drei Ebenen:
+Kennzahlen, filter-/sortierbarer Überblick, Detailansicht.
+
+### Eine Query-Wahrheitsquelle für alle drei Ansichten
+
+`build_list_query()` liefert jetzt FROM und WHERE getrennt und wird von
+`list_for_activity()`, `count_for_activity()`, `aggregate_for_activity()` **und**
+`export_rows()` verwendet. Damit können Kopfzahlen, Tabelle, Seitenzähler und
+Export nicht mehr verschiedene Mengen beschreiben. Der Export respektiert die
+Filter: täte er das nicht, gäbe er mehr heraus, als die Lehrkraft gerade
+ansieht — im Separate-Groups-Modus wäre das eine Offenlegung.
+
+Der Durchschnitt zählt nur abgeschlossene Versuche. Ein laufender Versuch hat
+einen Score, der schlicht noch nicht vergleichbar ist; ihn einzurechnen würde
+die Zahl bewegen, wenn jemand *anfängt*, nicht wenn jemand *leistet*.
+
+### Kein Request wählt SQL
+
+Sortierspalten stehen in einer Konstante `SORT_COLUMNS`, Filter laufen durch
+`clean_filters()`. Ein Test schickt `'a.id; DROP TABLE'` als Sortierschlüssel
+und erwartet die Standardsortierung.
+
+Zusätzlich verwirft `clean_filters()` einen umgekehrten Zeitraum, statt ihn
+durchzureichen: eine leere Tabelle nach einem Tippfehler sieht aus wie eine
+Aktivität, die niemand bearbeitet hat.
+
+### Drei Fehler, die Behat gefunden hat
+
+**(a) `date_selector` liefert ein Array.** `optional_param('filterfrom', 0,
+PARAM_INT)` wirft darauf eine `coding_exception`. Gelöst durch getrennte
+Namensräume: das Formular postet seine eigenen Feldnamen, die Seite liest
+ausschließlich kanonische Skalare (`ffrom`, `fto`, …), und beim Absenden wird
+auf die kanonische URL umgeleitet. Nebeneffekt: eine gefilterte Ansicht ist ein
+Link, den man weitergeben kann — genau was das Issue verlangt.
+
+**(b) Ein `redirect()` nach der Header-Ausgabe.** Die erste Fassung baute das
+Formular im Ausgabezweig. Formularaufbau und Umleitung stehen jetzt vor
+`$OUTPUT->header()`.
+
+**(c) `moodleform` wird nicht autoloaded.** `report.php` fehlte
+`require_once($CFG->libdir . '/formslib.php')` — acht Szenarien rot mit
+„Class moodleform not found".
+
+Und ein vierter, den phpcs fand: mein eigener Kommentar begann klein
+(`moodle.Commenting.InlineComment.NotCapital`) — dieselbe Regel wie in
+Inkrement 3. Der Reflex „nur `php -l`" hält sich hartnäckig.
+
+### Verifikation
+
+```
+PHPUnit:     OK — 411 Tests, 1193 Assertions, 1 skipped   (vorher 403/1168)
+PHPCS:       0 Errors / 0 Warnings (141 Dateien)
+moodlecheck: 0 <e>-Tags
+Mustache:    5 Templates, 0 Fehler
+Behat:       42 Szenarien / 426 Steps, alle grün (echter Browser)
+```
+
+Acht neue PHPUnit-Tests decken Statusfilter, Personenfilter, verworfene Werte,
+Sortierung in beide Richtungen, den Fallback bei unbekanntem Sortierschlüssel,
+die Kennzahlen (gefiltert und leer) und den gefilterten Export ab. Sechs neue
+Behat-Szenarien decken Kennzahlen, Filtern, Zurücksetzen, das Exportmenü und
+die Verlagerung von „Löschen" ins Aktionsmenü ab.
+
+---
+
+## Inkrement 10 — Playwright real repariert (2.0.0-beta.4, 2026090108)
+
+Zweimal hatte ich vorher „vermutlich behoben" geliefert. Diesmal habe ich in
+der Sandbox eine **echte Moodle-Site** installiert
+(`admin/cli/install_database.php`), den Seed laufen lassen und die Suite
+tatsächlich ausgeführt — und den Fehler damit reproduziert statt erraten.
+
+### Der Fehler: das Passwort wurde leer abgeschickt
+
+Die Instrumentierung des POST-Bodys zeigte es in einer Zeile:
+
+```
+POST BODY: anchor=&logintoken=el5R…&username=elang_pw_1788267415&password=
+```
+
+Das Feld **war** gefüllt — `inputValue('#password')` gab den richtigen Wert
+zurück. Beim Absenden war es leer. Ursache: Moodle initialisiert auf dem
+Login-Feld nach dem Laden ein „Passwort anzeigen"-Bedienelement, und diese
+Initialisierung setzt das Feld zurück. Der Helper tippte vorher.
+
+Mit `await page.waitForLoadState('networkidle')` vor dem Ausfüllen:
+
+```
+POST BODY: …&username=elang_pw_1788267415&password=Elang-pw-1788267415%21
+URL AFTER: http://localhost:8000/my/
+```
+
+### Warum es zweimal an mir vorbeigelaufen ist
+
+Der Helper prüfte den Erfolg so:
+
+```ts
+await expect(page).toHaveURL(/\/(my|course)\b|\/index\.php/);
+```
+
+`\/index\.php` matcht **`/login/index.php?loginredirect=1`** — genau die
+Seite, auf der ein *fehlgeschlagener* Login landet. Der Login galt als
+erfolgreich, und die eigentliche Ursache trat drei Assertions später als
+„Element nicht gefunden" auf einer Seite auf, die niemand erreicht hatte.
+
+**Lehre:** Eine Erfolgsprüfung, die auch den Misserfolg akzeptiert, ist
+schlimmer als keine — sie verschiebt den Fehler an eine Stelle, an der er
+falsch aussieht. Positiv formulierte Muster („wir sind auf /my") sind hier
+sicherer als lockere Alternativen.
+
+### Zwei echte Barrierefreiheitsfehler
+
+Nach dem Login-Fix meldete axe, was vorher nie zur Ausführung kam: die
+Autoren-Timeline erfüllt WCAG AA nicht. Weiße Beschriftung auf `#4a90d9`
+erreicht 3,3:1, auf `#d9534f` 4,0:1 — verlangt sind 4,5:1. Die `opacity: 0.6`
+des inaktiven Cues verwässerte den Text zusätzlich gegen das, was dahinter
+liegt, sodass der reale Kontrast nicht einmal vorhersagbar war.
+
+Jetzt `#2b6cb0` (5,4:1) und `#9b2c2c` (7,5:1), ohne Opacity, und der aktive Cue
+trägt zusätzlich eine Outline — die Unterscheidung hängt damit nicht mehr an
+der Farbe allein.
+
+Ein Detail, das mich fast erneut fehlleiten hätte: nach dem CSS-Fix blieb der
+Test rot, bis `php admin/cli/purge_caches.php` lief. Moodle liefert
+gecachtes CSS aus.
+
+### Der Grunt-Fehler: ein Auslieferungsfehler von mir
+
+```
+File is stale and needs to be rebuilt: amd/build/editor.min.js
+```
+
+`patch-2.0.97` enthielt `amd/src/editor.js` mit der erweiterten String-Liste,
+aber **nicht** den dazugehörigen Build. Ich hatte ihn lokal erzeugt
+(`e99c3b54` → `e42af04c`) und dann nicht in die Dateiliste des Patches
+aufgenommen.
+
+**Lehre:** Nach `grunt amd` gehört das Build-Artefakt in **dieselbe**
+Patch-Dateiliste wie die Quelle. Die Idempotenzprüfung, die ich durchgeführt
+hatte, beweist nur, dass der Build korrekt ist — nicht, dass er ausgeliefert
+wurde.
+
+### Verifikation
+
+```
+Playwright:  5/5 grün, gegen eine echte Moodle-Site in dieser Sandbox
+PHPUnit:     411 Tests, 1193 Assertions, 1 skipped
+PHPCS:       0 Errors / 0 Warnings
+moodlecheck: 0 <e>-Tags
+stylelint:   0 Fehler
+Grunt amd:   nicht mehr stale, byte-identisch
+Behat:       42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
+## Inkrement 11 — Issue #7: Editor als synchronisierter Workspace (2.0.0-beta.5, 2026090109)
+
+Der letzte der acht Issues und der größte. Kein Neubau: Timeline, Waveform,
+`addGapFromSelection()`, `resyncGaps()`, `utf16ToCodepoint()`, `createAutosave()`
+und der Publish-Weg bleiben unverändert. Was sich ändert, ist die Präsentation.
+
+### Eine Auswahl, drei Ansichten
+
+`EditorApp` bleibt Owner von `cues`; neu ist allein `selectedcuekey`. Der
+geöffnete Cue wird **abgeleitet**, nicht gespeichert:
+
+```ts
+const selectedindex = cues.findIndex((cue) => cue.cuekey === selectedcuekey);
+```
+
+Eine Kopie des ausgewählten Cues im State wäre eine zweite Wahrheitsquelle, die
+von der Liste abdriften kann — genau das, was der Issue unter „nicht in
+parallele Wahrheitsquellen zerlegen" ausschließt. `seekToCue()` ist der einzige
+Einstiegspunkt für „diesen Cue bearbeiten", egal ob der Klick aus der Liste oder
+aus der Timeline kam; Listenmarkierung, Inspector und Medienposition bewegen
+sich dadurch zwangsläufig gemeinsam.
+
+### Zeiten, die man lesen kann
+
+`studio/time.ts` ist bewusst ein eigenes Modul mit eigenen Tests. Zwei
+Entscheidungen darin:
+
+- **`parseTime()` gibt bei Unlesbarem `null` zurück, nicht `0`.** Null ist eine
+  legitime Cue-Zeit; sie als Fehlerwert zu verwenden würde einen Tippfehler in
+  einen Cue verwandeln, der stillschweigend an den Anfang springt.
+- **„1:75" wird abgelehnt.** Sonst gäbe es zwei Schreibweisen für denselben
+  Moment, und zwei Schreibweisen für einen Wert sind der Weg, auf dem aus einer
+  Rundungsdifferenz ein Fehler wird.
+
+`TimeField` hält beim Tippen einen eigenen Entwurf und übernimmt erst bei Blur
+oder Enter. Bei jedem Tastendruck neu zu formatieren hieße, gegen die
+schreibende Person zu arbeiten: „1:0" würde zu „01:00.000", bevor die zweite
+Ziffer der Minute ankommt.
+
+### Autosave nach vorn, Speichern nach hinten
+
+Der dominante „Speichern"-Button stand neben einem laufenden Autosave. Das lehrt
+Autor:innen, dem Autosave nicht zu trauen. Jetzt führt der Speicherzustand die
+Toolbar an, „Speichern" ist ein Link, und „Cue hinzufügen" steht bei den Cues
+statt neben „Veröffentlichen" — Cue anlegen und Veröffentlichen sind keine
+gleichrangigen Schritte.
+
+### Zwei Befunde aus den Tests
+
+**Behat fand eine echte Lücke:** „Cue hinzufügen" hängte einen Cue an, wählte ihn
+aber nicht aus — der Inspector blieb leer, die Aktion wirkte folgenlos.
+`handleAddCue()` delegiert jetzt an `insertCueAt(cues.length)`; eine
+Implementierung statt zweier, die auseinanderlaufen können.
+
+**jsdom kennt `scrollIntoView` nicht.** Statt die Komponente mit einer
+`typeof`-Prüfung zu belasten — die ein Testanliegen in Produktionscode trägt und
+außerdem einen echten Fehler verdecken würde — steht der Stub in
+`js/tests/setup.ts`.
+
+### Bewusst nicht gemacht
+
+`MediaPanel.tsx` ist entfernt: Medienkonfiguration gehört seit beta.2 in den
+Medienreiter, und der Issue schließt sie hier ausdrücklich aus. **Erfordert ein
+explizites `git rm`.**
+
+Offen aus #7: die Verlagerung von Varianten und Hinweisen in einen eigenen
+`GapInspector` mit „Erweiterte Einstellungen", sowie der Playwright-Visual-Test
+für lange Cue-Listen.
+
+### Verifikation
+
+```
+tsc --noEmit: sauber
+Jest:         47/47   (vorher 36/36; +12 Zeit, +3 Workspace, −4 MediaPanel)
+esbuild:      6507e4b6 → de8a4b07, idempotent
+Grunt amd:    e42af04c → 03af31c1, idempotent
+stylelint:    0 Fehler
+PHPUnit:      411 Tests, 1193 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Behat:        42 Szenarien / 426 Steps, alle grün (echter Browser)
+```
+
+---
+
+## Inkrement 12 — Zwei Lint-Befunde aus dem CI-Lauf (kein Version-Bump)
+
+Reine Stilkorrektur an einem Kommentar und an Leerzeilen; nach der Bump-Regel
+kein Version-Bump, und das Build-Artefakt ist unverändert.
+
+```
+player.js 703:17  warning  Comments should not begin with a lowercase character
+report.feature 93          Multiple empty lines are not allowed
+```
+
+Der Kommentar begann mit `// timeupdate fires …` — der Ereignisname in
+Kleinschreibung als erstes Wort. Umformuliert zu „The timeupdate event fires …".
+Und `report.feature` endete mit einer Leerzeile zu viel; mein
+Python-Anhängeskript hatte `\n` an einen bereits mit Zeilenumbruch endenden
+String gehängt.
+
+### Die eigentliche Lehre: `grunt amd` ist nicht `grunt`
+
+Ich habe die ganze Sitzung über nur `grunt amd` ausgeführt. Das deckt
+`eslint:amd` und `rollup:dist` ab — aber **nicht** `gherkinlint`, und es
+scheitert nicht an Warnungen, weil `--max-lint-warnings 0` fehlte. Die CI führt
+`moodle-plugin-ci grunt --max-lint-warnings 0` aus, also den vollständigen
+Standardtask.
+
+Ab jetzt gilt lokal der **vollständige** `grunt`-Lauf im Plugin-Verzeichnis als
+Prüfung, nicht `grunt amd`. Verifiziert: Exit 0 über `gherkinlint`,
+`eslint:amd`, `rollup:dist`, `eslint:yui`, `stylelint:css`.
+
+Ein Nebenbefund, der beim Prüfen auffiel: der Hash von `player.min.js` bleibt
+nach der Kommentaränderung `7833b664`. Rollup entfernt Kommentare, das
+Minifikat ist also byte-identisch — die AMD-Build-Regel wurde eingehalten, es
+gibt nur nichts Neues auszuliefern.
+
+Alle fünf Feature-Dateien wurden zusätzlich auf dasselbe Muster geprüft.
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |
 |---|---|---|
 | #2 | Navigation und Benennung | **erledigt (beta.2)** |
-| #3 | Untertitelposition und Auto-Scroll | Schema/Formular/Payload erledigt, Player offen |
-| #4 | Tastaturfluss und Cue-Pausemodus | Schema/Formular/Payload erledigt, Player offen |
-| #5 | Medienverwaltung als eigener Reiter | offen |
-| #6 | Untertitelimport im Modal | offen |
+| #3 | Untertitelposition und Auto-Scroll | **erledigt** (JS-Tests offen) |
+| #4 | Tastaturfluss und Cue-Pausemodus | **erledigt** (JS-Tests offen) |
+| #5 | Medienverwaltung als eigener Reiter | **erledigt** |
+| #6 | Untertitelimport im Modal | **erledigt** |
 | #7 | Editor als synchronisierter Workspace | offen |
-| #8 | Berichte auswertungsorientiert | offen |
-| #9 | Transkriptexport als Exportoberfläche | offen |
+| #8 | Berichte auswertungsorientiert | **erledigt** |
+| #9 | Transkriptexport als Exportoberfläche | **erledigt** |
 
 ## Entscheidungen dieser Sitzung
 

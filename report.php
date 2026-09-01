@@ -27,6 +27,8 @@
  */
 
 require(__DIR__ . '/../../config.php');
+// The filter form extends moodleform, which is not autoloaded.
+require_once($CFG->libdir . '/formslib.php');
 
 $id = required_param('id', PARAM_INT);
 $attemptid = optional_param('attemptid', 0, PARAM_INT);
@@ -46,6 +48,45 @@ require_capability('mod/elang:viewreports', $context);
 
 $action = optional_param('action', '', PARAM_ALPHA);
 $dataformat = optional_param('dataformat', '', PARAM_ALPHA);
+
+// Filters and sorting travel in the URL, so a filtered view can be bookmarked
+// and the paging bar and column headings only have to carry the same
+// parameters. Every value is validated again in
+// attempt_report::clean_filters() and against the sort whitelist before it
+// reaches a query — nothing here is trusted.
+//
+// These names differ from the filter form's own field names on purpose. A
+// date_selector submits filterfrom as an array of day/month/year, and reading
+// that back as a scalar is a coding error; the form posts its own names, this
+// page reads only these canonical scalars, and the two never meet.
+$rawfilters = [
+    'userid' => optional_param('fuser', 0, PARAM_INT),
+    'state' => optional_param('fstate', '', PARAM_ALPHA),
+    'from' => optional_param('ffrom', 0, PARAM_INT),
+    'to' => optional_param('fto', 0, PARAM_INT),
+    'attemptnumber' => optional_param('fattempt', 0, PARAM_INT),
+];
+$filters = \mod_elang\local\report\attempt_report::clean_filters($rawfilters);
+$sort = optional_param('tsort', '', PARAM_ALPHA);
+$direction = optional_param('tdir', 'DESC', PARAM_ALPHA);
+
+/** @var array<string, string> Canonical URL parameter name for each filter. */
+const ELANG_FILTER_PARAMS = [
+    'userid' => 'fuser',
+    'state' => 'fstate',
+    'from' => 'ffrom',
+    'to' => 'fto',
+    'attemptnumber' => 'fattempt',
+];
+
+$urlparams = ['id' => $cm->id];
+foreach ($filters as $key => $value) {
+    $urlparams[ELANG_FILTER_PARAMS[$key]] = $value;
+}
+if ($sort !== '') {
+    $urlparams['tsort'] = $sort;
+    $urlparams['tdir'] = $direction;
+}
 $candelete = has_capability('mod/elang:deleteattempts', $context);
 $canexport = has_capability('mod/elang:exportreports', $context);
 
@@ -69,7 +110,7 @@ if ($dataformat !== '' && $attemptid === 0) {
         clean_filename(format_string($elang->name) . '-attempts'),
         $dataformat,
         $report->export_columns(),
-        $report->export_rows((int) $elang->id, (int) $currentgroup)
+        $report->export_rows((int) $elang->id, (int) $currentgroup, $filters, $sort, $direction)
     );
     exit;
 }
@@ -142,6 +183,49 @@ $resultlabel = function (string $state): string {
 
 $report = new \mod_elang\local\report\attempt_report();
 
+// Built before any output: submitting the filters redirects to their
+// canonical URL, and a redirect after the header has been sent is too late.
+$filterform = null;
+if (!$attemptid) {
+    // Only the learners who actually have an attempt here. Offering every
+    // enrolled user would make the list long and most of its entries would
+    // return nothing.
+    $attemptusers = $DB->get_records_sql(
+        'SELECT DISTINCT u.id, ' . \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects . '
+           FROM {elang_attempt} a
+           JOIN {user} u ON u.id = a.userid
+          WHERE a.elangid = :elangid',
+        ['elangid' => (int) $elang->id]
+    );
+    $useroptions = [0 => get_string('report:filterany', 'mod_elang')];
+    foreach ($attemptusers as $attemptuser) {
+        $useroptions[(int) $attemptuser->id] = fullname($attemptuser);
+    }
+
+    $filterform = new \mod_elang\form\report_filter_form(
+        new moodle_url('/mod/elang/report.php'),
+        ['users' => $useroptions],
+        'get'
+    );
+    // Submitting the form lands on the canonical URL for the chosen filters,
+    // so what the teacher then sees is a link they can bookmark or pass on —
+    // and every later request reads scalars only.
+    if ($formdata = $filterform->get_data()) {
+        $chosen = \mod_elang\local\report\attempt_report::clean_filters([
+            'userid' => (int) ($formdata->filteruserid ?? 0),
+            'state' => (string) ($formdata->filterstate ?? ''),
+            'from' => (int) ($formdata->filterfrom ?? 0),
+            'to' => (int) ($formdata->filterto ?? 0),
+            'attemptnumber' => (int) ($formdata->filterattemptnumber ?? 0),
+        ]);
+        $target = ['id' => $cm->id];
+        foreach ($chosen as $key => $value) {
+            $target[ELANG_FILTER_PARAMS[$key]] = $value;
+        }
+        redirect(new moodle_url('/mod/elang/report.php', $target));
+    }
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('report:heading', 'mod_elang'));
 
@@ -186,73 +270,46 @@ if ($attemptid) {
     if ($groupmode != NOGROUPS) {
         echo groups_print_activity_menu($cm, $PAGE->url, true);
     }
-    $totalattempts = $report->count_for_activity((int) $elang->id, (int) $currentgroup);
-    $attempts = $report->list_for_activity((int) $elang->id, (int) $currentgroup, $page, ELANG_REPORT_PERPAGE);
-    if (empty($attempts)) {
-        echo html_writer::div(get_string('report:noattempts', 'mod_elang'));
-    } else {
-        if ($canexport) {
-            $exportlinks = [];
-            foreach (['csv', 'xlsx', 'ods', 'json'] as $exportformat) {
-                $exportlinks[] = html_writer::link(
-                    new moodle_url('/mod/elang/report.php', ['id' => $cm->id, 'dataformat' => $exportformat]),
-                    strtoupper($exportformat)
-                );
-            }
-            echo html_writer::div(
-                get_string('report:export', 'mod_elang') . ': ' . implode(' · ', $exportlinks),
-                'mod_elang-export mb-3'
-            );
-        }
 
-        $users = $DB->get_records_list('user', 'id', array_unique(array_column($attempts, 'userid')));
+    $filterform->set_data([
+        'id' => $cm->id,
+        'filteruserid' => $filters['userid'] ?? 0,
+        'filterstate' => $filters['state'] ?? '',
+        'filterfrom' => $filters['from'] ?? 0,
+        'filterto' => $filters['to'] ?? 0,
+        'filterattemptnumber' => $filters['attemptnumber'] ?? 0,
+    ]);
+    $filterform->display();
 
-        $table = new html_table();
-        $table->head = [
-            get_string('report:user', 'mod_elang'),
-            get_string('report:attemptnumber', 'mod_elang'),
-            get_string('report:state', 'mod_elang'),
-            get_string('report:score', 'mod_elang'),
-            get_string('report:answered', 'mod_elang'),
-            get_string('report:correct', 'mod_elang'),
-            get_string('report:exact', 'mod_elang'),
-            get_string('report:hinted', 'mod_elang'),
-            get_string('report:finished', 'mod_elang'),
-            '',
-        ];
-        foreach ($attempts as $attempt) {
-            $user = $users[$attempt['userid']] ?? null;
-            $viewurl = new moodle_url('/mod/elang/report.php', ['id' => $cm->id, 'attemptid' => $attempt['attemptid']]);
-            $actions = html_writer::link($viewurl, get_string('report:view', 'mod_elang'));
-            if ($candelete) {
-                $deleteurl = new moodle_url('/mod/elang/report.php', [
-                    'id' => $cm->id,
-                    'action' => 'delete',
-                    'attemptid' => $attempt['attemptid'],
-                ]);
-                $actions .= ' · ' . html_writer::link($deleteurl, get_string('report:delete', 'mod_elang'));
-            }
-            $table->data[] = [
-                $user ? fullname($user) : (string) $attempt['userid'],
-                $attempt['attemptnumber'],
-                $statelabel($attempt['state']),
-                format_float($attempt['score'], 2),
-                $attempt['answeredgaps'] . ' / ' . $attempt['totalgaps'],
-                $attempt['correctgaps'],
-                $attempt['exactgaps'],
-                $attempt['hintedgaps'],
-                $attempt['timefinish'] ? userdate($attempt['timefinish']) : '-',
-                $actions,
-            ];
-        }
-        echo html_writer::table($table);
-        echo $OUTPUT->paging_bar(
-            $totalattempts,
+    $baseurl = new moodle_url('/mod/elang/report.php', $urlparams);
+
+    $overview = new \mod_elang\output\report_overview(
+        $baseurl,
+        $report->list_for_activity(
+            (int) $elang->id,
+            (int) $currentgroup,
             $page,
             ELANG_REPORT_PERPAGE,
-            new moodle_url('/mod/elang/report.php', ['id' => $cm->id])
-        );
-    }
+            $filters,
+            $sort,
+            $direction
+        ),
+        $report->aggregate_for_activity((int) $elang->id, (int) $currentgroup, $filters),
+        $sort,
+        $direction,
+        $candelete,
+        $canexport,
+        !empty($filters)
+    );
+
+    echo $OUTPUT->render_from_template('mod_elang/report_overview', $overview->export_for_template($OUTPUT));
+
+    echo $OUTPUT->paging_bar(
+        $report->count_for_activity((int) $elang->id, (int) $currentgroup, $filters),
+        $page,
+        ELANG_REPORT_PERPAGE,
+        $baseurl
+    );
 }
 
 echo $OUTPUT->footer();

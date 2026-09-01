@@ -11,6 +11,19 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- Behat: the helper that publishes a version called `create_draft()`, which always
+  branches a fresh version from the published one and ignores a draft that is
+  already open. A scenario that first gave the activity a medium and then stated a
+  transcript left that medium behind on an orphan draft, which `edit.php` then
+  received back — empty and without a medium. It now builds on the open draft.
+- CI: both pipelines uploaded Behat failure screenshots from `moodle/behatfaildumps/`,
+  a path that does not exist, so every failed Behat run collected nothing and logged
+  only "No files were found". `moodle-plugin-ci` writes its fail dumps to
+  `<data dir>/behat_dump`.
+- CI: the experimental jobs against Moodle `main` failed at install because Moodle 5.3
+  requires PostgreSQL 17 and the service provided 16. The blocking jobs stay on 16.
+
 ### Added
 - `elang.subtitleposition` (`below` | `overlaybottom` | `overlaytop`) and
   `elang.cuepausemode` (`auto` | `stop` | `nostop`), set per activity in a new
@@ -27,6 +40,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   explain why an overlay was not used.
 - `tests/local/player/playback_settings_test.php` (9 tests) and four payload
   tests covering the defaults and both degradation paths.
+- CI: Jest, `tsc --noEmit` and a reproducibility gate for the committed React bundle.
+  None of the three ran in CI before; they were verified by hand before a release.
+- CI: `.github/workflows/playwright.yml` — browser and axe accessibility tests against
+  a live site, covering what Behat structurally cannot (media playback against a real
+  clock, overlay placement, fullscreen, real focus events).
+- CI: `.github/workflows/load-k6.yml` — manual load runs, available on every branch,
+  in a self-contained or external mode.
+- CI: a `stale-files` job and `db/removed_files.txt`, so a file removed in an earlier
+  release cannot survive in an installation updated by unpacking a ZIP.
+
+### Changed
+- CI: every check step keeps its full output under `ci-logs/` and runs even when an
+  earlier step failed, so a run reports the whole picture instead of one problem per
+  attempt. Diagnostics upload on failure; Playwright and k6 artefacts upload always.
+- CI: `concurrency` with `cancel-in-progress` and a Composer download cache.
 
 ## [2.0.0-beta.2] - 2026-09-01
 

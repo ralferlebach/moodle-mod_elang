@@ -268,6 +268,115 @@ Auch hier keine Änderung an `amd/src/*.js`, also kein Grunt-Lauf nötig.
 
 ---
 
+## Inkrement 3 — Behat-Reparatur und CI-Ausbau (kein Version-Bump)
+
+Reine Test- und Tooling-Arbeit, kein Laufzeitcode: nach der Bump-Regel kein
+Version-Bump.
+
+### Behat: der Fix aus Inkrement 1 war zu kurz gedacht
+
+Ralfs CI meldete in **allen drei Branches** (4.5, 5.2, main) dieselben drei
+Szenarien rot — nach der CI-Diagnoseregel sofort Verdacht auf echten Code, nicht
+auf Umgebung. PHPUnit war überall grün.
+
+Ursache: der Step `elang "…" has a draft medium` legte über
+`get_or_create_draft()` **Draft 1** mit Medium an. Der Publish-Helper rief
+danach `create_draft()` — und das branched *immer* frisch von der
+veröffentlichten Version und **ignoriert einen offenen Draft**. Draft 2 wurde
+befüllt und veröffentlicht, Draft 1 blieb verwaist liegen. `edit.php` ruft
+`get_or_create_draft()` und bekam **Draft 1** zurück: ohne Medium und ohne
+Cues. Der neue Medien-Guard schlug zu, „Transcript" fehlte.
+
+Fix: `publish_elang_version()` verwendet `get_or_create_draft()`.
+
+**Lehre:** Einen Behat-Step in den Background zu setzen, ohne zu prüfen, was die
+nachfolgenden Steps mit dem erzeugten Zustand machen, erzeugt genau solche
+Waisen. Bei `version_manager` gilt: `create_draft()` ist „neu von veröffentlicht
+abzweigen", `get_or_create_draft()` ist „auf dem weiterarbeiten, was offen ist".
+
+### Erstmals eine echte Browser-Verifikation in der Sandbox
+
+Behat-`@javascript` lief bisher nur in Ralfs CI. Jetzt lokal möglich:
+
+- Chromium 141 über Playwright beziehen — die Ubuntu-24.04-Pakete
+  `chromium-browser` / `chromium-chromedriver` sind reine Snap-Weiterleitungen
+  und im Container nicht benutzbar.
+- Passenden ChromeDriver über die Chrome-for-Testing-JSON-Endpunkte auf die
+  **gleiche Hauptversion** ziehen.
+- `$CFG->behat_profiles` mit `wd_host` auf den lokalen ChromeDriver und
+  `goog:chromeOptions.binary` auf das Playwright-Chromium.
+- **`setsid`** für Webserver und ChromeDriver: ohne das sterben beide beim Ende
+  des Shell-Aufrufs, und Behat meldet „http://localhost:8001 is not available".
+
+Ergebnis: **28 Szenarien / 261 Steps, alle grün**, in 1m27s.
+
+### CI: was tatsächlich kaputt war
+
+**(a) Behat-Fehlerscreenshots wurden nie eingesammelt.** Beide Workflows luden
+`moodle/behatfaildumps/` hoch — ein Pfad, den es nicht gibt. Im Log stand jedes
+Mal nur `No files were found with the provided path`. `moodle-plugin-ci` schreibt
+seine Fail-Dumps nach `$CFG->behat_faildump_path`, das es in
+`MoodleConfig::BEHATDUMP` auf `<data dir>/behat_dump` setzt, also
+`$GITHUB_WORKSPACE/moodledata/behat_dump`. Verifiziert durch Lesen der
+installierten `moodle-plugin-ci`-Quellen, nicht geraten.
+
+**(b) Der experimentelle Job scheiterte an PostgreSQL, nicht am Plugin.** Moodle
+`main` (5.3) verlangt PostgreSQL 17; die Services stellten `postgres:16` bereit.
+`moodle-plugin-ci` gibt nach jedem Install-Fehler seinen Usage-Text aus, was wie
+ein ungültiges Argument aussieht — die eigentliche Meldung steht darüber:
+`[System] version 17 is required and you are running 16.15`.
+
+**Lehre:** Bei `moodle-plugin-ci install` ist die Usage-Ausgabe *nie* die
+Fehlerursache. Immer die Zeilen darüber lesen.
+
+**(c) Jest lief nirgends.** `package.json` hat `npm test` (36 Tests), aber kein
+Workflow rief es auf. Ebenso `tsc --noEmit` und die Reproduzierbarkeit des
+eingecheckten React-Bundles. Alle drei wurden bisher nur von Hand vor einem
+Release geprüft.
+
+### Was jetzt drin ist
+
+| Bereich | Änderung |
+|---|---|
+| Diagnose | `ci-logs/` je Job; jeder Prüfschritt `set -o pipefail; … \| tee` |
+| Vollständigkeit | `if: always()` auf jedem Prüfschritt — ein früher Fehler verdeckt die übrigen nicht mehr |
+| Artefakte | Lint/PHPUnit/Behat **nur bei Fehlschlag**; Playwright und k6 **immer** |
+| Behat-Dumps | korrigierter Pfad, plus `--dump` (Fehler-HTML direkt im Joblog) |
+| Frontend | Node 22, `npm ci`, `tsc`, **Jest**, Bundle-Reproduzierbarkeitsgate |
+| Experimentell | PostgreSQL 17 für die `main`-Jobs; die blockierenden bleiben auf 16 |
+| Laufzeit | `concurrency` mit `cancel-in-progress`, Composer-Cache |
+| Gate | `stale-files`-Job + `db/removed_files.txt`; Gate prüft jetzt alle blockierenden Jobs einzeln und benennt sie |
+| Playwright | `.github/workflows/playwright.yml` (neu) |
+| k6 | `.github/workflows/load-k6.yml` (neu), `workflow_dispatch` auf jedem Branch |
+
+Die Assets für Playwright (`tests/playwright/`, inkl. axe) und k6
+(`tests/load/elang-read-endpoints.k6.js`) lagen seit Session 006 bereit — es
+fehlten nur die Workflows. Aus dem Plugintemplate übernommen und angepasst: die
+vier Geschwister-Plugins und `SIBLING_REF` entfallen (mod_elang ist
+eigenständig), das Layout-Gate prüft eine statt vier Plugin-Wurzeln, `seed.php`
+exportiert `ELANG_*`, und beim k6-Plan werden `TOKEN` / `VERSIONID` / `P95`
+durchgereicht — mit `::add-mask::` auf dem Token. Der `capacity-race`-Teil des
+Templates entfällt, mod_elang hat keine Kapazitätsgrenze.
+
+k6 schreibt zusätzlich `k6-run-context.txt` mit Ref, SHA, VUs, Dauer und
+Runner-Ausstattung: eine Lastzahl ohne ihre Bedingungen ist nicht vergleichbar.
+
+**JMeter** wurde bewusst *nicht* als Workflow aufgenommen. Es misst dasselbe wie
+k6, braucht XML-Testpläne und eine JVM im Runner. `elang-read-endpoints.jmx`
+bleibt liegen, wird aber nicht weitergepflegt.
+
+### Verifikation
+
+```
+Behat (echter Browser):  28 Szenarien / 261 Steps  — alle grün
+Jest:                    36/36
+tsc --noEmit:            sauber
+Bundle:                  byte-identisch reproduzierbar (d80b6f53…)
+Workflows:               alle vier YAML-validiert
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

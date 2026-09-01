@@ -1,0 +1,17 @@
+# Files removed in earlier releases of mod_elang.
+#
+# Unpacking a plugin ZIP over an existing installation adds and overwrites
+# files, but it never deletes any. A file removed upstream therefore survives
+# in an installed copy, and in any repository that was updated the same way.
+# It then still autoloads, duplicates a class, or reads database columns that
+# no longer exist — and the resulting error points anywhere but at the real
+# cause.
+#
+# Every path removed from the plugin belongs in this list. The "Stale files"
+# CI job fails the build while any of them is still present, and
+# tools/cleanup_stale.sh removes them from an existing installation.
+#
+# One repository-root-relative path per line. Blank lines and lines starting
+# with # are ignored.
+#
+# Nothing has been removed since 2.0.0 yet.

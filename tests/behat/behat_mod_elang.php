@@ -129,12 +129,19 @@ JS;
         }
 
         $manager = new \mod_elang\local\domain\version_manager();
-        $draft = $manager->create_draft((int) $elang->id);
 
-        // The create_draft() call copies the current version's content into the new
-        // draft so an author can build on it. For a test that states the whole new
-        // transcript, that inherited content would linger alongside the cue set
-        // below; remove it so the published version contains exactly this cue.
+        // get_or_create_draft(), not create_draft(): the latter always branches
+        // a fresh version from the published one and ignores any draft that is
+        // already open. A scenario that first gives the activity a medium and
+        // then states a transcript would leave that medium behind on an orphan
+        // draft — which get_or_create_draft() then hands back to edit.php,
+        // empty and without a medium. Building on the open draft keeps both.
+        $draft = $manager->get_or_create_draft((int) $elang->id);
+
+        // A draft branched from the published version carries that version's
+        // content so an author can build on it. For a test that states the whole
+        // new transcript, that inherited content would linger alongside the cue
+        // set below; remove it so the published version contains exactly this cue.
         $inheritedcueids = $DB->get_fieldset_select('elang_cue', 'id', 'versionid = ?', [$draft->id]);
         if (!empty($inheritedcueids)) {
             [$insql, $inparams] = $DB->get_in_or_equal($inheritedcueids);

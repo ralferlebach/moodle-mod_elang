@@ -2028,6 +2028,73 @@ Behat:        43 Szenarien / 440 Steps, alle grün
 
 ---
 
+## Inkrement 27 — Berichtsleistung, Rechte- und Roadmap-Dokumentation (2.0.0-beta.16, 2026090124)
+
+Drei P1-Punkte. Einer endete mit „nichts zu tun" — belegt statt behauptet.
+
+### Berichtsabfragen: gemessen, kein Handlungsbedarf
+
+Der Verdacht war die Sortierung über `u.lastname` ohne eigenen Index. 20 000
+Versuche in **eine** Aktivität eingefügt und gemessen:
+
+| Fall | Zeit |
+|---|---|
+| Standardliste (Seite 1) | 10,9 ms |
+| Seite 300 | 15,4 ms |
+| Sortierung nach Name | 43,3 ms |
+| Sortierung nach Punktzahl | 11,4 ms |
+| Zähler | 1,7 ms |
+| Kennzahlen | 4,1 ms |
+| Filter nach Status | 10,0 ms |
+
+`EXPLAIN (ANALYZE)` zeigt einen Index-Scan auf `elangid`, danach einen Top-N-Sort
+über rund 15 000 Zeilen in 5 ms. 20 000 Versuche in einer einzigen Aktivität
+sind bereits unrealistisch viel.
+
+**Kein Index hinzugefügt.** Ein Index ist keine kostenlose Vorsichtsmaßnahme: er
+verlangsamt jedes Schreiben und muss migriert werden. Ohne belegten Nutzen wäre
+das Aufwand gegen ein Gefühl.
+
+### Roadmap raus aus dem Code
+
+Drei Kommentare beschrieben **umgesetzten** Code als „das 2.1-Feature" —
+`gap_rule_generator`, `special_characters` — und ein Schematest begründete sich
+mit einer Meilensteinnummer statt mit der Eigenschaft, die er belegt.
+
+Solche Vermerke altern schlecht: sie werden zur Unwahrheit, sobald sich der Plan
+ändert oder die Funktion früher kommt. Sie stehen jetzt in
+`docs/dev/roadmap.md`, wo sie gepflegt werden können, und die Kommentare sagen,
+was der Code tut.
+
+`docs/dev/roadmap.md` hält außerdem fest, was **bewusst** nicht gemacht wurde
+und warum — etwa der postMessage-Adapter für Anbieter-Embeds, der cross-origin
+in keiner hier verfügbaren Umgebung verifizierbar ist.
+
+### Rechte-Dokumentation
+
+`docs/dev/capabilities.md` leitet die Matrix aus `db/access.php` ab und benennt
+die drei Stellen, an denen eine Capability **nicht** die ganze Antwort ist:
+
+- `attempt` hält jede lernende Person im Kurs — ohne Eigentumsprüfung könnte
+  jede den Versuch jeder anderen lesen und beschreiben
+- `useregex` liegt höher als das übrige Autorenrecht, weil ein unglücklicher
+  regulärer Ausdruck gegen Lernendeneingaben ausgewertet wird
+- beide Transkript-Exporte hängen zusätzlich an Aktivitätseinstellungen
+
+Dokumentiert ist auch der Befund aus Inkrement 23 als Warnung: zwei Callbacks
+sind eine Auswahl, keine Redundanz.
+
+### Verifikation
+
+```
+Messung:      20 000 Versuche, EXPLAIN geprüft
+PHPUnit:      429 Tests, 1376 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

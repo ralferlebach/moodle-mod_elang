@@ -21,9 +21,12 @@ namespace mod_elang\local\player;
  *
  * Learners typing an answer often need accented or non-ASCII letters that are
  * awkward to reach on their keyboard. This provider returns a curated set for
- * the exercise language (the 2.1 "special-character bar" foundation), which an
- * activity can later override with its own list. It is pure data — the player UI
- * renders the bar from it.
+ * the exercise language, which an activity can override with its own list. It
+ * is pure data; the player UI renders the bar from it.
+ *
+ * The bar itself is not built yet — see the "special characters" entry in
+ * docs/dev/roadmap.md. This class is the part the server owes it either way,
+ * and get_attempt_exercise already ships the set to the client.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

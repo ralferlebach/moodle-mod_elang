@@ -11,6 +11,31 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.16] - 2026-09-02
+
+### Added
+- `docs/dev/capabilities.md`: who may do what, where each check happens, and the
+  three places where a capability alone is not the whole answer — `attempt` is
+  held by every learner so ownership is checked too, `useregex` sits higher than
+  the rest of the authoring right because a bad expression is evaluated against
+  learner input, and the two transcript exports are gated by activity settings
+  on top of their capabilities.
+- `docs/dev/roadmap.md`: the deferred work, out of the code. Two features are
+  server-side complete but have no UI, three things are deliberately not done,
+  and three are gaps to close before a stable release.
+
+### Changed
+- Roadmap labels removed from three source comments. `gap_rule_generator` and
+  `special_characters` described implemented code as "the 2.1 feature", and a
+  schema test justified itself by a milestone number rather than by the property
+  it actually proves.
+
+### Notes
+- Report query performance was measured rather than assumed: at 20,000 attempts
+  in one activity the default listing takes 11 ms, sorting by name 43 ms, the
+  count 1.7 ms and the aggregate 4.1 ms, and the plan uses the index on
+  `elangid`. No index was added — there is no measured need for one.
+
 ## [2.0.0-beta.15] - 2026-09-02
 
 ### Fixed

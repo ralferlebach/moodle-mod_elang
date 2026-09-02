@@ -79,8 +79,11 @@ final class exercise_schema_test extends \advanced_testcase {
 
     /**
      * cuekey and gapkey stay stable when a second version is created for the
-     * same activity — this is the prerequisite for 2.1-2 (retroactive
-     * acceptance of answer variants with re-grading against later versions).
+     * same activity.
+     *
+     * That stability is what lets an answer given against one version still be
+     * identified in the next, which any later re-grading depends on. It is a
+     * property of the schema, not a promise about a feature.
      *
      * @return void
      */

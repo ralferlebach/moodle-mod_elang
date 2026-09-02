@@ -159,28 +159,6 @@ if ($action === 'delete') {
     exit;
 }
 
-$statelabel = function (string $state): string {
-    $labels = [
-        'inprogress' => get_string('report:state_inprogress', 'mod_elang'),
-        'finished' => get_string('report:state_finished', 'mod_elang'),
-        'abandoned' => get_string('report:state_abandoned', 'mod_elang'),
-    ];
-    return $labels[$state] ?? $state;
-};
-
-$resultlabel = function (string $state): string {
-    if ($state === '') {
-        return get_string('report:result_none', 'mod_elang');
-    }
-    $labels = [
-        'exact' => get_string('report:result_exact', 'mod_elang'),
-        'wordrecognized' => get_string('report:result_wordrecognized', 'mod_elang'),
-        'incorrect' => get_string('report:result_incorrect', 'mod_elang'),
-        'empty' => get_string('report:result_empty', 'mod_elang'),
-    ];
-    return $labels[$state] ?? $state;
-};
-
 $report = new \mod_elang\local\report\attempt_report();
 
 // Built before any output: submitting the filters redirects to their
@@ -233,39 +211,14 @@ if ($attemptid) {
     $report->require_attempt_access($attemptid, (int) $elang->id, $cm, $context);
     $detail = $report->detail($attemptid);
 
-    $attempt = $detail['attempt'];
-    $user = $DB->get_record('user', ['id' => $attempt['userid']]);
-    echo html_writer::tag('p', ($user ? fullname($user) : (string) $attempt['userid'])
-        . ' — ' . $statelabel($attempt['state'])
-        . ' — ' . get_string('report:score', 'mod_elang') . ': ' . format_float($attempt['score'], 2));
+    $owner = $DB->get_record('user', ['id' => $detail['attempt']['userid']]);
 
-    $table = new html_table();
-    $table->head = [
-        get_string('report:transcript', 'mod_elang'),
-        get_string('report:solution', 'mod_elang'),
-        get_string('report:response', 'mod_elang'),
-        get_string('report:result', 'mod_elang'),
-        get_string('report:tries', 'mod_elang'),
-        get_string('report:hints', 'mod_elang'),
-        get_string('report:score', 'mod_elang'),
-    ];
-    foreach ($detail['gaps'] as $gap) {
-        $table->data[] = [
-            s(shorten_text($gap['transcript'], 60)),
-            s($gap['solution']),
-            s($gap['responsetext']),
-            $resultlabel($gap['resultstate']),
-            $gap['tries'],
-            $gap['hintlevel'],
-            format_float($gap['score'], 2),
-        ];
-    }
-    echo html_writer::table($table);
-
-    echo html_writer::div(html_writer::link(
-        new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
-        get_string('report:back', 'mod_elang')
-    ));
+    echo $OUTPUT->render_from_template('mod_elang/attempt_detail', (new \mod_elang\output\attempt_detail(
+        $detail['attempt'],
+        $detail['gaps'],
+        $owner ? fullname($owner) : (string) $detail['attempt']['userid'],
+        (int) $cm->id
+    ))->export_for_template($OUTPUT));
 } else {
     if ($groupmode != NOGROUPS) {
         echo groups_print_activity_menu($cm, $PAGE->url, true);

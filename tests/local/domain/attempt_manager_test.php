@@ -665,4 +665,129 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->assertSame(0, (int) $DB->count_records('elang_attempt', ['id' => $attempt->id]));
         $this->assertSame(0, (int) $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
     }
+
+    /**
+     * A second finish arriving while the first is still running is a no-op.
+     *
+     * The two calls are serialised by the write lock, so the second one sees a
+     * finished attempt and returns it as it stands. What it must not do is move
+     * timefinish: a retried request or a double click would otherwise rewrite
+     * when the learner handed their work in.
+     *
+     * @return void
+     */
+    public function test_a_repeated_finish_does_not_move_the_finish_time(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $first = $this->manager->finish_attempt($attempt->id);
+        $second = $this->manager->finish_attempt($attempt->id);
+
+        $this->assertSame(attempt_manager::STATE_FINISHED, $second->state);
+        $this->assertSame((int) $first->timefinish, (int) $second->timefinish);
+    }
+
+    /**
+     * A response arriving after the attempt was finished is refused.
+     *
+     * The realistic race: a learner presses "finish" while an answer is still
+     * in flight. The write lock serialises them, and whichever lands second has
+     * to respect what the first decided — an answer accepted into a finished
+     * attempt would change a score that has already been reported.
+     *
+     * @return void
+     */
+    public function test_a_response_that_loses_the_race_to_finish_is_refused(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->finish_attempt($attempt->id);
+
+        try {
+            $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+            $this->fail('A finished attempt must not accept a response.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        // Nothing was written: no response row, and the aggregates still
+        // describe an attempt that answered nothing.
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+        $stored = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertSame(0, (int) $stored->answeredgaps);
+        $this->assertSame(0.0, (float) $stored->score);
+    }
+
+    /**
+     * A hint requested after the attempt was finished is refused, and costs
+     * nothing.
+     *
+     * @return void
+     */
+    public function test_a_hint_that_loses_the_race_to_finish_is_refused(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $this->manager->finish_attempt($attempt->id);
+
+        $before = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+
+        try {
+            $this->manager->request_hint($attempt->id, $this->gap->id);
+            $this->fail('A finished attempt must not reveal a hint.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        // The refused hint left no penalty behind: a score that dropped after
+        // the attempt was handed in would be indefensible.
+        $after = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertSame((float) $before->score, (float) $after->score);
+        $this->assertSame((int) $before->hintedgaps, (int) $after->hintedgaps);
+        $this->assertSame(0, (int) $after->hintedgaps);
+    }
+
+    /**
+     * Two starts for the same learner and activity yield one attempt.
+     *
+     * Two browser tabs, or a reloaded page, both call start_attempt. Under the
+     * start lock the second call must resume the first attempt rather than open
+     * a second one — two in-progress attempts for one learner is a state the
+     * resume logic has no way to choose between.
+     *
+     * @return void
+     */
+    public function test_repeated_starts_yield_a_single_attempt(): void {
+        global $DB;
+
+        $first = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $second = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $third = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->assertSame((int) $first->id, (int) $second->id);
+        $this->assertSame((int) $first->id, (int) $third->id);
+        $this->assertSame(1, $DB->count_records('elang_attempt', [
+            'elangid' => $this->elang->id,
+            'userid' => $this->student->id,
+        ]));
+    }
+
+    /**
+     * Deleting an attempt takes its responses with it.
+     *
+     * @return void
+     */
+    public function test_deleting_an_attempt_removes_its_responses(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $this->assertSame(1, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+
+        $deleted = $this->manager->delete_attempt($attempt->id);
+
+        $this->assertSame((int) $attempt->id, (int) $deleted->id);
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+        $this->assertFalse($DB->record_exists('elang_attempt', ['id' => $attempt->id]));
+    }
 }

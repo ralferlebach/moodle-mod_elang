@@ -464,3 +464,11 @@
         max-height: 18rem;
     }
 }
+
+/* A cue that still has something wrong or unanswered carries a left edge, so a
+ * teacher scanning a long attempt can find the sentences that need attention
+ * without reading every row. The icons in the table carry the same information
+ * per gap; this is a shortcut, not the only signal. */
+.mod_elang-attemptcue-open {
+    border-left: 4px solid #997404;
+}

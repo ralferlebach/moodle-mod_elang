@@ -31,7 +31,12 @@
 #
 #   bash mod/elang/tools/check_amd_builds.sh
 #
-# Exits non-zero and names every file that would change.
+# Exits non-zero and names every file that would change. With
+#
+#   bash mod/elang/tools/check_amd_builds.sh --sync=/path/to/working/tree
+#
+# the rebuilt artefacts are copied into that tree instead, so the copy that
+# gets packaged cannot fall behind the copy that was checked.
 #
 
 set -u
@@ -39,6 +44,20 @@ set -u
 plugindir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 moodleroot="$(cd "$plugindir/../.." && pwd)"
 grunt="$moodleroot/node_modules/.bin/grunt"
+
+# Where the rebuilt artefacts should also land. Moodle's Grunt only runs on a
+# plugin inside a Moodle tree, so the checked copy is usually not the working
+# tree the release is packaged from — and copying the results back by hand is a
+# step that can be forgotten. It has been: a patch once shipped a build that did
+# not match the source it shipped alongside, and CI reported the file as stale
+# while every local check said it was fine.
+syncdir=""
+for arg in "$@"; do
+    case "$arg" in
+        --sync=*) syncdir="${arg#--sync=}" ;;
+        *) echo "Unbekannte Option: $arg"; exit 2 ;;
+    esac
+done
 
 if [[ ! -x "$grunt" ]]; then
     echo "Grunt nicht gefunden unter $grunt."
@@ -78,10 +97,21 @@ for kept in "$before"/*; do
     fi
 done
 
+if [[ -n "$syncdir" ]]; then
+    if [[ ! -d "$syncdir/amd/build" ]]; then
+        echo "Kein amd/build/ unter $syncdir."
+        exit 2
+    fi
+    cp -a "$plugindir/amd/build/." "$syncdir/amd/build/"
+    echo "Artefakte nach $syncdir/amd/build/ uebernommen."
+    exit 0
+fi
+
 if [[ $rc -ne 0 ]]; then
     echo
     echo "Die neu gebauten Artefakte in amd/build/ in den Arbeitsbaum zurueckkopieren"
-    echo "und mit ausliefern - inklusive der .map-Dateien."
+    echo "und mit ausliefern - inklusive der .map-Dateien. Mit --sync=<Arbeitsbaum>"
+    echo "erledigt dieses Skript das selbst."
     exit 1
 fi
 

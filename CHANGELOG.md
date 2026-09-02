@@ -11,6 +11,41 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.9] - 2026-09-01
+
+### Changed
+- The attempt detail is a piece of work rather than a row dump. The counts a
+  teacher checks first — answered, of those accepted, exactly right, needed a
+  hint — lead, and the gaps are grouped under the cue they belong to, because
+  "which sentences did this person struggle with" is a question the flat table
+  could not answer without mentally regrouping every row. A cue that still has
+  something wrong or unanswered carries a left edge, so a long attempt can be
+  scanned rather than read.
+- The graded result is a check, a cross or a warning triangle carrying its
+  wording as an accessible name, matching the player.
+- `mod_elang\output\attempt_detail` and `templates/attempt_detail.mustache`;
+  the two label closures in `report.php` moved into the renderables that use
+  them.
+
+### Fixed
+- `amd/build/player.min.js` and its map in the repository did not match
+  `amd/src/player.js`. Rebuilding from the repository's own source produces
+  exactly the artefacts shipped here, so the source was right all along and the
+  build simply never arrived — the rebuilt files were copied into the throwaway
+  Moodle tree the check runs in, and the release was packaged from the working
+  tree, which still held the old ones.
+- `tools/check_amd_builds.sh` takes `--sync=<working tree>` and copies the
+  rebuilt artefacts there itself, so the copy that gets packaged cannot fall
+  behind the copy that was checked.
+
+### Added
+- Concurrency tests for the attempt state, which the review listed as an open
+  gate: a repeated finish must not move `timefinish`, a response or a hint that
+  loses the race to finish is refused and leaves neither a row nor a changed
+  score behind, repeated starts yield one attempt rather than two in-progress
+  ones the resume logic could not choose between, and deleting an attempt takes
+  its responses with it.
+
 ### Fixed
 - The "finish anyway" question used `window.confirm()`, which ESLint's `no-alert`
   rejects — and rightly: a native confirm is unthemed, cannot carry a translated

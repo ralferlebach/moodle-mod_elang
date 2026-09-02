@@ -1447,6 +1447,115 @@ Behat:        42 Szenarien / 426 Steps, alle grün
 
 ---
 
+## Inkrement 18 — Verlorenes Build-Artefakt und Attempt-Nebenläufigkeit (2026090115)
+
+### Warum die CI trotz grüner lokaler Prüfung „stale" meldete
+
+Diagnose vor Reparatur: Repo geklont, Quelle und Artefakt verglichen.
+
+```
+amd/src/player.js        Repo == Arbeitsbaum   (c244dbcc)
+amd/build/player.min.js  Repo 4e91f074, Arbeitsbaum c4e369d9
+```
+
+Ein Neubau **aus der Repo-Kopie** ergab `c4e369d9` — also genau das, was mein
+Arbeitsbaum hatte. Die Quelle war richtig, das Artefakt in der Auslieferung
+schlicht nie angekommen.
+
+Ursache ist ein Konstruktionsfehler meines eigenen Ablaufs:
+`check_amd_builds.sh` baut und prüft in `moodle/mod/elang` — einer
+Wegwerf-Kopie. Das Patch-ZIP wird aus `work/elang` gepackt. Zwischen beiden
+liegt ein manueller `cp`, und genau der ist einmal ausgefallen. Das Skript
+konnte es nicht bemerken: es sah nur die Kopie, in der es selbst gebaut hatte.
+
+Behoben nicht durch mehr Sorgfalt, sondern durch Wegfall des Schritts: das
+Skript nimmt jetzt `--sync=<Arbeitsbaum>` und kopiert die frisch gebauten
+Artefakte selbst dorthin.
+
+**Lehre:** Eine Prüfung, die ein anderes Verzeichnis betrachtet als das, aus dem
+ausgeliefert wird, prüft die falsche Sache. Zwei Kopien und ein Handgriff
+dazwischen sind eine Fehlerquelle, keine Vorsichtsmaßnahme.
+
+### Attempt-Nebenläufigkeit
+
+Aus Abschnitt 4.5 des Reviews. Die Optimistic-Guards (`expectedtries`,
+`expectedlevel`) waren einzeln getestet, das Zusammenspiel mit den Schreiblocks
+nicht. Fünf neue Tests entlang realer Rennen:
+
+- **Zweimal abschließen** darf `timefinish` nicht verschieben. Ein Doppelklick
+  oder eine wiederholte Anfrage würde sonst umschreiben, wann jemand abgegeben
+  hat.
+- **Antwort verliert das Rennen gegen „abschließen"** → abgelehnt, und es bleibt
+  weder eine Response-Zeile noch ein veränderter Punktestand zurück. Eine
+  nachträglich angenommene Antwort würde eine bereits gemeldete Note ändern.
+- **Hinweis verliert das Rennen** → abgelehnt, ohne Abzug. Ein Punktestand, der
+  nach der Abgabe fällt, wäre nicht vertretbar.
+- **Wiederholtes Starten** (zwei Tabs, Reload) ergibt **einen** Versuch. Zwei
+  laufende Versuche einer Person sind ein Zustand, zwischen dem die
+  Resume-Logik nicht wählen könnte.
+- **Löschen** nimmt die Antworten mit.
+
+### Verifikation
+
+```
+PHPUnit:      423 Tests, 1230 Assertions, 1 skipped   (vorher 418/1213)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
+## Inkrement 19 — Issue #8: die Versuchdetailansicht (2.0.0-beta.9, 2026090116)
+
+Die letzte Ebene aus Issue #8 und damit der letzte Teil, der noch auf
+`html_table` lief.
+
+**Vorher:** eine Zeile Kopftext („Name — Status — Ergebnis") und eine flache
+Tabelle mit sieben Spalten, in der die Transkriptspalte auf 60 Zeichen gekürzt
+für jede Lücke desselben Satzes wiederholt wurde.
+
+**Jetzt:** Kopfbereich mit Status-Badge, Punktzahl und Zeitstempeln, darunter
+vier Kennzahlen (beantwortet, akzeptiert, genau richtig, mit Hinweis), darunter
+die Lücken **gruppiert unter ihrem Cue**.
+
+Die Gruppierung ist der eigentliche Punkt. „Bei welchen Sätzen hat diese Person
+gehangen?" ist die Frage, mit der eine Lehrkraft in eine Detailansicht geht —
+und die flache Tabelle konnte sie nur beantworten, indem man jede Zeile las und
+im Kopf neu gruppierte. Ein Cue mit noch offenen oder falschen Lücken trägt eine
+farbige Kante, damit ein langer Versuch überflogen statt gelesen werden kann;
+die Symbole je Lücke tragen dieselbe Information, die Kante ist eine Abkürzung
+und kein alleiniges Signal.
+
+Gruppiert wird über den Transkripttext aufeinanderfolgender Zeilen, nicht über
+eine Cue-ID: `detail()` liefert bereits in Cue-Reihenfolge, und so bleibt die
+Klasse ohne zweite Abfrage. Zwei benachbarte Cues mit identischem Text läsen
+sich ohnehin gleich.
+
+Die beiden Label-Closures in `report.php` sind entfallen — sie sind jetzt dort,
+wo sie gebraucht werden.
+
+### Ein Testbefund
+
+Mein Behat-Szenario erwartete „Back to the overview". Der String heißt seit
+jeher „Back to all attempts". Ich hatte die Formulierung aus dem Kopf
+geschrieben statt nachgesehen — die Art Fehler, die ein Test in Sekunden findet
+und ein Review nicht.
+
+### Verifikation
+
+```
+PHPUnit:      423 Tests, 1230 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Mustache:     6 Templates, 0 Fehler
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

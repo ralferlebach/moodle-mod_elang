@@ -11,6 +11,28 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.13] - 2026-09-02
+
+### Added
+- `tests/external/security_contract_test.php`: what every external function must
+  do, checked for all of them at once. It walks `db/services.php` rather than a
+  hand-written list, so a function added later without its guards fails here
+  instead of in a review. It asserts that every declared function names a real
+  external_api class with the three required methods and declares a capability,
+  that no attempt-scoped function accepts another learner's attempt, that no
+  authoring function accepts a learner, and that answering or hinting rejects a
+  gap from a different exercise.
+- `docs/dev/ci-gates.md`: which jobs block a release and which do not, and what a
+  green run therefore does and does not prove. Playwright, k6 and the Moodle
+  `main` jobs are all outside the blocking set, so their results have to be
+  produced deliberately before a stable release.
+
+### Notes
+- The audit of the fifteen external functions found no further finding: every
+  one already routes through a helper that checks context, capability and the
+  object it was handed. That is now enforced by a test rather than asserted in a
+  document.
+
 ## [2.0.0-beta.12] - 2026-09-02
 
 ### Security

@@ -1810,6 +1810,70 @@ Behat:        43 Szenarien / 440 Steps, alle grün
 
 ---
 
+## Inkrement 24 — External-API-Audit und CI-Gate-Dokumentation (2.0.0-beta.13, 2026090121)
+
+Zwei P0-Punkte aus dem Review.
+
+### Das Audit der fünfzehn External Functions
+
+Ergebnis: **kein Befund.** Alle fünfzehn laufen über `attempt_helper` oder
+`authoring_helper`, und diese prüfen Kontext, Capability **und** das übergebene
+Objekt:
+
+- `require_owned_attempt()` — der Versuch gehört wirklich der aufrufenden
+  Person; `mod/elang:attempt` allein genügt nicht, weil es jede lernende Person
+  im Kurs hält
+- `require_gap_in_attempt_version()` — die Lücke gehört zur Version, die der
+  Versuch angeheftet hat
+- `require_manage_version()` — die Version gehört zu der Aktivität, für die
+  `mod/elang:manage` geprüft wurde
+
+Nach dem Fund in Inkrement 23 wollte ich das nicht als Behauptung stehen lassen.
+`tests/external/security_contract_test.php` liest **`db/services.php`** statt
+einer handgeschriebenen Liste und prüft für jede darin deklarierte Funktion die
+Vollständigkeit — Klasse, drei Pflichtmethoden, Capability-Angabe, Typ. Dazu
+drei Verhaltenstests entlang der realen Angriffe: fremder Versuch, Autoren-
+funktion als Lernende, Lücke aus einer anderen Übung.
+
+**Der Punkt daran:** Der Fehler aus Inkrement 23 war nicht, dass eine Prüfung
+fehlte, sondern dass niemand nachsah, ob sie **aufgerufen** wird. Ein Test, der
+über `db/services.php` iteriert, fängt die nächste Funktion, die ohne
+Absicherung hinzukommt — ein Review fängt sie nur, wenn jemand hinsieht.
+
+### Welche Gates blockieren
+
+`docs/dev/ci-gates.md` beantwortet die Frage aus dem Review und benennt ebenso
+deutlich, was **nicht** blockiert:
+
+| blockierend | nicht blockierend |
+|---|---|
+| `lint-php` (2), `lint-js` (1), `phpunit` (5), `behat` (2), `stale-files` (1) | Moodle-`main`-Jobs, `phpmd`, Playwright, k6, JMeter |
+
+Ein grüner Lauf belegt Lint, Unit-, Integrations- und Browsertests über die
+gesamte unterstützte Matrix. Er belegt **nicht**, dass die
+Barrierefreiheitsprüfungen liefen, dass das Verhalten unter Last unverändert ist
+oder dass Moodle `main` unterstützt wird. Diese drei sind vor einer
+Stable-Freigabe einzeln anzustoßen.
+
+Dabei fiel eine Lücke auf, die ich benannt statt geschlossen habe: die
+Upgrade-Tests springen von **V1** auf den aktuellen Stand. Ein Upgrade von einer
+**früheren 2.0-Beta** ist nicht abgedeckt. Während der Beta-Reihe vertretbar,
+vor Stable nicht.
+
+Zwei Angaben habe ich beim Schreiben gegengeprüft und korrigiert: die
+`lint-php`-Matrix läuft über PHP 8.1 und 8.4 (nicht eine Version), und der
+Backup-Test heißt `tests/backup/restore_test.php`.
+
+### Verifikation
+
+```
+PHPUnit:      429 Tests, 1376 Assertions, 1 skipped   (vorher 425/1235)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

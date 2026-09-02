@@ -21,6 +21,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   still exits 0, which is how two findings reached CI. The value has to be
   attached with "=" — `--max-lint-warnings 0` makes Grunt read the 0 as a task
   name.
+- The remaining nine transactions in `version_manager` and `attempt_manager` now
+  roll back too. Each one writes several rows that describe one thing between
+  them, and half of any of them is a state the plugin has no name for: a
+  published version with the previous one archived and nothing in its place, a
+  media description that disagrees with the files on disk, a draft branched
+  without the content it was branched from, a response stored without the
+  aggregates that describe it, a revealed hint whose penalty never reached the
+  score.
 
 ## [2.0.0-beta.8] - 2026-09-01
 

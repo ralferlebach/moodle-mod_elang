@@ -1397,6 +1397,56 @@ Behat:              42 Szenarien / 426 Steps, alle grün
 
 ---
 
+## Inkrement 17 — Die übrigen neun Transaktionen (2026090114)
+
+Inkrement 15 hatte den bewiesenen Pfad abgesichert und neun weitere Stellen mit
+demselben Fehler stehen lassen. Jetzt sind alle zehn auf `transaction_trait`
+umgestellt; `grep start_delegated_transaction` findet im Plugin nichts mehr.
+
+Jede dieser Transaktionen schreibt mehrere Zeilen, die zusammen **eine** Sache
+beschreiben — und die Hälfte davon ist jeweils ein Zustand, für den das Plugin
+keinen Namen hat:
+
+| Stelle | Was ein halber Durchlauf hinterließe |
+|---|---|
+| `publish()` | vorige Version archiviert, nichts an ihrer Stelle veröffentlicht — Lernende ohne Übung |
+| `set_draft_media()` | Spalten behaupten eine Medienart, die Dateiablage hält eine andere |
+| `create_draft_locked()` | Draft angelegt, ohne den Inhalt, von dem er abzweigen sollte |
+| `start_attempt()` | Versuch neu gepinnt, aber `totalgaps` noch vom alten Stand |
+| `submit_response()` | Antwort gespeichert, Aggregate nicht — Bericht widerspricht dem Versuch |
+| `request_hint()` | Hinweisstufe vermerkt, Abzug nie in der Bewertung angekommen |
+| `finish_attempt()` | Status gesetzt, Zeitstempel nicht |
+| `delete_attempt()` | Antworten weg, Versuch bleibt (oder umgekehrt) |
+
+### Zwei Fehler beim Umstellen, beide von den Tests gefangen
+
+Beim Einwickeln von `submit_response()` fehlten der Closure zuerst
+`$responsetext`, dann `$currenttries` in der `use`-Liste. PHP meldet das als
+`Undefined variable` erst zur Laufzeit — dreizehn rote Tests, zweimal.
+
+**Lehre:** Code in eine Closure zu verschieben ist keine rein mechanische
+Umformung. Jede Variable von außerhalb muss ausdrücklich mitgegeben werden, und
+`php -l` sieht davon nichts. Ohne die vorhandene Testabdeckung wäre das als
+Laufzeitfehler bei einer lernenden Person aufgeschlagen.
+
+Bei `finish_attempt()` fiel dabei zusätzlich auf, dass der Frühausstieg für
+einen bereits abgeschlossenen Versuch vorher ein eigenes `allow_commit()`
+brauchte — jetzt ist es schlicht ein `return`, und der Helfer schließt die
+Transaktion.
+
+### Verifikation
+
+```
+grep start_delegated_transaction: 0 Treffer im Plugin
+PHPUnit:      418 Tests, 1213 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: sauber
+Behat:        42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

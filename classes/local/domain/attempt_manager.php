@@ -43,6 +43,8 @@ use mod_elang\local\grading\grading_result;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class attempt_manager {
+    use transaction_trait;
+
     /** @var string An attempt currently being worked on. */
     public const STATE_INPROGRESS = 'inprogress';
 
@@ -84,83 +86,82 @@ class attempt_manager {
         global $DB;
 
         return $this->with_lock("attempt_start_{$elangid}_{$userid}", function () use ($DB, $elangid, $userid, $versionid) {
-            $transaction = $DB->start_delegated_transaction();
-
-            $existing = $DB->get_record('elang_attempt', [
-                'elangid' => $elangid,
-                'userid' => $userid,
-                'state' => self::STATE_INPROGRESS,
-            ]);
-            if ($existing) {
-                // An attempt is pinned to the version it started on, so content
-                // edits never change a running attempt underneath the learner.
-                // But an UNTOUCHED attempt (no response and no hint yet — both
-                // write elang_response rows) has nothing to protect: if the
-                // exercise was republished meanwhile (for example to fix a
-                // broken medium), silently follow the current version instead of
-                // resuming stale content forever.
-                $touched = $DB->record_exists('elang_response', ['attemptid' => $existing->id]);
-                if (!$touched && (int) $existing->versionid !== $versionid) {
-                    $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-                    $repinnable = (int) $version->elangid === $elangid
-                        && $version->status === version_manager::STATUS_PUBLISHED;
-                    if ($repinnable) {
-                        $existing->versionid = $versionid;
-                        $existing->totalgaps = (int) $DB->count_records_sql(
-                            'SELECT COUNT(g.id)
-                               FROM {elang_gap} g
-                               JOIN {elang_cue} c ON c.id = g.cueid
-                              WHERE c.versionid = ?',
-                            [$versionid]
-                        );
-                        $existing->timemodified = time();
-                        $DB->update_record('elang_attempt', $existing);
+            // Re-pinning an untouched attempt and creating a new one both
+            // touch several columns that describe one attempt between them.
+            return $this->in_transaction(function () use ($DB, $elangid, $userid, $versionid) {
+                $existing = $DB->get_record('elang_attempt', [
+                    'elangid' => $elangid,
+                    'userid' => $userid,
+                    'state' => self::STATE_INPROGRESS,
+                ]);
+                if ($existing) {
+                    // An attempt is pinned to the version it started on, so content
+                    // edits never change a running attempt underneath the learner.
+                    // But an UNTOUCHED attempt (no response and no hint yet — both
+                    // write elang_response rows) has nothing to protect: if the
+                    // exercise was republished meanwhile (for example to fix a
+                    // broken medium), silently follow the current version instead of
+                    // resuming stale content forever.
+                    $touched = $DB->record_exists('elang_response', ['attemptid' => $existing->id]);
+                    if (!$touched && (int) $existing->versionid !== $versionid) {
+                        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                        $repinnable = (int) $version->elangid === $elangid
+                            && $version->status === version_manager::STATUS_PUBLISHED;
+                        if ($repinnable) {
+                            $existing->versionid = $versionid;
+                            $existing->totalgaps = (int) $DB->count_records_sql(
+                                'SELECT COUNT(g.id)
+                                   FROM {elang_gap} g
+                                   JOIN {elang_cue} c ON c.id = g.cueid
+                                  WHERE c.versionid = ?',
+                                [$versionid]
+                            );
+                            $existing->timemodified = time();
+                            $DB->update_record('elang_attempt', $existing);
+                        }
                     }
+                    return $existing;
                 }
-                $transaction->allow_commit();
-                return $existing;
-            }
 
-            $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-            if ((int) $version->elangid !== $elangid) {
-                throw new \coding_exception('Version does not belong to this activity');
-            }
-            if ($version->status !== version_manager::STATUS_PUBLISHED) {
-                throw new \coding_exception('Cannot start an attempt against a version that is not published');
-            }
+                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                if ((int) $version->elangid !== $elangid) {
+                    throw new \coding_exception('Version does not belong to this activity');
+                }
+                if ($version->status !== version_manager::STATUS_PUBLISHED) {
+                    throw new \coding_exception('Cannot start an attempt against a version that is not published');
+                }
 
-            $nextnumber = (int) $DB->get_field_sql(
-                'SELECT COALESCE(MAX(attemptnumber), 0) + 1 FROM {elang_attempt} WHERE elangid = ? AND userid = ?',
-                [$elangid, $userid]
-            );
+                $nextnumber = (int) $DB->get_field_sql(
+                    'SELECT COALESCE(MAX(attemptnumber), 0) + 1 FROM {elang_attempt} WHERE elangid = ? AND userid = ?',
+                    [$elangid, $userid]
+                );
 
-            $totalgaps = (int) $DB->count_records_sql(
-                'SELECT COUNT(g.id)
-                   FROM {elang_gap} g
-                   JOIN {elang_cue} c ON c.id = g.cueid
-                  WHERE c.versionid = ?',
-                [$versionid]
-            );
+                $totalgaps = (int) $DB->count_records_sql(
+                    'SELECT COUNT(g.id)
+                       FROM {elang_gap} g
+                       JOIN {elang_cue} c ON c.id = g.cueid
+                      WHERE c.versionid = ?',
+                    [$versionid]
+                );
 
-            $attempt = new \stdClass();
-            $attempt->elangid = $elangid;
-            $attempt->versionid = $versionid;
-            $attempt->userid = $userid;
-            $attempt->attemptnumber = $nextnumber;
-            $attempt->state = self::STATE_INPROGRESS;
-            $attempt->totalgaps = $totalgaps;
-            $attempt->answeredgaps = 0;
-            $attempt->exactgaps = 0;
-            $attempt->correctgaps = 0;
-            $attempt->hintedgaps = 0;
-            $attempt->score = 0;
-            $attempt->timestart = time();
-            $attempt->timemodified = time();
-            $attempt->id = $DB->insert_record('elang_attempt', $attempt);
+                $attempt = new \stdClass();
+                $attempt->elangid = $elangid;
+                $attempt->versionid = $versionid;
+                $attempt->userid = $userid;
+                $attempt->attemptnumber = $nextnumber;
+                $attempt->state = self::STATE_INPROGRESS;
+                $attempt->totalgaps = $totalgaps;
+                $attempt->answeredgaps = 0;
+                $attempt->exactgaps = 0;
+                $attempt->correctgaps = 0;
+                $attempt->hintedgaps = 0;
+                $attempt->score = 0;
+                $attempt->timestart = time();
+                $attempt->timemodified = time();
+                $attempt->id = $DB->insert_record('elang_attempt', $attempt);
 
-            $transaction->allow_commit();
-
-            return $attempt;
+                return $attempt;
+            });
         });
     }
 
@@ -230,51 +231,55 @@ class attempt_manager {
                     throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
                 }
 
-                $transaction = $DB->start_delegated_transaction();
+                // The response row and the attempt's aggregate counters are one
+                // record of what the learner did. A response stored without the
+                // counters that describe it makes the report disagree with the
+                // attempt it reports on.
+                return $this->in_transaction(
+                    function () use ($DB, $attemptid, $gapid, $responsetext, $attempt, $existing, $currenttries) {
+                        $version = $DB->get_record('elang_version', ['id' => $attempt->versionid], '*', MUST_EXIST);
+                        $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
+                        $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
+                        if ((int) $cue->versionid !== (int) $attempt->versionid) {
+                            throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+                        }
 
-                $version = $DB->get_record('elang_version', ['id' => $attempt->versionid], '*', MUST_EXIST);
-                $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
-                $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
-                if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                    throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
-                }
+                        $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
 
-                $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
+                        $result = $this->evaluator->evaluate(
+                            $gap->solution,
+                            $gap->gradingalgorithm,
+                            $gapanswers,
+                            $version->language,
+                            $responsetext,
+                            (float) $version->jarothreshold
+                        );
 
-                $result = $this->evaluator->evaluate(
-                    $gap->solution,
-                    $gap->gradingalgorithm,
-                    $gapanswers,
-                    $version->language,
-                    $responsetext,
-                    (float) $version->jarothreshold
+                        $hintlevel = $existing ? (int) $existing->hintlevel : 0;
+
+                        $response = $existing ?: new \stdClass();
+                        $response->attemptid = $attemptid;
+                        $response->gapid = $gapid;
+                        $response->responsetext = $responsetext;
+                        $response->resultstate = $result->resultstate;
+                        $response->accepted = $result->accepted ? 1 : 0;
+                        $response->tries = $currenttries + 1;
+                        $response->hintlevel = $hintlevel;
+                        $response->timemodified = time();
+
+                        if ($existing) {
+                            $DB->update_record('elang_response', $response);
+                        } else {
+                            $response->score = 0;
+                            $response->timecreated = time();
+                            $response->id = $DB->insert_record('elang_response', $response);
+                        }
+
+                        $this->recalculate_attempt_aggregates($attemptid);
+
+                        return $result;
+                    }
                 );
-
-                $hintlevel = $existing ? (int) $existing->hintlevel : 0;
-
-                $response = $existing ?: new \stdClass();
-                $response->attemptid = $attemptid;
-                $response->gapid = $gapid;
-                $response->responsetext = $responsetext;
-                $response->resultstate = $result->resultstate;
-                $response->accepted = $result->accepted ? 1 : 0;
-                $response->tries = $currenttries + 1;
-                $response->hintlevel = $hintlevel;
-                $response->timemodified = time();
-
-                if ($existing) {
-                    $DB->update_record('elang_response', $response);
-                } else {
-                    $response->score = 0;
-                    $response->timecreated = time();
-                    $response->id = $DB->insert_record('elang_response', $response);
-                }
-
-                $this->recalculate_attempt_aggregates($attemptid);
-
-                $transaction->allow_commit();
-
-                return $result;
             }
         );
     }
@@ -350,33 +355,34 @@ class attempt_manager {
                     throw new \moodle_exception('error:nomorehints', 'mod_elang');
                 }
 
-                $transaction = $DB->start_delegated_transaction();
+                // The revealed level and the penalty it carries into the score
+                // are one fact. A level recorded without the aggregates that
+                // reflect it would give the learner the hint for free.
+                $this->in_transaction(function () use ($DB, $attemptid, $gapid, $nextlevel, $existing) {
+                    $response = $existing ?: new \stdClass();
+                    $response->attemptid = $attemptid;
+                    $response->gapid = $gapid;
+                    $response->hintlevel = $nextlevel;
+                    $response->timemodified = time();
 
-                $response = $existing ?: new \stdClass();
-                $response->attemptid = $attemptid;
-                $response->gapid = $gapid;
-                $response->hintlevel = $nextlevel;
-                $response->timemodified = time();
+                    if ($existing) {
+                        $DB->update_record('elang_response', $response);
+                    } else {
+                        // No answer submitted yet: the response row exists solely to
+                        // hold the hint level. responsetext has no schema-level default
+                        // (see version_manager's equivalent note for elang.language),
+                        // so it must be supplied explicitly.
+                        $response->responsetext = '';
+                        $response->resultstate = grading_result::RESULTSTATE_EMPTY;
+                        $response->accepted = 0;
+                        $response->tries = 0;
+                        $response->score = 0;
+                        $response->timecreated = time();
+                        $response->id = $DB->insert_record('elang_response', $response);
+                    }
 
-                if ($existing) {
-                    $DB->update_record('elang_response', $response);
-                } else {
-                    // No answer submitted yet: the response row exists solely to
-                    // hold the hint level. responsetext has no schema-level default
-                    // (see version_manager's equivalent note for elang.language),
-                    // so it must be supplied explicitly.
-                    $response->responsetext = '';
-                    $response->resultstate = grading_result::RESULTSTATE_EMPTY;
-                    $response->accepted = 0;
-                    $response->tries = 0;
-                    $response->score = 0;
-                    $response->timecreated = time();
-                    $response->id = $DB->insert_record('elang_response', $response);
-                }
-
-                $this->recalculate_attempt_aggregates($attemptid);
-
-                $transaction->allow_commit();
+                    $this->recalculate_attempt_aggregates($attemptid);
+                });
 
                 return $hint;
             }
@@ -400,26 +406,26 @@ class attempt_manager {
         global $DB;
 
         return $this->with_lock("attempt_write_{$attemptid}", function () use ($DB, $attemptid) {
-            $transaction = $DB->start_delegated_transaction();
+            return $this->in_transaction(function () use ($DB, $attemptid) {
+                $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
-            $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
+                // Finishing twice is the ordinary result of a double click or a
+                // retried request, not an error: the second call returns the
+                // attempt as it already stands.
+                if ($attempt->state === self::STATE_FINISHED) {
+                    return $attempt;
+                }
+                if ($attempt->state !== self::STATE_INPROGRESS) {
+                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                }
 
-            if ($attempt->state === self::STATE_FINISHED) {
-                $transaction->allow_commit();
+                $attempt->state = self::STATE_FINISHED;
+                $attempt->timefinish = time();
+                $attempt->timemodified = time();
+                $DB->update_record('elang_attempt', $attempt);
+
                 return $attempt;
-            }
-            if ($attempt->state !== self::STATE_INPROGRESS) {
-                throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
-            }
-
-            $attempt->state = self::STATE_FINISHED;
-            $attempt->timefinish = time();
-            $attempt->timemodified = time();
-            $DB->update_record('elang_attempt', $attempt);
-
-            $transaction->allow_commit();
-
-            return $attempt;
+            });
         });
     }
 
@@ -465,10 +471,10 @@ class attempt_manager {
         return $this->with_lock('attempt:' . $attemptid, function () use ($DB, $attemptid): \stdClass {
             $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
-            $transaction = $DB->start_delegated_transaction();
-            $DB->delete_records('elang_response', ['attemptid' => $attemptid]);
-            $DB->delete_records('elang_attempt', ['id' => $attemptid]);
-            $transaction->allow_commit();
+            $this->in_transaction(function () use ($DB, $attemptid) {
+                $DB->delete_records('elang_response', ['attemptid' => $attemptid]);
+                $DB->delete_records('elang_attempt', ['id' => $attemptid]);
+            });
 
             return $attempt;
         });

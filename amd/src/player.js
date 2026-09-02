@@ -35,6 +35,7 @@
 import Ajax from 'core/ajax';
 import {getString, getStrings} from 'core/str';
 import Log from 'core/log';
+import Notification from 'core/notification';
 import {
     activeCueIndex,
     autoScrollSuppressed,
@@ -1056,20 +1057,34 @@ const renderControls = (player) => {
         button.classList.toggle('btn-outline-primary', open !== 0);
     };
 
+    const finish = () => finishAttempt(player).catch((error) => {
+        Log.error(error);
+        const status = player.querySelector(SELECTORS.STATUS);
+        if (status) {
+            status.textContent = error.message || strings['player:submitfailed'];
+        }
+    });
+
     button.addEventListener('click', () => {
         const {open} = countGaps();
+
         // Confirmed only when something is still empty. Asking every time
         // trains people to click through the question.
-        if (open > 0 && !window.confirm(strings['player:finishincomplete'].replace('{$a}', String(open)))) {
+        if (open === 0) {
+            finish();
             return;
         }
-        finishAttempt(player).catch((error) => {
-            Log.error(error);
-            const status = player.querySelector(SELECTORS.STATUS);
-            if (status) {
-                status.textContent = error.message || strings['player:submitfailed'];
-            }
-        });
+
+        // Moodle's own dialogue rather than window.confirm(): a native confirm
+        // is unthemed, unstyled, cannot carry a translated button label, and
+        // returns focus nowhere in particular. Cancelling rejects the promise,
+        // which is the ordinary answer here and not an error.
+        Notification.saveCancelPromise(
+            strings['player:finish'],
+            strings['player:finishincomplete'].replace('{$a}', String(open)),
+            strings['player:finish'],
+            {triggerElement: button}
+        ).then(finish).catch(() => null);
     });
 
     // The count follows what is typed, not only what has been submitted: a

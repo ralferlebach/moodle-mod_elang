@@ -11,6 +11,17 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed
+- The "finish anyway" question used `window.confirm()`, which ESLint's `no-alert`
+  rejects — and rightly: a native confirm is unthemed, cannot carry a translated
+  button label and returns focus nowhere in particular. It is now Moodle's own
+  `Notification.saveCancelPromise()`.
+- `tools/check_amd_builds.sh` runs Grunt with `--max-lint-warnings=0`, the way
+  moodle-plugin-ci does. Without it a plain `grunt` run reports lint warnings and
+  still exits 0, which is how two findings reached CI. The value has to be
+  attached with "=" — `--max-lint-warnings 0` makes Grunt read the 0 as a task
+  name.
+
 ## [2.0.0-beta.8] - 2026-09-01
 
 ### Fixed

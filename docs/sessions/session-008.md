@@ -1345,6 +1345,58 @@ Behat:        42 Szenarien / 426 Steps, alle grün
 
 ---
 
+## Inkrement 16 — `no-alert`, und warum es zweimal durchkam (2026090113)
+
+```
+player.js 1063:26  warning  Unexpected confirm  no-alert
+```
+
+Das `window.confirm()` stammt aus Inkrement 13 („Versuch abschließen"). ESLint
+hat recht, und zwar nicht nur formal: ein natives Confirm ist ungestylt, trägt
+keine übersetzte Schaltflächenbeschriftung und gibt den Fokus nirgendwohin
+zurück. Ersetzt durch Moodles `Notification.saveCancelPromise()` mit
+`triggerElement`, damit der Fokus zur Schaltfläche zurückkehrt.
+
+### Der eigentliche Fehler war mein Prüfskript
+
+In Inkrement 12 hatte ich notiert, dass die CI `--max-lint-warnings 0` übergibt
+und mein lokaler Lauf nicht — und es dann **nicht umgesetzt**. Beim Versuch
+scheiterte ich damals an
+
+```
+Warning: Task "0" not found.
+```
+
+und ließ es liegen, statt die Ursache zu suchen. Moodles `.grunt/tasks/eslint.js`
+liest `grunt.option('max-lint-warnings')`; Grunt erwartet den Wert **mit
+Gleichheitszeichen**:
+
+```
+grunt --max-lint-warnings=0
+```
+
+Mit Leerzeichen hält Grunt die `0` für einen Tasknamen. `check_amd_builds.sh`
+verwendet jetzt die richtige Schreibweise, scheitert also lokal an genau dem,
+woran die CI scheitert. Gegengeprüft: der aktuelle Baum läuft damit sauber
+durch.
+
+**Lehre:** Eine Prüfung, die eine Fehlerklasse nicht sieht, ist keine Prüfung.
+Ich hatte die Lücke erkannt, benannt und dann eine Fehlermeldung als
+Sackgasse hingenommen — sie war eine Syntaxfrage.
+
+### Verifikation
+
+```
+check_amd_builds.sh (mit --max-lint-warnings=0): sauber, Artefakte aktuell
+                    player.min.js  c3d4b025 → neu gebaut
+PHPUnit:            418 Tests, 1213 Assertions, 1 skipped
+Jest:               69/69
+PHPCS:              0 Errors / 0 Warnings
+Behat:              42 Szenarien / 426 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

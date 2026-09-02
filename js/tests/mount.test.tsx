@@ -213,4 +213,48 @@ describe('editor mount()', () => {
         expect(field).not.toBeNull();
         expect(field.value).toMatch(/^\d{2}:\d{2}\.\d{3}$/);
     });
+
+    test('a gap keeps its rarely-needed settings behind an advanced section', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // The seeded draft has no gap yet, so one is imported. The import opens
+        // the cue it created, which is what puts a gap in the inspector.
+        await act(async() => {
+            (host.querySelector('[data-action="openimport"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importtabtext"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-region="parsegaps"]') as HTMLInputElement).click();
+        });
+        await act(async() => {
+            const importtext = host.querySelector('[data-region="importtext"]') as HTMLTextAreaElement;
+            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            setter?.call(importtext, 'WEBVTT stub');
+            importtext.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importpreview"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importapply"]') as HTMLButtonElement).click();
+        });
+
+        const advanced = host.querySelector('[data-region="gapadvanced"]') as HTMLDetailsElement;
+        expect(advanced).not.toBeNull();
+
+        // Closed to begin with: maximum length, the reference link and regular
+        // expressions are decisions most gaps never need.
+        expect(advanced.open).toBe(false);
+
+        // They are reachable, and they are the fields that previously had no
+        // control at all — the only way to set them was an import.
+        expect(advanced.querySelector('[data-region="maxlength"]')).not.toBeNull();
+        expect(advanced.querySelector('[data-region="linkurl"]')).not.toBeNull();
+    });
 });

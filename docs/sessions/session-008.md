@@ -1468,6 +1468,11 @@ Wegwerf-Kopie. Das Patch-ZIP wird aus `work/elang` gepackt. Zwischen beiden
 liegt ein manueller `cp`, und genau der ist einmal ausgefallen. Das Skript
 konnte es nicht bemerken: es sah nur die Kopie, in der es selbst gebaut hatte.
 
+> **Nachtrag aus Inkrement 20: diese Diagnose war falsch.** Der Unterschied kam
+> nicht von einem vergessenen `cp`, sondern von der Browserslist-Datenbank.
+> Siehe unten. Die `--sync`-Option bleibt trotzdem sinnvoll, sie beseitigt nur
+> nicht das Problem, das sie zu beseitigen schien.
+
 Behoben nicht durch mehr Sorgfalt, sondern durch Wegfall des Schritts: das
 Skript nimmt jetzt `--sync=<Arbeitsbaum>` und kopiert die frisch gebauten
 Artefakte selbst dorthin.
@@ -1553,6 +1558,128 @@ Mustache:     6 Templates, 0 Fehler
 check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
 Behat:        43 Szenarien / 440 Steps, alle grün
 ```
+
+---
+
+## Inkrement 20 — Die wahre Ursache der „stale"-Meldungen (2026090117)
+
+Ralfs Hinweis, die caniuse-Datenbank zu aktualisieren, hat einen Fehler
+aufgedeckt, den ich zweimal falsch diagnostiziert hatte.
+
+### Der Befund
+
+```
+caniuse-lite installiert: 1.0.30001312   (aus Moodles package-lock, von 2022)
+caniuse-lite aktuell:     1.0.30001810
+```
+
+Nach `npx update-browserslist-db@latest` — ohne **eine** Änderung an der Quelle:
+
+```
+player.min.js  vorher  c4e369d9
+player.min.js  nachher 4e91f074
+```
+
+Und `4e91f074` ist **exakt das, was im Repository liegt**.
+
+### Was das bedeutet
+
+Rollups Ausgabe hängt von der installierten `caniuse-lite`-Version ab. Moodles
+`package-lock.json` pinnt eine mehrere Jahre alte; Ralfs CI-Workflow ruft nach
+`npm ci` ausdrücklich `npx browserslist@latest --update-db` auf. Damit bauen CI
+und ich aus **identischer Quelle verschiedene Artefakte** — und die CI meldet
+mein Artefakt völlig zu Recht als „stale".
+
+Bemerkenswert: das Update meldet „No target browser changes". Die Zielbrowser
+sind also gleich, das Minifikat trotzdem nicht. Auf die Meldung zu vertrauen
+hätte in die Irre geführt.
+
+### Zwei falsche Diagnosen davor
+
+- **Inkrement 12/16** hielt ich es für fehlende Warnungsprüfung. Die war
+  tatsächlich ein Problem, aber ein anderes.
+- **Inkrement 18** schrieb ich es einem vergessenen `cp` zwischen Arbeitsbaum
+  und Prüfkopie zu und baute `--sync` dagegen. Die Erklärung war plausibel und
+  falsch: ein Neubau aus der Repo-Kopie ergab „mein" Artefakt, was ich als
+  Beweis für die Quelle nahm — dabei belegte es nur, dass **derselbe Rechner mit
+  derselben veralteten DB** dasselbe herausbekommt. Der Vergleich, der die Sache
+  entschieden hätte, wäre einer gegen die **CI-Umgebung** gewesen, nicht gegen
+  meine eigene.
+
+**Lehre:** Reproduzierbarkeit eines Builds gilt immer nur relativ zu seiner
+Werkzeugkette. „Ich baue dasselbe wie vorhin" ist kein Beleg dafür, dass jemand
+anders dasselbe baut. Wenn ein Artefakt anderswo abweicht, gehört die
+Werkzeugversion zu den ersten Verdächtigen — nicht zu den letzten.
+
+### Behoben
+
+`check_amd_builds.sh` aktualisiert die Browserslist-DB, **bevor** es baut, und
+bricht ab, wenn das nicht geht. Damit entspricht meine Werkzeugkette der der CI,
+und die Artefakte können nicht mehr auseinanderlaufen.
+
+Die Artefakte im Arbeitsbaum sind auf den korrekten Stand gezogen
+(`player.min.js` `4e91f074`) — identisch mit dem, was Ralf inzwischen selbst
+ins Repository gebaut hat.
+
+**patch-2.0.110 lieferte an dieser Stelle das falsche Artefakt aus** und würde
+den Grunt-Schritt erneut brechen; dieser Patch ersetzt es.
+
+### Verifikation
+
+```
+check_amd_builds.sh (mit DB-Update): alle Artefakte entsprechen ihren Quellen
+player.min.js: 4e91f074 == Repository == CI-Neubau
+```
+
+---
+
+## Inkrement 21 — Der Gap-Inspector (2.0.0-beta.10, 2026090118)
+
+Der letzte offene Teil aus Issue #7. Der Cue-Inspector nutzte `GapRow`
+unverändert: Lösung, Abgleich, Varianten und Hinweise untereinander, jede
+Variante eine volle Zeile mit eigenem „Entfernen"-Link.
+
+**Jetzt** teilen sich Lösung, Abgleich und akzeptierte Varianten eine Zeile.
+Die Varianten lesen sich als kurze Liste von Schreibweisen — eine Lücke hat
+üblicherweise ein oder zwei, und jede belegte vorher eine eigene Zeile.
+
+### Ein Nebenbefund, der den Ausschlag gab
+
+Beim Zuschneiden der „Erweiterten Einstellungen" fiel auf, dass drei Felder im
+Datenmodell **und** im Webservice existieren, für die es **überhaupt kein
+Bedienelement gab**:
+
+- `maxlength` — begrenzt, wie viel Lernende eingeben können
+- `linkurl` — Nachschlage-Link neben der Lücke
+- `isregex` je Variante
+
+Sie ließen sich bisher nur über einen Import oder direkt in der Datenbank
+setzen. Damit war klar, was in den Aufklappbereich gehört: nicht etwas
+Vorhandenes zum Verstecken, sondern etwas Fehlendes an einer Stelle, die es
+nicht aufdrängt.
+
+### Ein Testbefund
+
+Mein erster Test suchte den Aufklappbereich direkt nach dem Mount — der
+Fixture-Cue hat aber gar keine Lücke. Der Test importiert jetzt erst eine über
+das Import-Modal und prüft dann, dass der Bereich existiert, **geschlossen**
+ist, und die beiden bislang unerreichbaren Felder enthält.
+
+### Verifikation
+
+```
+tsc --noEmit: sauber
+Jest:         70/70                     (vorher 69/69)
+esbuild:      de8a4b07 → 3fafe8ee
+check_amd_builds.sh (mit DB-Update): editor.min.js neu gebaut, danach stabil
+stylelint:    0 Fehler
+PHPUnit:      423 Tests, 1230 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+Damit ist Issue #7 vollständig und alle acht UI-Issues sind abgeschlossen.
 
 ---
 

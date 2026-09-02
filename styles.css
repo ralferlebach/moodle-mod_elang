@@ -472,3 +472,32 @@
 .mod_elang-attemptcue-open {
     border-left: 4px solid #997404;
 }
+
+/* Accepted variants read as a short list of spellings rather than as a column
+ * of full-width fields: a gap usually has one or two, and each used to take a
+ * row of its own with a remove link beside it. */
+.mod_elang-editor-variants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.mod_elang-editor-variant {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.25rem;
+}
+
+.mod_elang-editor-variant input {
+    max-width: 9rem;
+}
+
+/* Closed by default: maximum length, the reference link and regular-expression
+ * matching are decisions most gaps never need, and putting them beside the
+ * solution suggested otherwise. */
+.mod_elang-editor-advanced > summary {
+    cursor: pointer;
+    color: #2b6cb0;
+}

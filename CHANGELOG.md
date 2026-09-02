@@ -11,6 +11,32 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.10] - 2026-09-01
+
+### Added
+- Maximum length, the reference link and per-variant regular-expression matching
+  are editable at last. All three are in the schema and in the web service, but
+  no control existed for them: the only way to set them was an import or a
+  database edit.
+- They sit in a collapsed "Advanced settings" section of the gap editor, because
+  most gaps never need a decision about them and placing them beside the solution
+  suggested otherwise.
+
+### Changed
+- Solution, matching algorithm and accepted variants share one row, and the
+  variants read as a short list of spellings rather than a column of full-width
+  fields each with its own remove link.
+
+### Fixed
+- The recurring "File is stale and needs to be rebuilt" reports came from the
+  browserslist database, not from a lost file. Rollup's output depends on the
+  installed `caniuse-lite` version; Moodle's package-lock pins one from 2022
+  while CI refreshes it before building, so identical sources produced different
+  artefacts. `tools/check_amd_builds.sh` now updates the database before it
+  builds, and the committed artefacts match what CI produces. Note that the
+  update reports "No target browser changes" and the output still differs, so
+  that message cannot be relied on.
+
 ## [2.0.0-beta.9] - 2026-09-01
 
 ### Changed

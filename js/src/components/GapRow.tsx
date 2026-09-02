@@ -68,67 +68,86 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                 {t('editor:gaprange')}: {gap.charstart}–{gap.charstart + gap.charlength}
             </div>
 
-            <label className="d-block">
-                {t('editor:solution')}
-                <input
-                    type="text"
-                    className="form-control"
-                    value={gap.solution}
-                    onChange={(event) => onChange({...gap, solution: event.target.value})}
-                />
-            </label>
-
-            <label className="d-block">
-                {t('editor:algorithm')}
-                <select
-                    className="form-control"
-                    value={gap.gradingalgorithm}
-                    onChange={(event) => onChange({...gap, gradingalgorithm: event.target.value})}
-                >
-                    <option value="exact">{t('editor:algoexact')}</option>
-                    <option value="wordrecognized">{t('editor:algowordrecognized')}</option>
-                </select>
-            </label>
-
-            <p className="mb-1 mt-2">{t('editor:answers')}</p>
-            <div>
-                {gap.answers.map((answer, index) => (
-                    <div className="mb-1" key={index}>
+            <div className="row">
+                <div className="col-12 col-md-4">
+                    <label className="d-block">
+                        {t('editor:solution')}
                         <input
                             type="text"
-                            className="form-control d-inline-block w-75 mr-2"
-                            value={answer.answer}
-                            aria-label={t('editor:answers')}
-                            onChange={(event) => replaceAnswer(index, {...answer, answer: event.target.value})}
+                            className="form-control"
+                            value={gap.solution}
+                            onChange={(event) => onChange({...gap, solution: event.target.value})}
                         />
-                        <button
-                            type="button"
-                            className="btn btn-link text-danger p-0"
-                            onClick={() => onChange({...gap, answers: gap.answers.filter((_, i) => i !== index)})}
+                    </label>
+                </div>
+
+                <div className="col-12 col-md-4">
+                    <label className="d-block">
+                        {t('editor:algorithm')}
+                        <select
+                            className="form-control"
+                            value={gap.gradingalgorithm}
+                            onChange={(event) => onChange({...gap, gradingalgorithm: event.target.value})}
                         >
-                            {t('editor:removevariant')}
-                        </button>
+                            <option value="exact">{t('editor:algoexact')}</option>
+                            <option value="wordrecognized">{t('editor:algowordrecognized')}</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div className="col-12 col-md-4">
+                    <span className="d-block">{t('editor:answers')}</span>
+                    {/* Variants read as a list of accepted spellings rather than
+                        as a column of full-width text fields: there are usually
+                        one or two, and each used to take a row of its own with a
+                        "remove" link beside it. */}
+                    <div className="mod_elang-editor-variants" data-region="variants">
+                        {gap.answers.map((answer, index) => (
+                            <span className="mod_elang-editor-variant" key={index}>
+                                <input
+                                    type="text"
+                                    className="form-control form-control-sm d-inline-block w-auto"
+                                    value={answer.answer}
+                                    aria-label={t('editor:answers')}
+                                    onChange={(event) => replaceAnswer(index, {...answer, answer: event.target.value})}
+                                />
+                                <button
+                                    type="button"
+                                    className="btn btn-link btn-sm text-danger p-0 ml-1"
+                                    aria-label={t('editor:removevariant')}
+                                    title={t('editor:removevariant')}
+                                    data-action="removevariant"
+                                    onClick={() => onChange({
+                                        ...gap,
+                                        answers: gap.answers.filter((_, i) => i !== index),
+                                    })}
+                                >
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </span>
+                        ))}
                     </div>
-                ))}
+                    <button
+                        type="button"
+                        className="btn btn-link btn-sm p-0"
+                        data-action="addvariant"
+                        onClick={() => onChange({
+                            ...gap,
+                            answers: [...gap.answers, {sortorder: gap.answers.length + 1, answer: '', isregex: 0}],
+                        })}
+                    >
+                        {t('editor:addvariant')}
+                    </button>
+                </div>
             </div>
-            <button
-                type="button"
-                className="btn btn-link p-0"
-                onClick={() => onChange({
-                    ...gap,
-                    answers: [...gap.answers, {sortorder: gap.answers.length + 1, answer: '', isregex: 0}],
-                })}
-            >
-                {t('editor:addvariant')}
-            </button>
 
             <p className="mb-1 mt-2">{t('editor:hints')}</p>
             <div>
                 {gap.hints.map((hint, index) => (
                     <div className="mod_elang-editor-hint border rounded p-2 mt-1" key={index}>
-                        <span className="badge badge-secondary mr-2">{index + 1}</span>
+                        <span className="badge badge-secondary bg-secondary mr-2 me-2">{index + 1}</span>
                         <select
-                            className="form-control d-inline-block w-auto mr-2"
+                            className="form-control d-inline-block w-auto mr-2 me-2"
                             aria-label={t('editor:hinttype')}
                             value={hint.hinttype}
                             onChange={(event) => replaceHint(index, {...hint, hinttype: event.target.value})}
@@ -139,7 +158,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                         </select>
                         <input
                             type="text"
-                            className="form-control d-inline-block w-50 mr-2"
+                            className="form-control d-inline-block w-50 mr-2 me-2"
                             value={hint.hinttext}
                             placeholder={t('editor:hinttext')}
                             aria-label={t('editor:hinttext')}
@@ -147,7 +166,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                         />
                         <input
                             type="number"
-                            className="form-control d-inline-block mr-2"
+                            className="form-control d-inline-block mr-2 me-2"
                             style={{width: '6rem'}}
                             step={0.1}
                             min={0}
@@ -157,7 +176,8 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                         />
                         <button
                             type="button"
-                            className="btn btn-link text-danger p-0"
+                            className="btn btn-link btn-sm text-danger p-0"
+                            data-action="removehint"
                             onClick={() => onChange({...gap, hints: resequenced(gap.hints.filter((_, i) => i !== index))})}
                         >
                             {t('editor:removehint')}
@@ -167,7 +187,8 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
             </div>
             <button
                 type="button"
-                className="btn btn-link p-0"
+                className="btn btn-link btn-sm p-0"
+                data-action="addhint"
                 onClick={() => onChange({
                     ...gap,
                     hints: [...gap.hints, {level: gap.hints.length + 1, hinttype: 'text', hinttext: '', penalty: 0}],
@@ -175,6 +196,69 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
             >
                 {t('editor:addhint')}
             </button>
+
+            {/* Collapsed by default. These three exist in the schema and in the
+                web service but had no control at all, so the only way to set
+                them was an import or a database edit — and putting them beside
+                the solution would have suggested every gap needs a decision
+                about them. */}
+            <details className="mod_elang-editor-advanced mt-2" data-region="gapadvanced">
+                <summary>{t('editor:advanced')}</summary>
+
+                <div className="row mt-2">
+                    <div className="col-12 col-md-4">
+                        <label className="d-block">
+                            {t('editor:maxlength')}
+                            <input
+                                type="number"
+                                className="form-control"
+                                min={0}
+                                value={gap.maxlength}
+                                data-region="maxlength"
+                                onChange={(event) => onChange({
+                                    ...gap,
+                                    maxlength: Math.max(0, parseInt(event.target.value, 10) || 0),
+                                })}
+                            />
+                        </label>
+                        <p className="text-muted small">{t('editor:maxlength_help')}</p>
+                    </div>
+
+                    <div className="col-12 col-md-8">
+                        <label className="d-block">
+                            {t('editor:linkurl')}
+                            <input
+                                type="url"
+                                className="form-control"
+                                value={gap.linkurl}
+                                data-region="linkurl"
+                                onChange={(event) => onChange({...gap, linkurl: event.target.value})}
+                            />
+                        </label>
+                        <p className="text-muted small">{t('editor:linkurl_help')}</p>
+                    </div>
+                </div>
+
+                {gap.answers.length > 0 && (
+                    <div data-region="variantregex">
+                        <p className="mb-1">{t('editor:variantmatching')}</p>
+                        {gap.answers.map((answer, index) => (
+                            <label className="d-block mb-1" key={index}>
+                                <input
+                                    type="checkbox"
+                                    className="mr-1 me-1"
+                                    checked={answer.isregex === 1}
+                                    onChange={(event) => replaceAnswer(index, {
+                                        ...answer,
+                                        isregex: event.target.checked ? 1 : 0,
+                                    })}
+                                />
+                                {t('editor:variantisregex').replace('{$a}', answer.answer || String(index + 1))}
+                            </label>
+                        ))}
+                    </div>
+                )}
+            </details>
 
             <button type="button" className="btn btn-link text-danger p-0 d-block" onClick={onDelete}>
                 {t('editor:deletegap')}

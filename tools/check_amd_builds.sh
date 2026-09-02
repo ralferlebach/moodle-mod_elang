@@ -69,6 +69,19 @@ before="$(mktemp -d)"
 trap 'rm -rf "$before"' EXIT
 cp -a "$plugindir/amd/build/." "$before/"
 
+# The browserslist database first. Rollup's output depends on the installed
+# caniuse-lite version, and Moodle's package-lock pins one that is years old
+# while CI refreshes it before building. Two builds of identical sources then
+# differ, CI reports the committed artefact as stale, and the difference is
+# invisible in the source — which is exactly how one such report was
+# misdiagnosed here as a lost file.
+echo "Browserslist-DB pruefen ..."
+(cd "$moodleroot" && npx --yes update-browserslist-db@latest) || {
+    echo "Die Browserslist-DB konnte nicht aktualisiert werden."
+    echo "Ohne sie kann dieser Build von dem der CI abweichen."
+    exit 2
+}
+
 # --max-lint-warnings=0 is what moodle-plugin-ci passes, and without it a plain
 # `grunt` run reports lint warnings and still exits 0. Two findings have reached
 # CI that way. The value must be attached with "=": `--max-lint-warnings 0`

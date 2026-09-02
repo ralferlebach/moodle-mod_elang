@@ -39,7 +39,9 @@ import Log from 'core/log';
 
 /** @type {string[]} Editor string keys, kept in sync with lang/en/elang.php. */
 const STRING_KEYS = [
-    'editor:addcue', 'editor:addgap', 'editor:addhint', 'editor:addvariant',
+    'editor:addcue', 'editor:addgap', 'editor:addhint', 'editor:addvariant', 'editor:advanced',
+    'editor:linkurl', 'editor:linkurl_help', 'editor:maxlength', 'editor:maxlength_help',
+    'editor:variantisregex', 'editor:variantmatching',
     'editor:algoexact', 'editor:algorithm', 'editor:algowordrecognized', 'editor:answers',
     'editor:autosaved', 'editor:autosaveerror',
     'editor:captureend', 'editor:capturestart', 'editor:cueactions', 'editor:cuecount',

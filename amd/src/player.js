@@ -970,6 +970,12 @@ const attachSync = (mediaEl, list, position, overlay) => {
             mediaEl.currentTime = parseFloat(item.dataset.starttime) / 1000;
         });
     });
+
+    // Once at the start, before anything has played. Without it an overlay
+    // caption stays empty until the first timeupdate — so a learner opening an
+    // exercise sees a picture and no sentence, and the transcript that would
+    // otherwise carry it is not on the page in this mode.
+    syncToTime();
 };
 
 /**
@@ -1229,7 +1235,11 @@ const bootstrap = async(cmid, player) => {
         // starts by putting the cursor where the work is. That also engages the
         // first cue, which is what makes playback stop at its end instead of
         // running the sentence off the screen.
-        const firstopen = Array.from(list.querySelectorAll('.mod_elang-gapwrap[data-gapid] input'))
+        // Searched across the player, not just the cue list: the active cue has
+        // by now been moved into the caption overlay, and the list it came from
+        // is not displayed in this mode. Focusing the copy still in the list
+        // would put the cursor somewhere invisible.
+        const firstopen = Array.from(player.querySelectorAll('.mod_elang-gapwrap[data-gapid] input'))
             .find((input) => input.value.trim() === '');
         if (firstopen) {
             firstopen.focus();

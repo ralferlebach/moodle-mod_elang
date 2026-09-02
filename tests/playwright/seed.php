@@ -111,6 +111,107 @@ if ($version === null) {
     cli_error('Publishing the seeded version failed.');
 }
 
+// One activity per subtitle position, plus an audio one. The player renders
+// these three cases quite differently — a bounded transcript below the medium,
+// or a caption moved over the picture with no transcript underneath — and none
+// of that is reachable from a single fixture.
+//
+// Every one of them needs its own medium and its own published version: the
+// player refuses to start an attempt without one, and a version is pinned per
+// activity.
+$variants = [
+    'below' => ['position' => 'below', 'mime' => 'video/mp4', 'url' => 'https://example.org/pw.mp4'],
+    'overlaybottom' => ['position' => 'overlaybottom', 'mime' => 'video/mp4', 'url' => 'https://example.org/pw.mp4'],
+    'overlaytop' => ['position' => 'overlaytop', 'mime' => 'video/mp4', 'url' => 'https://example.org/pw.mp4'],
+    // Stored as an overlay, but audio has no picture to draw one on, so the
+    // player must fall back to the display below the medium.
+    'audio' => ['position' => 'overlaytop', 'mime' => 'audio/mpeg', 'url' => 'https://example.org/pw.mp3'],
+];
+
+$variantcmids = [];
+foreach ($variants as $key => $variant) {
+    $info = create_module((object) [
+        'modulename' => 'elang',
+        'course' => $course->id,
+        'section' => 0,
+        'visible' => 1,
+        'name' => 'Player ' . $key . ' ' . $unique,
+        'introeditor' => ['text' => 'Playwright fixture', 'format' => FORMAT_HTML, 'itemid' => 0],
+        'language' => 'en',
+        'jarothreshold' => 90,
+        'grade' => 100,
+        'completion' => 0,
+        'cmidnumber' => '',
+        'groupmode' => 0,
+        'groupingid' => 0,
+        'visibleoncoursepage' => 1,
+        'subtitleposition' => $variant['position'],
+        'cuepausemode' => 'auto',
+    ]);
+
+    $variantdraft = $manager->get_or_create_draft((int) $info->instance, (int) $admin->id);
+    $manager->save_draft_content((int) $variantdraft->id, $cues);
+    $manager->set_draft_media((int) $variantdraft->id, [
+        'kind' => 'url',
+        'url' => $variant['url'],
+        'mime' => $variant['mime'],
+    ]);
+    $manager->publish((int) $variantdraft->id, (int) $admin->id);
+
+    $variantcmids[$key] = (int) $info->coursemodule;
+}
+
+// A long transcript, for the cue list. Forty cues is what the workspace was
+// built for: before it, every one of them rendered its whole form at once.
+$longinfo = create_module((object) [
+    'modulename' => 'elang',
+    'course' => $course->id,
+    'section' => 0,
+    'visible' => 1,
+    'name' => 'Long transcript ' . $unique,
+    'introeditor' => ['text' => 'Playwright fixture', 'format' => FORMAT_HTML, 'itemid' => 0],
+    'language' => 'en',
+    'jarothreshold' => 90,
+    'grade' => 100,
+    'completion' => 0,
+    'cmidnumber' => '',
+    'groupmode' => 0,
+    'groupingid' => 0,
+    'visibleoncoursepage' => 1,
+]);
+
+$longcues = [];
+for ($i = 1; $i <= 40; $i++) {
+    $longcues[] = [
+        'cuekey' => 'lc' . $i,
+        'sortorder' => $i,
+        'starttime' => ($i - 1) * 2000,
+        'endtime' => $i * 2000,
+        'transcript' => 'Sentence number ' . $i . ' of the long transcript',
+        'transcriptformat' => FORMAT_PLAIN,
+        'gaps' => [[
+            'gapkey' => 'lg' . $i,
+            'sortorder' => 1,
+            'charstart' => 0,
+            'charlength' => 8,
+            'solution' => 'Sentence',
+            'gradingalgorithm' => 'exact',
+            'maxlength' => 0,
+            'linkurl' => '',
+            'answers' => [],
+            'hints' => [],
+        ]],
+    ];
+}
+
+$longdraft = $manager->get_or_create_draft((int) $longinfo->instance, (int) $admin->id);
+$manager->save_draft_content((int) $longdraft->id, $longcues);
+$manager->set_draft_media((int) $longdraft->id, [
+    'kind' => 'url',
+    'url' => 'https://example.org/pw-long.mp4',
+    'mime' => 'video/mp4',
+]);
+
 // A dedicated editing teacher with a known password to drive the editor.
 $username = 'elang_pw_' . $unique;
 $password = 'Elang-pw-' . $unique . '!';
@@ -135,8 +236,45 @@ $context = \context_course::instance($course->id);
 role_assign($editingteacher->id, $user->id, $context->id);
 enrol_try_internal_enrol($course->id, $user->id, $editingteacher->id);
 
+// A learner as well. Only the student archetype holds mod/elang:attempt, so the
+// teacher above cannot start an attempt and the player refuses to load for
+// them — correctly. Anything about what a learner sees has to be driven by a
+// learner.
+$studentname = 'elang_pw_student_' . $unique;
+$studentpassword = 'Elang-st-' . $unique . '!';
+$student = $DB->get_record('user', ['username' => $studentname]);
+if (!$student) {
+    $newstudent = (object) [
+        'username' => $studentname,
+        'auth' => 'manual',
+        'confirmed' => 1,
+        'mnethostid' => $CFG->mnet_localhost_id,
+        'email' => $studentname . '@example.invalid',
+        'firstname' => 'Elang',
+        'lastname' => 'Learner',
+        'password' => $studentpassword,
+    ];
+    $student = $DB->get_record(
+        'user',
+        ['id' => user_create_user($newstudent, true, false)],
+        '*',
+        MUST_EXIST
+    );
+}
+
+$studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
+role_assign($studentrole->id, $student->id, $context->id);
+enrol_try_internal_enrol($course->id, $student->id, $studentrole->id);
+
 echo "export ELANG_BASE_URL='" . $CFG->wwwroot . "'\n";
 echo "export ELANG_USER='" . $username . "'\n";
 echo "export ELANG_PASS='" . $password . "'\n";
 echo "export ELANG_CMID='" . $cmid . "'\n";
 echo "export ELANG_VERSIONID='" . $version->id . "'\n";
+echo "export ELANG_CMID_BELOW='" . $variantcmids['below'] . "'\n";
+echo "export ELANG_CMID_OVERLAYBOTTOM='" . $variantcmids['overlaybottom'] . "'\n";
+echo "export ELANG_CMID_OVERLAYTOP='" . $variantcmids['overlaytop'] . "'\n";
+echo "export ELANG_CMID_AUDIO='" . $variantcmids['audio'] . "'\n";
+echo "export ELANG_CMID_LONG='" . $longinfo->coursemodule . "'\n";
+echo "export ELANG_STUDENT='" . $studentname . "'\n";
+echo "export ELANG_STUDENT_PASS='" . $studentpassword . "'\n";

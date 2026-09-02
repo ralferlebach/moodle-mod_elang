@@ -11,6 +11,45 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.12] - 2026-09-02
+
+### Security
+- Draft media could be served to any learner who guessed a version id. Two
+  file-serving callbacks existed: `elang_pluginfile`, which asks
+  `version_manager::user_can_access_version_file()` whether this person may have
+  this version, and `mod_elang_pluginfile`, which asked only for
+  `mod/elang:view`. `file_pluginfile()` tries `{component}_pluginfile` first and
+  only falls back to `{modname}_pluginfile`, so the weaker one was the one that
+  ran and the version check was unreachable. The weaker callback is gone and the
+  version-aware one carries the name Moodle actually calls. Its access rules,
+  and the tests covering them, are unchanged — they simply take effect now.
+- A test asserts that only one callback exists, so a second one cannot quietly
+  take precedence again.
+
+## [2.0.0-beta.11] - 2026-09-02
+
+### Fixed
+- With captions over the picture, the overlay stayed empty until playback
+  produced its first `timeupdate`: a learner opening the exercise saw a picture
+  and no sentence, and the transcript that would otherwise carry it is not on the
+  page in that mode. The player now resolves the active cue once at render time.
+- The cursor was placed in a gap that was not on screen. The active cue has by
+  then been moved into the caption overlay and the list it came from is hidden,
+  so the search has to cover the whole player rather than the list.
+
+### Added
+- Playwright covers the three subtitle positions, the audio fallback and the cue
+  list: 13 tests where there were 5. These are the two things unit tests and
+  Behat cannot settle — where something is drawn, and how forty cues behave on a
+  rendered page.
+- The fixture seeds an activity per subtitle position, an audio one, a forty-cue
+  transcript, and a learner. Only the student archetype holds
+  `mod/elang:attempt`, so the seeded teacher cannot start an attempt and the
+  player correctly refuses to load for them; anything about what a learner sees
+  has to be driven by a learner.
+- `requireEnv()` fails with the variable's name instead of letting a missing one
+  surface as a 404 three assertions later.
+
 ## [2.0.0-beta.10] - 2026-09-01
 
 ### Added

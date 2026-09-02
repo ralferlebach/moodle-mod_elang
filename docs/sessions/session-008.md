@@ -1683,6 +1683,133 @@ Damit ist Issue #7 vollständig und alle acht UI-Issues sind abgeschlossen.
 
 ---
 
+## Inkrement 22 — Playwright für Player und Cue-Liste (2.0.0-beta.11, 2026090119)
+
+Die beiden Dinge, die weder Unit-Tests noch Behat klären können: **wo** etwas
+gezeichnet wird, und wie sich vierzig Cues auf einer gerenderten Seite
+verhalten. Von 5 auf **13 Tests**.
+
+Der Seed erzeugt jetzt je eine Aktivität pro Untertitelposition, eine
+Audio-Variante, ein Transkript mit 40 Cues — und eine **lernende Person**.
+
+### Drei Befunde beim Schreiben
+
+**(1) Der Fixture-Nutzer konnte den Player gar nicht öffnen.** Alle fünf
+Player-Tests scheiterten mit „The exercise could not be loaded". Ursache:
+`mod/elang:attempt` hält ausschließlich der Archetyp `student`; der Seed-Nutzer
+ist Lehrender. Das ist **korrektes Verhalten** — und es zeigt, dass bis dahin
+kein Test den Player tatsächlich starten ließ. Die bestehenden a11y-Tests
+prüften nur Barrierefreiheit und waren auf der Fehlermeldung genauso grün.
+
+**(2) Ein echter Fehler: das Overlay blieb leer.** Der aktive Cue wandert erst
+bei `timeupdate` in die Einblendung. Vor dem ersten Abspielen war sie also
+leer — und die Transkriptliste, die den Satz sonst trüge, ist in diesem Modus
+ausgeblendet. Eine lernende Person sah ein Bild und keinen Satz. Behoben durch
+einen einmaligen Abgleich beim Rendern.
+
+**(3) Der Fokus landete auf einem unsichtbaren Feld.** „Cursor in die erste
+Lücke" suchte in der Cue-Liste — die im Overlay-Modus `display: none` ist. Jetzt
+wird über den gesamten Player gesucht, also dort, wo der Cue inzwischen liegt.
+
+Beide Fehler stammen aus Inkrement 13, waren durch Behat und PHPUnit nicht
+erreichbar und wären einer lernenden Person sofort aufgefallen.
+
+### Eine Betriebsnotiz
+
+Der Seed brach auf der echten Site mit Exit 255 und **ohne jede Ausgabe** ab:
+
+```
+PHP Fatal error: Trait "mod_elang\local\domain\transaction_trait" not found
+```
+
+Eine neu hinzugefügte Klassendatei steht nicht im Klassen-Cache von Moodle.
+PHPUnit baut den Cache bei jedem Lauf neu, deshalb war dort nichts zu sehen. Auf
+einer laufenden Site erledigt das der Upgrade-Schritt beim Versionssprung; wer
+Dateien ohne Bump einspielt, braucht `php admin/cli/purge_caches.php`.
+
+**Lehre:** Ein grüner PHPUnit-Lauf sagt nichts über Moodles Caches aus. Neue
+Klassendateien gehören auf einer echten Site verifiziert.
+
+### Verifikation
+
+```
+Playwright:   13/13 gegen eine echte Moodle-Site   (vorher 5/5)
+PHPUnit:      423 Tests, 1230 Assertions, 1 skipped
+Jest:         70/70
+PHPCS:        0 Errors / 0 Warnings
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
+## Inkrement 23 — Ein echtes Sicherheitsloch beim Ausliefern von Dateien (2.0.0-beta.12, 2026090120)
+
+Der Review führt unter P0: „den doppelten/abweichenden `mod_elang_pluginfile`-Pfad
+entfernen bzw. nachweislich unaufrufbar machen". Beim Nachsehen war es kein
+Aufräumpunkt, sondern eine Lücke.
+
+### Der Befund
+
+`lib.php` enthielt **zwei** Datei-Callbacks:
+
+| Funktion | Prüfung |
+|---|---|
+| `elang_pluginfile()` | `mod/elang:view` **und** `user_can_access_version_file()` |
+| `mod_elang_pluginfile()` | nur `mod/elang:view` und „Version gehört zu dieser Aktivität" |
+
+Moodles `file_pluginfile()` (lib/filelib.php:5310) versucht zuerst
+`{component}_pluginfile` und fällt erst dann auf `{modname}_pluginfile` zurück:
+
+```php
+$filefunction = $component.'_pluginfile';      // mod_elang_pluginfile
+$filefunctionold = $modname.'_pluginfile';     // elang_pluginfile
+if (function_exists($filefunction)) { ... }
+```
+
+Es lief also **die schwächere**. Die sorgfältige Versionsprüfung — mit sieben
+eigenen Tests — war unerreichbarer Code.
+
+**Folge:** Eine lernende Person hält `mod/elang:view`. Damit ließ sich über eine
+geratene Versions-ID das **Medium eines unveröffentlichten Entwurfs** abrufen.
+Kein Datenverlust, aber eine Offenlegung: Autoren erwarten, dass ein Entwurf
+ein Entwurf bleibt.
+
+### Behoben
+
+Die schwächere Funktion ist ersatzlos entfernt; die versionsbewusste trägt jetzt
+den Namen, den Moodle tatsächlich aufruft. Ihre Regeln und ihre Tests bleiben
+unverändert — sie greifen nur endlich.
+
+Dazu ein Test, der genau diese Falle bewacht:
+
+```php
+$this->assertTrue(function_exists('mod_elang_pluginfile'));
+$this->assertFalse(function_exists('elang_pluginfile'));
+```
+
+Und einer, der die Wirkung belegt: eine lernende Person hält `mod/elang:view`,
+kommt aber nicht an die Entwurfsversion; die Lehrkraft schon.
+
+**Lehre:** Zwei Funktionen, die dasselbe tun sollen, sind kein Duplikat, sondern
+eine Auswahl — und wer sie trifft, steht im Kern, nicht im Plugin. Bei
+namensbasierten Callbacks gehört die Auflösungsreihenfolge nachgelesen, bevor
+man den Zweitpfad für harmlos hält. Dass die strengere Prüfung gut getestet war,
+hat den Fehler eher verdeckt: die Tests waren grün, der Code lief nie.
+
+### Verifikation
+
+```
+PHPUnit:      425 Tests, 1235 Assertions, 1 skipped   (vorher 423/1230)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Playwright:   13/13 gegen eine echte Site — der Player lädt sein Medium über
+              genau diesen Callback, der Weg ist also wirklich durchlaufen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

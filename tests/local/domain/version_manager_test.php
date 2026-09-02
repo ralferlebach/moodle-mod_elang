@@ -946,4 +946,65 @@ final class version_manager_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         $this->manager->save_draft_content($draft->id, $this->draft_payload('Le chien court', 'chien'));
     }
+
+    /**
+     * Exactly one file-serving callback exists, and it is the version-aware one.
+     *
+     * file_pluginfile() tries "{component}_pluginfile" before falling back to
+     * "{modname}_pluginfile". A second callback under the shorter name is not a
+     * harmless duplicate: the longer name wins silently, so whichever checks
+     * less would be the one that runs. That happened here — the shorter-named
+     * twin checked only mod/elang:view, and user_can_access_version_file() below
+     * was never reached, which let a guessed URL serve draft media to a learner.
+     *
+     * @return void
+     */
+    public function test_only_the_version_aware_file_callback_exists(): void {
+        $this->assertTrue(function_exists('mod_elang_pluginfile'));
+        $this->assertFalse(
+            function_exists('elang_pluginfile'),
+            'A second, shorter-named callback would take precedence over this one.'
+        );
+    }
+
+    /**
+     * A learner cannot reach a draft version's media, which is what the removed
+     * callback allowed.
+     *
+     * @return void
+     */
+    public function test_a_learner_cannot_reach_draft_media(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $cm = get_coursemodule_from_instance('elang', $elang->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+
+        $manager = new version_manager();
+        $draft = $manager->get_or_create_draft((int) $elang->id, (int) $teacher->id);
+
+        // The learner holds mod/elang:view — which is all the removed callback
+        // asked for.
+        $this->setUser($student);
+        $this->assertTrue(has_capability('mod/elang:view', $context));
+        $this->assertFalse(version_manager::user_can_access_version_file(
+            (int) $draft->id,
+            (int) $elang->id,
+            $context,
+            (int) $student->id
+        ));
+
+        // The author of the draft still reaches it.
+        $this->assertTrue(version_manager::user_can_access_version_file(
+            (int) $draft->id,
+            (int) $elang->id,
+            $context,
+            (int) $teacher->id
+        ));
+    }
 }

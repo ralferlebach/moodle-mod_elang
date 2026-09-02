@@ -1,0 +1,162 @@
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Where the subtitles are drawn, and how a long transcript behaves.
+ *
+ * These are the two things unit tests and Behat cannot settle. The subtitle
+ * positions differ in layout and in what the browser lays out around a real
+ * media element; the cue list exists because forty cues used to render forty
+ * full forms, which is a question about the rendered page rather than about
+ * state.
+ *
+ * @package    mod_elang
+ * @copyright  2026 Ralf Erlebach
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+import {expect, test} from '@playwright/test';
+import {loginAs, requireEnv} from './helpers';
+
+/**
+ * Open an activity's exercise page and wait for the player to be ready.
+ *
+ * @param page The Playwright page.
+ * @param cmid The course module id.
+ */
+async function openExercise(page: import('@playwright/test').Page, cmid: string): Promise<void> {
+    await page.goto(`/mod/elang/view.php?id=${cmid}`);
+    // The player renders from a web service call, so the markup is not there
+    // when the document finishes loading.
+    await expect(page.locator('[data-region="status"]')).toContainText(/ready|bereit/i);
+}
+
+test.describe('subtitle positions', () => {
+    test.beforeEach(async({page}) => {
+        // As a learner: only the student archetype holds mod/elang:attempt, so
+        // the seeded teacher cannot start an attempt and the player refuses to
+        // load for them.
+        await loginAs(page, requireEnv('ELANG_STUDENT'), requireEnv('ELANG_STUDENT_PASS'));
+    });
+
+    test('below the medium the transcript is its own scrolling region', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        await expect(page.locator('.mod_elang-transcript-scroll')).toHaveCount(1);
+        await expect(page.locator('.mod_elang-caption-overlay')).toHaveCount(0);
+
+        // Both the medium and the transcript have to fit one screen. Left
+        // unbounded they push each other apart and the learner scrolls between
+        // the picture and the sentence they are answering.
+        const viewport = page.viewportSize();
+        const media = await page.locator('.mod_elang-media video').boundingBox();
+        expect(media).not.toBeNull();
+        expect(media!.height).toBeLessThan((viewport?.height ?? 720) * 0.6);
+    });
+
+    test('the bottom overlay draws the caption over the picture', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYBOTTOM'));
+
+        await expect(page.locator('.mod_elang-media-stage')).toHaveCount(1);
+        await expect(page.locator('.mod_elang-caption-overlaybottom')).toHaveCount(1);
+
+        // Not shown twice: the transcript underneath would put the same gaps on
+        // the page in two places.
+        await expect(page.locator('.mod_elang-transcript-hidden')).toHaveCount(1);
+        await expect(page.locator('.mod_elang-transcript-scroll')).toHaveCount(0);
+    });
+
+    test('the top overlay differs only in where the caption sits', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYTOP'));
+
+        await expect(page.locator('.mod_elang-caption-overlaytop')).toHaveCount(1);
+        await expect(page.locator('.mod_elang-caption-overlaybottom')).toHaveCount(0);
+
+        // The caption really is over the picture, not above it.
+        const stage = await page.locator('.mod_elang-media-stage').boundingBox();
+        const caption = await page.locator('.mod_elang-caption-overlaytop').boundingBox();
+        expect(stage).not.toBeNull();
+        expect(caption).not.toBeNull();
+        expect(caption!.y).toBeGreaterThanOrEqual(stage!.y - 1);
+        expect(caption!.y + caption!.height).toBeLessThanOrEqual(stage!.y + stage!.height + 1);
+    });
+
+    test('an overlay puts the cursor in the first gap', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYTOP'));
+
+        // The exercise starts where the work is, which is also what makes
+        // playback stop at that cue instead of running the sentence off screen.
+        const focused = page.locator('.mod_elang-caption-overlay input:focus');
+        await expect(focused).toHaveCount(1);
+    });
+
+    test('audio falls back to the display below the medium', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_AUDIO'));
+
+        // Stored as an overlay, but there is no picture to draw one on. The
+        // stored setting is kept; only what is rendered changes.
+        await expect(page.locator('.mod_elang-caption-overlay')).toHaveCount(0);
+        await expect(page.locator('.mod_elang-transcript-scroll')).toHaveCount(1);
+    });
+});
+
+test.describe('cue list', () => {
+    test.beforeEach(async({page}) => {
+        // Authoring, so the teacher.
+        await loginAs(page, requireEnv('ELANG_USER'), requireEnv('ELANG_PASS'));
+    });
+
+    test('forty cues are listed but only one is open for editing', async({page}) => {
+        await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+
+        // Every cue is reachable...
+        await expect(page.locator('.mod_elang-cuelist-item')).toHaveCount(40);
+
+        // ...and exactly one carries a full editor. This is the whole point of
+        // the workspace: before it, all forty rendered their forms at once.
+        await expect(page.locator('[data-region="cueinspector"] .mod_elang-editor-cue')).toHaveCount(1);
+    });
+
+    test('the list scrolls on its own instead of stretching the page', async({page}) => {
+        await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+
+        const box = await page.locator('.mod_elang-cuelist-items').boundingBox();
+        expect(box).not.toBeNull();
+
+        // Forty rows are far taller than this; the region has to bound them, or
+        // the medium and the timeline leave the screen.
+        const scrollheight = await page.locator('.mod_elang-cuelist-items')
+            .evaluate((element) => element.scrollHeight);
+        expect(scrollheight).toBeGreaterThan(box!.height);
+    });
+
+    test('searching narrows the list without touching the open cue', async({page}) => {
+        await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+
+        const open = await page.locator('[data-region="cueinspector"] .mod_elang-editor-cue')
+            .getAttribute('data-cuekey');
+
+        await page.fill('[data-region="cuesearch"]', 'number 7 ');
+        await expect(page.locator('.mod_elang-cuelist-item')).toHaveCount(1);
+
+        // Filtering is a way of finding something, not of closing what is being
+        // worked on.
+        await expect(page.locator('[data-region="cueinspector"] .mod_elang-editor-cue'))
+            .toHaveAttribute('data-cuekey', open ?? '');
+    });
+});

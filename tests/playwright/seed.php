@@ -180,8 +180,12 @@ $longinfo = create_module((object) [
     'visibleoncoursepage' => 1,
 ]);
 
+// Four hundred cues, not forty: a transcript of a full lesson recording. The
+// player builds every cue's markup up front so that synchronisation and Enter
+// navigation can reach all of them, which is exactly the case that has to stay
+// usable.
 $longcues = [];
-for ($i = 1; $i <= 40; $i++) {
+for ($i = 1; $i <= 400; $i++) {
     $longcues[] = [
         'cuekey' => 'lc' . $i,
         'sortorder' => $i,
@@ -211,6 +215,9 @@ $manager->set_draft_media((int) $longdraft->id, [
     'url' => 'https://example.org/pw-long.mp4',
     'mime' => 'video/mp4',
 ]);
+// Published, or view.php shows its "nothing to play yet" notice and the player
+// never runs — which is the one thing this fixture exists to exercise.
+$manager->publish((int) $longdraft->id, (int) $admin->id);
 
 // A dedicated editing teacher with a known password to drive the editor.
 $username = 'elang_pw_' . $unique;

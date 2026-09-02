@@ -1946,6 +1946,88 @@ Korrektur.
 
 ---
 
+## Inkrement 26 — Player-Performance bei langen Transkripten (2.0.0-beta.15, 2026090123)
+
+P1-Punkt „Player-Performance für lange Transkripte optimiert". Erst gemessen,
+dann geändert — und die erste Änderung war die falsche.
+
+### Messung vor der Optimierung
+
+Fixture auf **400 Cues** vergrößert (Länge einer Unterrichtsaufnahme) und im
+Browser instrumentiert:
+
+```
+goto=2031ms  playerready=3954ms
+```
+
+Meine erste Vermutung — acht serielle Cue-Abrufe und 400 einzelne
+`appendChild`-Aufrufe — führte zu parallelem Laden und einem
+`DocumentFragment`. Nachgemessen: **keine Verbesserung.**
+
+### Die Phasenmessung
+
+Statt weiter zu raten, die Phasen einzeln gemessen:
+
+```
+head=126ms  fetch=706ms  build=82ms  restore=791ms  controls=1ms  wire=53ms
+```
+
+**`build` kostet 82 ms.** Meine „Optimierung" zielte auf die billigste Phase.
+Die teuerste war `restore` mit 791 ms.
+
+### Der eigentliche Fehler
+
+`restoreState()` lief so:
+
+```js
+state.responses.forEach((response) => {
+    const wrap = list.querySelector(`.mod_elang-gapwrap[data-gapid="${response.gapid}"]`);
+```
+
+Der Attempt-State enthält einen Eintrag **je Lücke**. Jeder davon durchsuchte
+das gesamte Transkript — der Aufwand wächst mit dem **Quadrat** der
+Transkriptlänge. Ersetzt durch **eine** indizierte Durchmusterung in eine `Map`.
+
+```
+restore: 791ms → 419ms
+```
+
+Die parallelen Abrufe und das Fragment bleiben: beide sind für sich richtig,
+nur eben nicht der Engpass.
+
+### Was ich nicht behaupte
+
+Die Gesamtzeit schwankt in diesem Container zu stark für eine belastbare Zahl
+(2,25 / 3,13 / 3,61 s über drei Läufe). Belastbar ist die **Phasenmessung**, und
+die ist es, die ich berichte.
+
+Der Regressionstest enthält deshalb **keine** Zeitzusicherung, sondern prüft
+das Strukturelle: alle 400 Cues kommen an, und es sind acht Anfragen zu je
+fünfzig — nicht vierhundert.
+
+**Lehre:** „Das sieht teuer aus" ist keine Messung. Zwei plausible Kandidaten
+waren zusammen 82 ms wert; der wirkliche Engpass stand in einer Funktion, die
+ich gar nicht angesehen hatte, weil sie nach Aufräumarbeit aussah.
+
+Ein Nebenbefund: die 400-Cue-Aktivität wurde vom Seed nie **veröffentlicht**,
+also zeigte `view.php` seinen Leerzustand und der Player lief gar nicht. Die
+vorhandenen Cue-Listen-Tests waren trotzdem grün — sie öffnen `edit.php`, nicht
+den Player.
+
+### Verifikation
+
+```
+Playwright:   14/14 gegen eine echte Site, mit 400 Cues   (vorher 13/13 bei 40)
+PHPUnit:      429 Tests, 1376 Assertions, 1 skipped
+Jest:         70/70
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Offen in dieser Sitzung
 
 | Issue | Thema | Stand |

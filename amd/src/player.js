@@ -640,6 +640,12 @@ const appendTranscript = (item, transcript, gapsByKey, nextLabel) => {
  * @returns {void}
  */
 const appendCues = (list, cues, nextLabel) => {
+    // Built in a fragment and attached once. Appending each cue to the live
+    // list makes the browser lay the page out again for every one of them; a
+    // lesson-length transcript is several hundred, and the cost is paid before
+    // anything is on screen.
+    const fragment = document.createDocumentFragment();
+
     cues.forEach((cue) => {
         const item = document.createElement('li');
         item.className = 'mod_elang-cue';
@@ -653,8 +659,10 @@ const appendCues = (list, cues, nextLabel) => {
         });
 
         appendTranscript(item, cue.transcript, gapsByKey, nextLabel);
-        list.appendChild(item);
+        fragment.appendChild(item);
     });
+
+    list.appendChild(fragment);
 };
 
 /**
@@ -668,15 +676,27 @@ const appendCues = (list, cues, nextLabel) => {
  */
 const loadAllCues = async(list, totalcues, nextLabel) => {
     const limit = 50;
-    let offset = 0;
-    while (offset < totalcues) {
-        const page = await callWs('mod_elang_get_attempt_cues', {attemptid: attemptId, offset, limit});
-        if (page.cues.length === 0) {
-            break;
-        }
-        appendCues(list, page.cues, nextLabel);
-        offset += page.cues.length;
+
+    // The total is known from get_attempt_exercise, so every page can be asked
+    // for at once instead of waiting for each to learn whether another
+    // follows. On
+    // a lesson-length transcript that is eight round trips of latency turned
+    // into one — the pages are independent, only the order they are appended in
+    // matters.
+    const offsets = [];
+    for (let offset = 0; offset < totalcues; offset += limit) {
+        offsets.push(offset);
     }
+
+    const pages = await Promise.all(offsets.map(
+        (offset) => callWs('mod_elang_get_attempt_cues', {attemptid: attemptId, offset, limit})
+    ));
+
+    pages.forEach((page) => {
+        if (page.cues.length > 0) {
+            appendCues(list, page.cues, nextLabel);
+        }
+    });
 };
 
 /**
@@ -1136,8 +1156,18 @@ const loadStrings = async() => {
 const restoreState = async(list) => {
     const state = await callWs('mod_elang_get_attempt_state', {attemptid: attemptId});
 
+    // Indexed once rather than searched per response. The state carries an
+    // entry for every gap in the exercise, so a querySelector inside the loop
+    // walks the whole transcript once per gap — on a lesson-length exercise
+    // that was the single most expensive thing the player did, and it grew with
+    // the square of the transcript.
+    const wraps = new Map();
+    list.querySelectorAll('.mod_elang-gapwrap[data-gapid]').forEach((element) => {
+        wraps.set(element.dataset.gapid, element);
+    });
+
     state.responses.forEach((response) => {
-        const wrap = list.querySelector(`.mod_elang-gapwrap[data-gapid="${response.gapid}"]`);
+        const wrap = wraps.get(String(response.gapid));
         if (!wrap) {
             return;
         }

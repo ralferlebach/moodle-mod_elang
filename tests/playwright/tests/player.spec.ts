@@ -36,11 +36,15 @@ import {loginAs, requireEnv} from './helpers';
  * @param page The Playwright page.
  * @param cmid The course module id.
  */
-async function openExercise(page: import('@playwright/test').Page, cmid: string): Promise<void> {
+async function openExercise(
+    page: import('@playwright/test').Page,
+    cmid: string,
+    timeout = 10000
+): Promise<void> {
     await page.goto(`/mod/elang/view.php?id=${cmid}`);
     // The player renders from a web service call, so the markup is not there
     // when the document finishes loading.
-    await expect(page.locator('[data-region="status"]')).toContainText(/ready|bereit/i);
+    await expect(page.locator('[data-region="status"]')).toContainText(/ready|bereit/i, {timeout});
 }
 
 test.describe('subtitle positions', () => {
@@ -110,7 +114,30 @@ test.describe('subtitle positions', () => {
         await expect(page.locator('.mod_elang-caption-overlay')).toHaveCount(0);
         await expect(page.locator('.mod_elang-transcript-scroll')).toHaveCount(1);
     });
+
+    test('a lesson-length transcript loads completely', async({page}) => {
+        // Four hundred cues. No timing assertion — a shared runner's wall clock
+        // is not a measurement — but the two things that used to grow with the
+        // square of the transcript are structural and can be asserted: every
+        // cue arrives, and it takes one request per page rather than one per
+        // cue.
+        test.setTimeout(120000);
+
+        let cuerequests = 0;
+        page.on('request', (request) => {
+            if (request.url().includes('service.php') && (request.postData() || '').includes('get_attempt_cues')) {
+                cuerequests++;
+            }
+        });
+
+        await openExercise(page, requireEnv('ELANG_CMID_LONG'), 90000);
+
+        await expect(page.locator('.mod_elang-cue')).toHaveCount(400);
+        // 400 cues at 50 per page.
+        expect(cuerequests).toBe(8);
+    });
 });
+
 
 test.describe('cue list', () => {
     test.beforeEach(async({page}) => {
@@ -118,26 +145,29 @@ test.describe('cue list', () => {
         await loginAs(page, requireEnv('ELANG_USER'), requireEnv('ELANG_PASS'));
     });
 
-    test('forty cues are listed but only one is open for editing', async({page}) => {
+    test('every cue is listed but only one is open for editing', async({page}) => {
+        test.setTimeout(120000);
         await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
-        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible({timeout: 60000});
 
         // Every cue is reachable...
-        await expect(page.locator('.mod_elang-cuelist-item')).toHaveCount(40);
+        await expect(page.locator('.mod_elang-cuelist-item')).toHaveCount(400, {timeout: 60000});
 
         // ...and exactly one carries a full editor. This is the whole point of
-        // the workspace: before it, all forty rendered their forms at once.
+        // the workspace: before it, all four hundred rendered their forms at
+        // once.
         await expect(page.locator('[data-region="cueinspector"] .mod_elang-editor-cue')).toHaveCount(1);
     });
 
     test('the list scrolls on its own instead of stretching the page', async({page}) => {
+        test.setTimeout(120000);
         await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
-        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible({timeout: 60000});
 
         const box = await page.locator('.mod_elang-cuelist-items').boundingBox();
         expect(box).not.toBeNull();
 
-        // Forty rows are far taller than this; the region has to bound them, or
+        // Four hundred rows are far taller than this; the region has to bound them, or
         // the medium and the timeline leave the screen.
         const scrollheight = await page.locator('.mod_elang-cuelist-items')
             .evaluate((element) => element.scrollHeight);
@@ -145,13 +175,14 @@ test.describe('cue list', () => {
     });
 
     test('searching narrows the list without touching the open cue', async({page}) => {
+        test.setTimeout(120000);
         await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
-        await expect(page.locator('[data-region="cuelist"]')).toBeVisible();
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible({timeout: 60000});
 
         const open = await page.locator('[data-region="cueinspector"] .mod_elang-editor-cue')
             .getAttribute('data-cuekey');
 
-        await page.fill('[data-region="cuesearch"]', 'number 7 ');
+        await page.fill('[data-region="cuesearch"]', 'number 137 ');
         await expect(page.locator('.mod_elang-cuelist-item')).toHaveCount(1);
 
         // Filtering is a way of finding something, not of closing what is being

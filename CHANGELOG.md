@@ -11,6 +11,25 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.15] - 2026-09-02
+
+### Fixed
+- Restoring a learner's answers walked the whole transcript once per gap. The
+  attempt state carries an entry for every gap, and each one was looked up with
+  `list.querySelector()`, so the cost grew with the square of the transcript. It
+  is one indexed pass now: on a 400-cue exercise the restore phase went from
+  791 ms to 419 ms, measured in the browser.
+- Cue pages are requested together rather than one after another, and each page's
+  markup is built in a document fragment and attached once instead of appending
+  every cue to the live list.
+
+### Added
+- The Playwright fixture's long transcript is 400 cues, the length of a lesson
+  recording, and it is published so the player actually runs against it.
+- A regression test asserts what is structural rather than timed: every cue
+  arrives, and it takes one request per page of fifty rather than one per cue.
+  No wall-clock assertion — a shared runner's clock is not a measurement.
+
 ## [2.0.0-beta.14] - 2026-09-02
 
 ### Changed

@@ -213,7 +213,7 @@ class attempt_manager {
             function () use ($DB, $attemptid, $gapid, $responsetext, $expectedtries) {
                 $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
                 if ($attempt->state !== self::STATE_INPROGRESS) {
-                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                    throw new \moodle_exception('error_attemptnotinprogress', 'mod_elang');
                 }
 
                 $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
@@ -228,7 +228,7 @@ class attempt_manager {
                 if ($expectedtries > $currenttries) {
                     // The caller claims more tries than exist: its view is ahead
                     // of the server, which should be impossible. Make it refetch.
-                    throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
+                    throw new \moodle_exception('error_staleattemptstate', 'mod_elang');
                 }
 
                 // The response row and the attempt's aggregate counters are one
@@ -241,7 +241,7 @@ class attempt_manager {
                         $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
                         $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
                         if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                            throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+                            throw new \moodle_exception('error_gapnotinattemptversion', 'mod_elang');
                         }
 
                         $gapanswers = array_values($DB->get_records('elang_gapanswer', ['gapid' => $gapid], 'sortorder ASC'));
@@ -321,13 +321,13 @@ class attempt_manager {
             function () use ($DB, $attemptid, $gapid, $expectedlevel) {
                 $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
                 if ($attempt->state !== self::STATE_INPROGRESS) {
-                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                    throw new \moodle_exception('error_attemptnotinprogress', 'mod_elang');
                 }
 
                 $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
                 $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
                 if ((int) $cue->versionid !== (int) $attempt->versionid) {
-                    throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+                    throw new \moodle_exception('error_gapnotinattemptversion', 'mod_elang');
                 }
 
                 $existing = $DB->get_record('elang_response', ['attemptid' => $attemptid, 'gapid' => $gapid]);
@@ -345,14 +345,14 @@ class attempt_manager {
                             MUST_EXIST
                         );
                     }
-                    throw new \moodle_exception('error:staleattemptstate', 'mod_elang');
+                    throw new \moodle_exception('error_staleattemptstate', 'mod_elang');
                 }
 
                 $nextlevel = $currentlevel + 1;
 
                 $hint = $DB->get_record('elang_gaphint', ['gapid' => $gapid, 'level' => $nextlevel]);
                 if (!$hint) {
-                    throw new \moodle_exception('error:nomorehints', 'mod_elang');
+                    throw new \moodle_exception('error_nomorehints', 'mod_elang');
                 }
 
                 // The revealed level and the penalty it carries into the score
@@ -416,7 +416,7 @@ class attempt_manager {
                     return $attempt;
                 }
                 if ($attempt->state !== self::STATE_INPROGRESS) {
-                    throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+                    throw new \moodle_exception('error_attemptnotinprogress', 'mod_elang');
                 }
 
                 $attempt->state = self::STATE_FINISHED;
@@ -586,7 +586,7 @@ class attempt_manager {
         $lockfactory = \core\lock\lock_config::get_lock_factory('mod_elang');
         $lock = $lockfactory->get_lock($resource, self::LOCK_TIMEOUT);
         if (!$lock) {
-            throw new \moodle_exception('error:couldnotobtainlock', 'mod_elang');
+            throw new \moodle_exception('error_couldnotobtainlock', 'mod_elang');
         }
 
         try {

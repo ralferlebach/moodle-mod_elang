@@ -84,18 +84,18 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->addElement('header', 'elangplayback', get_string('playbackheading', 'mod_elang'));
 
         $mform->addElement('select', 'subtitleposition', get_string('subtitleposition', 'mod_elang'), [
-            'below' => get_string('subtitleposition:below', 'mod_elang'),
-            'overlaybottom' => get_string('subtitleposition:overlaybottom', 'mod_elang'),
-            'overlaytop' => get_string('subtitleposition:overlaytop', 'mod_elang'),
+            'below' => get_string('subtitleposition_below', 'mod_elang'),
+            'overlaybottom' => get_string('subtitleposition_overlaybottom', 'mod_elang'),
+            'overlaytop' => get_string('subtitleposition_overlaytop', 'mod_elang'),
         ]);
         $mform->setType('subtitleposition', PARAM_ALPHA);
         $mform->setDefault('subtitleposition', 'below');
         $mform->addHelpButton('subtitleposition', 'subtitleposition', 'mod_elang');
 
         $mform->addElement('select', 'cuepausemode', get_string('cuepausemode', 'mod_elang'), [
-            'auto' => get_string('cuepausemode:auto', 'mod_elang'),
-            'stop' => get_string('cuepausemode:stop', 'mod_elang'),
-            'nostop' => get_string('cuepausemode:nostop', 'mod_elang'),
+            'auto' => get_string('cuepausemode_auto', 'mod_elang'),
+            'stop' => get_string('cuepausemode_stop', 'mod_elang'),
+            'nostop' => get_string('cuepausemode_nostop', 'mod_elang'),
         ]);
         $mform->setType('cuepausemode', PARAM_ALPHA);
         $mform->setDefault('cuepausemode', 'auto');
@@ -130,9 +130,9 @@ class mod_elang_mod_form extends moodleform_mod {
         $mform->addHelpButton('allowtranscriptdownload', 'allowtranscriptdownload', 'mod_elang');
 
         $mform->addElement('select', 'solutionavailability', get_string('solutionavailability', 'mod_elang'), [
-            'never' => get_string('solutionavailability:never', 'mod_elang'),
-            'aftersubmission' => get_string('solutionavailability:aftersubmission', 'mod_elang'),
-            'always' => get_string('solutionavailability:always', 'mod_elang'),
+            'never' => get_string('solutionavailability_never', 'mod_elang'),
+            'aftersubmission' => get_string('solutionavailability_aftersubmission', 'mod_elang'),
+            'always' => get_string('solutionavailability_always', 'mod_elang'),
         ]);
         $mform->setType('solutionavailability', PARAM_ALPHA);
         $mform->setDefault('solutionavailability', 'never');
@@ -162,19 +162,19 @@ class mod_elang_mod_form extends moodleform_mod {
         // not be able to store one the player would not understand.
         $positions = \mod_elang\local\player\playback_settings::positions();
         if (isset($data['subtitleposition']) && !in_array($data['subtitleposition'], $positions, true)) {
-            $errors['subtitleposition'] = get_string('error:invalidsubtitleposition', 'mod_elang');
+            $errors['subtitleposition'] = get_string('error_invalidsubtitleposition', 'mod_elang');
         }
 
         $pausemodes = \mod_elang\local\player\playback_settings::pausemodes();
         if (isset($data['cuepausemode']) && !in_array($data['cuepausemode'], $pausemodes, true)) {
-            $errors['cuepausemode'] = get_string('error:invalidcuepausemode', 'mod_elang');
+            $errors['cuepausemode'] = get_string('error_invalidcuepausemode', 'mod_elang');
         }
 
         // The select only ever offers these three, but a hand-crafted post must
         // not be able to store a value the export page would not understand.
         $allowed = ['never', 'aftersubmission', 'always'];
         if (isset($data['solutionavailability']) && !in_array($data['solutionavailability'], $allowed, true)) {
-            $errors['solutionavailability'] = get_string('error:invalidsolutionavailability', 'mod_elang');
+            $errors['solutionavailability'] = get_string('error_invalidsolutionavailability', 'mod_elang');
         }
 
         return $errors;

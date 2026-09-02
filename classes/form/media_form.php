@@ -45,7 +45,7 @@ class media_form extends \moodleform {
         $mform->addElement(
             'filemanager',
             'mediafiles',
-            get_string('editor:media', 'mod_elang'),
+            get_string('editor_media', 'mod_elang'),
             null,
             $this->_customdata['mediaoptions']
         );
@@ -53,7 +53,7 @@ class media_form extends \moodleform {
         $mform->addElement(
             'filemanager',
             'posterfiles',
-            get_string('editor:poster', 'mod_elang'),
+            get_string('editor_poster', 'mod_elang'),
             null,
             $this->_customdata['posteroptions']
         );
@@ -61,18 +61,18 @@ class media_form extends \moodleform {
         // One field rather than a provider selector plus a reference field: a
         // teacher pastes whatever is in their address bar, and which provider
         // that is can be worked out from the URL itself.
-        $mform->addElement('header', 'othersource', get_string('media:othersource', 'mod_elang'));
+        $mform->addElement('header', 'othersource', get_string('media_othersource', 'mod_elang'));
         $mform->setExpanded('othersource', false);
 
-        $mform->addElement('text', 'mediaurl', get_string('media:sourceurl', 'mod_elang'), ['size' => 60]);
+        $mform->addElement('text', 'mediaurl', get_string('media_sourceurl', 'mod_elang'), ['size' => 60]);
         $mform->setType('mediaurl', PARAM_RAW_TRIMMED);
-        $mform->addHelpButton('mediaurl', 'media:sourceurl', 'mod_elang');
+        $mform->addHelpButton('mediaurl', 'media_sourceurl', 'mod_elang');
 
         $mform->addElement(
             'static',
             'providerhint',
             '',
-            get_string('media:providerhint', 'mod_elang', $this->_customdata['providers'])
+            get_string('media_providerhint', 'mod_elang', $this->_customdata['providers'])
         );
 
         $this->add_action_buttons();
@@ -102,7 +102,7 @@ class media_form extends \moodleform {
         // Otherwise it has to be a plain http(s) URL the browser can load
         // directly.
         if (!preg_match('~^https?://~i', $url)) {
-            $errors['mediaurl'] = get_string('error:invalidsourceurl', 'mod_elang');
+            $errors['mediaurl'] = get_string('error_invalidsourceurl', 'mod_elang');
         }
 
         return $errors;

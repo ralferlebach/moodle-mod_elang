@@ -40,14 +40,14 @@ use templatable;
 class attempt_detail implements renderable, templatable {
     /** How a graded gap is shown: an icon, and the wording as its accessible name. */
     private const RESULT_ICONS = [
-        'exact' => ['icon' => 'fa-check', 'class' => 'text-success', 'key' => 'report:result_exact'],
+        'exact' => ['icon' => 'fa-check', 'class' => 'text-success', 'key' => 'report_result_exact'],
         'wordrecognized' => [
             'icon' => 'fa-exclamation-triangle',
             'class' => 'text-warning',
-            'key' => 'report:result_wordrecognized',
+            'key' => 'report_result_wordrecognized',
         ],
-        'incorrect' => ['icon' => 'fa-times', 'class' => 'text-danger', 'key' => 'report:result_incorrect'],
-        '' => ['icon' => 'fa-minus', 'class' => 'text-muted', 'key' => 'report:result_empty'],
+        'incorrect' => ['icon' => 'fa-times', 'class' => 'text-danger', 'key' => 'report_result_incorrect'],
+        '' => ['icon' => 'fa-minus', 'class' => 'text-muted', 'key' => 'report_result_empty'],
     ];
 
     /** @var array The attempt summary from attempt_report::detail() */
@@ -88,19 +88,19 @@ class attempt_detail implements renderable, templatable {
 
         return [
             [
-                'label' => get_string('report:kpianswered', 'mod_elang'),
+                'label' => get_string('report_kpianswered', 'mod_elang'),
                 'value' => $answered . ' / ' . $total,
             ],
             [
-                'label' => get_string('report:kpicorrect', 'mod_elang'),
+                'label' => get_string('report_kpicorrect', 'mod_elang'),
                 'value' => (string) (int) $this->attempt['correctgaps'],
             ],
             [
-                'label' => get_string('report:kpiexact', 'mod_elang'),
+                'label' => get_string('report_kpiexact', 'mod_elang'),
                 'value' => (string) (int) $this->attempt['exactgaps'],
             ],
             [
-                'label' => get_string('report:kpihintedgaps', 'mod_elang'),
+                'label' => get_string('report_kpihintedgaps', 'mod_elang'),
                 'value' => (string) (int) $this->attempt['hintedgaps'],
             ],
         ];
@@ -138,7 +138,7 @@ class attempt_detail implements renderable, templatable {
                 'solution' => (string) $gap['solution'],
                 'responsetext' => (string) $gap['responsetext'],
                 'hasresponse' => trim((string) $gap['responsetext']) !== '',
-                'noresponse' => get_string('report:noresponse', 'mod_elang'),
+                'noresponse' => get_string('report_noresponse', 'mod_elang'),
                 'icon' => $info['icon'],
                 'iconclass' => $info['class'],
                 'resultlabel' => $label,
@@ -176,27 +176,27 @@ class attempt_detail implements renderable, templatable {
 
         return [
             'fullname' => $this->fullname,
-            'statelabel' => get_string('report:state_' . $state, 'mod_elang'),
+            'statelabel' => get_string('report_state_' . $state, 'mod_elang'),
             'stateclass' => $states[$state] ?? 'badge-secondary bg-secondary',
-            'scorelabel' => get_string('report:score', 'mod_elang'),
+            'scorelabel' => get_string('report_score', 'mod_elang'),
             'score' => format_float((float) $this->attempt['score'], 2),
-            'startedlabel' => get_string('report:started', 'mod_elang'),
+            'startedlabel' => get_string('report_started', 'mod_elang'),
             'started' => userdate((int) $this->attempt['timestart']),
-            'finishedlabel' => get_string('report:finished', 'mod_elang'),
+            'finishedlabel' => get_string('report_finished', 'mod_elang'),
             'finished' => $this->attempt['timefinish']
                 ? userdate((int) $this->attempt['timefinish'])
                 : '—',
             'figures' => $this->figures(),
             'cues' => $this->cues($output),
             'hascues' => !empty($this->gaps),
-            'nogaps' => get_string('report:nogaps', 'mod_elang'),
-            'headsolution' => get_string('report:solution', 'mod_elang'),
-            'headresponse' => get_string('report:response', 'mod_elang'),
-            'headtries' => get_string('report:tries', 'mod_elang'),
-            'headscore' => get_string('report:score', 'mod_elang'),
-            'hintlabel' => get_string('report:hints', 'mod_elang'),
+            'nogaps' => get_string('report_nogaps', 'mod_elang'),
+            'headsolution' => get_string('report_solution', 'mod_elang'),
+            'headresponse' => get_string('report_response', 'mod_elang'),
+            'headtries' => get_string('report_tries', 'mod_elang'),
+            'headscore' => get_string('report_score', 'mod_elang'),
+            'hintlabel' => get_string('report_hints', 'mod_elang'),
             'backurl' => (new moodle_url('/mod/elang/report.php', ['id' => $this->cmid]))->out(false),
-            'backlabel' => get_string('report:back', 'mod_elang'),
+            'backlabel' => get_string('report_back', 'mod_elang'),
         ];
     }
 }

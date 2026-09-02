@@ -11,6 +11,29 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.14] - 2026-09-02
+
+### Changed
+- **Breaking for translations.** 356 language string identifiers lost their
+  colons: `player:ready` is now `player_ready`, `report:heading` is
+  `report_heading`, and so on throughout. Moodle and AMOS accept only
+  `[a-z0-9_]` in a string id, so the colon form could not be published to the
+  plugin directory or translated on lang.moodle.org. Any existing local language
+  customisation of these strings has to be redone against the new ids; the
+  German pack shipped with the plugin is already converted.
+- The ten capability strings keep their colons — `elang:manage` and its nine
+  siblings name the capabilities themselves and must match them exactly.
+- `strings['player_ready']` became `strings.player_ready` throughout the AMD
+  modules: with the colons gone the keys are valid identifiers, and ESLint's
+  `dot-notation` rule says so.
+
+### Notes
+- Three identifiers are built at runtime (`'provider_' . $key`,
+  `'report_' . $column`) and are invisible to a search for a literal string. They
+  were found by searching for a quoted prefix ending in a colon concatenated with
+  a variable, and the same search confirmed the two remaining hits are a lock
+  name and a test fixture, not string ids.
+
 ## [2.0.0-beta.13] - 2026-09-02
 
 ### Added
@@ -514,7 +537,7 @@ action buttons above the player.
   existing activities keep handing out nothing. Learners hold
   `mod/elang:exporttranscript` by default, so the capability alone could not carry
   this decision.
-- `elang_can_export_worksheet()`, `elang_can_export_solution()` and
+- `elang_can_export:worksheet()`, `elang_can_export:solution()` and
   `elang_can_export_transcript()` in `lib.php`, the single place that decision is
   made. `transcript.php` calls them before it streams anything.
 - `edit.php` refuses to mount the editor while the draft has no medium and points

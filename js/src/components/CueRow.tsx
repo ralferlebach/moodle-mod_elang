@@ -76,7 +76,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
         if (start === end) {
-            onStatus(t('editor:selecttext'));
+            onStatus(t('editor_selecttext'));
             return;
         }
         // Convert the textarea's UTF-16 selection offsets to the codepoint
@@ -109,33 +109,33 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
             <div className="card-body">
                 <div className="mb-2">
                     <label className="mr-2">
-                        {t('editor:starttime')}{' '}
+                        {t('editor_starttime')}{' '}
                         <TimeField
                             value={cue.starttime}
-                            label={t('editor:starttime')}
-                            invalidmessage={t('editor:invalidtime')}
+                            label={t('editor_starttime')}
+                            invalidmessage={t('editor_invalidtime')}
                             onChange={(ms) => onChange({...cue, starttime: ms})}
                         />
                     </label>
                     <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('starttime')}>
-                        {t('editor:capturestart')}
+                        {t('editor_capturestart')}
                     </button>
                     <label className="mr-2">
-                        {t('editor:endtime')}{' '}
+                        {t('editor_endtime')}{' '}
                         <TimeField
                             value={cue.endtime}
-                            label={t('editor:endtime')}
-                            invalidmessage={t('editor:invalidtime')}
+                            label={t('editor_endtime')}
+                            invalidmessage={t('editor_invalidtime')}
                             onChange={(ms) => onChange({...cue, endtime: ms})}
                         />
                     </label>
                     <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('endtime')}>
-                        {t('editor:captureend')}
+                        {t('editor_captureend')}
                     </button>
                 </div>
 
                 <label className="d-block">
-                    {t('editor:transcript')}
+                    {t('editor_transcript')}
                     <textarea
                         ref={textareaRef}
                         className="form-control"
@@ -153,7 +153,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                             aria-expanded={showpreview}
                             onClick={() => setShowpreview((value) => !value)}
                         >
-                            {t('editor:preview')}
+                            {t('editor_preview')}
                         </button>
                         {showpreview && (
                             <p
@@ -168,7 +168,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
 
                 <div className="mod_elang-editor-gaps mt-2">
                     {cue.gaps.length === 0
-                        ? <p className="text-muted small mb-0">{t('editor:nogaps')}</p>
+                        ? <p className="text-muted small mb-0">{t('editor_nogaps')}</p>
                         : cue.gaps.map((gap, index) => (
                             <GapRow
                                 key={gap.gapkey}
@@ -181,7 +181,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                 </div>
 
                 <button type="button" className="btn btn-link p-0 d-block" onClick={addGapFromSelection}>
-                    {t('editor:addgap')}
+                    {t('editor_addgap')}
                 </button>
 
                 <RuleGapControl
@@ -193,7 +193,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                 />
 
                 <button type="button" className="btn btn-link text-danger p-0" onClick={onDelete}>
-                    {t('editor:deletecue')}
+                    {t('editor_deletecue')}
                 </button>
             </div>
         </div>

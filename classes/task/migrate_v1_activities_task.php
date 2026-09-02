@@ -79,7 +79,7 @@ class migrate_v1_activities_task extends \core\task\adhoc_task {
      * @return string The name.
      */
     public function get_name(): string {
-        return get_string('task:migratev1activities', 'mod_elang');
+        return get_string('task_migratev1activities', 'mod_elang');
     }
 
     /**

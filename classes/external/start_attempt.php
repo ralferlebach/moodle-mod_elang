@@ -65,7 +65,7 @@ class start_attempt extends external_api {
         $versionmanager = new \mod_elang\local\domain\version_manager();
         $published = $versionmanager->get_published((int) $elang->id);
         if ($published === null) {
-            throw new \moodle_exception('error:nopublishedversion', 'mod_elang');
+            throw new \moodle_exception('error_nopublishedversion', 'mod_elang');
         }
 
         $attempt = self::get_attempt_manager()->start_attempt(

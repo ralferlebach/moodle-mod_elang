@@ -67,7 +67,7 @@ class finish_attempt extends external_api {
             $attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS
                 && $attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_FINISHED
         ) {
-            throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+            throw new \moodle_exception('error_attemptnotinprogress', 'mod_elang');
         }
 
         $finished = self::get_attempt_manager()->finish_attempt($attemptid);

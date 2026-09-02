@@ -160,8 +160,8 @@ Drei Helfer in `lib.php` sind die einzige Stelle, an der diese Entscheidung
 fällt — `transcript.php` ruft sie **vor** jeder Ausgabe auf, UI-Sichtbarkeit
 ist kein Sicherheitsmechanismus:
 
-- `elang_can_export_worksheet()` — Capability `exportsolution` **oder** die Aktivitätseinstellung
-- `elang_can_export_solution()` — Capability **oder** `always` **oder** `aftersubmission` mit **eigenem** abgeschlossenen Versuch
+- `elang_can_export:worksheet()` — Capability `exportsolution` **oder** die Aktivitätseinstellung
+- `elang_can_export:solution()` — Capability **oder** `always` **oder** `aftersubmission` mit **eigenem** abgeschlossenen Versuch
 - `elang_can_export_transcript()` — eines von beiden, steuert die Reiter-Sichtbarkeit
 
 `aftersubmission` prüft ausdrücklich die eigenen Versuche: ein abgeschlossener
@@ -1871,6 +1871,78 @@ PHPUnit:      429 Tests, 1376 Assertions, 1 skipped   (vorher 425/1235)
 PHPCS:        0 Errors / 0 Warnings
 moodlecheck:  0 <e>-Tags
 ```
+
+---
+
+## Inkrement 25 — Flache String-IDs (2.0.0-beta.14, 2026090122)
+
+Der größte P1-Posten: **356 Sprach-IDs** verlieren ihre Doppelpunkte.
+`player:ready` → `player_ready`, `report:heading` → `report_heading`.
+
+### Warum das kein Kosmetikpunkt ist
+
+Moodle und AMOS akzeptieren in einer String-ID nur `[a-z0-9_]`. In der
+Doppelpunktform ließe sich das Plugin **nicht ins Plugin-Verzeichnis
+veröffentlichen und nicht auf lang.moodle.org übersetzen** — was für ein Plugin,
+das genau diesen Weg gehen soll, ein Ausschlusskriterium ist.
+
+### Die zehn Ausnahmen
+
+`elang:manage` und seine neun Geschwister bleiben. Sie benennen die
+Capabilities selbst und müssen ihnen buchstabengleich entsprechen.
+
+### Drei Fallen beim Umbau
+
+**(1) Historie nicht umschreiben.** Der erste Durchlauf hat auch `CHANGELOG.md`
+und die Sessionprotokolle 001–008 angefasst — Dokumente, die vergangene Stände
+beschreiben. Ein Eintrag „`report:heading` umbenannt" darf nicht rückwirkend
+„`report_heading` umbenannt" heißen. Rückgängig gemacht, die Historie steht
+wieder so da, wie sie war.
+
+**(2) Zur Laufzeit zusammengesetzte IDs.** Drei Stellen bauen ihre ID erst im
+Betrieb:
+
+```php
+get_string('provider:' . $key, 'mod_elang')     // media_page, get_version_content, media.php
+get_string('report:' . $column, 'mod_elang')    // report_overview
+```
+
+Für eine Textersetzung unsichtbar. Gefunden mit einer Suche nach *„Präfix in
+Anführungszeichen, endet auf Doppelpunkt, wird verkettet"* — dieselbe Suche hat
+bestätigt, dass die zwei verbleibenden Treffer ein Lock-Name und ein
+Test-Fixture sind, keine String-IDs. Ohne sie hätte PHPUnit `Invalid
+get_string() identifier: 'provider:youtube'` gemeldet, was es dann auch tat.
+
+**(3) ESLint hatte anschließend recht.** Mit den Doppelpunkten sind die
+Schlüssel gültige Bezeichner, also verlangt `dot-notation` Punktzugriff:
+`strings.player_ready` statt `strings['player_ready']`. 21 Stellen umgestellt.
+
+### Auswirkung für den Betrieb
+
+Eine **lokale Sprachanpassung** dieser Strings muss gegen die neuen IDs neu
+angelegt werden. Betrifft insbesondere die Anleitung in
+`docs/dev/deutsche-bezeichnung-sprachpaket.md` — die dort genannten IDs sind
+Capability- und `modulename`-Strings und damit **nicht** betroffen.
+
+### Verifikation
+
+```
+Sprach-IDs:   402 gesamt, davon 10 Capability-IDs mit Doppelpunkt, sonst flach
+Parität:      en 402 / de 402, keine Differenz
+Referenzen:   jede im Code angeforderte ID existiert (Prüfskript über den Baum)
+PHPUnit:      429 Tests, 1376 Assertions, 1 skipped
+Jest:         70/70
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+Playwright:   13/13 gegen eine echte Site — der Player lädt seine Strings zur
+              Laufzeit, der Umbau ist damit wirklich durchlaufen
+```
+
+Der phpcs-Befund aus Ralfs Lauf (`lib.php`: zwei Leerzeilen am Dateiende) war
+zu diesem Zeitpunkt bereits behoben; er stammt aus dem Zwischenstand vor dieser
+Korrektur.
 
 ---
 

@@ -65,8 +65,8 @@ interface Summary {
  */
 function detectFormat(subtitles: string, t: Translator): string {
     return subtitles.trimStart().startsWith('WEBVTT')
-        ? t('editor:formatwebvtt')
-        : t('editor:formatsubrip');
+        ? t('editor_formatwebvtt')
+        : t('editor_formatsubrip');
 }
 
 /**
@@ -133,7 +133,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
             setFilename(file.name);
             resetPreview();
         };
-        reader.onerror = () => setError(t('editor:importreaderror'));
+        reader.onerror = () => setError(t('editor_importreaderror'));
         reader.readAsText(file);
     };
 
@@ -150,7 +150,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
         if (result === null) {
             setSummary(null);
             setParsed(null);
-            setError(t('editor:importparseerror'));
+            setError(t('editor_importparseerror'));
             return;
         }
 
@@ -159,7 +159,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
 
         setParsed(result);
         setSummary({
-            filename: filename !== '' ? filename : t('editor:importpastedtext'),
+            filename: filename !== '' ? filename : t('editor_importpastedtext'),
             format: detectFormat(text, t),
             cuecount: result.cuecount,
             gapcount,
@@ -196,15 +196,15 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                 className="mod_elang-import-dialog card"
                 role="dialog"
                 aria-modal="true"
-                aria-label={t('editor:import')}
+                aria-label={t('editor_import')}
                 ref={dialogref}
             >
                 <div className="card-header d-flex justify-content-between align-items-center">
-                    <h2 className="h5 mb-0">{t('editor:import')}</h2>
+                    <h2 className="h5 mb-0">{t('editor_import')}</h2>
                     <button
                         type="button"
                         className="close btn-close"
-                        aria-label={t('editor:importcancel')}
+                        aria-label={t('editor_importcancel')}
                         data-action="importclose"
                         ref={closeref}
                         onClick={onClose}
@@ -224,7 +224,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                                 data-action="importtabfile"
                                 onClick={() => switchTab('file')}
                             >
-                                {t('editor:importfromfile')}
+                                {t('editor_importfromfile')}
                             </button>
                         </li>
                         <li className="nav-item" role="presentation">
@@ -236,20 +236,20 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                                 data-action="importtabtext"
                                 onClick={() => switchTab('text')}
                             >
-                                {t('editor:importfromtext')}
+                                {t('editor_importfromtext')}
                             </button>
                         </li>
                     </ul>
 
                     {tab === 'file' && (
                         <div data-region="importfile">
-                            <p className="text-muted">{t('editor:importfilehint')}</p>
+                            <p className="text-muted">{t('editor_importfilehint')}</p>
                             <input
                                 type="file"
                                 className="form-control-file"
                                 accept=".vtt,.srt,text/vtt,text/plain"
                                 data-region="importfileinput"
-                                aria-label={t('editor:importfromfile')}
+                                aria-label={t('editor_importfromfile')}
                                 onChange={(event) => {
                                     const file = event.target.files?.[0];
                                     if (file) {
@@ -262,12 +262,12 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
 
                     {tab === 'text' && (
                         <div data-region="importtextpane">
-                            <p className="text-muted">{t('editor:importhint')}</p>
+                            <p className="text-muted">{t('editor_importhint')}</p>
                             <textarea
                                 className="form-control"
                                 rows={8}
                                 data-region="importtext"
-                                aria-label={t('editor:importfromtext')}
+                                aria-label={t('editor_importfromtext')}
                                 value={text}
                                 onChange={(event) => {
                                     setText(event.target.value);
@@ -289,7 +289,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                                 resetPreview();
                             }}
                         />
-                        {t('editor:parsegaps')}
+                        {t('editor_parsegaps')}
                     </label>
 
                     <button
@@ -299,7 +299,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                         disabled={busy || text.trim() === ''}
                         onClick={preview}
                     >
-                        {busy ? t('editor:importchecking') : t('editor:importcheck')}
+                        {busy ? t('editor_importchecking') : t('editor_importcheck')}
                     </button>
 
                     {error !== '' && (
@@ -312,19 +312,19 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                         <div className="card mt-3" data-region="importsummary">
                             <div className="card-body">
                                 <div className="d-flex justify-content-between align-items-start">
-                                    <h3 className="h6">{t('editor:importsummary')}</h3>
-                                    <span className="badge badge-success bg-success">{t('editor:importready')}</span>
+                                    <h3 className="h6">{t('editor_importsummary')}</h3>
+                                    <span className="badge badge-success bg-success">{t('editor_importready')}</span>
                                 </div>
                                 <dl className="row mb-0">
-                                    <dt className="col-6">{t('editor:importsource')}</dt>
+                                    <dt className="col-6">{t('editor_importsource')}</dt>
                                     <dd className="col-6" data-region="summaryfilename">{summary.filename}</dd>
-                                    <dt className="col-6">{t('editor:importformat')}</dt>
+                                    <dt className="col-6">{t('editor_importformat')}</dt>
                                     <dd className="col-6" data-region="summaryformat">{summary.format}</dd>
-                                    <dt className="col-6">{t('editor:importcuecount')}</dt>
+                                    <dt className="col-6">{t('editor_importcuecount')}</dt>
                                     <dd className="col-6" data-region="summarycues">{summary.cuecount}</dd>
-                                    <dt className="col-6">{t('editor:importgapcount')}</dt>
+                                    <dt className="col-6">{t('editor_importgapcount')}</dt>
                                     <dd className="col-6" data-region="summarygaps">{summary.gapcount}</dd>
-                                    <dt className="col-6">{t('editor:importduration')}</dt>
+                                    <dt className="col-6">{t('editor_importduration')}</dt>
                                     <dd className="col-6" data-region="summaryduration">{summary.duration}</dd>
                                 </dl>
 
@@ -347,7 +347,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                         data-action="importcancel"
                         onClick={onClose}
                     >
-                        {t('editor:importcancel')}
+                        {t('editor_importcancel')}
                     </button>
 
                     {/* Replace is only offered when there is something to lose;
@@ -361,7 +361,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                             disabled={parsed === null}
                             onClick={() => apply(true)}
                         >
-                            {t('editor:importreplace')}
+                            {t('editor_importreplace')}
                         </button>
                     )}
 
@@ -372,7 +372,7 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                         disabled={parsed === null}
                         onClick={() => apply(false)}
                     >
-                        {hascues ? t('editor:importappend') : t('editor:importapply')}
+                        {hascues ? t('editor_importappend') : t('editor_importapply')}
                     </button>
                 </div>
             </div>

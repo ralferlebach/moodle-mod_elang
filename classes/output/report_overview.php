@@ -106,15 +106,15 @@ class report_overview implements renderable, templatable {
 
         return [
             [
-                'label' => get_string('report:kpiattempts', 'mod_elang'),
+                'label' => get_string('report_kpiattempts', 'mod_elang'),
                 'value' => (string) $total,
             ],
             [
-                'label' => get_string('report:kpifinished', 'mod_elang'),
+                'label' => get_string('report_kpifinished', 'mod_elang'),
                 'value' => (string) (int) $this->aggregate['finished'],
             ],
             [
-                'label' => get_string('report:kpiaverage', 'mod_elang'),
+                'label' => get_string('report_kpiaverage', 'mod_elang'),
                 // Of finished attempts only, which the label says: an average
                 // that silently included attempts still being worked on would
                 // move as people start, not as they perform.
@@ -123,7 +123,7 @@ class report_overview implements renderable, templatable {
                     : '—',
             ],
             [
-                'label' => get_string('report:kpihinted', 'mod_elang'),
+                'label' => get_string('report_kpihinted', 'mod_elang'),
                 'value' => $total > 0
                     ? $hinted . ' (' . round(($hinted / $total) * 100) . '%)'
                     : '0',
@@ -151,7 +151,7 @@ class report_overview implements renderable, templatable {
 
             $headings[] = [
                 'key' => $column,
-                'label' => get_string('report:' . $column, 'mod_elang'),
+                'label' => get_string('report_' . $column, 'mod_elang'),
                 'url' => $url->out(false),
                 'active' => $active,
                 'ariasort' => $active ? ($this->direction === 'ASC' ? 'ascending' : 'descending') : 'none',
@@ -209,11 +209,11 @@ class report_overview implements renderable, templatable {
             // The destructive action lives in a menu, not beside the primary
             // one: "View · Delete" as equal neighbours invites the wrong click.
             $menu = new action_menu();
-            $menu->set_kebab_trigger(get_string('report:actions', 'mod_elang'));
+            $menu->set_kebab_trigger(get_string('report_actions', 'mod_elang'));
             $menu->add(new action_menu_link(
                 $viewurl,
                 new pix_icon('i/preview', ''),
-                get_string('report:view', 'mod_elang'),
+                get_string('report_view', 'mod_elang'),
                 false
             ));
             if ($this->candelete) {
@@ -224,7 +224,7 @@ class report_overview implements renderable, templatable {
                         'attemptid' => $attempt['attemptid'],
                     ]),
                     new pix_icon('t/delete', ''),
-                    get_string('report:delete', 'mod_elang'),
+                    get_string('report_delete', 'mod_elang'),
                     false
                 ));
             }
@@ -236,7 +236,7 @@ class report_overview implements renderable, templatable {
                 'fullname' => $attempt['fullname'] !== '' ? $attempt['fullname'] : (string) $attempt['userid'],
                 'attemptnumber' => $attempt['attemptnumber'],
                 'state' => $attempt['state'],
-                'statelabel' => get_string('report:state_' . $attempt['state'], 'mod_elang'),
+                'statelabel' => get_string('report_state_' . $attempt['state'], 'mod_elang'),
                 'stateclass' => $states[$attempt['state']] ?? 'badge-secondary bg-secondary',
                 'score' => format_float((float) $attempt['score'], 2),
                 'answered' => $answered . ' / ' . $total,
@@ -260,18 +260,18 @@ class report_overview implements renderable, templatable {
             'rows' => $rows,
             'hasrows' => !empty($rows),
             'noattempts' => get_string(
-                $this->filtered ? 'report:nomatchingattempts' : 'report:noattempts',
+                $this->filtered ? 'report_nomatchingattempts' : 'report_noattempts',
                 'mod_elang'
             ),
             'filtered' => $this->filtered,
             'reseturl' => $reseturl->out(false),
-            'resetlabel' => get_string('report:filterreset', 'mod_elang'),
-            'exportlabel' => get_string('report:export', 'mod_elang'),
+            'resetlabel' => get_string('report_filterreset', 'mod_elang'),
+            'exportlabel' => get_string('report_export', 'mod_elang'),
             'exportformats' => $this->exportformats(),
             'hasexport' => $this->canexport,
-            'headexact' => get_string('report:exact', 'mod_elang'),
-            'headhinted' => get_string('report:hinted', 'mod_elang'),
-            'headactions' => get_string('report:actions', 'mod_elang'),
+            'headexact' => get_string('report_exact', 'mod_elang'),
+            'headhinted' => get_string('report_hinted', 'mod_elang'),
+            'headactions' => get_string('report_actions', 'mod_elang'),
         ];
     }
 }

@@ -584,7 +584,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
 
     if (has_capability('mod/elang:manage', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:media', 'mod_elang'),
+            get_string('nav_media', 'mod_elang'),
             new moodle_url('/mod/elang/media.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -593,7 +593,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
         ));
 
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:subtitles', 'mod_elang'),
+            get_string('nav_subtitles', 'mod_elang'),
             new moodle_url('/mod/elang/edit.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -604,7 +604,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
 
     if (has_capability('mod/elang:viewreports', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:reports', 'mod_elang'),
+            get_string('nav_reports', 'mod_elang'),
             new moodle_url('/mod/elang/report.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -619,7 +619,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
     $elang = $DB->get_record('elang', ['id' => $cm->instance]);
     if ($elang !== false && elang_can_export_transcript($elang, $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:exportshort', 'mod_elang'),
+            get_string('nav_exportshort', 'mod_elang'),
             new moodle_url('/mod/elang/transcript.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -711,4 +711,3 @@ function elang_can_export_solution(stdClass $elang, context $context, ?int $user
         'state' => 'finished',
     ]);
 }
-

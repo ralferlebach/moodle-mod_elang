@@ -136,7 +136,7 @@ if ($action === 'delete') {
         elang_update_grades($elang, (int) $deleted->userid);
         redirect(
             new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
-            get_string('report:deleted', 'mod_elang'),
+            get_string('report_deleted', 'mod_elang'),
             null,
             \core\output\notification::NOTIFY_SUCCESS
         );
@@ -145,7 +145,7 @@ if ($action === 'delete') {
     $PAGE->set_url('/mod/elang/report.php', ['id' => $cm->id, 'action' => 'delete', 'attemptid' => $deleteid]);
     echo $OUTPUT->header();
     echo $OUTPUT->confirm(
-        get_string('report:deleteconfirm', 'mod_elang'),
+        get_string('report_deleteconfirm', 'mod_elang'),
         new moodle_url('/mod/elang/report.php', [
             'id' => $cm->id,
             'action' => 'delete',
@@ -175,7 +175,7 @@ if (!$attemptid) {
           WHERE a.elangid = :elangid',
         ['elangid' => (int) $elang->id]
     );
-    $useroptions = [0 => get_string('report:filterany', 'mod_elang')];
+    $useroptions = [0 => get_string('report_filterany', 'mod_elang')];
     foreach ($attemptusers as $attemptuser) {
         $useroptions[(int) $attemptuser->id] = fullname($attemptuser);
     }
@@ -205,7 +205,7 @@ if (!$attemptid) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('report:heading', 'mod_elang'));
+echo $OUTPUT->heading(get_string('report_heading', 'mod_elang'));
 
 if ($attemptid) {
     $report->require_attempt_access($attemptid, (int) $elang->id, $cm, $context);

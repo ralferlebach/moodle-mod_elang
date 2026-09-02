@@ -64,7 +64,7 @@ trait attempt_helper {
         self::validate_context($context);
 
         if ((int) $attempt->userid !== (int) $USER->id) {
-            throw new \moodle_exception('error:noaccesstoattempt', 'mod_elang');
+            throw new \moodle_exception('error_noaccesstoattempt', 'mod_elang');
         }
 
         return $context;
@@ -101,7 +101,7 @@ trait attempt_helper {
         [$attempt, $context] = self::require_owned_attempt($attemptid);
 
         if ($attempt->state !== \mod_elang\local\domain\attempt_manager::STATE_INPROGRESS) {
-            throw new \moodle_exception('error:attemptnotinprogress', 'mod_elang');
+            throw new \moodle_exception('error_attemptnotinprogress', 'mod_elang');
         }
 
         return [$attempt, $context];
@@ -122,7 +122,7 @@ trait attempt_helper {
         $gap = $DB->get_record('elang_gap', ['id' => $gapid], '*', MUST_EXIST);
         $cue = $DB->get_record('elang_cue', ['id' => $gap->cueid], '*', MUST_EXIST);
         if ((int) $cue->versionid !== (int) $attempt->versionid) {
-            throw new \moodle_exception('error:gapnotinattemptversion', 'mod_elang');
+            throw new \moodle_exception('error_gapnotinattemptversion', 'mod_elang');
         }
 
         return $gap;

@@ -230,7 +230,7 @@ class version_manager {
                     $problems = (new version_validator())->validate($versionid);
                     if (!empty($problems)) {
                         throw new \moodle_exception(
-                            'error:versionnotpublishable',
+                            'error_versionnotpublishable',
                             'mod_elang',
                             '',
                             implode(' ', $problems)
@@ -289,10 +289,10 @@ class version_manager {
                 return $this->in_transaction(function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
                     $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
                     if ($version->status !== self::STATUS_DRAFT) {
-                        throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
+                        throw new \moodle_exception('error_versionnotadraft', 'mod_elang');
                     }
                     if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
-                        throw new \moodle_exception('error:draftrevisionmismatch', 'mod_elang');
+                        throw new \moodle_exception('error_draftrevisionmismatch', 'mod_elang');
                     }
 
                     // Validated before anything is removed. The delete wipes the
@@ -435,7 +435,7 @@ class version_manager {
         foreach ($cues as $cue) {
             $cuekey = (string) $cue['cuekey'];
             if (isset($seencuekeys[$cuekey])) {
-                throw new \moodle_exception('error:duplicatecuekey', 'mod_elang', '', $cuekey);
+                throw new \moodle_exception('error_duplicatecuekey', 'mod_elang', '', $cuekey);
             }
             $seencuekeys[$cuekey] = true;
 
@@ -443,17 +443,17 @@ class version_manager {
             foreach ($cue['gaps'] ?? [] as $gap) {
                 $gapkey = (string) $gap['gapkey'];
                 if (isset($seengapkeys[$gapkey])) {
-                    throw new \moodle_exception('error:duplicategapkey', 'mod_elang', '', $gapkey);
+                    throw new \moodle_exception('error_duplicategapkey', 'mod_elang', '', $gapkey);
                 }
                 $seengapkeys[$gapkey] = true;
 
                 if ((int) $gap['charstart'] < 0 || (int) $gap['charlength'] < 0) {
-                    throw new \moodle_exception('error:negativegapoffset', 'mod_elang');
+                    throw new \moodle_exception('error_negativegapoffset', 'mod_elang');
                 }
 
                 if (!in_array($gap['gradingalgorithm'], $knownalgorithms, true)) {
                     throw new \moodle_exception(
-                        'error:invalidgradingalgorithm',
+                        'error_invalidgradingalgorithm',
                         'mod_elang',
                         '',
                         $gap['gradingalgorithm']
@@ -463,13 +463,13 @@ class version_manager {
                 foreach ($gap['answers'] ?? [] as $answer) {
                     $isregex = (int) $answer['isregex'];
                     if ($isregex !== 0 && $isregex !== 1) {
-                        throw new \moodle_exception('error:invalidisregex', 'mod_elang');
+                        throw new \moodle_exception('error_invalidisregex', 'mod_elang');
                     }
                     if (
                         $isregex === 1
                         && !\mod_elang\local\grading\answer_evaluator::is_valid_regex((string) $answer['answer'])
                     ) {
-                        throw new \moodle_exception('error:invalidregexpattern', 'mod_elang', '', $answer['answer']);
+                        throw new \moodle_exception('error_invalidregexpattern', 'mod_elang', '', $answer['answer']);
                     }
                 }
 
@@ -477,16 +477,16 @@ class version_manager {
                 foreach ($gap['hints'] ?? [] as $hint) {
                     $level = (int) $hint['level'];
                     if (isset($seenlevels[$level])) {
-                        throw new \moodle_exception('error:duplicatehintlevel', 'mod_elang', '', $level);
+                        throw new \moodle_exception('error_duplicatehintlevel', 'mod_elang', '', $level);
                     }
                     $seenlevels[$level] = true;
 
                     $penalty = (float) $hint['penalty'];
                     if (!is_finite($penalty) || $penalty < 0.0 || $penalty > 1.0) {
-                        throw new \moodle_exception('error:invalidpenalty', 'mod_elang');
+                        throw new \moodle_exception('error_invalidpenalty', 'mod_elang');
                     }
                     if (!in_array($hint['hinttype'], $knownhinttypes, true)) {
-                        throw new \moodle_exception('error:invalidhinttype', 'mod_elang', '', $hint['hinttype']);
+                        throw new \moodle_exception('error_invalidhinttype', 'mod_elang', '', $hint['hinttype']);
                     }
                 }
             }
@@ -517,7 +517,7 @@ class version_manager {
 
         $kind = (string) $media['kind'];
         if (!in_array($kind, ['file', 'url', 'provider', ''], true)) {
-            throw new \moodle_exception('error:invalidmediakind', 'mod_elang');
+            throw new \moodle_exception('error_invalidmediakind', 'mod_elang');
         }
 
         $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
@@ -532,7 +532,7 @@ class version_manager {
                 return $this->in_transaction(function () use ($DB, $versionid, $media, $kind) {
                     $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
                     if ($version->status !== self::STATUS_DRAFT) {
-                        throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
+                        throw new \moodle_exception('error_versionnotadraft', 'mod_elang');
                     }
 
                     $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
@@ -1065,7 +1065,7 @@ class version_manager {
         $lockfactory = \core\lock\lock_config::get_lock_factory('mod_elang');
         $lock = $lockfactory->get_lock("version_lifecycle_{$elangid}", self::LOCK_TIMEOUT);
         if (!$lock) {
-            throw new \moodle_exception('error:couldnotobtainlock', 'mod_elang');
+            throw new \moodle_exception('error_couldnotobtainlock', 'mod_elang');
         }
 
         try {

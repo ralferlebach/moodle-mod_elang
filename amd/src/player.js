@@ -84,9 +84,9 @@ const PROVIDER_EMBEDS = {
  * itself.
  */
 const RESULT_STATES = {
-    exact: {cls: 'mod_elang-correct', key: 'player:statecorrect', icon: 'fa-check'},
-    wordrecognized: {cls: 'mod_elang-accepted', key: 'player:stateaccepted', icon: 'fa-exclamation-triangle'},
-    incorrect: {cls: 'mod_elang-incorrect', key: 'player:stateincorrect', icon: 'fa-times'},
+    exact: {cls: 'mod_elang-correct', key: 'player_statecorrect', icon: 'fa-check'},
+    wordrecognized: {cls: 'mod_elang-accepted', key: 'player_stateaccepted', icon: 'fa-exclamation-triangle'},
+    incorrect: {cls: 'mod_elang-incorrect', key: 'player_stateincorrect', icon: 'fa-times'},
     empty: {cls: 'mod_elang-empty', key: null, icon: null},
 };
 
@@ -237,7 +237,7 @@ const watchVideoDecoding = (element, region) => {
             const notice = document.createElement('div');
             notice.className = 'alert alert-warning mod_elang-novideo';
             notice.setAttribute('role', 'alert');
-            notice.textContent = strings['player:novideotrack'];
+            notice.textContent = strings.player_novideotrack;
             region.insertBefore(notice, element);
         }
     };
@@ -354,7 +354,7 @@ const applyResultState = (wrap, state, resultstate) => {
         parts.push(strings[info.key]);
     }
     if (wrap.dataset.hintlevel !== '0') {
-        parts.push(strings['player:statehinted']);
+        parts.push(strings.player_statehinted);
     }
     const label = parts.join(' — ');
 
@@ -407,7 +407,7 @@ const submitGap = (wrap, input, state) => {
             updateScore(result);
         } catch (error) {
             Log.error(error);
-            state.textContent = error.message || strings['player:submitfailed'];
+            state.textContent = error.message || strings.player_submitfailed;
         } finally {
             wrap.dataset.submitting = '0';
         }
@@ -434,12 +434,12 @@ const requestHint = async(wrap, input, state) => {
         });
         wrap.dataset.hintlevel = String(hint.level);
         wrap.classList.add('mod_elang-hinted');
-        state.textContent = `${strings['player:statehinted']}: ${hint.hinttext}`;
+        state.textContent = `${strings.player_statehinted}: ${hint.hinttext}`;
         updateScore(hint);
         input.focus();
     } catch (error) {
         Log.error(error);
-        state.textContent = error.message || strings['player:submitfailed'];
+        state.textContent = error.message || strings.player_submitfailed;
     }
 };
 
@@ -453,7 +453,7 @@ const requestHint = async(wrap, input, state) => {
 const updateScore = (payload) => {
     const region = document.querySelector(SELECTORS.SCORE);
     if (region && typeof payload.score === 'number') {
-        region.textContent = strings['player:scorelabel'].replace('%score%', Math.round(payload.score * 100));
+        region.textContent = strings.player_scorelabel.replace('%score%', Math.round(payload.score * 100));
     }
 };
 
@@ -468,7 +468,7 @@ const updateScore = (payload) => {
  * @returns {Element} The submit button
  */
 const buildSubmitButton = (wrap, input, state) => {
-    const button = buildIconButton('mod_elang-gapsubmit', 'fa-check-circle', strings['player:check']);
+    const button = buildIconButton('mod_elang-gapsubmit', 'fa-check-circle', strings.player_check);
     button.addEventListener('click', () => submitGap(wrap, input, state));
     return button;
 };
@@ -510,7 +510,7 @@ const buildIconButton = (cls, icon, label) => {
  * @returns {Element} The hint button
  */
 const buildHintButton = (wrap, input, state) => {
-    const button = buildIconButton('mod_elang-hintbtn', 'fa-lightbulb-o', strings['player:hint']);
+    const button = buildIconButton('mod_elang-hintbtn', 'fa-lightbulb-o', strings.player_hint);
     button.addEventListener('click', () => requestHint(wrap, input, state));
     return button;
 };
@@ -595,8 +595,8 @@ const buildGap = (gap, label) => {
         link.href = gap.linkurl;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        link.textContent = strings['player:gaplink'];
-        link.setAttribute('aria-label', `${strings['player:gaplink']}: ${label}`);
+        link.textContent = strings.player_gaplink;
+        link.setAttribute('aria-label', `${strings.player_gaplink}: ${label}`);
         wrap.appendChild(link);
     }
     return wrap;
@@ -1002,7 +1002,7 @@ const finishAttempt = async(player) => {
     const score = Math.round(result.score * 100);
     const status = player.querySelector(SELECTORS.STATUS);
     if (status) {
-        status.textContent = strings['player:finished'].replace('%score%', score);
+        status.textContent = strings.player_finished.replace('%score%', score);
     }
     updateScore(result);
 };
@@ -1032,7 +1032,7 @@ const renderControls = (player) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'mod_elang-finishbtn btn btn-primary';
-    button.textContent = strings['player:finish'];
+    button.textContent = strings.player_finish;
 
     /**
      * Count the gaps and how many of them are still empty.
@@ -1053,7 +1053,7 @@ const renderControls = (player) => {
             progress.textContent = '';
             return;
         }
-        progress.textContent = strings['player:progress']
+        progress.textContent = strings.player_progress
             .replace('{$a->done}', String(total - open))
             .replace('{$a->total}', String(total));
         // Complete is the normal way to finish, so the button says so and
@@ -1067,7 +1067,7 @@ const renderControls = (player) => {
         Log.error(error);
         const status = player.querySelector(SELECTORS.STATUS);
         if (status) {
-            status.textContent = error.message || strings['player:submitfailed'];
+            status.textContent = error.message || strings.player_submitfailed;
         }
     });
 
@@ -1086,9 +1086,9 @@ const renderControls = (player) => {
         // returns focus nowhere in particular. Cancelling rejects the promise,
         // which is the ordinary answer here and not an error.
         Notification.saveCancelPromise(
-            strings['player:finish'],
-            strings['player:finishincomplete'].replace('{$a}', String(open)),
-            strings['player:finish'],
+            strings.player_finish,
+            strings.player_finishincomplete.replace('{$a}', String(open)),
+            strings.player_finish,
             {triggerElement: button}
         ).then(finish).catch(() => null);
     });
@@ -1113,11 +1113,11 @@ const renderControls = (player) => {
  */
 const loadStrings = async() => {
     const keys = [
-        'player:gaplabel', 'player:gaplink', 'player:check', 'player:hint', 'player:finish', 'player:finished',
-        'player:finishincomplete', 'player:progress',
-        'player:statecorrect', 'player:stateaccepted', 'player:stateincorrect',
-        'player:statehinted', 'player:submitfailed', 'player:scorelabel', 'player:ready',
-        'player:novideotrack', 'player:outdatedattempt',
+        'player_gaplabel', 'player_gaplink', 'player_check', 'player_hint', 'player_finish', 'player_finished',
+        'player_finishincomplete', 'player_progress',
+        'player_statecorrect', 'player_stateaccepted', 'player_stateincorrect',
+        'player_statehinted', 'player_submitfailed', 'player_scorelabel', 'player_ready',
+        'player_novideotrack', 'player_outdatedattempt',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -1156,7 +1156,7 @@ const restoreState = async(list) => {
         if (response.tries > 0) {
             applyResultState(wrap, gapstate, response.resultstate);
         } else if (response.hintlevel > 0) {
-            gapstate.textContent = strings['player:statehinted'];
+            gapstate.textContent = strings.player_statehinted;
         }
     });
 
@@ -1195,7 +1195,7 @@ const bootstrap = async(cmid, player) => {
         const notice = document.createElement('div');
         notice.className = 'alert alert-info mod_elang-outdated';
         notice.setAttribute('role', 'status');
-        notice.textContent = strings['player:outdatedattempt'];
+        notice.textContent = strings.player_outdatedattempt;
         player.insertBefore(notice, player.firstChild);
     }
 
@@ -1218,7 +1218,7 @@ const bootstrap = async(cmid, player) => {
     let gapnumber = 0;
     const nextLabel = () => {
         gapnumber += 1;
-        return strings['player:gaplabel'].replace('%gap%', gapnumber);
+        return strings.player_gaplabel.replace('%gap%', gapnumber);
     };
 
     await loadAllCues(list, exercise.totalcues, nextLabel);
@@ -1248,7 +1248,7 @@ const bootstrap = async(cmid, player) => {
 
     const status = player.querySelector(SELECTORS.STATUS);
     if (status) {
-        status.textContent = strings['player:ready'];
+        status.textContent = strings.player_ready;
     }
 };
 
@@ -1267,7 +1267,7 @@ export const init = (cmid) => {
         Log.error(error);
         const status = player.querySelector(SELECTORS.STATUS);
         if (status) {
-            status.textContent = await getString('player:loaderror', 'mod_elang');
+            status.textContent = await getString('player_loaderror', 'mod_elang');
         }
     });
 };

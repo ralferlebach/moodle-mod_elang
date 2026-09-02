@@ -48,13 +48,13 @@ require_capability('mod/elang:exporttranscript', $context);
 $canworksheet = elang_can_export_worksheet($elang, $context);
 $cansolution = elang_can_export_solution($elang, $context);
 if (!$canworksheet && !$cansolution) {
-    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
+    throw new moodle_exception('error_transcriptnotavailable', 'mod_elang');
 }
 if ($solution && !$cansolution) {
-    throw new moodle_exception('error:solutionnotavailable', 'mod_elang');
+    throw new moodle_exception('error_solutionnotavailable', 'mod_elang');
 }
 if (!$solution && !$canworksheet) {
-    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
+    throw new moodle_exception('error_transcriptnotavailable', 'mod_elang');
 }
 
 $masked = !$solution;
@@ -65,7 +65,7 @@ $name = clean_filename(format_string($elang->name));
 
 if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 'odt') {
     if ($version === null) {
-        throw new moodle_exception('error:nopublishedversion', 'mod_elang');
+        throw new moodle_exception('error_nopublishedversion', 'mod_elang');
     }
 
     $exporter = new \mod_elang\local\export\transcript_exporter();

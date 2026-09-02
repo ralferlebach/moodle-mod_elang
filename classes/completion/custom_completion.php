@@ -73,7 +73,7 @@ class custom_completion extends activity_custom_completion {
      */
     public function get_custom_rule_descriptions(): array {
         return [
-            'completionfinishattempt' => get_string('completiondetail:completionfinishattempt', 'mod_elang'),
+            'completionfinishattempt' => get_string('completiondetail_completionfinishattempt', 'mod_elang'),
         ];
     }
 

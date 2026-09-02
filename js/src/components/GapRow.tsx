@@ -65,13 +65,13 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                 field to fill in. They remain available for support work through
                 the data attribute below. */}
             <div className="sr-only visually-hidden" data-gaprange={gap.charstart + '-' + (gap.charstart + gap.charlength)}>
-                {t('editor:gaprange')}: {gap.charstart}–{gap.charstart + gap.charlength}
+                {t('editor_gaprange')}: {gap.charstart}–{gap.charstart + gap.charlength}
             </div>
 
             <div className="row">
                 <div className="col-12 col-md-4">
                     <label className="d-block">
-                        {t('editor:solution')}
+                        {t('editor_solution')}
                         <input
                             type="text"
                             className="form-control"
@@ -83,20 +83,20 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
 
                 <div className="col-12 col-md-4">
                     <label className="d-block">
-                        {t('editor:algorithm')}
+                        {t('editor_algorithm')}
                         <select
                             className="form-control"
                             value={gap.gradingalgorithm}
                             onChange={(event) => onChange({...gap, gradingalgorithm: event.target.value})}
                         >
-                            <option value="exact">{t('editor:algoexact')}</option>
-                            <option value="wordrecognized">{t('editor:algowordrecognized')}</option>
+                            <option value="exact">{t('editor_algoexact')}</option>
+                            <option value="wordrecognized">{t('editor_algowordrecognized')}</option>
                         </select>
                     </label>
                 </div>
 
                 <div className="col-12 col-md-4">
-                    <span className="d-block">{t('editor:answers')}</span>
+                    <span className="d-block">{t('editor_answers')}</span>
                     {/* Variants read as a list of accepted spellings rather than
                         as a column of full-width text fields: there are usually
                         one or two, and each used to take a row of its own with a
@@ -108,14 +108,14 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                     type="text"
                                     className="form-control form-control-sm d-inline-block w-auto"
                                     value={answer.answer}
-                                    aria-label={t('editor:answers')}
+                                    aria-label={t('editor_answers')}
                                     onChange={(event) => replaceAnswer(index, {...answer, answer: event.target.value})}
                                 />
                                 <button
                                     type="button"
                                     className="btn btn-link btn-sm text-danger p-0 ml-1"
-                                    aria-label={t('editor:removevariant')}
-                                    title={t('editor:removevariant')}
+                                    aria-label={t('editor_removevariant')}
+                                    title={t('editor_removevariant')}
                                     data-action="removevariant"
                                     onClick={() => onChange({
                                         ...gap,
@@ -136,32 +136,32 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                             answers: [...gap.answers, {sortorder: gap.answers.length + 1, answer: '', isregex: 0}],
                         })}
                     >
-                        {t('editor:addvariant')}
+                        {t('editor_addvariant')}
                     </button>
                 </div>
             </div>
 
-            <p className="mb-1 mt-2">{t('editor:hints')}</p>
+            <p className="mb-1 mt-2">{t('editor_hints')}</p>
             <div>
                 {gap.hints.map((hint, index) => (
                     <div className="mod_elang-editor-hint border rounded p-2 mt-1" key={index}>
                         <span className="badge badge-secondary bg-secondary mr-2 me-2">{index + 1}</span>
                         <select
                             className="form-control d-inline-block w-auto mr-2 me-2"
-                            aria-label={t('editor:hinttype')}
+                            aria-label={t('editor_hinttype')}
                             value={hint.hinttype}
                             onChange={(event) => replaceHint(index, {...hint, hinttype: event.target.value})}
                         >
                             {HINTTYPES.map((type) => (
-                                <option value={type} key={type}>{t('editor:hinttype_' + type)}</option>
+                                <option value={type} key={type}>{t('editor_hinttype_' + type)}</option>
                             ))}
                         </select>
                         <input
                             type="text"
                             className="form-control d-inline-block w-50 mr-2 me-2"
                             value={hint.hinttext}
-                            placeholder={t('editor:hinttext')}
-                            aria-label={t('editor:hinttext')}
+                            placeholder={t('editor_hinttext')}
+                            aria-label={t('editor_hinttext')}
                             onChange={(event) => replaceHint(index, {...hint, hinttext: event.target.value})}
                         />
                         <input
@@ -171,7 +171,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                             step={0.1}
                             min={0}
                             value={hint.penalty}
-                            aria-label={t('editor:penalty')}
+                            aria-label={t('editor_penalty')}
                             onChange={(event) => replaceHint(index, {...hint, penalty: parseFloat(event.target.value) || 0})}
                         />
                         <button
@@ -180,7 +180,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                             data-action="removehint"
                             onClick={() => onChange({...gap, hints: resequenced(gap.hints.filter((_, i) => i !== index))})}
                         >
-                            {t('editor:removehint')}
+                            {t('editor_removehint')}
                         </button>
                     </div>
                 ))}
@@ -194,7 +194,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                     hints: [...gap.hints, {level: gap.hints.length + 1, hinttype: 'text', hinttext: '', penalty: 0}],
                 })}
             >
-                {t('editor:addhint')}
+                {t('editor_addhint')}
             </button>
 
             {/* Collapsed by default. These three exist in the schema and in the
@@ -203,12 +203,12 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                 the solution would have suggested every gap needs a decision
                 about them. */}
             <details className="mod_elang-editor-advanced mt-2" data-region="gapadvanced">
-                <summary>{t('editor:advanced')}</summary>
+                <summary>{t('editor_advanced')}</summary>
 
                 <div className="row mt-2">
                     <div className="col-12 col-md-4">
                         <label className="d-block">
-                            {t('editor:maxlength')}
+                            {t('editor_maxlength')}
                             <input
                                 type="number"
                                 className="form-control"
@@ -221,12 +221,12 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                 })}
                             />
                         </label>
-                        <p className="text-muted small">{t('editor:maxlength_help')}</p>
+                        <p className="text-muted small">{t('editor_maxlength_help')}</p>
                     </div>
 
                     <div className="col-12 col-md-8">
                         <label className="d-block">
-                            {t('editor:linkurl')}
+                            {t('editor_linkurl')}
                             <input
                                 type="url"
                                 className="form-control"
@@ -235,13 +235,13 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                 onChange={(event) => onChange({...gap, linkurl: event.target.value})}
                             />
                         </label>
-                        <p className="text-muted small">{t('editor:linkurl_help')}</p>
+                        <p className="text-muted small">{t('editor_linkurl_help')}</p>
                     </div>
                 </div>
 
                 {gap.answers.length > 0 && (
                     <div data-region="variantregex">
-                        <p className="mb-1">{t('editor:variantmatching')}</p>
+                        <p className="mb-1">{t('editor_variantmatching')}</p>
                         {gap.answers.map((answer, index) => (
                             <label className="d-block mb-1" key={index}>
                                 <input
@@ -253,7 +253,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                         isregex: event.target.checked ? 1 : 0,
                                     })}
                                 />
-                                {t('editor:variantisregex').replace('{$a}', answer.answer || String(index + 1))}
+                                {t('editor_variantisregex').replace('{$a}', answer.answer || String(index + 1))}
                             </label>
                         ))}
                     </div>
@@ -261,7 +261,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
             </details>
 
             <button type="button" className="btn btn-link text-danger p-0 d-block" onClick={onDelete}>
-                {t('editor:deletegap')}
+                {t('editor_deletegap')}
             </button>
         </div>
     );

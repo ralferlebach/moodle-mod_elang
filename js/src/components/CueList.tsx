@@ -56,13 +56,13 @@ interface Props {
  */
 export function cueWarning(cue: Cue, t: Translator): string {
     if (cue.endtime <= cue.starttime) {
-        return t('editor:warntiming');
+        return t('editor_warntiming');
     }
     if (cue.transcript.trim() === '') {
-        return t('editor:warnnotranscript');
+        return t('editor_warnnotranscript');
     }
     if (cue.gaps.some((gap) => gap.solution.trim() === '')) {
-        return t('editor:warnemptysolution');
+        return t('editor_warnemptysolution');
     }
 
     return '';
@@ -91,8 +91,8 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                     type="search"
                     className="form-control form-control-sm mr-2 me-2 mod_elang-cuelist-search"
                     data-region="cuesearch"
-                    placeholder={t('editor:searchcues')}
-                    aria-label={t('editor:searchcues')}
+                    placeholder={t('editor_searchcues')}
+                    aria-label={t('editor_searchcues')}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
@@ -105,18 +105,18 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                         checked={onlywarnings}
                         onChange={(event) => setOnlywarnings(event.target.checked)}
                     />
-                    {t('editor:onlywarnings')}
+                    {t('editor_onlywarnings')}
                 </label>
 
                 <span className="badge badge-secondary bg-secondary mr-2 me-2" data-region="cuecount">
-                    {t('editor:cuecount').replace('{$a}', String(cues.length))}
+                    {t('editor_cuecount').replace('{$a}', String(cues.length))}
                 </span>
 
                 {/* Beside the cues it acts on, not in the publish toolbar: adding
                     a cue is routine authoring, and sitting next to "Publish" it
                     read as an equally consequential step. */}
                 <button type="button" className="btn btn-sm btn-secondary" data-action="addcue" onClick={onAdd}>
-                    {t('editor:addcue')}
+                    {t('editor_addcue')}
                 </button>
             </div>
 
@@ -147,11 +147,11 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                     </span>
                                     <span className="d-block mod_elang-cuelist-preview">
                                         {cue.transcript.trim() === ''
-                                            ? t('editor:emptytranscript')
+                                            ? t('editor_emptytranscript')
                                             : cue.transcript}
                                     </span>
                                     <span className="badge badge-light bg-light text-dark mr-1 me-1">
-                                        {t('editor:gapcount').replace('{$a}', String(cue.gaps.length))}
+                                        {t('editor_gapcount').replace('{$a}', String(cue.gaps.length))}
                                     </span>
                                     {warning !== '' && (
                                         // Labelled, not merely coloured: a warning
@@ -172,7 +172,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                         data-bs-toggle="dropdown"
                                         aria-haspopup="true"
                                         aria-expanded="false"
-                                        aria-label={t('editor:cueactions')}
+                                        aria-label={t('editor_cueactions')}
                                     >
                                         <span aria-hidden="true">⋮</span>
                                     </button>
@@ -186,7 +186,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                             data-action="insertbefore"
                                             onClick={() => onInsertAt(index)}
                                         >
-                                            {t('editor:insertbefore')}
+                                            {t('editor_insertbefore')}
                                         </button>
                                         <button
                                             type="button"
@@ -194,7 +194,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                             data-action="insertafter"
                                             onClick={() => onInsertAt(index + 1)}
                                         >
-                                            {t('editor:insertafter')}
+                                            {t('editor_insertafter')}
                                         </button>
                                         <div className="dropdown-divider"></div>
                                         <button
@@ -203,7 +203,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                             data-action="deletecue"
                                             onClick={() => onDelete(index)}
                                         >
-                                            {t('editor:deletecue')}
+                                            {t('editor_deletecue')}
                                         </button>
                                     </div>
                                 </div>
@@ -214,7 +214,7 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
 
                 {visible.length === 0 && (
                     <li className="list-group-item text-muted" data-region="nocuesmatch">
-                        {cues.length === 0 ? t('editor:nocues') : t('editor:nocuesmatch')}
+                        {cues.length === 0 ? t('editor_nocues') : t('editor_nocuesmatch')}
                     </li>
                 )}
             </ul>

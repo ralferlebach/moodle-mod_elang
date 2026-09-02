@@ -72,13 +72,13 @@ class subtitle_parser {
 
             $timing = $this->parse_timing_line($lines[$timingindex]);
             if ($timing === null) {
-                $warnings[] = get_string('import:badtiming', 'mod_elang', trim($lines[$timingindex]));
+                $warnings[] = get_string('import_badtiming', 'mod_elang', trim($lines[$timingindex]));
                 continue;
             }
 
             $transcript = trim(implode("\n", array_slice($lines, $timingindex + 1)));
             if ($transcript === '') {
-                $warnings[] = get_string('import:emptytranscript', 'mod_elang');
+                $warnings[] = get_string('import_emptytranscript', 'mod_elang');
                 continue;
             }
 

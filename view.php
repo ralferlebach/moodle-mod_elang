@@ -73,7 +73,7 @@ if ($published !== null) {
 echo $OUTPUT->header();
 
 if ($published === null) {
-    echo $OUTPUT->notification(get_string('player:nocontent', 'mod_elang'), 'info');
+    echo $OUTPUT->notification(get_string('player_nocontent', 'mod_elang'), 'info');
 } else {
     echo $OUTPUT->render_from_template('mod_elang/player', []);
 }

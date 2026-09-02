@@ -37,7 +37,7 @@ if ($hassiteconfig) {
         'modsettings',
         new admin_externalpage(
             'elangmigratev1',
-            get_string('migratev1:heading', 'mod_elang'),
+            get_string('migratev1_heading', 'mod_elang'),
             new moodle_url('/mod/elang/admin_migrate_v1.php'),
             'moodle/site:config'
         )

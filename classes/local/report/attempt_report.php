@@ -280,15 +280,15 @@ final class attempt_report {
      */
     public function export_columns(): array {
         return [
-            'user' => get_string('report:user', 'mod_elang'),
-            'attemptnumber' => get_string('report:attemptnumber', 'mod_elang'),
-            'state' => get_string('report:state', 'mod_elang'),
-            'score' => get_string('report:score', 'mod_elang'),
-            'answered' => get_string('report:answered', 'mod_elang'),
-            'correct' => get_string('report:correct', 'mod_elang'),
-            'exact' => get_string('report:exact', 'mod_elang'),
-            'hinted' => get_string('report:hinted', 'mod_elang'),
-            'finished' => get_string('report:finished', 'mod_elang'),
+            'user' => get_string('report_user', 'mod_elang'),
+            'attemptnumber' => get_string('report_attemptnumber', 'mod_elang'),
+            'state' => get_string('report_state', 'mod_elang'),
+            'score' => get_string('report_score', 'mod_elang'),
+            'answered' => get_string('report_answered', 'mod_elang'),
+            'correct' => get_string('report_correct', 'mod_elang'),
+            'exact' => get_string('report_exact', 'mod_elang'),
+            'hinted' => get_string('report_hinted', 'mod_elang'),
+            'finished' => get_string('report_finished', 'mod_elang'),
         ];
     }
 
@@ -392,7 +392,7 @@ final class attempt_report {
                     'nopermissions',
                     'error',
                     '',
-                    get_string('report:heading', 'mod_elang')
+                    get_string('report_heading', 'mod_elang')
                 );
             }
         }

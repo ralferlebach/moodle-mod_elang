@@ -131,7 +131,7 @@ export function Waveform({mediasrc, totalms, currentms, t, onSeek}: Props): JSX.
             viewBox={'0 0 ' + BUCKETS + ' ' + VIEW_HEIGHT}
             preserveAspectRatio="none"
             role="img"
-            aria-label={t('editor:waveform')}
+            aria-label={t('editor_waveform')}
             onClick={handleClick}
         >
             <polyline className="mod_elang-editor-waveform-band" points={peaksToPolyline(peaks, BUCKETS, VIEW_HEIGHT)} />

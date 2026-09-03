@@ -49,8 +49,13 @@ export const options = {
         read_content: {
             executor: 'ramping-vus',
             startVUs: 1,
+            // The ramp scales with the load. Fifteen seconds is right for a
+            // classroom and wrong for a lecture hall: arriving at 2000 virtual
+            // users that fast measures the ramp rather than the plateau, and
+            // the first seconds of a cold connection pool dominate the p95.
             stages: [
-                {duration: __ENV.RAMPUP || '15s', target: Number(__ENV.VUS || 25)},
+                {duration: __ENV.RAMPUP || (Number(__ENV.VUS || 25) > 500 ? '60s' : '15s'),
+                    target: Number(__ENV.VUS || 25)},
                 {duration: __ENV.DURATION || '1m', target: Number(__ENV.VUS || 25)},
                 {duration: '10s', target: 0},
             ],
@@ -58,14 +63,25 @@ export const options = {
         },
     },
     thresholds: {
-        // The hard gate is the error rate: fewer than 1% functional errors. The
-        // p95 latency is a regression guard, not an absolute SLA — it is
-        // dominated by the response payload size, so it scales with the number
-        // of cues in the seeded exercise. The default suits the default seed
-        // (a few hundred cues); for a stress run of several thousand cues raise
-        // it with -e P95=<ms>.
+        // Two latency numbers, because "acceptable" and "still working" are
+        // different questions.
+        //
+        //   p95 < 800 ms  fails the run. Above this a learner typing an answer
+        //                 waits long enough to wonder whether the key
+        //                 registered, and every answer in this exercise is a
+        //                 request.
+        //   p95 < 300 ms  does not fail the run; it is what the exercise should
+        //                 feel like, and k6 reports it separately so a drift
+        //                 from 280 ms to 700 ms is visible while it is still
+        //                 only a drift.
+        //
+        // Both are overridable for a deliberate stress run, but the defaults
+        // are the agreed figures rather than a placeholder.
         elang_content_errors: ['rate<0.01'],
-        elang_content_latency: ['p(95)<' + Number(__ENV.P95 || 1500)],
+        elang_content_latency: [
+            {threshold: 'p(95)<' + Number(__ENV.P95 || 800), abortOnFail: false},
+            {threshold: 'p(95)<' + Number(__ENV.P95_TARGET || 300), abortOnFail: false},
+        ],
         http_req_failed: ['rate<0.01'],
     },
 };

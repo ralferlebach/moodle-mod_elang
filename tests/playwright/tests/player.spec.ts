@@ -191,3 +191,85 @@ test.describe('cue list', () => {
             .toHaveAttribute('data-cuekey', open ?? '');
     });
 });
+
+test.describe('narrow screens and right-to-left', () => {
+    test.beforeEach(async({page}) => {
+        await loginAs(page, requireEnv('ELANG_STUDENT'), requireEnv('ELANG_STUDENT_PASS'));
+    });
+
+    test('the exercise fits a phone without sideways scrolling', async({page}) => {
+        // A page wider than the screen means every line has to be scrolled to
+        // be read, which on an exercise built from sentences is the whole page.
+        await page.setViewportSize({width: 390, height: 844});
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+        );
+        // A pixel or two of rounding is not sideways scrolling.
+        expect(overflow).toBeLessThanOrEqual(2);
+    });
+
+    test('the medium and the transcript share a short screen', async({page}) => {
+        await page.setViewportSize({width: 390, height: 844});
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        const media = await page.locator('.mod_elang-media video').boundingBox();
+        const transcript = await page.locator('.mod_elang-transcript-scroll').boundingBox();
+        expect(media).not.toBeNull();
+        expect(transcript).not.toBeNull();
+
+        // Both bounded, so neither pushes the other off the screen.
+        expect(media!.height + transcript!.height).toBeLessThan(844);
+    });
+
+    test('an overlay caption keeps its box on a phone', async({page}) => {
+        await page.setViewportSize({width: 390, height: 844});
+        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYBOTTOM'));
+
+        const stage = await page.locator('.mod_elang-media-stage').boundingBox();
+        const caption = await page.locator('.mod_elang-caption-overlaybottom').boundingBox();
+        expect(stage).not.toBeNull();
+        expect(caption).not.toBeNull();
+
+        // A long sentence must wrap inside the picture rather than run past it.
+        expect(caption!.width).toBeLessThanOrEqual(stage!.width + 1);
+        expect(caption!.x).toBeGreaterThanOrEqual(stage!.x - 1);
+    });
+});
+
+test.describe('right-to-left', () => {
+    test.beforeEach(async({page}) => {
+        // Its own block, with its own browser context: the cue list lives in
+        // the editor and needs mod/elang:manage, and logging in a second time
+        // in a context that already has a session lands on Moodle's "you are
+        // already logged in" page rather than on the login form.
+        test.setTimeout(120000);
+        await loginAs(page, requireEnv('ELANG_USER'), requireEnv('ELANG_PASS'));
+    });
+
+    test('right-to-left moves the marked edge to the start of the line', async({page}) => {
+        await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
+        await expect(page.locator('[data-region="cuelist"]')).toBeVisible({timeout: 60000});
+
+        const selected = page.locator('.mod_elang-cuelist-item.selected');
+        const ltr = await selected.evaluate((element) => {
+            const style = window.getComputedStyle(element);
+            return {left: style.borderLeftWidth, right: style.borderRightWidth};
+        });
+        expect(ltr.left).toBe('4px');
+        expect(ltr.right).toBe('0px');
+
+        // Flipping the document is enough to prove the rule is logical: a
+        // physical border-left would stay on the left and end up at the end of
+        // the line. This does not need an Arabic language pack, only the
+        // direction the pack would set.
+        await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+        const rtl = await selected.evaluate((element) => {
+            const style = window.getComputedStyle(element);
+            return {left: style.borderLeftWidth, right: style.borderRightWidth};
+        });
+        expect(rtl.right).toBe('4px');
+        expect(rtl.left).toBe('0px');
+    });
+});

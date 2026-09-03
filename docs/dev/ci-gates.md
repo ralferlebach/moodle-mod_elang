@@ -35,7 +35,7 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpunit-experimental`, `behat-experimental` (Moodle `main`) | Frühwarnung für die nächste Moodle-Version. Ein Bruch dort ist meist eine Änderung im Kern, kein Fehler hier; `continue-on-error` ist gesetzt. |
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
-| **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. |
+| **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
 | **JMeter** | Kein Workflow. Misst dasselbe wie k6 und bräuchte zusätzlich eine JVM; `tests/load/*.jmx` bleibt liegen, wird aber nicht gepflegt. |
 
 ### Was das für eine Freigabe bedeutet
@@ -62,11 +62,12 @@ sichtbar:
   prüft `moodle-plugin-ci savepoints` die Savepoints im Lint-Job.
 - **Backup/Restore** deckt `tests/backup/restore_test.php` ab.
 
-Eine Kombination bleibt ungeprüft: ein Upgrade auf einer Site, die eine
-**frühere 2.0-Beta** installiert hat. Die Upgrade-Tests springen von V1 auf den
-aktuellen Stand. Solange die Beta-Reihe läuft, ist das vertretbar; vor der
-Stable-Freigabe gehört ein Upgrade-Pfad von der ersten öffentlichen Beta
-geprüft.
+Der geprüfte Pfad ist der einzige, den es gibt: **Version 1 → 2.0**. Keine
+2.0-Beta wurde je veröffentlicht, es existieren also außerhalb von
+Entwicklungsrechnern keine Installationen eines Zwischenstands, von denen aus
+aktualisiert werden müsste. Alles andere ist eine Neuinstallation, und die
+bekommt ihr Schema vollständig aus `db/install.xml` — was jeder der sieben
+PHPUnit- und Behat-Läufe je Push mit `moodle-plugin-ci install` durchführt.
 
 ## Wie man den Nachweis führt
 

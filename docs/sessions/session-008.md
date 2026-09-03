@@ -1855,10 +1855,15 @@ Barrierefreiheitsprüfungen liefen, dass das Verhalten unter Last unverändert i
 oder dass Moodle `main` unterstützt wird. Diese drei sind vor einer
 Stable-Freigabe einzeln anzustoßen.
 
-Dabei fiel eine Lücke auf, die ich benannt statt geschlossen habe: die
-Upgrade-Tests springen von **V1** auf den aktuellen Stand. Ein Upgrade von einer
-**früheren 2.0-Beta** ist nicht abgedeckt. Während der Beta-Reihe vertretbar,
-vor Stable nicht.
+Dabei glaubte ich, eine Lücke gefunden zu haben: die Upgrade-Tests springen von
+**V1** auf den aktuellen Stand, ein Upgrade von einer früheren 2.0-Beta sei
+nicht abgedeckt.
+
+> **Nachtrag aus Inkrement 31: das war keine Lücke.** Es wurde nie eine 2.0-Beta
+> veröffentlicht. Außerhalb von Entwicklungsrechnern existiert kein
+> Zwischenstand, von dem aus aktualisiert werden müsste; alles andere ist eine
+> Neuinstallation. Der einzige reale Upgrade-Pfad ist V1 → 2.0, und genau den
+> prüft `tests/upgrade_test.php`.
 
 Zwei Angaben habe ich beim Schreiben gegengeprüft und korrigiert: die
 `lint-php`-Matrix läuft über PHP 8.1 und 8.4 (nicht eine Version), und der
@@ -2091,6 +2096,368 @@ Messung:      20 000 Versuche, EXPLAIN geprüft
 PHPUnit:      429 Tests, 1376 Assertions, 1 skipped
 PHPCS:        0 Errors / 0 Warnings
 moodlecheck:  0 <e>-Tags
+```
+
+---
+
+## Inkrement 28 — RTL, schmale Bildschirme und die V1-Ausstiegsstrategie (2.0.0-beta.17, 2026090125)
+
+Die letzten beiden P1-Punkte.
+
+### Der RTL-Test fand einen sichtbaren Fehler
+
+Umgestellt auf logische Eigenschaften (`border-inline-start`,
+`margin-inline-start`, `inset-inline`) — mit **einer bewussten Ausnahme:** Die
+Timeline-Griffe bleiben physisch. Die Timeline zeichnet **Zeit, nicht Text**;
+die Wellenform läuft links nach rechts und die Cue-Positionen sind Prozentsätze
+der verstrichenen Zeit. Gespiegelt läge der „Start"-Griff am Ende des Klangs,
+zu dem er gehört.
+
+Der neue Test prüft zuerst den Zustand **vor** dem Umschalten — und genau das
+schlug fehl:
+
+```
+Expected: "4px"   Received: "0px"
+```
+
+Der Auswahlrand der markierten Cue-Zeile war **überhaupt nie sichtbar**.
+Bootstraps `.list-group-flush > .list-group-item` setzt `border-width: 0 0 1px`
+bei gleicher Spezifität wie ein Zwei-Klassen-Selektor, und im kompilierten Theme
+stand Bootstrap zuletzt. Behoben durch Benennen des Containers im Selektor —
+ohne `!important`.
+
+**Lehre:** Ein Test, der den Ausgangszustand mitprüft, bevor er die Änderung
+prüft, findet Dinge, die niemand gesucht hat. Hätte ich nur „nach dem Umschalten
+rechts" geprüft, wäre der Fehler grün geblieben — beide Seiten wären `0px`
+gewesen.
+
+Dazu drei Tests für schmale Bildschirme (390 × 844): kein seitliches Scrollen,
+Medium und Transkript passen gemeinsam auf den Schirm, und die Einblendung
+bleibt im Bild.
+
+Der RTL-Test braucht **kein arabisches Sprachpaket**, nur die Richtung, die
+eines setzen würde — `document.documentElement.dir = 'rtl'`. Das prüft genau
+die Frage, die unsere Sache ist: ist die Regel logisch oder physisch?
+
+### V1-Ausstiegsstrategie
+
+Der Mechanismus war vollständig und getestet; es fehlte die **dokumentierte
+Bedingung**. `docs/dev/v1-legacy-exit.md` hält fest:
+
+- **Bedingung:** `v1_decommissioner::blockers()` ist die einzige Autorität —
+  keine unmigrierte Aktivität, keine unabgenommene Aktivität, und für
+  `elang.options` zusätzlich mindestens eine je erfolgte Abnahme. Die dritte
+  Bedingung sieht überflüssig aus, verhindert aber, dass eine Site **ohne**
+  V1-Vergangenheit die Spalte verliert: „nichts zu migrieren" und „alles
+  migriert" sind nicht dasselbe.
+- **Wer:** ausschließlich `cli/decommission_v1.php`, von Hand. Kein Upgrade,
+  kein Cron, kein Web-Aufruf. Ein Datenverlust, den ein Cron ohne Zutun
+  auslöst, ist keine Migration, sondern ein Unfall.
+- **Wann der Code selbst geht:** mit der ersten Hauptversion, deren
+  Mindest-Moodle-Version über 3.4 liegt — dann existiert kein V1-Pfad mehr. Die
+  Abnahmespalten bleiben trotzdem: sie sind der Nachweis, nicht die Quelle.
+
+### Verifikation
+
+```
+Playwright:   18/18 gegen eine echte Site   (vorher 14/14)
+PHPUnit:      429 Tests, 1376 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+stylelint:    0 Fehler
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
+## Inkrement 29 — Datenschutz- und Lebenszyklus-Tests (2.0.0-beta.18, 2026090126)
+
+P0-Punkt „Privacy-/Data-Lifecycle-Tests". Elf Tests gab es bereits; die Frage
+war, was sie **nicht** abdecken.
+
+### Die Lücke: die Autorenspur
+
+Die vorhandenen Tests prüfen das Löschen von Versuchen und Antworten. Bei der
+**Autorenspur** tut der Provider aber etwas anderes als löschen — er
+**anonymisiert**: `elang_version.usermodified` und
+`elang.migrationapproveduserid` werden geleert, die Inhalte bleiben stehen.
+
+Das ist die richtige Entscheidung: die Versionen gehören dem Kurs, nicht der
+Person. Sie mitzulöschen würde die Arbeit anderer vernichten, einschließlich der
+Übung, die Lernende gerade bearbeiten. Nur war dieses Verhalten **nirgends
+geprüft** — eine spätere Änderung, die statt zu anonymisieren löscht, wäre grün
+durchgelaufen.
+
+Fünf Tests dazu: Stempel geleert und Cues erhalten, Migrationsabnahme
+ebenfalls geleert, fremde Autorenspur unangetastet, Kurs- und Systemkontext
+werden ignoriert statt bearbeitet, und das Leeren einer Aktivität greift nicht
+in die nächste.
+
+### Die Lebenszyklus-Frage, die die Privacy-API nicht stellt
+
+Ein Kurs-Aufräumen löscht Aktivitäten **direkt** — an allen Provider-Methoden
+vorbei. Wenn `elang_delete_instance()` Versuche und Antworten stehen ließe,
+behielte eine Site Lernendenantworten zu einer Übung, die es nicht mehr gibt,
+und nichts würde sie je wieder zutage fördern.
+
+`course_delete_module()` räumt korrekt auf. Jetzt ist es zugesichert.
+
+### Vollständigkeit statt Stichprobe
+
+Der letzte Test liest **`db/install.xml`** und verlangt, dass jede Tabelle mit
+einer personenbezogenen Spalte in `get_metadata()` beschrieben ist. Eine später
+hinzugefügte Tabelle mit `userid` wäre sonst personenbezogene Daten, die die
+Privacy-API nie erwähnt — und aufgefallen wäre es erst an einem unvollständigen
+Auskunftsexport.
+
+Dasselbe Muster wie beim External-API-Vertragstest in Inkrement 24: über die
+Quelle der Wahrheit iterieren, nicht über eine gepflegte Liste.
+
+### Verifikation
+
+```
+Privacy:      18 Tests, 74 Assertions   (vorher 11)
+PHPUnit:      436 Tests, 1397 Assertions, 1 skipped   (vorher 429/1376)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+```
+
+---
+
+## Inkrement 30 — Lastszenarien und Akzeptanzschwellen (2.0.0-beta.19, 2026090127)
+
+Der letzte offene P0-Punkt. Die Zahlen kommen von Ralf, die Begründungen
+gehören dazu.
+
+### Zwei Szenarien statt einer VU-Zahl
+
+| Szenario | Lernende | Cues | Plateau |
+|---|---|---|---|
+| `classroom` | 200 | 50 | 120 s |
+| `lecturehall` | 2000 | 50 | 180 s |
+
+**50 Cues**, nicht 400: das ist die Länge einer realen Höraufgabe. Ein
+400-Cue-Fixture sagt etwas über das Rendern im Browser aus — dafür gibt es den
+Playwright-Test aus Inkrement 26 —, aber nichts darüber, wie sich der Server
+verhält, wenn viele Menschen gleichzeitig eine normale Übung bearbeiten.
+
+`lecturehall` ist ausdrücklich kein plausibler Dienstagmorgen. Der Zweck ist,
+die Klippe zu kennen, bevor jemand anders sie findet.
+
+### Zwei Schwellen, weil es zwei Fragen sind
+
+- **800 ms lässt den Lauf scheitern.** In dieser Übung löst jede Antwort eine
+  Anfrage aus; darüber wartet eine lernende Person beim Tippen lange genug, um
+  sich zu fragen, ob die Taste angekommen ist — und tippt erneut.
+- **300 ms scheitert nicht, wird aber getrennt ausgewiesen.** Eine Verschiebung
+  von 280 ms auf 700 ms soll sichtbar sein, **solange sie noch eine
+  Verschiebung ist**. Eine Schwelle, die erst bei Schmerz anschlägt, meldet
+  nichts, was man noch in Ruhe beheben könnte.
+
+Der Anlauf skaliert mit: über 500 VUs 60 s statt 15 s. Sonst misst man das
+Hochfahren statt des Plateaus.
+
+### Real geprüft
+
+k6 lokal installiert und den Plan gegen die Sandbox-Site laufen lassen:
+
+```
+checks ..................... 100.00% (1081/1081)
+elang_content_errors ....... 0.00%   ✓
+elang_content_latency ...... p(95)=908.85ms   ✗
+http_req_failed ............ 0.00%   ✓
+thresholds on 'elang_content_latency' have been crossed
+```
+
+Der **Mechanismus** ist damit belegt: beide Schwellen werden ausgewertet, und
+die 800-ms-Grenze lässt den Lauf scheitern.
+
+Die **Zahl** ist ausdrücklich kein Urteil über das Plugin. Gemessen wurde gegen
+PHPs eingebauten Entwicklungsserver in einem geteilten Container — 908 ms sagen
+etwas über diese Umgebung, nichts über eine Produktionsinstallation. Genau
+deshalb liegt neben jedem Ergebnis `k6-run-context.txt`: eine einzelne Zahl ist
+kein Urteil, eine Reihe ist eins.
+
+### Verifikation
+
+```
+k6-Plan:      läuft, beide Schwellen greifen
+seed_large:   nimmt die Cue-Zahl als Argument (50 geprüft)
+actionlint:   Exit 0
+PHPUnit:      436 Tests, 1397 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+```
+
+Beim Einbau fiel auf, dass der Szenario-Schritt **nach** dem Seed-Schritt stand
+und dessen Ausgaben dort noch nicht existierten — `actionlint` hat es gemeldet,
+bevor es ein CI-Lauf getan hätte.
+
+---
+
+## Inkrement 31 — Eine Lücke, die keine war (kein Version-Bump)
+
+Ralf hat eine Annahme korrigiert, die ich seit Inkrement 24 durch drei Dokumente
+getragen hatte: **es wurde nie eine 2.0-Beta veröffentlicht.**
+
+Damit existiert außerhalb von Entwicklungsrechnern kein Zwischenstand, von dem
+aus aktualisiert werden müsste. Alles andere ist eine Neuinstallation — und die
+bekommt ihr Schema vollständig aus `db/install.xml`, was jeder der sieben
+PHPUnit- und Behat-Läufe je Push mit `moodle-plugin-ci install` durchführt.
+
+Der einzige reale Upgrade-Pfad ist **V1 → 2.0**, und den baut
+`tests/upgrade_test.php` mit einer echten V1-Datenbank nach.
+
+Korrigiert in `docs/dev/ci-gates.md`, `docs/dev/roadmap.md` und — als Nachtrag
+beim ursprünglichen Eintrag — in Inkrement 24 dieses Protokolls. Ich lasse die
+falsche Aussage dort stehen und widerspreche ihr sichtbar, statt sie zu
+löschen: wer das Protokoll später liest, soll die Korrektur sehen und nicht
+eine geglättete Fassung.
+
+### Was dabei auffiel
+
+Die Savepoints `2026090101` und `2026090102` fügen die vier Spalten hinzu, die
+während der Beta-Reihe dazukamen. Für eine Neuinstallation sind sie
+bedeutungslos — `install.xml` enthält alle vier. Durchlaufen werden sie nur von
+Installationen mit einem früheren 2.0-Zwischenstand, also ausschließlich von
+Entwicklungsrechnern.
+
+**Sie bleiben trotzdem.** Sie zu entfernen bräche genau diese Rechner, und der
+Gewinn wären zwei `if`-Blöcke weniger. Beim Sprung auf 2.0.0 stable kann die
+2.0-interne Kette zusammengefasst werden, sofern dann keine
+Entwicklungsinstallation mehr darunter liegt. In `docs/dev/roadmap.md` notiert,
+damit es später nicht als ungeklärter Rest wirkt.
+
+**Lehre:** Ich hatte „die Upgrade-Tests decken X nicht ab" als Lücke notiert,
+ohne zu prüfen, ob X überhaupt existiert. Eine fehlende Abdeckung ist nur dann
+eine Lücke, wenn es etwas zu decken gibt — und diese Frage beantwortet nicht der
+Code, sondern der Betrieb.
+
+---
+
+## Inkrement 32 — Ein verlorener Fix und der Test dagegen (2.0.0-beta.20, 2026090128)
+
+Ralfs CI meldete drei PHPUnit-Fehler in zwei Matrix-Läufen:
+
+```
+Invalid get_string() identifier: 'provider:youtube' or component 'mod_elang'
+* line 86 of /mod/elang/classes/external/get_version_content.php
+```
+
+### Der Fix existierte, er kam nur nicht an
+
+Verglichen: im Arbeitsbaum steht `'provider_' . $key`, im Repository
+`'provider:' . $key`. Genau **eine** Datei war betroffen.
+
+Ursache ist mein Auslieferungsskript aus Inkrement 25. Es sammelte die
+Patch-Dateien danach, ob sie eine umbenannte Zeichenkette **enthalten** — und
+`get_version_content.php` baut seine ID zur Laufzeit zusammen. Sie enthält
+keinen der neuen Bezeichner, also fiel sie durch das Netz. Die anderen drei
+Stellen mit derselben Bauart kamen nur mit, weil sie zufällig noch andere
+umbenannte Literale enthielten.
+
+Das ist dieselbe Blindheit, die den ursprünglichen Fehler verursacht hat: eine
+Textsuche sieht eine zur Laufzeit gebaute ID nicht. Sie hat hier zweimal
+zugeschlagen — einmal beim Umbenennen, einmal beim Ausliefern.
+
+**Ab jetzt wird die vollständige Codebase ausgeliefert.** Ein Patch ist nur so
+gut wie die Dateiliste, aus der er gebaut wurde.
+
+### Der Test dagegen
+
+`tests/lang_strings_test.php` sichert drei Eigenschaften:
+
+1. Beide Sprachdateien deklarieren dieselben Bezeichner.
+2. Nur Capability-Strings dürfen einen Doppelpunkt enthalten.
+3. Jede zur Laufzeit zusammengesetzte ID hat Strings hinter sich.
+
+Der dritte Punkt ist der eigentliche. Mein erster Anlauf hätte den Fehler
+**nicht** gefunden: das Muster verlangte ein `_` am Ende des Präfixes, der
+Fehler endet aber auf `:`. Aufgefallen ist das nur, weil ich den Defekt zur
+Gegenprobe wieder eingebaut habe — der Test lief grün.
+
+Nach der Korrektur:
+
+```
++ 0 => 'get_version_content.php: 'provider:' builds a colon identifier'
+FAILURES!
+```
+
+**Lehre:** Einen Wächter zu schreiben und ihn für wirksam zu halten, ist zwei
+verschiedene Dinge. Ein Test, der eine Fehlerklasse fangen soll, muss einmal
+gegen einen echten Vertreter dieser Klasse laufen — sonst weiß man nur, dass er
+grün wird.
+
+### Verifikation
+
+```
+PHPUnit:      439 Tests, 1411 Assertions, 1 skipped   (vorher 436/1397)
+              inklusive Gegenprobe mit wieder eingebautem Defekt
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
+## Inkrement 33 — Was die grünen Läufe belegen und was nicht (2.0.0-beta.21, 2026090129)
+
+Ralf meldet Playwright und k6 grün. Beides stimmt — und beides belegt weniger,
+als es auf den ersten Blick scheint.
+
+### Beide Läufe stehen auf beta.16
+
+```
+Playwright  SHA 3aa5263d  →  14 Tests
+k6          SHA 3aa5263d  →  vus=25, p95-Limit 1500ms
+```
+
+`3aa5263d` ist `2.0.0-beta.16`. Damit fehlen:
+
+- die **vier RTL- und Mobiltests** aus beta.17 (14 statt 18 Tests) — und mit
+  ihnen der Nachweis für den Auswahlrand, der dort als nie sichtbar entlarvt
+  wurde
+- die **vereinbarten Lastszenarien und Schwellen** aus beta.19; gelaufen ist der
+  alte Standard mit 25 Nutzern gegen 1500 ms
+
+Grün ist also der Stand beta.16. Nach dem Einspielen von 2.0.120 bis 2.0.123
+gehören beide Läufe wiederholt.
+
+### Der wertvollere Befund steckt in den k6-Zahlen
+
+```
+25 VUs, 45 req/s
+p95 581,8 ms   avg 422 ms   max 1050 ms
+Fehlerrate 0 %
+```
+
+Bei **25** Nutzern liegt der p95 schon bei 582 ms — nahe an der mit Ralf
+vereinbarten 800-ms-Grenze. Das `classroom`-Szenario mit 200 Nutzern würde diese
+Grenze auf derselben Infrastruktur zwangsläufig reißen.
+
+Das sagt nichts über das Plugin. Der Modus `selfcontained` bedient die Site mit
+**PHPs eingebautem Entwicklungsserver** auf vier geteilten Kernen; der Engpass
+ist das Ziel, nicht der Prüfling.
+
+**Das ist ein Entwurfsfehler von mir aus Inkrement 30.** Ich habe die
+vereinbarten Szenarien in einen Workflow gelegt, dessen Standardziel sie nicht
+tragen kann. Ein rotes Ergebnis, das nichts über den Prüfling aussagt, ist
+schlimmer als keines — es gewöhnt daran, die Ampel zu ignorieren.
+
+Korrigiert: ein neues Szenario `smoke` (25 Nutzer) ist der Standard und passt
+zum Runner; `classroom` und `lecturehall` gehören in den Modus `external` gegen
+eine echte Installation. Der Workflow gibt eine Warnung aus, wenn beides
+kombiniert wird, statt es stillschweigend zu tun.
+
+**Lehre:** Eine Akzeptanzschwelle ist ohne die Umgebung, gegen die sie gilt,
+unvollständig. „p95 < 800 ms" ist erst dann eine Aussage, wenn dabeisteht,
+worauf gemessen wird.
+
+### Verifikation
+
+```
+actionlint: Exit 0
 ```
 
 ---

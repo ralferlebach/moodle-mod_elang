@@ -11,6 +11,119 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.21] - 2026-09-03
+
+### Added
+- A `smoke` scenario for the load test (25 learners), and it is the default. The
+  self-contained target is PHP's built-in development server on a shared
+  four-core runner: a measured 25-learner run sits at a p95 of 582 ms there, so
+  200 learners would cross the 800 ms gate because of the target rather than
+  because of the plugin. The workflow warns when the two are combined, and
+  `classroom` and `lecturehall` belong in `external` mode against a real
+  installation.
+
+## [2.0.0-beta.20] - 2026-09-03
+
+### Fixed
+- `get_version_content` still asked for `provider:youtube`. When the string ids
+  were flattened in beta.14 the fix reached the working tree but not the
+  delivery: the patch collected files by whether they *contained* a renamed
+  identifier, and this one assembles its id at run time, so it matched nothing
+  and was left out. Three PHPUnit tests failed on it in CI.
+
+### Added
+- `tests/lang_strings_test.php` guards the three properties that renaming broke
+  or nearly broke: the two language files declare the same identifiers, only
+  capability strings may contain a colon, and every identifier the code
+  assembles at run time has strings behind it. The last one was verified by
+  reintroducing the exact defect and watching the test name the file and the
+  prefix.
+
+### Changed
+- Deliveries are now the whole codebase rather than a patch of changed files.
+  A patch is only as good as the list of files it was built from, and that list
+  was assembled by searching for literals — which is precisely what a run-time
+  identifier is not.
+
+### Fixed
+- Documentation claimed an untested upgrade path from an earlier 2.0 beta. No
+  beta was ever published, so outside development machines there is no
+  intermediate state to upgrade from; everything else is a fresh install, which
+  takes its whole schema from `db/install.xml`. The only real upgrade path is
+  version 1 to 2.0, and `tests/upgrade_test.php` builds a real version 1
+  database to exercise it. Corrected in `docs/dev/ci-gates.md`,
+  `docs/dev/roadmap.md` and the session log.
+
+## [2.0.0-beta.19] - 2026-09-03
+
+### Changed
+- The load test has two agreed scenarios instead of a default virtual-user
+  count: `classroom` (200 learners) and `lecturehall` (2000 learners), both on a
+  50-cue exercise — the length of a real listening exercise rather than of a
+  stress fixture. Chosen from the workflow's dropdown; `custom` still frees the
+  numbers.
+- Two latency thresholds instead of one placeholder: p95 above **800 ms** fails
+  the run, and p95 above **300 ms** is reported without failing it. Every answer
+  in this exercise is a request, so 800 ms is where a learner starts wondering
+  whether their keypress registered; 300 ms is what it should feel like, and
+  seeing a drift from 280 ms to 700 ms while it is still a drift is the point of
+  reporting it separately.
+- The ramp scales with the load: above 500 virtual users it is 60 s rather than
+  15 s. Arriving at 2000 that fast measures the ramp, and a cold connection pool
+  dominates the p95.
+
+### Added
+- `docs/dev/load-testing.md`: the scenarios, both thresholds and the reasoning,
+  what the plan measures and what it deliberately does not.
+
+## [2.0.0-beta.18] - 2026-09-02
+
+### Added
+- Seven privacy tests closing the gaps the existing eleven left. Erasure was
+  tested for attempts and responses but never for the authoring trail, which is
+  where the plugin does something other than delete: it detaches the person and
+  keeps the content, because the versions belong to the course and deleting them
+  would erase other people's work. There are now tests that the stamp is cleared
+  while the cues survive, that the migration sign-off is cleared too, that
+  another author's trail is untouched, that a course or system context is
+  ignored rather than acted on, and that wiping one activity does not reach into
+  another.
+- A lifecycle test the privacy API itself does not cover: a course cleanup
+  deletes activities directly, without going through any provider method, so
+  `course_delete_module()` has to take the attempts and responses with it. It
+  does; now it is asserted.
+- A metadata completeness test derived from `db/install.xml` rather than from a
+  list written by hand: a table added later with a column naming a person would
+  otherwise be personal data the privacy API never mentions, and nobody would
+  notice until an export came back incomplete.
+
+## [2.0.0-beta.17] - 2026-09-02
+
+### Fixed
+- The selected cue in the editor list had no visible edge at all. Bootstrap's
+  `.list-group-flush > .list-group-item` sets `border-width: 0 0 1px` at the same
+  specificity as a two-class selector, and the compiled theme emitted it last, so
+  the marker never appeared. The selector now names the container as well. Found
+  by the new right-to-left test, which asserted the border before flipping it.
+
+### Changed
+- Direction-dependent styles are logical rather than physical:
+  `border-inline-start`, `margin-inline-start`, `inset-inline`. The timeline
+  handles stay physical on purpose — the timeline draws time, not text, so the
+  earlier edge of a cue is on the left in every locale, and flipping it would put
+  the "start" handle at the end of the sound it belongs to.
+
+### Added
+- Four Playwright tests: the exercise fits a 390px screen without sideways
+  scrolling, the medium and the transcript together fit a phone, an overlay
+  caption stays inside the picture, and the selected-row marker moves to the
+  other side when the document direction flips. The last needs no Arabic
+  language pack, only the direction one would set.
+- `docs/dev/v1-legacy-exit.md`: when the version 1 tables and `elang.options` may
+  be dropped, who decides, and when the migration code itself can go. Nothing is
+  automatic — decommissioning runs only from the command line, because a data
+  loss triggered by cron is not a migration.
+
 ## [2.0.0-beta.16] - 2026-09-02
 
 ### Added

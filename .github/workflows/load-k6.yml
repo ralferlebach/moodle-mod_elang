@@ -10,7 +10,7 @@
 #
 # Two modes:
 #   selfcontained (default) — build a fresh Moodle, install this plugin, seed a
-#                             large exercise and load-test it here.
+#                             50-cue exercise and load-test it here.
 #   external                — point at a Moodle you already run and seeded
 #                             (enter base_url, token and versionid).
 #
@@ -35,6 +35,12 @@ on:
         options: [selfcontained, external]
         default: selfcontained
         required: true
+      scenario:
+        description: 'smoke (25), classroom (200) or lecturehall (2000) learners, all on 50 cues'
+        type: choice
+        options: [smoke, classroom, lecturehall, custom]
+        default: smoke
+        required: true
       base_url:
         description: '[external mode] Base URL of your seeded Moodle'
         required: false
@@ -45,16 +51,20 @@ on:
         description: '[external mode] Published elang_version id to read'
         required: false
       vus:
-        description: Concurrent virtual users
-        default: '25'
+        description: '[custom] Concurrent virtual users'
+        default: '200'
         required: false
       duration:
-        description: Plateau duration in seconds
-        default: '90'
+        description: '[custom] Plateau duration in seconds'
+        default: '120'
         required: false
       p95:
-        description: 'p95 latency threshold in ms (k6 fails the run above it)'
-        default: '1500'
+        description: 'p95 latency in ms above which the run fails'
+        default: '800'
+        required: false
+      p95target:
+        description: 'p95 latency in ms the exercise should meet (reported, does not fail)'
+        default: '300'
         required: false
 
 concurrency:
@@ -97,6 +107,52 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Resolve the scenario
+        id: scenario
+        run: |
+          # Two agreed shapes, both on a 50-cue exercise — the length of a real
+          # listening exercise rather than of a stress fixture.
+          #
+          #   classroom   200 learners: a full course sitting the exercise at once
+          #   lecturehall 2000 learners: the largest lecture hall in Germany,
+          #               overfull. Not a plausible Tuesday; the point is to know
+          #               where the cliff is before somebody finds it.
+          case "${{ github.event.inputs.scenario }}" in
+            smoke)
+              echo "vus=25"  >> "$GITHUB_OUTPUT"
+              echo "cues=50" >> "$GITHUB_OUTPUT"
+              echo "duration=90" >> "$GITHUB_OUTPUT"
+              ;;
+            classroom)
+              echo "vus=200"  >> "$GITHUB_OUTPUT"
+              echo "cues=50"  >> "$GITHUB_OUTPUT"
+              echo "duration=120" >> "$GITHUB_OUTPUT"
+              ;;
+            lecturehall)
+              echo "vus=2000" >> "$GITHUB_OUTPUT"
+              echo "cues=50"  >> "$GITHUB_OUTPUT"
+              echo "duration=180" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "vus=${{ github.event.inputs.vus }}" >> "$GITHUB_OUTPUT"
+              echo "cues=50" >> "$GITHUB_OUTPUT"
+              echo "duration=${{ github.event.inputs.duration }}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+          # The self-contained site is PHP's built-in development server on a
+          # shared four-core runner. It answers a smoke run honestly and cannot
+          # answer the agreed scenarios at all: a 25-user run already sits at a
+          # p95 of roughly 580 ms there, so 200 users would cross the 800 ms
+          # gate because of the target, not because of the plugin.
+          if [ "${{ github.event.inputs.mode }}" = "selfcontained" ] \
+             && [ "${{ github.event.inputs.scenario }}" != "smoke" ]; then
+            echo "::warning::Szenario '${{ github.event.inputs.scenario }}' im Modus"\
+              "'selfcontained': Die Zahlen beschreiben den GitHub-Runner, nicht das"\
+              "Plugin. Fuer classroom und lecturehall den Modus 'external' gegen eine"\
+              "echte Moodle-Installation verwenden - siehe docs/dev/load-testing.md."
+          fi
+
       - name: Build, install and seed a self-contained site
         id: selfcontained
         if: ${{ github.event.inputs.mode == 'selfcontained' }}
@@ -124,7 +180,7 @@ jobs:
           #
           # seed_large.php prints "export KEY='value'" lines (BASE_URL, TOKEN,
           # CMID, VERSIONID); expose the ones the load plan needs as outputs.
-          php mod/elang/tests/load/seed_large.php > /tmp/seed.env
+          php mod/elang/tests/load/seed_large.php "${{ steps.scenario.outputs.cues }}" > /tmp/seed.env
           get() { sed -n "s/^export $1='\(.*\)'$/\1/p" /tmp/seed.env; }
           {
             echo "base_url=$(get BASE_URL)"
@@ -204,9 +260,10 @@ jobs:
             -e BASE_URL='${{ steps.params.outputs.base_url }}' \
             -e TOKEN='${{ steps.params.outputs.token }}' \
             -e VERSIONID='${{ steps.params.outputs.versionid }}' \
-            -e VUS='${{ github.event.inputs.vus }}' \
-            -e DURATION='${{ github.event.inputs.duration }}s' \
+            -e VUS='${{ steps.scenario.outputs.vus }}' \
+            -e DURATION='${{ steps.scenario.outputs.duration }}s' \
             -e P95='${{ github.event.inputs.p95 }}' \
+            -e P95_TARGET='${{ github.event.inputs.p95target }}' \
             --summary-export=k6-summary.json \
             plugin/tests/load/elang-read-endpoints.k6.js
 
@@ -223,9 +280,12 @@ jobs:
             echo "ref:       ${{ github.ref }}"
             echo "sha:       ${{ github.sha }}"
             echo "mode:      ${{ github.event.inputs.mode }}"
-            echo "vus:       ${{ github.event.inputs.vus }}"
-            echo "duration:  ${{ github.event.inputs.duration }}s"
-            echo "p95 limit: ${{ github.event.inputs.p95 }}ms"
+            echo "scenario:  ${{ github.event.inputs.scenario }}"
+            echo "vus:       ${{ steps.scenario.outputs.vus }}"
+            echo "cues:      ${{ steps.scenario.outputs.cues }}"
+            echo "duration:  ${{ steps.scenario.outputs.duration }}s"
+            echo "p95 limit: ${{ github.event.inputs.p95 }}ms (fails above)"
+            echo "p95 target:${{ github.event.inputs.p95target }}ms (reported)"
             echo "runner:    $(nproc) CPUs, $(free -m | awk '/^Mem:/{print $2}') MB RAM"
             echo "status:    ${{ job.status }}"
           } > k6-run-context.txt

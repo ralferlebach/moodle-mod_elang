@@ -16,6 +16,7 @@
 
 namespace mod_elang\privacy;
 
+use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
 use core_privacy\local\request\approved_userlist;
 use core_privacy\local\request\userlist;
@@ -343,5 +344,195 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
 
         $this->assertSame(0, $DB->count_records('elang_attempt', ['id' => $this->attemptid]));
         $this->assertSame(1, $DB->count_records('elang_attempt', ['id' => $otherattempt->id]));
+    }
+
+    /**
+     * Erasing one person's data detaches them from the authoring trail without
+     * taking the exercise with them.
+     *
+     * The versions belong to the course, not to the author; what has to go is
+     * the identifying reference. Deleting the content instead would erase other
+     * people's work — including the learners still attempting it — which is not
+     * what a right-to-erasure request asks for.
+     *
+     * @return void
+     */
+    public function test_erasure_detaches_the_author_but_keeps_the_content(): void {
+        global $DB;
+
+        $versionid = (int) $DB->get_field('elang', 'currentversionid', ['id' => $this->cm->instance], MUST_EXIST);
+        $this->assertSame(
+            (int) $this->student->id,
+            (int) $DB->get_field('elang_version', 'usermodified', ['id' => $versionid], MUST_EXIST)
+        );
+        $cuecount = $DB->count_records('elang_cue', ['versionid' => $versionid]);
+        $this->assertGreaterThan(0, $cuecount);
+
+        provider::delete_data_for_user(
+            new approved_contextlist($this->student, 'mod_elang', [$this->context->id])
+        );
+
+        // The stamp is gone...
+        $this->assertSame(
+            0,
+            (int) $DB->get_field('elang_version', 'usermodified', ['id' => $versionid], MUST_EXIST)
+        );
+        // ...and the exercise is still there.
+        $this->assertTrue($DB->record_exists('elang_version', ['id' => $versionid]));
+        $this->assertSame($cuecount, $DB->count_records('elang_cue', ['versionid' => $versionid]));
+    }
+
+    /**
+     * The migration sign-off is detached too.
+     *
+     * It names the person who approved a migrated activity, so it is personal
+     * data even though nothing about it looks like a learner record.
+     *
+     * @return void
+     */
+    public function test_erasure_detaches_the_migration_signoff(): void {
+        global $DB;
+
+        $DB->set_field('elang', 'migrationapproveduserid', $this->student->id, ['id' => $this->cm->instance]);
+
+        provider::delete_data_for_user(
+            new approved_contextlist($this->student, 'mod_elang', [$this->context->id])
+        );
+
+        $this->assertNull(
+            $DB->get_field('elang', 'migrationapproveduserid', ['id' => $this->cm->instance], MUST_EXIST) ?: null
+        );
+    }
+
+    /**
+     * Erasing one person's authoring trail leaves another person's alone.
+     *
+     * @return void
+     */
+    public function test_erasure_leaves_another_authors_trail_alone(): void {
+        global $DB;
+
+        $versionid = (int) $DB->get_field('elang', 'currentversionid', ['id' => $this->cm->instance], MUST_EXIST);
+        $DB->set_field('elang_version', 'usermodified', $this->otherstudent->id, ['id' => $versionid]);
+
+        provider::delete_data_for_user(
+            new approved_contextlist($this->student, 'mod_elang', [$this->context->id])
+        );
+
+        $this->assertSame(
+            (int) $this->otherstudent->id,
+            (int) $DB->get_field('elang_version', 'usermodified', ['id' => $versionid], MUST_EXIST)
+        );
+    }
+
+    /**
+     * A context that is not this activity is left alone.
+     *
+     * approved_contextlist and the userlist API can carry a course or system
+     * context, and a provider that acted on one would delete across a whole
+     * site rather than across one activity.
+     *
+     * @return void
+     */
+    public function test_a_non_module_context_is_ignored(): void {
+        global $DB;
+
+        provider::delete_data_for_all_users_in_context(\context_course::instance($this->cm->course));
+        provider::delete_data_for_all_users_in_context(\context_system::instance());
+
+        $this->assertSame(1, $DB->count_records('elang_attempt', ['id' => $this->attemptid]));
+        $this->assertSame(1, $DB->count_records('elang_response', ['attemptid' => $this->attemptid]));
+    }
+
+    /**
+     * Wiping one activity does not reach into another.
+     *
+     * @return void
+     */
+    public function test_wiping_one_activity_leaves_another_alone(): void {
+        global $DB;
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $second = $generator->create_instance(['course' => $this->cm->course, 'language' => 'fr']);
+        $secondversion = $generator->create_version(['elangid' => $second->id, 'status' => 'published']);
+        $secondcue = $generator->create_cue(['versionid' => $secondversion->id]);
+        $generator->create_gap(['cueid' => $secondcue->id, 'solution' => 'chat']);
+
+        $attemptmanager = new \mod_elang\local\domain\attempt_manager(
+            new \mod_elang\local\grading\answer_evaluator(new \mod_elang\local\grading\script_handler_manager([]))
+        );
+        $secondattempt = $attemptmanager->start_attempt(
+            (int) $second->id,
+            (int) $this->student->id,
+            (int) $secondversion->id
+        );
+
+        provider::delete_data_for_all_users_in_context($this->context);
+
+        $this->assertSame(0, $DB->count_records('elang_attempt', ['id' => $this->attemptid]));
+        $this->assertSame(1, $DB->count_records('elang_attempt', ['id' => $secondattempt->id]));
+    }
+
+    /**
+     * Removing the activity takes its personal data with it.
+     *
+     * This is the lifecycle question the privacy API does not answer: a course
+     * cleanup deletes activities directly, without going through any of the
+     * provider methods. If the module's own deletion left attempts and
+     * responses behind, a site would keep learner answers for an exercise that
+     * no longer exists, and nothing would ever surface them again.
+     *
+     * @return void
+     */
+    public function test_deleting_the_activity_removes_its_personal_data(): void {
+        global $DB;
+
+        $this->assertSame(1, $DB->count_records('elang_attempt', ['id' => $this->attemptid]));
+        $this->assertGreaterThan(0, $DB->count_records('elang_response', ['attemptid' => $this->attemptid]));
+
+        course_delete_module((int) $this->cm->id);
+
+        $this->assertSame(0, $DB->count_records('elang_attempt', ['id' => $this->attemptid]));
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $this->attemptid]));
+        $this->assertSame(0, $DB->count_records('elang', ['id' => $this->cm->instance]));
+    }
+
+    /**
+     * Every table with a column naming a person is declared in the metadata.
+     *
+     * Derived from db/install.xml rather than from a list written here: a table
+     * added later with a userid column would otherwise be personal data the
+     * privacy API never mentions, and nobody would notice until an export came
+     * back incomplete.
+     *
+     * @return void
+     */
+    public function test_every_table_naming_a_person_is_declared(): void {
+        global $CFG;
+
+        $schema = file_get_contents($CFG->dirroot . '/mod/elang/db/install.xml');
+        $this->assertNotFalse($schema);
+
+        $carrying = [];
+        preg_match_all('~<TABLE NAME="([a-z_]+)"(.*?)</TABLE>~s', $schema, $tables, PREG_SET_ORDER);
+        foreach ($tables as $table) {
+            if (preg_match('~<FIELD NAME="[a-z]*user[a-z]*"~', $table[2])) {
+                $carrying[] = $table[1];
+            }
+        }
+        $this->assertNotEmpty($carrying, 'The schema should still carry user references.');
+
+        $declared = [];
+        foreach (provider::get_metadata(new collection('mod_elang'))->get_collection() as $item) {
+            $declared[] = $item->get_name();
+        }
+        foreach ($carrying as $table) {
+            $this->assertContains(
+                $table,
+                $declared,
+                "$table has a column naming a person but is not described in get_metadata()."
+            );
+        }
     }
 }

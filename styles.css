@@ -160,6 +160,11 @@
     touch-action: none;
 }
 
+/* Physical left/right on purpose, and the only place in this stylesheet where
+ * that is right. The timeline draws time, not text: the waveform is rendered
+ * left to right and the cue positions are percentages of elapsed time, so the
+ * earlier edge of a cue is on the left in every locale. Flipping these in RTL
+ * would put the "start" handle at the end of the sound it belongs to. */
 .mod_elang-editor-timeline-handle.start {
     left: 0;
     border-top-left-radius: 3px;
@@ -186,7 +191,8 @@
 }
 
 .mod_elang-editor-savestate {
-    margin-left: 0.75rem;
+    /* Logical, not physical: this sits beside text and follows it in RTL. */
+    margin-inline-start: 0.75rem;
     font-size: 12px;
     color: #666;
 }
@@ -339,8 +345,8 @@
 
 .mod_elang-caption-overlay {
     position: absolute;
-    left: 0;
-    right: 0;
+    /* Both edges, so direction does not enter into it. */
+    inset-inline: 0;
     /* Above the picture, below anything the browser draws for itself. */
     z-index: 2;
     padding: 0.5rem 1rem;
@@ -417,11 +423,17 @@
     max-width: 14rem;
 }
 
-.mod_elang-cuelist-item.selected {
-    /* Not colour alone: the selected row also carries a left edge, and its
-     * button carries aria-current. */
+/* Scoped through the list, not just the item. Bootstrap's
+ * ".list-group-flush > .list-group-item" sets border-width: 0 0 1px at the same
+ * specificity as a two-class selector, and whichever the compiled theme emits
+ * last wins — which turned out to be Bootstrap's. Naming the container makes
+ * the intent win without reaching for !important. */
+.mod_elang-cuelist-items > .mod_elang-cuelist-item.selected {
+    /* Not colour alone: the selected row also carries an edge on the side the
+     * text starts from, and its button carries aria-current. Logical, so the
+     * edge stays at the start of the line in RTL rather than at its end. */
     background: #eef4fb;
-    border-left: 4px solid #2b6cb0;
+    border-inline-start: 4px solid #2b6cb0;
 }
 
 .mod_elang-cuelist-select {
@@ -470,7 +482,7 @@
  * without reading every row. The icons in the table carry the same information
  * per gap; this is a shortcut, not the only signal. */
 .mod_elang-attemptcue-open {
-    border-left: 4px solid #997404;
+    border-inline-start: 4px solid #997404;
 }
 
 /* Accepted variants read as a short list of spellings rather than as a column

@@ -54,15 +54,34 @@ wie der k6-Plan und bräuchte zusätzlich eine JVM im Runner.
 
 Diese drei sind keine Wünsche, sondern Lücken:
 
-1. **Upgrade-Pfad Beta → Beta.** `tests/upgrade_test.php` springt von Version 1
-   auf den aktuellen Stand. Ein Upgrade von einer früheren 2.0-Beta ist nicht
-   abgedeckt. Während der Beta-Reihe vertretbar, danach nicht.
-2. **Playwright und k6 vor der Freigabe anstoßen.** Beide sind nicht Teil der
+1. **Playwright und k6 vor der Freigabe anstoßen.** Beide sind nicht Teil der
    blockierenden CI (siehe `docs/dev/ci-gates.md`), also belegt ein grüner
    Pipeline-Lauf weder Barrierefreiheit noch Lastverhalten.
-3. **Lokale Sprachanpassung neu anlegen.** Mit 2.0.0-beta.14 haben 356
+2. **Lokale Sprachanpassung neu anlegen.** Mit 2.0.0-beta.14 haben 356
    String-IDs ihre Doppelpunkte verloren. Wer Strings lokal angepasst hatte,
    muss das gegen die neuen IDs wiederholen.
+
+## Die beiden Beta-Savepoints in `db/upgrade.php`
+
+`2026090101` und `2026090102` fügen die vier Spalten hinzu, die während der
+Beta-Reihe dazugekommen sind (`subtitleposition`, `cuepausemode`,
+`allowtranscriptdownload`, `solutionavailability`). Für eine **Neuinstallation**
+sind sie bedeutungslos: `db/install.xml` enthält alle vier, jede frische Site
+bekommt sie sofort.
+
+Sie werden also nur von Installationen durchlaufen, die einen früheren
+2.0-Zwischenstand haben — und da nie eine Beta veröffentlicht wurde, sind das
+ausschließlich Entwicklungsrechner.
+
+**Sie bleiben trotzdem stehen.** Sie zu entfernen würde genau diese Rechner
+brechen, und der Nutzen wäre zwei `if`-Blöcke weniger. Beim Sprung auf 2.0.0
+stable kann die gesamte 2.0-interne Kette zu einem einzigen Savepoint
+zusammengefasst werden, sofern dann sichergestellt ist, dass keine
+Entwicklungsinstallation darunter liegt. Bis dahin ist das keine Schuld,
+sondern eine Notiz.
+
+Der Pfad, der wirklich zählt, ist **V1 → 2.0**, und den baut
+`tests/upgrade_test.php` mit einer echten V1-Datenbank nach.
 
 ## Gemessen und bewusst nicht geändert
 

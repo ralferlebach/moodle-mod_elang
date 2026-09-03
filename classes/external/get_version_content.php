@@ -83,7 +83,7 @@ class get_version_content extends external_api {
             'posterfilename' => $posterfile['name'],
             'posterfileurl' => $posterfile['url'],
             'mediaproviders' => array_map(static function (string $key): array {
-                return ['key' => $key, 'name' => get_string('provider:' . $key, 'mod_elang')];
+                return ['key' => $key, 'name' => get_string('provider_' . $key, 'mod_elang')];
             }, provider_registry::providers()),
             'cues' => self::get_version_manager()->load_version_content($versionid),
         ];

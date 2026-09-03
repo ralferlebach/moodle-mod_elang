@@ -42,11 +42,31 @@ wird.
 
 ## Die beiden Schwellen
 
-| Schwelle | Wert | Wirkung |
+| Größe | Wert | Wirkung |
 |---|---|---|
-| p95-Ziel | **300 ms** | wird berichtet, lässt den Lauf **nicht** scheitern |
-| p95-Grenze | **800 ms** | lässt den Lauf **scheitern** |
-| Fehlerrate | < 1 % | lässt den Lauf scheitern |
+| p95-Grenze (`thresholds`) | **800 ms** | lässt den Lauf **scheitern** |
+| Fehlerrate (`thresholds`) | < 1 % | lässt den Lauf scheitern |
+| p95-Ziel (Metrik) | **300 ms** | wird berichtet, **keine** Bedingung |
+
+Das Ziel ist ausdrücklich **keine** k6-Schwelle. k6 kennt keine berichtende
+Schwelle: jede überschrittene setzt Exit 99, und `abortOnFail: false` entscheidet
+nur, ob der Lauf vorzeitig abbricht. Als Schwelle formuliert machte das Ziel
+jeden völlig akzeptablen Lauf rot — genau das ist am 3. September passiert, bei
+p95 = 507 ms.
+
+Berichtet wird es stattdessen als Metrik `elang_content_within_target` (Anteil
+der Abrufe unter dem Ziel) und als Klartextzeile in der Zusammenfassung:
+
+```
+=== mod_elang Lastergebnis ===
+p95:            324.8 ms
+Grenze:         800 ms  (eingehalten)
+Ziel:           100 ms  (nicht erreicht)
+unter dem Ziel: 15.4 % der Abrufe
+
+Der Lauf ist bestanden. Das Ziel ist eine Beobachtungsgroesse,
+keine Bedingung — siehe docs/dev/load-testing.md.
+```
 
 Zwei Zahlen, weil „akzeptabel" und „funktioniert noch" verschiedene Fragen
 sind.
@@ -59,6 +79,9 @@ zu fragen, ob die Taste angekommen ist — und tippt sie erneut.
 eine Verschiebung von 280 ms auf 700 ms sichtbar sein soll, **solange sie noch
 eine Verschiebung ist** und kein Ausfall. Eine Schwelle, die erst bei Schmerz
 anschlägt, meldet nichts, was man noch in Ruhe beheben könnte.
+
+Das Ziel wird **nicht** gesenkt, weil ein Lauf es verfehlt hat. Eine Zielzahl,
+die man an die Messung anpasst, misst nichts mehr.
 
 Beide sind für einen bewussten Stresslauf überschreibbar (`p95`, `p95target`),
 aber die Vorgabewerte sind die vereinbarten Zahlen und kein Platzhalter.

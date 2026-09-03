@@ -2462,16 +2462,62 @@ actionlint: Exit 0
 
 ---
 
-## Offen in dieser Sitzung
+## Inkrement 34 — Eine Schwelle, die keine sein durfte (2.0.0-beta.22, 2026090130)
+
+Ralfs Lauf: p95 507 ms, weit innerhalb der 800-ms-Grenze — und trotzdem
+`Error: Process completed with exit code 99`.
+
+### Der Fehler war meiner, nicht der der Zahl
+
+Ich hatte das 300-ms-Ziel als **k6-Schwelle** formuliert und geglaubt,
+`abortOnFail: false` mache sie berichtend. Tut es nicht: dieser Schalter
+entscheidet nur, ob der Lauf **vorzeitig abbricht**. Für den Exit-Code zählt
+allein, ob eine Schwelle überschritten wurde — jede, mit welchem Flag auch
+immer.
+
+Damit war jeder Lauf zwischen 300 und 800 ms rot, also genau der Bereich, für
+den die zweite Zahl gedacht war.
+
+### Ralfs Frage: „Oder sollten wir auf 500 ms runterschrauben?"
+
+Nein. Eine Zielzahl, die man an die Messung anpasst, misst nichts mehr. 800 ms
+ist die Grenze, weil darüber das Tippen zäh wird; 300 ms ist das Ziel, weil sich
+die Übung so anfühlen soll. Beides bleibt.
+
+Geändert wurde der **Mechanismus**: die Grenze ist die einzige Latenzschwelle,
+das Ziel ist eine Metrik (`elang_content_within_target`, Anteil der Abrufe
+darunter) plus eine Klartextzeile in der Zusammenfassung.
+
+### Real geprüft, in beiden Richtungen
+
+```
+Ziel 100 ms, p95 324,8 ms, Grenze 800 ms   →  EXIT=0   ✓ der reparierte Fall
+Ziel 300 ms, p95 904,1 ms, Grenze 800 ms   →  EXIT=99  ✓ die Grenze greift noch
+```
+
+Der erste Lauf ist der entscheidende: Ziel verfehlt, Grenze eingehalten,
+Exit 0 — genau die Konstellation, die bei Ralf fälschlich rot war.
+
+**Lehre:** Ein Flag mit einem plausiblen Namen ist keine Zusicherung.
+`abortOnFail` klingt nach „scheitert nicht", heißt aber „bricht nicht ab". Ich
+hatte die Semantik aus dem Namen erschlossen, statt sie zu prüfen — und die
+Prüfung hätte dreißig Sekunden gekostet.
+
+---
+
+## Stand der acht UI-Issues
+
+Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit
+`amd/src/playback.js` in Inkrement 14, der Gap-Inspector aus #7 in Inkrement 21.
 
 | Issue | Thema | Stand |
 |---|---|---|
 | #2 | Navigation und Benennung | **erledigt (beta.2)** |
-| #3 | Untertitelposition und Auto-Scroll | **erledigt** (JS-Tests offen) |
-| #4 | Tastaturfluss und Cue-Pausemodus | **erledigt** (JS-Tests offen) |
+| #3 | Untertitelposition und Auto-Scroll | **erledigt** |
+| #4 | Tastaturfluss und Cue-Pausemodus | **erledigt** |
 | #5 | Medienverwaltung als eigener Reiter | **erledigt** |
 | #6 | Untertitelimport im Modal | **erledigt** |
-| #7 | Editor als synchronisierter Workspace | offen |
+| #7 | Editor als synchronisierter Workspace | **erledigt** |
 | #8 | Berichte auswertungsorientiert | **erledigt** |
 | #9 | Transkriptexport als Exportoberfläche | **erledigt** |
 

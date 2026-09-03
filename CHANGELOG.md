@@ -11,6 +11,20 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.22] - 2026-09-03
+
+### Fixed
+- The load test failed runs it should have passed. The 300 ms figure was written
+  as a k6 threshold, and k6 has no notion of a threshold that only reports: any
+  crossed threshold sets exit code 99, and `abortOnFail: false` only decides
+  whether the run stops early. A run at p95 = 507 ms — comfortably inside the
+  800 ms limit — was therefore reported as a failure.
+- The limit is now the only latency threshold. The target is a metric,
+  `elang_content_within_target`, giving the share of reads that met it, plus a
+  plain-language verdict in the summary that says which of the two numbers is a
+  gate and which is not. Verified against a live site: target missed, limit kept,
+  exit code 0.
+
 ## [2.0.0-beta.21] - 2026-09-03
 
 ### Added

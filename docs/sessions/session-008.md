@@ -2579,6 +2579,135 @@ Behat:        43 Szenarien / 440 Steps, alle grün
 
 ---
 
+## Inkrement 36 — RR-04 und RR-05: P0-RC vollständig (2.0.0-beta.24, 2026090132)
+
+### RR-04 — die Beschriftung war falsch, nicht der Code
+
+Das Review stellt fest, dass `stop` nicht am Ende eines vollständig
+beantworteten Cues anhält, die Beschriftung aber „Immer anhalten" sagt, und
+verlangt eine Produktentscheidung.
+
+Die Entscheidung ist schon gefallen: Ralf hat dieses Verhalten in Inkrement 13
+ausdrücklich verlangt — „Sind Gaps bereits fertig ausgefüllt, dann das nicht als
+Gap gewertet und das Video spielt entsprechend weiter." Also **Variante B**.
+
+Umbenannt zu „An jedem offenen Untertitel anhalten", und dieselbe Aussage steht
+jetzt im Hilfetext, im Schemakommentar, im Codekommentar und im Behat-Szenario.
+Der Hilfetext nennt zusätzlich die Folge, die man sonst erst beim Benutzen
+merkt: **der zweite Durchgang durch eine Übung hält nur noch dort, wo etwas
+fehlt.**
+
+### RR-05 — drei falsche Rollenangaben
+
+| Recht | README sagte | tatsächlich |
+|---|---|---|
+| `useregex` | editing teachers + managers | **nur manager** |
+| `exporttranscript` | teachers + managers | **auch students** |
+| `deleteattempts` | teachers + managers | **editing** teachers + managers |
+
+Die README ist, was eine Administration liest, **bevor** sie entscheidet, ob sie
+etwas ändert. Ein falscher Eintrag dort ist schlimmer als keiner: er wird für
+verbindlich gehalten.
+
+Dazu behauptete der Kopfkommentar von `db/services.php`, alle Funktionen seien
+am offiziellen Mobile-Service. Nur die lernendenseitigen sind es — und das ist
+richtig so: der Autoreneditor ist eine React-Anwendung für einen
+Desktop-Browser, und eine Veröffentlichungs-Schnittstelle in einem Kontext
+anzubieten, der den Editor nicht zeigen kann, wäre ein Endpunkt ohne
+Oberfläche.
+
+### Beides zu einem Vertrag gemacht
+
+Zwei Tests in `tests/artefacts_test.php`: README und `db/access.php` müssen
+**genau dieselben** Rechte nennen, und keine Autorenfunktion darf am
+Mobile-Service hängen, während jede Lernendenfunktion es muss.
+
+Verglichen wird nicht Prosa, sondern das Prüfbare: ist jedes Recht überhaupt
+dokumentiert, und ist keines dokumentiert, das es nicht gibt. Die konkreten
+Rollen bleiben Text — aber ein neu hinzugefügtes oder entferntes Recht fällt
+jetzt sofort auf, und das war der Weg, auf dem diese drei Abweichungen
+entstanden sind.
+
+### Verifikation
+
+```
+PHPUnit:      453 Tests, 1477 Assertions, 1 skipped   (vorher 451/1455)
+Jest:         70/70
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+Damit ist **P0-RC des Reviews vollständig** (RR-01 bis RR-05).
+
+---
+
+## Inkrement 37 — RR-06: Import-Härtung und Fokusfalle (2.0.0-beta.25, 2026090133)
+
+### Die Grenzen gehören in den Parser, nicht in den Endpunkt
+
+Das Review nennt `preview_import` als Stelle ohne Maximalmaß. Die Grenzen stehen
+jetzt aber im **Parser**: durch `subtitle_parser::parse()` muss jeder Weg —
+Modal, Webservice, künftige Aufrufer. Eine Prüfung am Endpunkt hätte die
+nächste Eintrittsstelle wieder offen gelassen.
+
+| Grenze | Wert | Begründung |
+|---|---|---|
+| Inhalt | 2 MB | eine Untertiteldatei zu einer Unterrichtsaufnahme hat einige zehn KB |
+| Cues | 4000 | etwa ein voller Tag ununterbrochener Rede |
+| Zeilenlänge | 5000 Zeichen | eine Untertitelzeile ist ein Satz |
+
+**Reihenfolge der Prüfungen ist nicht beliebig.** Die Längenprüfung steht vor
+dem `preg_split`, denn der Split legt eine Kopie des gesamten Inhalts an —
+danach zu verweigern hätte genau die Kosten bezahlt, die die Verweigerung
+vermeiden soll.
+
+**Zu viele Cues werden abgelehnt, nicht abgeschnitten.** Die ersten
+Viertausend zu behalten gäbe eine Übung ohne Ende zurück, und die schreibende
+Person hätte keine Möglichkeit, das zu bemerken.
+
+**Eine zu lange Zeile überspringt nur ihren Block**, mit Warnung. Eine
+minifizierte Datei zwischen den Blöcken soll diesen Block kosten, nicht das
+Transkript darum herum.
+
+**Ungültiges UTF-8** wird mit dem wahrscheinlichen Grund abgewiesen — eine in
+älterer Kodierung gespeicherte Datei — statt die kaputten Bytes in die Datenbank
+zu lassen, wo sie später als unerklärliches Transkript auftauchen.
+
+### Die Fokusfalle
+
+Vorher setzte das Modal beim Öffnen den Fokus und fing ihn nicht ein. Tab hinter
+dem letzten Bedienelement landete auf der Seite **hinter** dem Hintergrund — die
+noch da ist, noch anklickbar, und verdeckt. Der Cursor verschwand schlicht.
+
+Jetzt: Tab und Shift+Tab laufen im Dialog um, und beim Schließen kehrt der Fokus
+zu der Schaltfläche zurück, die ihn geöffnet hat. Die Liste der fokussierbaren
+Elemente wird bei **jedem** Tastendruck neu ermittelt, nicht einmal beim Öffnen:
+der Dialog gewinnt und verliert Bedienelemente im Betrieb — die Anwenden-Knöpfe
+werden erst nach der Prüfung aktiv, und die beiden Reiter tauschen ihre Inhalte.
+
+### Drei eigene Testfehler
+
+Meine ersten Tests griffen mit `$cue['transcript']` auf Objekte zu, und meine
+„riesige" Datei war mit 1,64 MB kleiner als die 2-MB-Grenze, die sie
+überschreiten sollte. Beides von PHPUnit gefunden, bevor es eine Behauptung
+wurde.
+
+### Verifikation
+
+```
+PHPUnit:      458 Tests, 1488 Assertions, 1 skipped   (vorher 453/1477)
+Jest:         71/71                                    (vorher 70/70)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+esbuild:      neu gebaut, reproduzierbar
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

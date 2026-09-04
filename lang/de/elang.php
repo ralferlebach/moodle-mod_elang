@@ -38,10 +38,12 @@ $string['cuepausemode_auto'] = 'Automatisch';
 $string['cuepausemode_help'] = 'Ob das Medium am Ende eines Untertitels anhält.
 
 * Automatisch — die Wiedergabe läuft durch und hält am Ende eines Untertitels nur an, solange dieser gerade bearbeitet wird, also nach einem Klick auf ihn oder eine seiner Lücken oder wenn der Tastaturfokus in einer davon steht.
-* Immer anhalten — die Wiedergabe hält am Ende jedes Untertitels an und wartet auf das Fortsetzen.
-* Nicht anhalten — die Wiedergabe läuft bis zum Ende des Mediums durch.';
+* An jedem offenen Untertitel anhalten — die Wiedergabe hält am Ende jedes Untertitels an, in dem noch eine Lücke leer ist, und wartet auf das Fortsetzen.
+* Nicht anhalten — die Wiedergabe läuft bis zum Ende des Mediums durch.
+
+Keine der ersten beiden Einstellungen hält an einem Untertitel an, dessen Lücken alle ausgefüllt sind: das ist erledigte Arbeit, und dort anzuhalten verlangte einen Tastendruck für nichts. Der zweite Durchgang durch eine Übung hält damit nur noch dort, wo etwas fehlt.';
 $string['cuepausemode_nostop'] = 'Nicht anhalten';
-$string['cuepausemode_stop'] = 'Immer anhalten';
+$string['cuepausemode_stop'] = 'An jedem offenen Untertitel anhalten';
 $string['editcontent'] = 'Inhalt bearbeiten';
 $string['editor_addcue'] = 'Cue hinzufügen';
 $string['editor_addgap'] = 'Lücke aus Auswahl markieren';
@@ -185,6 +187,9 @@ $string['error_duplicatecuekey'] = 'Zwei Cues teilen sich den Schlüssel \'{$a}\
 $string['error_duplicategapkey'] = 'Zwei Lücken eines Cues teilen sich den Schlüssel \'{$a}\'; jede Lücke braucht einen eindeutigen Schlüssel.';
 $string['error_duplicatehintlevel'] = 'Eine Lücke hat zwei Hinweise auf Stufe {$a}; jede Hinweisstufe muss eindeutig sein.';
 $string['error_gapnotinattemptversion'] = 'Diese Lücke gehört nicht zur Übungsversion dieses Versuchs.';
+$string['error_importnotutf8'] = 'Diese Datei ist kein gültiges UTF-8. Sie wurde vermutlich in einer älteren Kodierung gespeichert — öffnen Sie sie in einem Texteditor und speichern Sie sie erneut als UTF-8.';
+$string['error_importtoolarge'] = 'Diese Datei ist {$a->size} groß; der Import nimmt höchstens {$a->max}. Eine Untertiteldatei zu einer Unterrichtsaufnahme ist weit kleiner — dies ist vermutlich keine.';
+$string['error_importtoomanycues'] = 'Diese Datei enthält {$a->count} Untertitel; der Import nimmt höchstens {$a->max}.';
 $string['error_invalidcuepausemode'] = 'Wählen Sie eine der angebotenen Optionen für die Wiedergabe an Untertitelgrenzen.';
 $string['error_invalidgradingalgorithm'] = 'Der Bewertungsalgorithmus \'{$a}\' ist weder exact noch wordrecognized.';
 $string['error_invalidhinttype'] = 'Der Hinweistyp \'{$a}\' gehört nicht zu den erlaubten Hinweistypen.';
@@ -233,6 +238,7 @@ $string['filearea_poster'] = 'Vorschaubild';
 $string['gradingheading'] = 'Antwortbewertung';
 $string['import_badtiming'] = 'Die Zeitangabe konnte nicht gelesen werden: {$a}';
 $string['import_emptytranscript'] = 'Ein Cue ohne Transkripttext wurde übersprungen.';
+$string['import_warnlinetoolong'] = 'Block {$a->block} wurde übersprungen: er enthält eine Zeile mit mehr als {$a->max} Zeichen, was keine Untertitelzeile ist.';
 $string['jarothreshold'] = 'Schwellwert für unscharfen Abgleich';
 $string['jarothreshold_help'] = 'Für Lücken, die ähnliche Antworten anerkennen (Algorithmus „Wort erkannt“), ist dies die minimale Jaro-Ähnlichkeit von 0 bis 1 zwischen den reduzierten Formen, damit eine nicht identische Antwort noch als richtig zählt. 1 verlangt eine identische Reduktion – keine Unschärfe –, niedrigere Werte akzeptieren nähere Beinahe-Treffer. Neue Versionen dieser Aktivität übernehmen diesen Wert.';
 $string['jarothresholdrange'] = 'Der Schwellwert muss zwischen 0 und 1 liegen.';

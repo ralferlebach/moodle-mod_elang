@@ -38,10 +38,12 @@ $string['cuepausemode_auto'] = 'Automatic';
 $string['cuepausemode_help'] = 'Whether the medium stops at the end of a subtitle.
 
 * Automatic — playback runs on, and stops at the end of a subtitle only while that subtitle is being worked on, that is after clicking it or one of its gaps, or moving the keyboard focus into one.
-* Always stop — playback stops at the end of every subtitle and waits to be resumed.
-* Never stop — playback runs through to the end of the medium.';
+* Stop at every unanswered subtitle — playback stops at the end of each subtitle that still has an empty gap, and waits to be resumed.
+* Never stop — playback runs through to the end of the medium.
+
+Neither of the first two stops at a subtitle whose gaps are all filled in: that is finished work, and stopping there would ask for a keypress that achieves nothing. This also means the second run through an exercise stops only where something is still missing.';
 $string['cuepausemode_nostop'] = 'Never stop';
-$string['cuepausemode_stop'] = 'Always stop';
+$string['cuepausemode_stop'] = 'Stop at every unanswered subtitle';
 $string['editcontent'] = 'Edit content';
 $string['editor_addcue'] = 'Add cue';
 $string['editor_addgap'] = 'Mark gap from selection';
@@ -185,6 +187,9 @@ $string['error_duplicatecuekey'] = 'Two cues share the key \'{$a}\'; each cue ne
 $string['error_duplicategapkey'] = 'Two gaps in one cue share the key \'{$a}\'; each gap needs a unique key.';
 $string['error_duplicatehintlevel'] = 'A gap has two hints at level {$a}; each hint level must be unique.';
 $string['error_gapnotinattemptversion'] = 'This gap does not belong to the exercise version of this attempt.';
+$string['error_importnotutf8'] = 'This file is not valid UTF-8. It was probably saved in an older encoding — open it in a text editor and save it again as UTF-8.';
+$string['error_importtoolarge'] = 'This file is {$a->size}; the import accepts at most {$a->max}. A subtitle file for a lesson recording is far smaller, so this is unlikely to be one.';
+$string['error_importtoomanycues'] = 'This file contains {$a->count} subtitles; the import accepts at most {$a->max}.';
 $string['error_invalidcuepausemode'] = 'Choose one of the offered options for playback at subtitle boundaries.';
 $string['error_invalidgradingalgorithm'] = 'The grading algorithm \'{$a}\' is not one of exact or wordrecognized.';
 $string['error_invalidhinttype'] = 'The hint type \'{$a}\' is not one of the allowed hint types.';
@@ -233,6 +238,7 @@ $string['filearea_poster'] = 'Poster image';
 $string['gradingheading'] = 'Answer grading';
 $string['import_badtiming'] = 'Could not read the timing line: {$a}';
 $string['import_emptytranscript'] = 'Skipped a cue with no transcript text.';
+$string['import_warnlinetoolong'] = 'Block {$a->block} was skipped: it contains a line longer than {$a->max} characters, which is not a subtitle line.';
 $string['jarothreshold'] = 'Fuzzy-match threshold';
 $string['jarothreshold_help'] = 'For gaps that recognise close answers (the "word recognised" algorithm), this is the minimum Jaro similarity, from 0 to 1, between the reduced forms for a non-identical answer to still count as correct. 1 requires an identical reduction — no fuzziness — while lower values accept closer near-misses. New versions of this activity start from this value.';
 $string['jarothresholdrange'] = 'The threshold must be between 0 and 1.';

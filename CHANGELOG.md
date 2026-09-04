@@ -11,6 +11,52 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.25] - 2026-09-03
+
+### Added
+- **RR-06.** The subtitle parser enforces its own limits, so they hold for the
+  import modal, the web service and any later caller alike: 2 MB of content,
+  4000 cues, 5000 characters per line. Content that is not valid UTF-8 is
+  refused with an explanation naming the likely cause — a file saved in an older
+  encoding — rather than letting broken bytes reach the database and surface
+  later as a transcript nobody can account for. Too many cues are refused, not
+  truncated: keeping the first few thousand would hand back an exercise missing
+  its ending with no way to tell.
+- **RR-06.** One absurdly long line skips its own block with a warning instead
+  of failing the import, so a single corrupted block costs that block rather
+  than the transcript around it.
+- **RR-06.** The import modal keeps the keyboard focus. Tabbing past the last
+  control used to land on the page behind the backdrop — still there, still
+  clickable, and covered — so the cursor simply disappeared. Closing now returns
+  the focus to the button that opened the dialog.
+- Tests for all of it: five in PHPUnit for the parser limits and the accepted
+  UTF-8 case, one in Jest walking the focus into the dialog, around it and back
+  out.
+
+## [2.0.0-beta.24] - 2026-09-03
+
+### Changed
+- **RR-04.** The pause mode called "Always stop" never stopped at a subtitle
+  whose gaps were all filled in — that behaviour was asked for and is right, so
+  the name was the thing that was wrong. It is now "Stop at every unanswered
+  subtitle", and the help text, the schema comment and the code comment say the
+  same. A consequence worth stating: a second run through an exercise stops only
+  where something is still missing.
+- **RR-05.** Three capability descriptions in the README named the wrong default
+  roles: `useregex` is managers only, `exporttranscript` includes students, and
+  `deleteattempts` is editing teachers rather than all teachers. The README is
+  what an administrator reads before deciding whether to change anything, so a
+  wrong entry there is worse than none.
+- **RR-05.** `db/services.php` claimed every function was on the official mobile
+  service. Only the learner-facing ones are, which is right: the authoring
+  editor is a React application for a desktop browser, and publishing from a
+  context that cannot show it would be an endpoint with no interface behind it.
+
+### Added
+- Two contract tests: README and `db/access.php` must name exactly the same
+  capabilities, and no authoring function may appear on the mobile service while
+  every learner function must.
+
 ## [2.0.0-beta.23] - 2026-09-03
 
 ### Security

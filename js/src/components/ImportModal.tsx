@@ -106,16 +106,71 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
     // is operable without a mouse and does not strand keyboard users behind
     // content they cannot reach.
     useEffect(() => {
+        // Remembered before the focus moves, so it can be given back. A dialog
+        // that returns the focus to the top of the document leaves a keyboard
+        // user to tab their way back to where they were.
+        const opener = document.activeElement as HTMLElement | null;
+
         closeref.current?.focus();
+
+        /**
+         * Every element inside the dialog that can hold the focus.
+         *
+         * Queried on each keypress rather than once: the dialog gains and loses
+         * controls as it is used — the apply buttons only become enabled after
+         * a check, and the two tabs swap their panes.
+         *
+         * @returns The focusable elements, in document order.
+         */
+        const focusable = (): HTMLElement[] => Array.from(
+            dialogref.current?.querySelectorAll<HTMLElement>(
+                'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),'
+                + ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ) ?? []
+        ).filter((element) => element.offsetParent !== null);
 
         const onkeydown = (event: KeyboardEvent): void => {
             if (event.key === 'Escape') {
                 onClose();
+                return;
+            }
+
+            if (event.key !== 'Tab') {
+                return;
+            }
+
+            // The focus is kept inside. Without this, tabbing past the last
+            // control lands on the page behind the dialog — which is still
+            // there, still clickable, and covered by the backdrop, so the
+            // cursor simply disappears.
+            const elements = focusable();
+            if (elements.length === 0) {
+                return;
+            }
+
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            const active = document.activeElement;
+
+            if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            } else if (event.shiftKey && active === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!dialogref.current?.contains(active)) {
+                // The focus was outside to begin with — a click on the backdrop,
+                // or a browser restoring it after a reflow.
+                event.preventDefault();
+                first.focus();
             }
         };
         document.addEventListener('keydown', onkeydown);
 
-        return () => document.removeEventListener('keydown', onkeydown);
+        return () => {
+            document.removeEventListener('keydown', onkeydown);
+            opener?.focus();
+        };
     }, [onClose]);
 
     // Any change to the source invalidates the summary: showing a count that

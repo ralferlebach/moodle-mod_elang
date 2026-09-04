@@ -257,4 +257,46 @@ describe('editor mount()', () => {
         expect(advanced.querySelector('[data-region="maxlength"]')).not.toBeNull();
         expect(advanced.querySelector('[data-region="linkurl"]')).not.toBeNull();
     });
+
+    test('the import modal keeps the focus and gives it back', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        const trigger = host.querySelector('[data-action="openimport"]') as HTMLButtonElement;
+        trigger.focus();
+        expect(document.activeElement).toBe(trigger);
+
+        await act(async() => {
+            trigger.click();
+        });
+
+        // The focus moves into the dialog rather than staying behind it.
+        const dialog = host.querySelector('[data-region="importmodal"]') as HTMLElement;
+        expect(dialog.contains(document.activeElement)).toBe(true);
+
+        // Tab from the last control wraps to the first instead of leaving for
+        // the page behind the backdrop, where the cursor would simply vanish.
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),'
+            + ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ));
+        expect(focusable.length).toBeGreaterThan(1);
+
+        focusable[focusable.length - 1].focus();
+        await act(async() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', bubbles: true}));
+        });
+        expect(dialog.contains(document.activeElement)).toBe(true);
+
+        // Escape closes it and the trigger gets the focus back, so a keyboard
+        // user resumes where they were rather than at the top of the document.
+        await act(async() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        });
+        expect(host.querySelector('[data-region="importmodal"]')).toBeNull();
+        expect(document.activeElement).toBe(trigger);
+    });
 });

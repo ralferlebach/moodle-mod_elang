@@ -133,4 +133,97 @@ final class subtitle_parser_test extends \advanced_testcase {
         $this->assertSame('Text', $result->cues[0]->transcript);
         $this->assertNotEmpty($result->warnings);
     }
+
+    /**
+     * Content larger than the ceiling is refused before it is parsed.
+     *
+     * The split on blank lines allocates a copy of the whole input, so the size
+     * check has to come first — refusing afterwards would already have paid the
+     * cost the refusal exists to avoid.
+     *
+     * @return void
+     */
+    public function test_oversized_content_is_refused(): void {
+        $huge = str_repeat("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nx\n\n", 60000);
+        $this->assertGreaterThan(subtitle_parser::MAX_CONTENT_BYTES, strlen($huge));
+
+        $this->expectException(\moodle_exception::class);
+        (new subtitle_parser())->parse($huge);
+    }
+
+    /**
+     * Content that is not UTF-8 is refused with an explanation.
+     *
+     * A file saved in a legacy encoding is the ordinary cause. Left through, the
+     * broken bytes reach the database and surface later as a transcript nobody
+     * can account for.
+     *
+     * @return void
+     */
+    public function test_non_utf8_content_is_refused(): void {
+        // The accent byte of a Latin-1 file, which is not valid UTF-8.
+        $latin1 = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nLe ch\xE2teau dort\n";
+        $this->assertFalse(mb_check_encoding($latin1, 'UTF-8'));
+
+        $this->expectException(\moodle_exception::class);
+        (new subtitle_parser())->parse($latin1);
+    }
+
+    /**
+     * Valid UTF-8 with non-ASCII characters is not caught by that check.
+     *
+     * @return void
+     */
+    public function test_utf8_accents_are_accepted(): void {
+        $content = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nLe château dort\n";
+
+        $parsed = (new subtitle_parser())->parse($content);
+
+        $this->assertCount(1, $parsed->cues);
+        $this->assertSame('Le château dort', $parsed->cues[0]->transcript);
+    }
+
+    /**
+     * A block containing an absurdly long line is skipped with a warning
+     * rather than failing the whole import.
+     *
+     * One minified file or corrupted download among the blocks should cost that
+     * block, not the transcript around it.
+     *
+     * @return void
+     */
+    public function test_an_overlong_line_skips_only_its_block(): void {
+        $long = str_repeat('a', subtitle_parser::MAX_LINE_LENGTH + 1);
+        $content = "WEBVTT\n\n"
+            . "00:00:00.000 --> 00:00:01.000\nLe chat dort\n\n"
+            . "00:00:01.000 --> 00:00:02.000\n" . $long . "\n\n"
+            . "00:00:02.000 --> 00:00:03.000\nLe chien court\n";
+
+        $parsed = (new subtitle_parser())->parse($content);
+
+        $this->assertCount(2, $parsed->cues);
+        $this->assertSame('Le chat dort', $parsed->cues[0]->transcript);
+        $this->assertSame('Le chien court', $parsed->cues[1]->transcript);
+        $this->assertNotEmpty($parsed->warnings);
+    }
+
+    /**
+     * More cues than the ceiling are refused rather than truncated.
+     *
+     * Keeping the first few thousand would hand back an exercise missing its
+     * ending, and the author would have no way to tell.
+     *
+     * @return void
+     */
+    public function test_too_many_cues_are_refused_not_truncated(): void {
+        $blocks = ["WEBVTT\n"];
+        for ($i = 0; $i <= subtitle_parser::MAX_CUES; $i++) {
+            $start = sprintf('00:00:%02d.%03d', intdiv($i, 1000) % 60, $i % 1000);
+            $end = sprintf('00:00:%02d.%03d', intdiv($i + 1, 1000) % 60, ($i + 1) % 1000);
+            $blocks[] = "$start --> $end\nLine $i";
+        }
+
+        $this->expectException(\moodle_exception::class);
+        (new subtitle_parser())->parse(implode("\n\n", $blocks));
+    }
 }

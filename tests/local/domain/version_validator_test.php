@@ -243,4 +243,120 @@ final class version_validator_test extends \advanced_testcase {
 
         $this->assertSame($smallreads, $largereads);
     }
+
+    /**
+     * A cue that starts before the recording does is refused.
+     *
+     * @return void
+     */
+    public function test_a_negative_start_time_blocks_publishing(): void {
+        $this->add_valid_cue_and_gap();
+        $this->set_cue_times((int) $this->version->id, -500, 2000);
+
+        $problems = $this->validator->validate((int) $this->version->id);
+
+        $this->assertNotEmpty($problems);
+        $this->assertStringContainsString('Cue 1', implode(' ', $problems));
+    }
+
+    /**
+     * A cue whose end is not after its start is refused. Zero length is the
+     * realistic case: it is what a mis-drag in the timeline produces.
+     *
+     * @dataProvider bad_cue_ranges_provider
+     * @param int $starttime The cue start in milliseconds
+     * @param int $endtime The cue end in milliseconds
+     * @return void
+     */
+    public function test_an_end_not_after_the_start_blocks_publishing(int $starttime, int $endtime): void {
+        $this->add_valid_cue_and_gap();
+        $this->set_cue_times((int) $this->version->id, $starttime, $endtime);
+
+        $this->assertNotEmpty($this->validator->validate((int) $this->version->id));
+    }
+
+    /**
+     * Ranges that are not a range.
+     *
+     * @return array The start and end in milliseconds
+     */
+    public static function bad_cue_ranges_provider(): array {
+        return [
+            'zero length' => [2000, 2000],
+            'reversed' => [4000, 2000],
+        ];
+    }
+
+    /**
+     * A cue that ends after the medium does is refused: playback can never
+     * reach it, so its gaps can never be answered.
+     *
+     * @return void
+     */
+    public function test_a_cue_past_the_end_of_the_medium_blocks_publishing(): void {
+        global $DB;
+        $this->add_valid_cue_and_gap();
+        $DB->set_field('elang_version', 'mediaduration', 10, ['id' => $this->version->id]);
+        $this->set_cue_times((int) $this->version->id, 0, 30000);
+
+        $problems = $this->validator->validate((int) $this->version->id);
+
+        $this->assertNotEmpty($problems);
+        $this->assertStringContainsString('30000', implode(' ', $problems));
+    }
+
+    /**
+     * The duration comparison respects the unit difference and the rounding
+     * that comes with it.
+     *
+     * mediaduration is whole seconds, cue times are milliseconds. A 12-second
+     * recording really runs somewhere in [12, 13), so a cue ending at 12.4 s is
+     * inside it. Comparing the numbers without converting would have rejected
+     * essentially every exercise.
+     *
+     * @return void
+     */
+    public function test_a_cue_within_the_last_second_is_accepted(): void {
+        global $DB;
+        $this->add_valid_cue_and_gap();
+        $DB->set_field('elang_version', 'mediaduration', 12, ['id' => $this->version->id]);
+        $this->set_cue_times((int) $this->version->id, 11000, 12400);
+
+        $this->assertSame([], $this->validator->validate((int) $this->version->id));
+    }
+
+    /**
+     * A medium of unknown length imposes no upper bound.
+     *
+     * mediaduration is zero for a provider embed, which reports nothing, and
+     * for any file whose length was never determined. Treating zero as "the
+     * recording is empty" would refuse to publish all of them.
+     *
+     * @return void
+     */
+    public function test_an_unknown_duration_imposes_no_bound(): void {
+        global $DB;
+        $this->add_valid_cue_and_gap();
+        $DB->set_field('elang_version', 'mediaduration', 0, ['id' => $this->version->id]);
+        $this->set_cue_times((int) $this->version->id, 0, 9999000);
+
+        $this->assertSame([], $this->validator->validate((int) $this->version->id));
+    }
+
+    /**
+     * Set the times of every cue of a version.
+     *
+     * @param int $versionid The version
+     * @param int $starttime The start in milliseconds
+     * @param int $endtime The end in milliseconds
+     * @return void
+     */
+    private function set_cue_times(int $versionid, int $starttime, int $endtime): void {
+        global $DB;
+
+        foreach ($DB->get_records('elang_cue', ['versionid' => $versionid]) as $cue) {
+            $DB->set_field('elang_cue', 'starttime', $starttime, ['id' => $cue->id]);
+            $DB->set_field('elang_cue', 'endtime', $endtime, ['id' => $cue->id]);
+        }
+    }
 }

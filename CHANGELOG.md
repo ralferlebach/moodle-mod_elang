@@ -11,6 +11,38 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.23] - 2026-09-03
+
+### Security
+- **RR-01.** The report's person filter listed everyone with an attempt in the
+  activity, ignoring the group scope the report itself applies. In
+  separate-groups mode a teacher without `moodle/site:accessallgroups` was shown
+  the names of learners whose attempts the report correctly hid — a name is
+  personal data, and leaking it through a dropdown is the same disclosure as
+  leaking the row. The options now come from `attempt_report::filter_users()`,
+  which reuses the same group-scoped query as the listing, count, aggregate and
+  export. Naming a foreign user id in the filter parameter already returned
+  nothing; there is now a test that says so.
+
+### Fixed
+- **RR-02.** `js/vendor/react/editor.bundle.js.map` was a leftover of a
+  development build committed in August. `build.mjs` writes a map only in dev
+  mode, so the production bundle never referenced it — yet it shipped in every
+  release since, carrying the full source of `ImportPanel` and `MediaPanel` long
+  after both were deleted. Removed, listed in `db/removed_files.txt`, and
+  excluded in `.gitignore`.
+- **RR-03.** Cue timings are validated before publishing: a negative start, an
+  end that is not after its start, and an end past the medium's duration each
+  block the publish and name the cue by sort order and key. The editor checked
+  these while typing, but `save_draft_version` and `publish_version` are external
+  functions and a published version is what every attempt reads.
+
+### Added
+- `tests/artefacts_test.php`: no source map ships, the bundle points at no map
+  that is not there, no deleted component survives in any built artefact, and
+  every path in `db/removed_files.txt` really is gone. A committed artefact is
+  the one file that can fall out of step with its source and stay that way.
+
 ## [2.0.0-beta.22] - 2026-09-03
 
 ### Fixed

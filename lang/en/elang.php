@@ -35,13 +35,13 @@ $string['completiondetail_completionfinishattempt'] = 'Finish an attempt';
 $string['completionfinishattempt'] = 'Student must finish an attempt';
 $string['cuepausemode'] = 'Playback at subtitle boundaries';
 $string['cuepausemode_auto'] = 'Automatic';
-$string['cuepausemode_nostop'] = 'Never stop';
-$string['cuepausemode_stop'] = 'Always stop';
 $string['cuepausemode_help'] = 'Whether the medium stops at the end of a subtitle.
 
 * Automatic — playback runs on, and stops at the end of a subtitle only while that subtitle is being worked on, that is after clicking it or one of its gaps, or moving the keyboard focus into one.
 * Always stop — playback stops at the end of every subtitle and waits to be resumed.
 * Never stop — playback runs through to the end of the medium.';
+$string['cuepausemode_nostop'] = 'Never stop';
+$string['cuepausemode_stop'] = 'Always stop';
 $string['editcontent'] = 'Edit content';
 $string['editor_addcue'] = 'Add cue';
 $string['editor_addgap'] = 'Mark gap from selection';
@@ -319,7 +319,6 @@ $string['player_transcriptheading'] = 'Transcript';
 $string['pluginadministration'] = 'Language exercise administration';
 $string['pluginname'] = 'Language exercise';
 $string['privacy_metadata_elang'] = 'For each activity, the record of who signed off the one-way migration of its 1.x content.';
-$string['privacy_metadata_elang_migrationapproveduserid'] = 'The user who approved the migration of this activity from mod_elang 1.x. Stored so the sign-off remains auditable.';
 $string['privacy_metadata_elang_attempt'] = 'For each attempt at an exercise, the activity stores who made it, when, how far it got, and how it was scored.';
 $string['privacy_metadata_elang_attempt_answeredgaps'] = 'How many gaps the learner has answered in this attempt.';
 $string['privacy_metadata_elang_attempt_attemptnumber'] = 'The sequential number of this attempt for the user and activity.';
@@ -334,6 +333,7 @@ $string['privacy_metadata_elang_attempt_timestart'] = 'The time the attempt was 
 $string['privacy_metadata_elang_attempt_totalgaps'] = 'The total number of gaps in the exercise version this attempt is on.';
 $string['privacy_metadata_elang_attempt_userid'] = 'The id of the user who made the attempt.';
 $string['privacy_metadata_elang_attempt_versionid'] = 'The exercise version this attempt was made against.';
+$string['privacy_metadata_elang_migrationapproveduserid'] = 'The user who approved the migration of this activity from mod_elang 1.x. Stored so the sign-off remains auditable.';
 $string['privacy_metadata_elang_response'] = 'For each gap a learner answers within an attempt, the activity stores the response text and how it was evaluated.';
 $string['privacy_metadata_elang_response_accepted'] = 'Whether the response was accepted as correct for this gap.';
 $string['privacy_metadata_elang_response_hintlevel'] = 'The highest hint level revealed to the learner for this gap.';
@@ -404,7 +404,6 @@ $string['reports'] = 'Reports';
 $string['solutionavailability'] = 'Solution transcript for learners';
 $string['solutionavailability_aftersubmission'] = 'After the attempt is finished';
 $string['solutionavailability_always'] = 'Any time';
-$string['solutionavailability_never'] = 'Never';
 $string['solutionavailability_help'] = 'When learners may download the full transcript with every gap solution shown.
 
 * Never — only teachers can download it.
@@ -412,22 +411,27 @@ $string['solutionavailability_help'] = 'When learners may download the full tran
 * Any time — a learner may download it before answering as well.
 
 Teachers can always download it regardless of this setting.';
+$string['solutionavailability_never'] = 'Never';
 $string['subplugintype_elangscript'] = 'Script handler';
 $string['subplugintype_elangscript_plural'] = 'Script handlers';
 $string['subtitleposition'] = 'Subtitle display';
 $string['subtitleposition_below'] = 'Below the medium';
-$string['subtitleposition_overlaybottom'] = 'On the medium — bottom';
-$string['subtitleposition_overlaytop'] = 'On the medium — top';
 $string['subtitleposition_help'] = 'Where the interactive subtitles are shown.
 
 * Below the medium — the whole transcript sits under the medium in its own scrolling area, following playback.
 * On the medium, bottom / top — only the subtitle currently playing is drawn over the medium.
 
 An audio-only medium has no picture to draw on, so it always uses the display below the medium. The setting itself is kept, and applies again as soon as the activity uses a video.';
+$string['subtitleposition_overlaybottom'] = 'On the medium — bottom';
+$string['subtitleposition_overlaytop'] = 'On the medium — top';
 $string['task_migratev1activities'] = 'Migrate version 1 activities';
 $string['transcriptheading'] = 'Transcript for learners';
+$string['validate_cueafterend'] = '{$a->where}: ends at {$a->endtime} ms, after the medium ({$a->duration} ms). Playback can never reach it.';
+$string['validate_cueendbeforestart'] = '{$a}: the end is not after the start.';
+$string['validate_cuewhere'] = 'Cue {$a->sortorder} ({$a->cuekey})';
 $string['validate_emptysolution'] = 'The solution for {$a} is empty.';
 $string['validate_hintlevels'] = 'The hint levels for {$a} are not a contiguous sequence starting at 1.';
+$string['validate_negativetime'] = '{$a}: the start time is before the beginning of the recording.';
 $string['validate_nocues'] = 'The version has no cues.';
 $string['validate_nogaps'] = 'The version has no gaps to answer.';
 $string['validate_nonpositivelength'] = 'The character length of {$a} must be positive.';

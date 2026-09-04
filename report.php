@@ -165,20 +165,13 @@ $report = new \mod_elang\local\report\attempt_report();
 // canonical URL, and a redirect after the header has been sent is too late.
 $filterform = null;
 if (!$attemptid) {
-    // Only the learners who actually have an attempt here. Offering every
-    // enrolled user would make the list long and most of its entries would
-    // return nothing.
-    $attemptusers = $DB->get_records_sql(
-        'SELECT DISTINCT u.id, ' . \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects . '
-           FROM {elang_attempt} a
-           JOIN {user} u ON u.id = a.userid
-          WHERE a.elangid = :elangid',
-        ['elangid' => (int) $elang->id]
-    );
-    $useroptions = [0 => get_string('report_filterany', 'mod_elang')];
-    foreach ($attemptusers as $attemptuser) {
-        $useroptions[(int) $attemptuser->id] = fullname($attemptuser);
-    }
+    // The person filter offers exactly the people this caller may already see:
+    // filter_users() reuses the report's own group-scoped query. Its own
+    // "everyone with an attempt here" query ignored the group scope, which in
+    // separate-groups mode showed a teacher the names of learners whose
+    // attempts the report itself was hiding.
+    $useroptions = [0 => get_string('report_filterany', 'mod_elang')]
+        + $report->filter_users((int) $elang->id, (int) $currentgroup);
 
     $filterform = new \mod_elang\form\report_filter_form(
         new moodle_url('/mod/elang/report.php'),

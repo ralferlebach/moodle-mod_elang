@@ -2505,6 +2505,80 @@ Prüfung hätte dreißig Sekunden gekostet.
 
 ---
 
+## Inkrement 35 — Release-Review beta.22: RR-01 bis RR-03 (2.0.0-beta.23, 2026090131)
+
+Die drei ersten P0-RC-Punkte des neuen Reviews.
+
+### RR-01 — ein echtes Namensleck
+
+Der Personenfilter im Bericht baute seine Auswahlliste aus einer **eigenen**
+Abfrage: „alle mit einem Versuch in dieser Aktivität". Die Berichtsabfragen
+selbst berücksichtigen dagegen `$currentgroup`.
+
+Im Separate-Groups-Modus sah eine Lehrkraft ohne
+`moodle/site:accessallgroups` damit die **Namen** von Lernenden, deren Versuche
+der Bericht korrekt verbarg. Ein Name ist personenbezogen; ihn über ein
+Auswahlfeld preiszugeben ist dieselbe Offenlegung wie die Zeile selbst.
+
+Behoben, indem die Liste dieselbe Quelle bekommt wie alles andere:
+`attempt_report::filter_users()` baut auf `build_list_query()` auf. Damit ist
+die Gruppenbeschränkung nicht *auch* implementiert, sondern **dieselbe**.
+
+Der zweite Teil des DoD — Umgehung über einen von Hand gesetzten
+`userid`-Parameter — war bereits sicher, weil der Filter durch dieselbe Abfrage
+läuft. Ein Test hält das jetzt fest, für Liste, Zähler, Kennzahlen **und**
+Export.
+
+### RR-02 — eine Datei, die seit August mitfuhr
+
+`editor.bundle.js.map` stammte vom 19. August. `build.mjs` setzt
+`sourcemap: dev` — der Produktionsbuild erzeugt also gar keine Map. Sie war das
+Überbleibsel eines Entwicklungsbuilds, wurde eingecheckt und seither in jedem
+Release mitgeliefert: 478 KB, die den **vollständigen Quelltext** von
+`ImportPanel` und `MediaPanel` enthielten, Monate nachdem beide gelöscht worden
+waren.
+
+Entfernt, in `db/removed_files.txt` eingetragen (damit bestehende
+Installationen sie verlieren) und in `.gitignore` ausgeschlossen.
+
+`tests/artefacts_test.php` hält den Zustand: keine Map, kein hängender
+`sourceMappingURL`, keine gelöschte Komponente in irgendeinem Build-Artefakt,
+und jeder Pfad aus `removed_files.txt` ist tatsächlich weg.
+
+**Lehre:** Ein eingechecktes Build-Artefakt ist die einzige Dateiart, die
+unbemerkt von ihrer Quelle abweichen und so bleiben kann — nichts baut sie auf
+dem Weg ins Release neu. Genau deshalb braucht sie eine Zusicherung, keine
+Sorgfalt.
+
+### RR-03 — und eine Einheitenfalle
+
+Cue-Zeiten werden jetzt vor dem Veröffentlichen geprüft: negativer Start, Ende
+nicht nach dem Start, Ende hinter der Mediendauer. Die Meldung nennt Cue über
+Sortierung und Key.
+
+Beim Schreiben fiel auf, was fast ein Fehlalarm bei **jeder** Übung geworden
+wäre: `elang_version.mediaduration` steht in **Sekunden**, Cue-Zeiten in
+**Millisekunden**. Ein direkter Vergleich hätte praktisch jede Version
+abgelehnt. Umgerechnet — und aufgerundet, denn eine 12,4-Sekunden-Aufnahme wird
+als 12 gespeichert, und ein Cue, der bei 12,3 s endet, liegt in ihr. Ein Test
+deckt genau diesen Grenzfall ab.
+
+Eine Dauer von 0 (Provider-Embed, oder nie ermittelt) bedeutet **keine**
+Obergrenze, nicht „die Aufnahme ist leer". Auch das ist getestet.
+
+### Verifikation
+
+```
+PHPUnit:      451 Tests, 1455 Assertions, 1 skipped   (vorher 439/1411)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+esbuild:      reproduzierbar aus dem exakten Lockfile, ohne Map
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

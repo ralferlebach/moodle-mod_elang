@@ -13,5 +13,9 @@
 #
 # One repository-root-relative path per line. Blank lines and lines starting
 # with # are ignored.
-#
-# Nothing has been removed since 2.0.0 yet.
+
+# A source map from a development build, committed in August 2025 and shipped
+# in every release afterwards. build.mjs writes a map only in dev mode, so the
+# production bundle never referenced it — and it still carried the sources of
+# ImportPanel and MediaPanel long after both components were deleted.
+js/vendor/react/editor.bundle.js.map

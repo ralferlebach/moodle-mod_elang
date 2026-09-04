@@ -221,6 +221,44 @@ final class attempt_report {
     }
 
     /**
+     * The people who may appear in the person filter.
+     *
+     * Built from the same FROM and WHERE as the listing, the count, the
+     * aggregate and the export, so the dropdown can only ever offer people the
+     * caller is already allowed to see. Its own query — "everyone with an
+     * attempt in this activity" — ignored the group scope, so in separate-groups
+     * mode a teacher without moodle/site:accessallgroups was offered the names
+     * of learners whose attempts the report itself correctly hid.
+     *
+     * Only people who actually have an attempt are listed; offering every
+     * enrolled user would make the list long and most of its entries would
+     * return nothing.
+     *
+     * @param int $elangid The activity id
+     * @param int $groupid Only members of this group, or 0 for all
+     * @return array User id => full name, sorted by name
+     */
+    public function filter_users(int $elangid, int $groupid = 0): array {
+        global $DB;
+
+        [$from, $where, $params] = $this->build_list_query($elangid, $groupid);
+
+        $usernamefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
+        $sql = "SELECT DISTINCT a.userid, {$usernamefields} FROM $from WHERE $where";
+
+        $options = [];
+        foreach ($DB->get_records_sql($sql, $params) as $row) {
+            $options[(int) $row->userid] = fullname($row);
+        }
+
+        // Sorted here rather than in SQL: fullname() decides the order the site
+        // actually displays, and that depends on the name format setting.
+        \core_collator::asort($options);
+
+        return $options;
+    }
+
+    /**
      * Build the shared FROM and WHERE for the listing, the count and the
      * aggregate, so all three describe the same set of attempts.
      *

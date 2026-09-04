@@ -35,13 +35,13 @@ $string['completiondetail_completionfinishattempt'] = 'Einen Versuch abschließe
 $string['completionfinishattempt'] = 'Die Person muss einen Versuch abschließen';
 $string['cuepausemode'] = 'Wiedergabe an Untertitelgrenzen';
 $string['cuepausemode_auto'] = 'Automatisch';
-$string['cuepausemode_nostop'] = 'Nicht anhalten';
-$string['cuepausemode_stop'] = 'Immer anhalten';
 $string['cuepausemode_help'] = 'Ob das Medium am Ende eines Untertitels anhält.
 
 * Automatisch — die Wiedergabe läuft durch und hält am Ende eines Untertitels nur an, solange dieser gerade bearbeitet wird, also nach einem Klick auf ihn oder eine seiner Lücken oder wenn der Tastaturfokus in einer davon steht.
 * Immer anhalten — die Wiedergabe hält am Ende jedes Untertitels an und wartet auf das Fortsetzen.
 * Nicht anhalten — die Wiedergabe läuft bis zum Ende des Mediums durch.';
+$string['cuepausemode_nostop'] = 'Nicht anhalten';
+$string['cuepausemode_stop'] = 'Immer anhalten';
 $string['editcontent'] = 'Inhalt bearbeiten';
 $string['editor_addcue'] = 'Cue hinzufügen';
 $string['editor_addgap'] = 'Lücke aus Auswahl markieren';
@@ -319,7 +319,6 @@ $string['player_transcriptheading'] = 'Transkript';
 $string['pluginadministration'] = 'Video-Diktat-Administration';
 $string['pluginname'] = 'Video-Diktat';
 $string['privacy_metadata_elang'] = 'Zu jeder Aktivität wird festgehalten, wer die einmalige Migration der 1.x-Inhalte freigegeben hat.';
-$string['privacy_metadata_elang_migrationapproveduserid'] = 'Die Person, die die Migration dieser Aktivität aus mod_elang 1.x freigegeben hat. Wird gespeichert, damit die Freigabe nachvollziehbar bleibt.';
 $string['privacy_metadata_elang_attempt'] = 'Für jeden Versuch an einer Übung speichert die Aktivität, wer ihn unternommen hat, wann, wie weit er kam und wie er bewertet wurde.';
 $string['privacy_metadata_elang_attempt_answeredgaps'] = 'Wie viele Lücken die lernende Person in diesem Versuch beantwortet hat.';
 $string['privacy_metadata_elang_attempt_attemptnumber'] = 'Die laufende Nummer dieses Versuchs für die Person und die Aktivität.';
@@ -334,6 +333,7 @@ $string['privacy_metadata_elang_attempt_timestart'] = 'Der Zeitpunkt, zu dem der
 $string['privacy_metadata_elang_attempt_totalgaps'] = 'Die Gesamtzahl der Lücken in der Übungsversion dieses Versuchs.';
 $string['privacy_metadata_elang_attempt_userid'] = 'Die ID der Person, die den Versuch unternommen hat.';
 $string['privacy_metadata_elang_attempt_versionid'] = 'Die Übungsversion, gegen die dieser Versuch unternommen wurde.';
+$string['privacy_metadata_elang_migrationapproveduserid'] = 'Die Person, die die Migration dieser Aktivität aus mod_elang 1.x freigegeben hat. Wird gespeichert, damit die Freigabe nachvollziehbar bleibt.';
 $string['privacy_metadata_elang_response'] = 'Für jede Lücke, die eine lernende Person innerhalb eines Versuchs beantwortet, speichert die Aktivität den Antworttext und dessen Bewertung.';
 $string['privacy_metadata_elang_response_accepted'] = 'Ob die Antwort für diese Lücke als richtig akzeptiert wurde.';
 $string['privacy_metadata_elang_response_hintlevel'] = 'Die höchste der lernenden Person offengelegte Hilfestufe für diese Lücke.';
@@ -404,7 +404,6 @@ $string['reports'] = 'Berichte';
 $string['solutionavailability'] = 'Musterlösung für Lernende';
 $string['solutionavailability_aftersubmission'] = 'Nach Abgabe';
 $string['solutionavailability_always'] = 'Jederzeit';
-$string['solutionavailability_never'] = 'Keine Musterlösung';
 $string['solutionavailability_help'] = 'Wann Lernende das vollständige Transkript mit allen Lückenlösungen herunterladen dürfen.
 
 * Keine Musterlösung — nur Lehrende können sie herunterladen.
@@ -412,22 +411,27 @@ $string['solutionavailability_help'] = 'Wann Lernende das vollständige Transkri
 * Jederzeit — Lernende dürfen sie auch schon vor dem Bearbeiten herunterladen.
 
 Lehrende können sie unabhängig von dieser Einstellung immer herunterladen.';
+$string['solutionavailability_never'] = 'Keine Musterlösung';
 $string['subplugintype_elangscript'] = 'Schrift-Handler';
 $string['subplugintype_elangscript_plural'] = 'Schrift-Handler';
 $string['subtitleposition'] = 'Darstellung der Untertitel';
 $string['subtitleposition_below'] = 'Unter dem Medium';
-$string['subtitleposition_overlaybottom'] = 'Auf dem Medium — unten';
-$string['subtitleposition_overlaytop'] = 'Auf dem Medium — oben';
 $string['subtitleposition_help'] = 'Wo die interaktiven Untertitel angezeigt werden.
 
 * Unter dem Medium — das gesamte Transkript steht unter dem Medium in einem eigenen Scrollbereich und folgt der Wiedergabe.
 * Auf dem Medium, unten / oben — nur der gerade laufende Untertitel wird über dem Medium angezeigt.
 
 Ein reines Audiomedium hat kein Bild, auf dem etwas liegen könnte, und verwendet deshalb immer die Darstellung unter dem Medium. Die Einstellung bleibt erhalten und greift wieder, sobald die Aktivität ein Video verwendet.';
+$string['subtitleposition_overlaybottom'] = 'Auf dem Medium — unten';
+$string['subtitleposition_overlaytop'] = 'Auf dem Medium — oben';
 $string['task_migratev1activities'] = 'Version-1-Aktivitäten migrieren';
 $string['transcriptheading'] = 'Transkript für Lernende';
+$string['validate_cueafterend'] = '{$a->where}: endet bei {$a->endtime} ms, nach dem Medium ({$a->duration} ms). Die Wiedergabe erreicht ihn nie.';
+$string['validate_cueendbeforestart'] = '{$a}: das Ende liegt nicht nach dem Start.';
+$string['validate_cuewhere'] = 'Cue {$a->sortorder} ({$a->cuekey})';
 $string['validate_emptysolution'] = 'Die Lösung für {$a} ist leer.';
 $string['validate_hintlevels'] = 'Die Hinweisstufen für {$a} bilden keine lückenlose Folge ab 1.';
+$string['validate_negativetime'] = '{$a}: die Startzeit liegt vor dem Beginn der Aufnahme.';
 $string['validate_nocues'] = 'Die Version enthält keine Untertitelblöcke.';
 $string['validate_nogaps'] = 'Die Version enthält keine zu beantwortenden Lücken.';
 $string['validate_nonpositivelength'] = 'Die Zeichenlänge von {$a} muss positiv sein.';

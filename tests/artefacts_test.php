@@ -142,4 +142,87 @@ final class artefacts_test extends \basic_testcase {
             );
         }
     }
+
+    /**
+     * README and db/access.php agree about who holds each capability.
+     *
+     * The archetype list in the README is what an administrator reads before
+     * deciding whether to change anything, so a wrong entry there is worse than
+     * no entry: it is read as authoritative. Three of them had drifted —
+     * useregex was documented for editing teachers when only managers hold it,
+     * exporttranscript omitted students, and deleteattempts named non-editing
+     * teachers who do not have it.
+     *
+     * Rather than compare prose, this checks the two facts that matter and can
+     * be checked: every capability is documented at all, and none is documented
+     * that does not exist.
+     *
+     * @return void
+     */
+    public function test_the_readme_documents_exactly_the_declared_capabilities(): void {
+        $access = file_get_contents($this->plugindir() . '/db/access.php');
+        $readme = file_get_contents($this->plugindir() . '/README.md');
+        $this->assertNotFalse($access);
+        $this->assertNotFalse($readme);
+
+        preg_match_all("~'(mod/elang:[a-z]+)'\s*=>\s*\[~", $access, $declared);
+        $declared = array_unique($declared[1]);
+        $this->assertNotEmpty($declared);
+
+        preg_match_all('~\*\*(mod/elang:[a-z]+)\*\*~', $readme, $documented);
+        $documented = array_unique($documented[1]);
+
+        sort($declared);
+        sort($documented);
+        $this->assertSame(
+            $declared,
+            $documented,
+            'README.md and db/access.php name different capabilities.'
+        );
+    }
+
+    /**
+     * The mobile service carries the learner functions and no authoring one.
+     *
+     * The file's own docblock used to claim every function was on the mobile
+     * service. It is not, and it should not be: the authoring editor is a React
+     * application for a desktop browser, so publishing a version from a context
+     * that cannot show the editor would be an endpoint with no interface behind
+     * it.
+     *
+     * @return void
+     */
+    public function test_only_learner_functions_are_on_the_mobile_service(): void {
+        global $CFG;
+
+        $functions = [];
+        require($CFG->dirroot . '/mod/elang/db/services.php');
+
+        $authoring = [
+            'mod_elang_save_draft_version',
+            'mod_elang_publish_version',
+            'mod_elang_get_version_content',
+            'mod_elang_preview_import',
+            'mod_elang_generate_rule_gaps',
+            'mod_elang_set_draft_media',
+        ];
+
+        foreach ($authoring as $name) {
+            $this->assertArrayHasKey($name, $functions);
+            $this->assertArrayNotHasKey(
+                'services',
+                $functions[$name],
+                "$name is an authoring function and must not be on the mobile service."
+            );
+        }
+
+        foreach (['mod_elang_start_attempt', 'mod_elang_submit_response', 'mod_elang_finish_attempt'] as $name) {
+            $this->assertArrayHasKey($name, $functions);
+            $this->assertContains(
+                MOODLE_OFFICIAL_MOBILE_SERVICE,
+                $functions[$name]['services'] ?? [],
+                "$name is learner-facing and belongs on the mobile service."
+            );
+        }
+    }
 }

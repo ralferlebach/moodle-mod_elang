@@ -110,6 +110,42 @@ GitHubs Runner sind geteilte Maschinen, und derselbe Code liefert dort je nach
 Nachbarschaft unterschiedliche Zahlen. **Eine einzelne Zahl ist kein Urteil,
 eine Reihe ist eins.**
 
+## Der Schreibpfad: gemessen, nicht optimiert
+
+Der k6-Plan misst den Lesepfad. Der Schreibpfad — jede Antwort, jeder Hinweis —
+wurde separat gemessen, weil `recalculate_attempt_aggregates()` nach **jeder**
+Einreichung alle Antworten des Versuchs neu lädt und die bearbeiteten Zeilen
+damit quadratisch mit der Übungslänge wachsen.
+
+Vollständiger Antwortdurchlauf, alle Lücken nacheinander, PostgreSQL 16:
+
+| Lücken | nur Antworten | mit Hinweis je Lücke |
+|---|---|---|
+| 50 | 2,6 ms/Einreichung, 15 Queries | 5,2 ms, 30 Queries |
+| 200 | 2,9 ms/Einreichung, 15 Queries | 6,3 ms, 30 Queries |
+| 400 | 3,1 ms/Einreichung, 15 Queries | 6,9 ms, 30 Queries |
+
+**Die Query-Zahl je Einreichung ist konstant.** Das Quadratische steckt in den
+in PHP durchlaufenen Zeilen, nicht in Datenbankrunden — bei achtfacher
+Übungslänge steigt die Zeit je Einreichung um rund 20 %.
+
+**Schwelle: 50 ms p95 je Einreichung.** Der gemessene Wert liegt bei 400 Lücken
+— schon eine extreme Übung — bei 3,1 ms, also mehr als eine Größenordnung
+darunter. Es gibt keinen belegten Grund, das Delta-Update aus Stufe 2 des DoD zu
+bauen: es würde eine korrekte, gut getestete Neuberechnung durch eine
+Fortschreibung ersetzen, die bei jedem Sonderfall auseinanderlaufen kann.
+
+Abgesichert ist stattdessen die Eigenschaft, deren Verlust wirklich wehtäte:
+`attempt_manager_test::test_answering_does_not_cost_more_queries_as_the_attempt_fills_up()`
+prüft, dass eine Einreichung nicht mehr Datenbankabfragen kostet, wenn der
+Versuch bereits voll ist. Eine Zeitzusicherung wäre auf einem geteilten Runner
+Rauschen; eine Query-Zahl ist es nicht.
+
+**Gleichzeitige Lernende** teilen sich hier nichts: das Schreiblock heißt
+`attempt_write_{attemptid}`, ist also je Versuch und damit je Person. Zwei
+Lernende blockieren einander nicht; zwei Anfragen derselben Person werden
+serialisiert, was genau der Zweck ist.
+
 ## Was nicht getestet wird und warum
 
 - **Kein Gate im Pull Request.** Ein Schwellwert auf einem geteilten Runner

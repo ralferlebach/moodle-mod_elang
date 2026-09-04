@@ -78,12 +78,12 @@ This plugin introduces these additional capabilities:
 * **mod/elang:view** - View an eLang activity. Assigned to all enrolled roles by default.
 * **mod/elang:attempt** - Attempt an exercise as a learner. Assigned to students by default.
 * **mod/elang:manage** - Create and edit exercise content in the subtitle studio. Assigned to editing teachers and managers by default.
-* **mod/elang:useregex** - Use regular expressions as accepted answers when authoring. Assigned to editing teachers and managers by default.
+* **mod/elang:useregex** - Use regular expressions as accepted answers when authoring. Assigned to **managers only** by default: a regular expression is evaluated against learner input, and an unlucky one can occupy a request for a very long time.
 * **mod/elang:viewreports** - View learner reports. Assigned to teachers and managers by default.
 * **mod/elang:exportreports** - Export the attempt report. Assigned to teachers and managers by default.
-* **mod/elang:exporttranscript** - Export a transcript (PDF, plain text, DOCX or ODT). Assigned to teachers and managers by default.
+* **mod/elang:exporttranscript** - Export a transcript (PDF, plain text, DOCX or ODT). Assigned to **students**, teachers, editing teachers and managers by default. Whether a given activity offers it to learners is the `allowtranscriptdownload` setting, not a capability.
 * **mod/elang:exportsolution** - Export the full solution transcript, including the hidden answers. Assigned to teachers and managers by default.
-* **mod/elang:deleteattempts** - Delete learner attempts. Assigned to teachers and managers by default.
+* **mod/elang:deleteattempts** - Delete learner attempts. Assigned to **editing teachers** and managers by default; non-editing teachers may view and export reports but not destroy them.
 
 
 Scheduled Tasks

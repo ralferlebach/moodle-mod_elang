@@ -11,6 +11,28 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.26] - 2026-09-03
+
+### Fixed
+- Deleting an attempt took a lock of its own (`attempt:<id>`) while every other
+  write to an attempt takes `attempt_write_<id>`. A delete could therefore run
+  alongside an answer that was still being graded, and the answer would be
+  written back into an attempt that no longer existed. Found while measuring
+  RR-08, not by it.
+
+### Added
+- **RR-08.** The write path is measured rather than assumed. A full answer run
+  over every gap: 2.6 ms per submission at 50 gaps, 2.9 at 200, 3.1 at 400, with
+  a **constant 15 queries** per submission throughout. The quadratic growth the
+  review predicted is in rows iterated in PHP, not in database round trips —
+  eight times the exercise length costs about 20% more per submission. Against a
+  threshold of 50 ms p95 per submission, the measured figure is more than an
+  order of magnitude clear, so no delta-update was built: it would replace a
+  correct, well-tested recalculation with a running total that can drift.
+- A guard on the property whose loss would actually hurt: answering the thirtieth
+  gap must not cost more queries than answering the first. A wall clock on a
+  shared runner is not a measurement; a query count is.
+
 ## [2.0.0-beta.25] - 2026-09-03
 
 ### Added

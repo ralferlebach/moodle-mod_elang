@@ -24,7 +24,7 @@ Versuch erzeugt Bewertungsdaten. Wer als Lehrkraft prüfen will, wie sich die
 Übung anfühlt, nutzt die Vorschau im Editor oder ein Testkonto. Ein
 Playwright-Test ist genau darüber gestolpert, bevor der Zusammenhang klar war.
 
-**`useregex` hält nur `manager`.** Ein regulärer Ausdruck als akzeptierte
+**`useregex` hält nur `manager`.** Die README nannte hier lange auch Editing Teachers — falsch, und seit beta.24 durch einen Test abgesichert. Ein regulärer Ausdruck als akzeptierte
 Antwortvariante wird gegen Lernendeneingaben ausgewertet; ein unglücklicher
 Ausdruck kann eine Anfrage sehr lange beschäftigen. Deshalb liegt das Recht
 höher als das übrige Autorenrecht und wird in `authoring_helper` **je Variante**

@@ -468,7 +468,11 @@ class attempt_manager {
     public function delete_attempt(int $attemptid): \stdClass {
         global $DB;
 
-        return $this->with_lock('attempt:' . $attemptid, function () use ($DB, $attemptid): \stdClass {
+        // The same lock name as every other write to this attempt. It used to
+        // take one of its own, so a delete could run alongside an answer that
+        // was still being graded — and the answer would then be written back
+        // into an attempt that no longer existed.
+        return $this->with_lock("attempt_write_{$attemptid}", function () use ($DB, $attemptid): \stdClass {
             $attempt = $DB->get_record('elang_attempt', ['id' => $attemptid], '*', MUST_EXIST);
 
             $this->in_transaction(function () use ($DB, $attemptid) {

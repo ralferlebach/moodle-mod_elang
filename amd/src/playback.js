@@ -63,8 +63,8 @@ export const pauseLandingTime = (cue) => Math.max(0, cue.endtime - 1);
  *
  * Three things decide it:
  *
- * - the mode: "stop" at every boundary, "nostop" at none, "auto" only at the
- *   end of the cue being worked on;
+ * - the mode: "stop" at every boundary that still has something to answer,
+ *   "nostop" at none, "auto" only at the end of the cue being worked on;
  * - whether that cue still has anything to answer — a cue whose gaps are all
  *   filled in is finished work, and holding playback there asks for a
  *   keypress that achieves nothing;

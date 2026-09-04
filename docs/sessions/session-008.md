@@ -2708,6 +2708,71 @@ Behat:        43 Szenarien / 440 Steps, alle grün
 
 ---
 
+## Inkrement 38 — RR-08: der Schreibpfad, gemessen (2.0.0-beta.26, 2026090134)
+
+Das Review sagt O(N²) voraus und verlangt zuerst eine Messung. Die Messung
+widerspricht der Vorhersage in einem entscheidenden Punkt.
+
+### Was herauskam
+
+Vollständiger Antwortdurchlauf über alle Lücken, PostgreSQL 16:
+
+| Lücken | nur Antworten | mit Hinweis je Lücke |
+|---|---|---|
+| 50 | 2,6 ms/Einreichung, **15 Queries** | 5,2 ms, 30 Queries |
+| 200 | 2,9 ms/Einreichung, **15 Queries** | 6,3 ms, 30 Queries |
+| 400 | 3,1 ms/Einreichung, **15 Queries** | 6,9 ms, 30 Queries |
+
+**Die Query-Zahl je Einreichung ist konstant.** Das Quadratische existiert, sitzt
+aber in den in PHP durchlaufenen Zeilen, nicht in Datenbankrunden: bei
+achtfacher Übungslänge steigt die Zeit je Einreichung um rund 20 %.
+
+### Stufe 2 des DoD bewusst nicht gebaut
+
+Bei 400 Lücken — schon eine extreme Übung — kostet eine Einreichung 3,1 ms,
+gegen eine Schwelle von 50 ms p95. Mehr als eine Größenordnung Luft.
+
+Das Delta-Update würde eine **korrekte, gut getestete Neuberechnung** durch eine
+Fortschreibung ersetzen, die bei jedem Sonderfall auseinanderlaufen kann —
+nachträglich geänderte Hinweisabzüge, gelöschte Antworten, Regrading. Dafür
+gibt es keinen belegten Anlass.
+
+Abgesichert ist stattdessen die Eigenschaft, deren Verlust wirklich wehtäte: ein
+Test prüft, dass die **dreißigste** Antwort nicht mehr Abfragen kostet als die
+erste. Eine Zeitzusicherung wäre auf einem geteilten Runner Rauschen, eine
+Query-Zahl ist es nicht.
+
+Dabei lernte ich etwas über meine eigene Erwartung: die spätere Antwort kostet
+**13** statt 15 Abfragen — die erste legt die Zeile an, spätere aktualisieren
+nur. Meine erste Zusicherung war Gleichheit und schlug fehl. Die richtige
+Aussage ist „wächst nicht", nicht „ist gleich".
+
+### Ein Fund nebenbei
+
+`delete_attempt()` nahm ein **eigenes** Lock (`attempt:<id>`), während jeder
+andere Schreibzugriff `attempt_write_<id>` nimmt. Ein Löschen konnte damit neben
+einer gerade bewerteten Antwort laufen — und die Antwort wäre in einen Versuch
+zurückgeschrieben worden, den es nicht mehr gibt.
+
+Vereinheitlicht, und ein Test liest die Sperrnamen aus der Klasse, damit die
+nächste per-Versuch-Sperre nicht wieder aus der Reihe fällt.
+
+**Lehre:** Der Auftrag war „Performance messen". Gefunden wurde ein
+Nebenläufigkeitsfehler — weil Messen heißt, sich den Pfad wirklich anzusehen,
+statt nur seine Zahlen abzulesen.
+
+### Verifikation
+
+```
+PHPUnit:      460 Tests, 1497 Assertions, 1 skipped   (vorher 458/1488)
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

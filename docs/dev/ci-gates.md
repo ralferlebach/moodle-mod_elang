@@ -15,8 +15,8 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 |---|---|---|
 | `lint-php` | 2 (PHP 8.1, 8.4) | `phplint`, `phpcs --max-warnings 0` gegen den Moodle-Standard, `phpmd` (nicht blockierend) |
 | `lint-js` | 1 | Grunt (ESLint, Stylelint, Rollup), `gherkinlint`, `phpdoc`, `mustache`, `validate`, `savepoints`, sowie `tsc`, Jest und die Reproduzierbarkeit des React-Bundles |
-| `phpunit` | 5 | Moodle 4.5 / 5.0 / 5.2 × PHP 8.1–8.4 × PostgreSQL und MariaDB |
-| `behat` | 2 | Moodle 4.5 und 5.2, Chrome über Selenium |
+| `phpunit` | 6 | Moodle 4.5 / 5.0 / 5.1 / 5.2 × PHP 8.1–8.4 × PostgreSQL und MariaDB |
+| `behat` | 3 | Moodle 4.5, 5.1 und 5.2, Chrome über Selenium |
 | `stale-files` | 1 | keine Datei aus `db/removed_files.txt` ist noch vorhanden |
 
 `CI complete` fordert alle fünf.
@@ -25,7 +25,7 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 
 | Job | Läufe | Was er prüft |
 |---|---|---|
-| `ci` | 5 | dieselbe Matrix, aber Lint, PHPUnit **und** Behat je Kombination in einem Job |
+| `ci` | 6 | dieselbe Matrix, aber Lint, PHPUnit **und** Behat je Kombination in einem Job |
 | `stale-files` | 1 | wie oben |
 
 ## Ausdrücklich **nicht** blockierend
@@ -36,19 +36,21 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
 | **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
-| **JMeter** | Seit 2.0.0-beta.27 entfernt. Es maß denselben Endpunkt wie k6 und brauchte eine JVM, die sonst nichts hier braucht. Siehe `docs/dev/load-testing.md`. |
+| **JMeter** (`load-jmeter.yml`) | Zweite, unabhängige Messung derselben Lesestrecke. Nur manuell, braucht eine JVM. Vor einer Freigabe **verpflichtend**, aber nie Teil des Push-Gates. Siehe `docs/dev/load-testing.md`. |
 
 ### Was das für eine Freigabe bedeutet
 
 Ein grüner CI-Lauf belegt Lint, Unit-, Integrations- und Browsertests über die
 gesamte unterstützte Matrix. Er belegt **nicht**:
 
-- dass die Barrierefreiheitsprüfungen liefen (Playwright),
-- dass das Verhalten unter Last unverändert ist (k6),
+- dass die Barrierefreiheitsprüfungen liefen (**Playwright/Axe**),
+- dass das Verhalten unter Last unverändert ist (**k6**),
+- dass eine zweite, unabhängige Lastmessung dasselbe sagt (**JMeter**),
 - dass Moodle `main` unterstützt wird.
 
-Diese drei sind vor einer Stable-Freigabe **einzeln** anzustoßen und ihr
-Ergebnis festzuhalten.
+Diese vier sind vor einer Stable-Freigabe **einzeln** anzustoßen und ihr
+Ergebnis festzuhalten — mit demselben SHA, sonst vergleichen sie nichts.
+Ein „CI grün" ersetzt keinen davon.
 
 ## Fresh Install, Upgrade, Backup/Restore
 

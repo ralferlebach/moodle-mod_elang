@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component    = 'mod_elang';
-$plugin->version      = 2026090137;
+$plugin->version      = 2026090138;
 
 // Moodle 4.5.0 LTS — hard minimum. The plugin runs on PHP 8.1 (Moodle 4.5)
 // through PHP 8.4 (Moodle 5.2+), so no language feature above PHP 8.1 may be used.
@@ -36,7 +36,7 @@ $plugin->requires     = 2024100700;
 // development branch and the upper bound will be raised once 5.3 is released.
 $plugin->supported    = [405, 502];
 $plugin->maturity     = MATURITY_BETA;
-$plugin->release      = '2.0.0-beta.29';
+$plugin->release      = '2.0.0-beta.30';
 
 // No external plugin dependencies. Optional integrations (AI subsystem, OAuth 2
 // services, file converters, ffmpeg) are detected at runtime and are never required.

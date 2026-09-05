@@ -18,10 +18,23 @@
  * Transcript export for mod_elang.
  *
  * Streams the published version's transcript as a PDF, Word, ODF or text file,
- * or shows a small chooser when no format is given. The learner worksheet
- * (every gap blanked out) is gated on mod/elang:exporttranscript, which
- * learners hold too; the solution copy (full text) additionally requires
- * mod/elang:exportsolution, which learners do not hold.
+ * or shows a small chooser when no format is given. Only a published version is
+ * ever exported; a draft belongs to whoever is writing it.
+ *
+ * Two exports, two rules, and neither is a capability check alone:
+ *
+ * - The **worksheet** (every gap blanked out) needs mod/elang:exporttranscript,
+ *   which learners hold as well — but whether a given activity offers it to
+ *   them is the allowtranscriptdownload setting. elang_can_export_worksheet()
+ *   is where both meet.
+ * - The **solution** (full text) is available to staff through
+ *   mod/elang:exportsolution. Learners do not hold it; for them the
+ *   solutionavailability setting decides — never, after their own submission,
+ *   or always. elang_can_export_solution() is the only place that decides this.
+ *
+ * A capability alone would answer neither question: an activity that has not
+ * finished being taught should not hand out its solutions just because the
+ * person asking is enrolled.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

@@ -1,6 +1,6 @@
 # Abhängigkeiten: Stand, Prüfung, Entscheidungen
 
-Nachweis zu RR-11. Geprüft auf dem Stand `2.0.0-beta.27`, jeweils nach
+Nachweis zu RR-11. Geprüft auf dem Stand `2.0.0-beta.30`, jeweils nach
 `npm ci` aus dem eingecheckten Lockfile — nicht `npm install`, damit gemessen
 wird, was ausgeliefert wird, und nicht, was heute zufällig aktuell ist.
 
@@ -12,12 +12,23 @@ wird, was ausgeliefert wird, und nicht, was heute zufällig aktuell ist.
 | dieselbe, nur Laufzeit (`--omit=dev`) | **0 vulnerabilities** |
 | `tests/playwright/package.json` | **0 vulnerabilities** |
 
-Ein zuvor gemeldeter Befund ist behoben: `esbuild` lag im Bereich `^0.23`, der
-unter GHSA-67mh-4wv8-2f99 fällt (Dev-Server nimmt Anfragen beliebiger Seiten
-entgegen). Angehoben auf `^0.25` in `2.0.0-beta.7`. Das betraf ausschließlich
-das Bauwerkzeug, nie die ausgelieferte Laufzeit — behoben wurde es trotzdem,
-weil ein bekannter Befund im Lockfile bei jeder späteren Prüfung wieder
-auftaucht und Aufmerksamkeit bindet.
+Zwei Befunde zu `esbuild` sind nacheinander geschlossen worden:
+
+- `^0.23` fiel unter GHSA-67mh-4wv8-2f99 (Dev-Server nimmt Anfragen beliebiger
+  Seiten entgegen). Angehoben auf `^0.25` in `2.0.0-beta.7`.
+- `< 0.28.1` fällt unter GHSA-gv7w-rqvm-qjhr (fehlende Integritätsprüfung der
+  heruntergeladenen Binärdatei). Angehoben auf `^0.28` in `2.0.0-beta.30`,
+  installiert ist 0.28.2.
+
+Beide betrafen ausschließlich das Bauwerkzeug, nie die ausgelieferte Laufzeit.
+Bemerkenswert: **`npm audit` meldete den zweiten nicht** — weder vor noch nach
+dem Anheben. Ein Audit ist eine Abfrage gegen eine Datenbank zu einem Zeitpunkt,
+kein Beweis der Abwesenheit. Deshalb steht hier, was geprüft **und** was von wem
+gemeldet wurde, statt nur „0 vulnerabilities".
+
+Nach dem Anheben baut `js/vendor/react/editor.bundle.js` weiterhin
+reproduzierbar: zwei aufeinanderfolgende Läufe liefern denselben Hash
+(`868e209c…`), und es entsteht keine Sourcemap.
 
 ## Was tatsächlich ausgeliefert wird
 
@@ -50,7 +61,7 @@ Ladestelle ist in `edit.php` kommentiert.
 
 ## esbuild und Jest
 
-- **esbuild ^0.25** — aktueller Hauptstand, Bundle baut reproduzierbar
+- **esbuild ^0.28** — aktueller Hauptstand, Bundle baut reproduzierbar
   (byte-identisch über wiederholte Läufe, geprüft in jedem Inkrement).
 - **Jest 29** — Jest 30 verlangt Node ≥ 18 und ändert das Standardverhalten von
   `testEnvironment`. Kein Nutzen für diese Suite, den Jest 29 nicht schon

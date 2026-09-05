@@ -4,6 +4,30 @@ Der Code-Review verlangt unter P0, „die getestete Datenmenge und die
 Akzeptanzschwellen zu dokumentieren". Dieses Dokument ist die Antwort. Die
 Zahlen sind mit Ralf abgestimmt.
 
+## Zwei Werkzeuge, eine Strecke
+
+Gemessen wird mit **k6** und mit **JMeter**, beide gegen denselben Endpunkt,
+dieselbe Fixture und dieselbe Latenzgrenze.
+
+| | k6 | JMeter |
+|---|---|---|
+| Rolle | Hauptinstrument: Parallelität, Trends, VU-Szenarien | unabhängige Gegenprobe derselben Lesestrecke |
+| Plan | `tests/load/elang-read-endpoints.k6.js` | `tests/load/elang-read-endpoints.jmx` |
+| Workflow | `.github/workflows/load-k6.yml` | `.github/workflows/load-jmeter.yml` |
+| Start | `make load-k6` | `make jmeter` |
+| Braucht | eine statische Binärdatei | eine JVM |
+| Ergebnis | `k6-summary.json`, `k6-run-context.txt` | `jmeter-results.jtl`, HTML-Report, `jmeter-run-context.txt` |
+
+**Warum zweimal dasselbe messen?** Weil es eben nicht dasselbe ist. Zwei
+unabhängige Werkzeuge, die über einen Endpunkt verschiedener Meinung sind,
+liefern eine Information, die keines von beiden allein erzeugen kann: dass das
+Ergebnis am Werkzeug hängt und nicht am Plugin. Stimmen sie überein, ist die
+Aussage belastbarer, als eine einzelne Zahl es je sein könnte. Weichen sie ab,
+ist keines von beiden im Recht — die Abweichung **ist** der Befund.
+
+Der Preis ist eine JVM, die sonst nichts in diesem Repository braucht. Deshalb
+läuft JMeter ausschließlich manuell und nie im Push-Gate.
+
 ## Die beiden Szenarien
 
 | Szenario | Gleichzeitige Lernende | Cues | Plateau | Was es abbildet |
@@ -44,8 +68,9 @@ wird.
 
 | Größe | Wert | Wirkung |
 |---|---|---|
-| p95-Grenze (`thresholds`) | **800 ms** | lässt den Lauf **scheitern** |
-| Fehlerrate (`thresholds`) | < 1 % | lässt den Lauf scheitern |
+| p95-Grenze (k6 `thresholds`) | **800 ms** | lässt den k6-Lauf **scheitern** |
+| Grenze je Anfrage (JMeter-Assertion) | **800 ms** | lässt den JMeter-Lauf **scheitern** |
+| Fehlerrate | < 1 % | lässt beide Läufe scheitern |
 | p95-Ziel (Metrik) | **300 ms** | wird berichtet, **keine** Bedingung |
 
 Das Ziel ist ausdrücklich **keine** k6-Schwelle. k6 kennt keine berichtende
@@ -85,6 +110,12 @@ die man an die Messung anpasst, misst nichts mehr.
 
 Beide sind für einen bewussten Stresslauf überschreibbar (`p95`, `p95target`),
 aber die Vorgabewerte sind die vereinbarten Zahlen und kein Platzhalter.
+
+JMeter kann kein Perzentil in einer Assertion prüfen, nur die Dauer der
+einzelnen Anfrage. Es setzt die 800 ms deshalb **je Anfrage** durch — strenger
+als ein p95, und damit die ehrlichste verfügbare Entsprechung. Die Fehlergrenze
+von 1 % wird nach dem Lauf aus der `.jtl` ausgewertet, weil JMeter selbst auch
+dann mit Code 0 endet, wenn jede Assertion fehlgeschlagen ist.
 
 ## Was der Lauf misst
 
@@ -151,13 +182,6 @@ serialisiert, was genau der Zweck ist.
 - **Kein Gate im Pull Request.** Ein Schwellwert auf einem geteilten Runner
   erzeugt Fehlalarme statt Erkenntnis. Der Lasttest ist ein Trendinstrument und
   läuft manuell (siehe `docs/dev/ci-gates.md`).
-- **Kein JMeter mehr.** Der Plan `elang-read-endpoints.jmx` ist mit
-  2.0.0-beta.27 entfernt. Er maß **denselben** Endpunkt wie k6, verlangte eine
-  JVM, die sonst nichts in diesem Repository braucht, und war seit Monaten nicht
-  mit den Endpunkten mitgezogen worden — ein zweiter Lasttest, der dasselbe
-  misst, ist keine zweite Meinung, sondern eine zweite Pflegeschuld. Die
-  Review-Checkliste ist entsprechend geändert; `db/removed_files.txt` sorgt
-  dafür, dass die Datei auch aus bestehenden Installationen verschwindet.
 - **Keine Messung mit echten Mediendateien.** Ausgeliefert werden sie von
   Moodles Dateiapi bzw. direkt vom Anbieter — das ist nicht das Verhalten dieses
   Plugins.

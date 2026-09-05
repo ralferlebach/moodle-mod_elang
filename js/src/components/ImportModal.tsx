@@ -42,6 +42,38 @@ interface Props {
     onClose: () => void;
 }
 
+/**
+ * The same ceiling the server applies in subtitle_parser::MAX_CONTENT_BYTES.
+ *
+ * Duplicated rather than fetched: the point of the client check is to answer
+ * before anything is read or sent, and a value that has to be looked up first
+ * cannot do that. The server remains the authority — this only saves the wait.
+ */
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+
+/** Extensions the parser understands. Lower case, without the dot. */
+const ACCEPTED_EXTENSIONS = ['vtt', 'srt'];
+
+/** MIME types a browser plausibly reports for those. */
+const ACCEPTED_MIME = ['text/vtt', 'text/plain', 'application/x-subrip', 'text/srt'];
+
+/**
+ * A file size a person can read.
+ *
+ * @param bytes The size in bytes.
+ * @returns The size with a unit.
+ */
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) {
+        return bytes + ' B';
+    }
+    if (bytes < 1024 * 1024) {
+        return Math.round(bytes / 1024) + ' KB';
+    }
+
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 /** What the summary panel reports about a successful parse. */
 interface Summary {
     filename: string;
@@ -182,6 +214,36 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
     };
 
     const readFile = (file: File): void => {
+        // Checked before the file is read, not after. `accept` on the input is a
+        // filter the browser applies to its own dialog — a file dragged in, or
+        // chosen with the filter switched to "all files", arrives regardless.
+        // And readAsText() on a large file loads all of it into memory before
+        // anything can object.
+        //
+        // The server enforces the same limits again in subtitle_parser; these
+        // are here so a mistake costs a message instead of a wait.
+        const extension = file.name.toLowerCase().replace(/^.*\./, '');
+        if (!ACCEPTED_EXTENSIONS.includes(extension)) {
+            setError(t('editor_importwrongtype').replace('{$a}', ACCEPTED_EXTENSIONS.join(', ')));
+            return;
+        }
+
+        // The MIME type is corroboration, never the decision: browsers report
+        // an empty type for .vtt often enough that rejecting on it would turn
+        // away valid files. It only rules out something that claims to be
+        // another kind of thing.
+        if (file.type !== '' && !ACCEPTED_MIME.includes(file.type)) {
+            setError(t('editor_importwrongtype').replace('{$a}', ACCEPTED_EXTENSIONS.join(', ')));
+            return;
+        }
+
+        if (file.size > MAX_IMPORT_BYTES) {
+            setError(t('editor_importtoolarge')
+                .replace('{$a->size}', formatBytes(file.size))
+                .replace('{$a->max}', formatBytes(MAX_IMPORT_BYTES)));
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = () => {
             setText(String(reader.result || ''));
@@ -306,10 +368,18 @@ export function ImportModal({t, hascues, onPreview, onApply, onClose}: Props): J
                                 data-region="importfileinput"
                                 aria-label={t('editor_importfromfile')}
                                 onChange={(event) => {
-                                    const file = event.target.files?.[0];
+                                    const input = event.target;
+                                    const file = input.files?.[0];
                                     if (file) {
                                         readFile(file);
                                     }
+                                    // Cleared so that choosing the *same* file
+                                    // again fires another change event. Without
+                                    // this, correcting a rejected file and
+                                    // picking it once more does nothing at all,
+                                    // and the error message stays on screen as
+                                    // if the second attempt had failed too.
+                                    input.value = '';
                                 }}
                             />
                         </div>

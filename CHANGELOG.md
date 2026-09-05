@@ -11,6 +11,60 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.30] - 2026-09-05
+
+### Fixed
+- Content that is not a subtitle file was accepted. The parser returned zero
+  cues, zero warnings and no error, so the import modal reported "0 cues found"
+  and offered to apply nothing — with no way for the author to tell the file had
+  simply not been understood. Such content is now refused with a message naming
+  what a timestamp line looks like. **Found by a new accessibility test**, which
+  waited for an error that never appeared.
+- **RR-06, client side.** The import modal validated nothing before calling
+  `FileReader.readAsText()`. `accept` on the input is a filter the browser
+  applies to its own dialog; a dragged file, or one chosen with the filter
+  switched off, arrived regardless — and `readAsText()` loads the whole file into
+  memory before anything can object. Size, extension and MIME type are now
+  checked first, with the same 2 MiB ceiling the server enforces. An empty MIME
+  type is accepted: browsers report one for `.vtt` often enough that rejecting on
+  it would turn away valid files.
+- The file input is cleared after each choice, so picking the *same* file again
+  after correcting it fires another change event instead of doing nothing.
+
+### Security
+- `esbuild` raised to `^0.28` (installed 0.28.2), out of GHSA-gv7w-rqvm-qjhr.
+  Build tooling only. Worth recording: `npm audit` did not report this one —
+  an audit is a query against a database at a point in time, not proof of
+  absence.
+
+### Changed
+- **JMeter is back**, and properly integrated rather than restored: the plan from
+  `8c697ea` had no latency assertion at all, only HTTP 200 and "contains cues".
+  It now enforces the same 800 ms limit per request, carries the same scenario
+  defaults as k6, and has its own workflow. JMeter exits 0 even when every
+  assertion failed, so the run evaluates the `.jtl` against the same 1% error
+  budget afterwards. Two tools measuring one endpoint can disagree, and that
+  disagreement is information neither could produce alone.
+- Moodle 5.1 joins the blocking Behat matrix, which is now three runs. The
+  declared support range is 4.5 to 5.2, and a version inside it that no browser
+  test ever touched was a claim rather than a result.
+- Workflow headers no longer call Moodle main "5.3 LTS": it is not released and
+  not declared.
+
+### Added
+- `docs/dev/accessibility.md`: the target standard, what is checked
+  automatically, and — separately — what still has to be done by a person with a
+  screen reader. A document that blurs those two is worse than none.
+- Four more axe scans: `media.php`, `transcript.php`, the open import modal, and
+  the modal showing an error. The last is what found the parser bug.
+- README describes the real authoring order (Media → Subtitles & gaps →
+  Publish), both site settings, and the four activity settings that were
+  missing. The RTL section says what is actually tested instead of claiming
+  nothing is.
+- `settings.php` and `transcript.php` docblocks match what the code does:
+  `transcript.php` claimed the solution export needed only a capability, when
+  `solutionavailability` decides it for learners.
+
 ## [2.0.0-beta.29] - 2026-09-04
 
 ### Fixed

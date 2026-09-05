@@ -17,13 +17,22 @@
 /**
  * Site administration settings/pages for mod_elang.
  *
- * No configurable settings exist yet — this file exists solely to register
- * admin_migrate_v1.php as a page under Site
- * administration > Plugins > Activity modules > elang, using
- * admin_externalpage rather than admin_settingpage since it is an action
- * page, not a settings form. Requires moodle/site:config, the same
- * capability admin_externalpage_setup() enforces for every other page
- * nested under $ADMIN — no plugin-specific capability was created for this.
+ * Registers two things under Site administration > Plugins > Activity
+ * modules > elang:
+ *
+ * - **admin_migrate_v1.php** as an admin_externalpage rather than an
+ *   admin_settingpage, because it is an action page and not a settings form.
+ *   It requires moodle/site:config, the capability admin_externalpage_setup()
+ *   enforces for every page nested under $ADMIN; no plugin-specific capability
+ *   was created for it.
+ * - **The settings themselves**: allowedlanguages, which narrows the content
+ *   language dropdown to what is actually taught here, and providerconsent,
+ *   which decides whether a YouTube or Vimeo frame may be embedded before the
+ *   learner has agreed.
+ *
+ * Both settings are site-wide on purpose. Which languages a site teaches and
+ * whether a third party may be contacted without consent are answered once by
+ * the institution, not per exercise by whoever creates it.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

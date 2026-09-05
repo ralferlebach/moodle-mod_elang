@@ -299,4 +299,83 @@ describe('editor mount()', () => {
         expect(host.querySelector('[data-region="importmodal"]')).toBeNull();
         expect(document.activeElement).toBe(trigger);
     });
+
+    /**
+     * Build a File the way a browser hands one to a change handler.
+     */
+    const makeFile = (name: string, type: string, size: number): File => {
+        const file = new File(['x'], name, {type});
+        Object.defineProperty(file, 'size', {value: size});
+        return file;
+    };
+
+    /**
+     * Open the import modal and hand it a file.
+     */
+    const chooseFile = async(file: File): Promise<HTMLElement> => {
+        await act(async() => {
+            (host.querySelector('[data-action="openimport"]') as HTMLButtonElement).click();
+        });
+        const input = host.querySelector('[data-region="importfileinput"]') as HTMLInputElement;
+        Object.defineProperty(input, 'files', {value: [file], configurable: true});
+        await act(async() => {
+            input.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        return host.querySelector('[data-region="importmodal"]') as HTMLElement;
+    };
+
+    test('a file that is not a subtitle file is refused before it is read', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // accept="" on the input is a filter the browser applies to its own
+        // dialog; a dragged file or a switched filter arrives regardless.
+        const dialog = await chooseFile(makeFile('holiday.mp4', 'video/mp4', 1000));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).not.toBeNull();
+        // Nothing was read, so there is nothing to check.
+        expect((dialog.querySelector('[data-action="importpreview"]') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    test('an oversized file is refused before it is read', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // readAsText() would load all of it into memory before anything could
+        // object, which is the whole reason the check is in front of it.
+        const dialog = await chooseFile(makeFile('huge.vtt', 'text/vtt', 3 * 1024 * 1024));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).not.toBeNull();
+    });
+
+    test('a subtitle file with no MIME type is accepted', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // Browsers report an empty type for .vtt often enough that rejecting on
+        // it would turn away valid files.
+        const dialog = await chooseFile(makeFile('lesson.vtt', '', 1000));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).toBeNull();
+    });
+
+    test('the file field is cleared so the same file can be chosen again', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        await chooseFile(makeFile('holiday.mp4', 'video/mp4', 1000));
+
+        // Without clearing, picking the corrected file — same name — fires no
+        // change event at all, and the error stays as if it had failed twice.
+        const input = host.querySelector('[data-region="importfileinput"]') as HTMLInputElement;
+        expect(input.value).toBe('');
+    });
 });

@@ -2978,6 +2978,85 @@ Behat             EXIT=0   45 Szenarien / 466 Steps
 
 ---
 
+## Inkrement 42 — Gesamtarbeitsplan beta.29 (2.0.0-beta.30, 2026090138)
+
+### Der Fund, den ein Test gemacht hat, den es vorher nicht gab
+
+Ein neuer Axe-Scan sollte das Import-Modal **im Fehlerzustand** prüfen. Er
+tippte „this is not a subtitle file", drückte „Inhalt prüfen" und wartete auf
+die Fehlermeldung. Sie kam nie.
+
+Nachgeprüft:
+
+```
+parse("this is not a subtitle file")  →  cues=0  warnings=0  (keine Exception)
+```
+
+Der Parser nahm unbrauchbare Eingaben **klaglos** an. Das Modal meldete „0 Cues
+erkannt", die Anwenden-Schaltfläche wurde aktiv, und man konnte nichts
+importieren — ohne Fehler, ohne Warnung, ohne Anhaltspunkt, dass die Datei
+schlicht nicht verstanden worden war.
+
+Behoben: Inhalt, aus dem kein einziger Cue entsteht, wird abgelehnt, und die
+Meldung sagt, wie eine Zeitzeile aussieht. Dazu ein Test für den Fall, dass
+**jeder** Block wegen Überlänge übersprungen wurde — auch dann bliebe sonst eine
+leere Zusammenfassung mit einer leicht zu übersehenden Warnung.
+
+**Lehre:** Ein Barrierefreiheitstest hat einen fachlichen Fehler gefunden. Nicht
+zufällig: Er prüft einen Zustand, den vorher niemand herbeigeführt hatte, und
+das Herbeiführen war die Prüfung.
+
+### JMeter: nicht zurückkopiert, sondern hergerichtet
+
+Der Plan aus `8c697ea` hatte **keine Latenzschwelle** — nur HTTP 200 und
+„enthält Cues". Zurückkopieren allein hätte ein Werkzeug ergeben, das nie rot
+werden kann.
+
+Ergänzt: 800 ms als `DurationAssertion` **je Anfrage** (JMeter kann kein
+Perzentil prüfen; das ist die strengste ehrliche Entsprechung) und dieselben
+Szenariovorgaben wie k6. Da JMeter auch bei durchgefallenen Assertions mit 0
+endet, wertet der Workflow anschließend die `.jtl` gegen dieselbe
+1-%-Fehlergrenze aus.
+
+Die Szenarien sind über das **Anfragevolumen** angeglichen, nicht über die
+Uhrzeit: JMeter kennt kein Plateau, sondern Durchläufe je Thread.
+
+### esbuild, und was ein Audit nicht ist
+
+Angehoben auf `^0.28` wegen GHSA-gv7w-rqvm-qjhr. Bemerkenswert: **`npm audit`
+meldete diesen Befund nicht** — weder vor noch nach dem Anheben.
+
+Ein Audit ist eine Abfrage gegen eine Datenbank zu einem Zeitpunkt, kein Beweis
+der Abwesenheit. In `docs/dev/dependencies.md` steht deshalb jetzt, **was
+geprüft und was von wem gemeldet wurde**, statt nur „0 vulnerabilities".
+
+### Der Rest des Arbeitsplans
+
+RR-06 Clientseite (Größe, Endung, MIME **vor** `readAsText()`, Feld-Reset),
+Moodle 5.1 in der blockierenden Behat-Matrix, vier weitere Axe-Scans, das neue
+`docs/dev/accessibility.md`, sowie die Doku-Nacharbeit an README,
+`settings.php`, `transcript.php` und den Workflow-Headern.
+
+`docs/dev/accessibility.md` trennt bewusst **automatisch geprüft** von **von
+einem Menschen mit Hilfstechnologie bedient**. Die vier manuellen Prüfungen
+stehen als offene Tabelle darin — ein Dokument, das beides vermischt, ist
+schlimmer als keines.
+
+### Verifikation
+
+```
+verify.sh          EXIT=0   (phpcs, moodlecheck, mustache, actionlint)
+check_amd_builds   EXIT=0
+PHPUnit            EXIT=0   469 Tests, 1507 Assertions, 1 skipped
+Jest               EXIT=0   75/75
+Behat              EXIT=0   45 Szenarien / 466 Steps
+Playwright         EXIT=0   26/26 gegen eine echte Site
+npm audit          3 Bereiche, 0 Befunde
+Bundle             868e209c, über zwei Läufe identisch
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

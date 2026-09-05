@@ -17,7 +17,10 @@ and follow progress in reports.
 Requirements
 ------------
 
-This plugin requires Moodle 4.5+ (2024100700).
+This plugin requires Moodle 4.5+ (2024100700) and is declared as supported on
+Moodle 4.5 LTS through 5.2 (`$plugin->supported = [405, 502]`). Moodle main is
+exercised in non-blocking CI jobs as an early warning; that is not a support
+claim.
 
 It is developed and supported on Moodle 4.5 LTS through Moodle 5.2, on PHP 8.1 to
 8.4, with PostgreSQL and MariaDB/MySQL. The upcoming Moodle 5.3 is additionally
@@ -48,22 +51,47 @@ See http://docs.moodle.org/en/Installing_plugins for details on installing Moodl
 Usage & Settings
 ----------------
 
-After installing the plugin, it is ready to use. To create an exercise, add an
-*eLang* activity to a course, then open the content editor to upload or link a
-medium (an uploaded file, a direct URL, or a supported provider), import its
-subtitles, and mark the gaps. Publishing the draft makes the exercise available to
-learners; edits create a new draft, so a published exercise a learner is working on
-never changes underneath them.
+After installing the plugin, it is ready to use. Add an *eLang* activity to a
+course, then work through the tabs in the order they appear:
 
-Per activity, a teacher sets the exercise language and the answer-comparison
-tolerance (a Jaro similarity threshold), alongside the usual grade and completion
-options.
+1. **Media** — upload the video or audio, or give a source address. Subtitles are
+   timed against the medium, so this comes first; the subtitle editor refuses to
+   open before it is set.
+2. **Subtitles & gaps** — import a WebVTT or SubRip file, or write the cues by
+   hand, and mark the gaps.
+3. **Publish** — from the editor toolbar. Only a published version is what
+   learners see; later edits open a new draft, so an exercise somebody is working
+   on never changes underneath them.
 
-There is one site-wide setting, at
+Per activity, a teacher sets:
+
+* the exercise language and the answer-comparison tolerance (a Jaro similarity
+  threshold), alongside the usual grade and completion options;
+* **Subtitle display** — below the medium, or as a caption over the picture (top
+  or bottom). An overlay needs a picture and a playback clock, so audio and
+  provider embeds fall back to the display below the medium;
+* **Playback at subtitle boundaries** — stop at every subtitle that still has an
+  empty gap, never stop, or stop only at the subtitle currently being worked on.
+  A subtitle whose gaps are all filled in never stops playback in any mode, so a
+  second run through an exercise stops only where something is still missing;
+* **Transcript download for learners** (`allowtranscriptdownload`) — whether
+  learners may export the worksheet, that is the transcript with every gap
+  blanked out. The capability `mod/elang:exporttranscript` allows it; this
+  setting decides whether a given exercise offers it;
+* **Solution availability** (`solutionavailability`) — when learners may export
+  the full text: never, after they have submitted their own attempt, or always.
+  Staff with `mod/elang:exportsolution` are not affected by it.
+
+There are two site-wide settings, at
 Site administration -> Plugins -> Activity modules -> eLang:
 
 * **Allowed languages** (`mod_elang/allowedlanguages`) — restricts the languages
   offered in the activity settings. When empty, all installed languages are offered.
+* **Ask before embedding YouTube or Vimeo** (`mod_elang/providerconsent`, on by
+  default) — an exercise built on a provider video shows a notice instead of the
+  video and embeds it only after the learner agrees. Without it, the provider
+  receives the learner's IP address and browser details as soon as the page
+  opens. Turn it off only if consent is obtained elsewhere on your site.
 
 If you want to learn more about using activity plugins in Moodle, please see
 https://docs.moodle.org/en/Activities.
@@ -182,8 +210,16 @@ Thank you for supporting the global Moodle community!
 Right-to-left support
 ---------------------
 
-This plugin has not been tested with Moodle's support for right-to-left (RTL) languages.
-If you want to use this plugin with a RTL language and it doesn't work as-is, you are free to send us a pull request on Github with modifications.
+The plugin's own styles use logical CSS properties, so the interface follows the
+text direction, and an automated test asserts that the marked edge of a selected
+cue moves to the other side when the document direction flips. One thing stays
+physical on purpose: the authoring timeline draws *time*, not text — the waveform
+runs left to right and cue positions are percentages of elapsed time — so its
+handles are not mirrored in RTL.
+
+This is a structural check, not a review by a reader of an RTL language. If you
+use the plugin in Arabic, Hebrew or Persian and something reads wrongly, a bug
+report or a pull request is welcome.
 
 
 Provenance and licensing

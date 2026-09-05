@@ -3,7 +3,10 @@
 #
 # Triggered on push / PR to any branch EXCEPT main (dev workflow).
 #
-# Supported range: Moodle 4.5 LTS … 5.3 LTS, PHP 8.1 … 8.4.
+# Officially supported: Moodle 4.5 LTS … 5.2, PHP 8.1 … 8.4 — the range
+# version.php declares in $plugin->supported. Moodle main (5.3-to-be) runs in
+# the experimental jobs only and is not a support claim; it will not be called
+# 5.3 LTS here until it is released and declared.
 #
 # The matrix deliberately samples that range instead of forming the full cross
 # product, and it respects the per-release PHP bounds:
@@ -336,7 +339,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.2 only) ────────────────────
+  # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.1, 5.2) ────────────────────
   phpunit:
     name: "PHPUnit (${{ matrix.moodle }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
     runs-on: ubuntu-24.04
@@ -459,7 +462,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The two ends of the declared range, plus 5.1 in the middle: the
+          # supported span is 4.5 to 5.2, and a version inside it that no
+          # browser test ever touched is a claim rather than a result.
           - { moodle: MOODLE_405_STABLE, php: '8.3' }
+          - { moodle: MOODLE_501_STABLE, php: '8.3' }
           - { moodle: MOODLE_502_STABLE, php: '8.3' }
 
     services:

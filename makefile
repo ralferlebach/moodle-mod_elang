@@ -27,7 +27,8 @@
 # Tests:
 #   make phpunit      — PHPUnit testsuite for this plugin
 #   make playwright   — browser + a11y tests (installs Playwright on 1st run)
-#   make load-k6      — k6 read-endpoint load test (needs k6 installed)
+#   make load-k6      — k6 read-endpoint load test
+#   make jmeter       — JMeter read-endpoint load test (independent cross-check)
 #   make load-seed    — seed a large exercise + web-service token; prints exports
 #   make k6-setup     — download the k6 binary if it is not installed
 #
@@ -76,7 +77,7 @@ OPLOG          ?= 500
 # Optional: override the base URL Playwright uses (otherwise seed.php sets it).
 ELANG_BASE_URL ?= $(MOODLE_WWWROOT)
 
-.PHONY: all fix check clear \
+.PHONY: all fix check clear jmeter jmeter-setup \
         lint-php lint-phpdoc lint-js lint-mustache lint-cpd lint-md \
         lint-react test-react react build \
         fix-lint-php fix-phpdoc amd phpunit \
@@ -293,6 +294,43 @@ k6-setup:
 		rm -rf k6.tgz "k6-v$(K6_VERSION)-linux-$$a" && \
 		echo "Installed to $(LOAD_DIR)/k6"; \
 	fi
+
+# --- Read-endpoint load test (JMeter) --------------------------------------
+#
+# The second, independent measurement of the same read path. Kept deliberately
+# alongside k6: two tools that disagree about the same endpoint is information,
+# and neither is the authority on the other. JMeter is never run automatically —
+# it needs a JVM, and it is a release-evidence step, not a per-push gate.
+
+JMETER_VERSION ?= 5.6.3
+JMETER_HOME    ?= $(LOAD_DIR)/apache-jmeter-$(JMETER_VERSION)
+JMETER         ?= $(JMETER_HOME)/bin/jmeter
+
+jmeter-setup:
+	@if [ -x "$(JMETER)" ]; then \
+		echo "JMeter already present: $(JMETER)"; \
+	else \
+		command -v java >/dev/null || { echo "A JRE is required for JMeter."; exit 1; }; \
+		echo "Downloading Apache JMeter $(JMETER_VERSION) ..."; \
+		cd $(LOAD_DIR) && \
+		curl -fsSL https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).tgz -o jmeter.tgz && \
+		tar xzf jmeter.tgz && rm -f jmeter.tgz; \
+	fi
+
+jmeter: clear jmeter-setup
+	@echo ""
+	@echo "=== JMeter load test — read endpoints ==="
+	@if [ -z "$(TOKEN)" ] || [ -z "$(CMID)" ]; then \
+		echo "Missing required parameters. Usage:"; \
+		echo "  make jmeter BASE_URL=<wwwroot> TOKEN=<token> CMID=<id> [VERSIONID=<id>]"; \
+		exit 1; \
+	fi
+	@cd $(LOAD_DIR) && "$(JMETER)" -n -t elang-read-endpoints.jmx \
+		-Jbase_url='$(BASE_URL)' -Jtoken='$(TOKEN)' \
+		-Jcmid='$(CMID)' -Jversionid='$(VERSIONID)' \
+		-Jthreads='$(THREADS)' -Jrampup='$(RAMPUP)' -Jloops='$(LOOPS)' \
+		-Jp95='$(P95)' \
+		-l elang-jmeter.jtl -e -o jmeter-report
 
 load-k6: clear k6-setup
 	@echo ""

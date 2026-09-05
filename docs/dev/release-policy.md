@@ -51,15 +51,30 @@ ausgelieferten Zustand fehlt.
 
 1. Der Stand ist ein grüner CI-Lauf. Welche Prüfungen das einschließt und welche
    **nicht**, steht in `docs/dev/ci-gates.md`.
-2. Playwright und k6 laufen zusätzlich und bewusst; sie sind nicht blockierend
-   und werden von einem grünen Pipeline-Lauf nicht belegt.
+2. Playwright/Axe, k6 **und JMeter** laufen zusätzlich und bewusst. Keines der
+   drei ist blockierend, keines wird von einem grünen Pipeline-Lauf belegt, und
+   alle drei müssen denselben SHA betreffen — sonst vergleichen sie nichts.
 3. Das ZIP wird aus **genau diesem** Commit erzeugt, ohne die oben genannten
    erzeugten Verzeichnisse.
 4. `tools/check_amd_builds.sh` läuft vorher: die eingecheckten Build-Artefakte
    müssen zu ihren Quellen passen. Sie werden auf dem Weg ins Release nicht neu
    gebaut, also ist das die letzte Gelegenheit, es zu bemerken.
-5. Die Freigabe-Notiz hält fest, worauf sie beruht: SHA, Moodle-/PHP-/DB-Matrix,
-   Playwright-Zahl, k6-Szenario mit beiden Latenzwerten.
+5. Die Freigabe-Notiz hält fest, worauf sie beruht:
+
+   | Nachweis | Festzuhalten |
+   |---|---|
+   | SHA | der eine Commit, auf den sich alles bezieht |
+   | Moodle-CI | Matrix (4.5 / 5.0 / 5.1 / 5.2 × PHP × DB), Laufnummer |
+   | PHPUnit, Behat, Jest | Anzahl Tests, Ergebnis |
+   | Bundle | Reproduzierbarkeit bestätigt |
+   | Playwright/Axe | Anzahl Tests, Ergebnis |
+   | k6 | Szenario, p95, Anteil unter dem Ziel, Fehlerrate |
+   | JMeter | Szenario, Threads/Loops, Grenze, Fehlerrate |
+   | Dependency-Audit | Kommandos und Befunde, oder „keine" |
+   | A11y-Smoke | welche Assistenztechnik, welcher Ablauf, Datum |
+
+   Eine Freigabe-Notiz ohne diese Zeilen sagt „es lief", nicht „es wurde
+   geprüft".
 
 ## Beim Einspielen
 

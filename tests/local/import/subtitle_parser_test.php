@@ -226,4 +226,50 @@ final class subtitle_parser_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         (new subtitle_parser())->parse(implode("\n\n", $blocks));
     }
+
+    /**
+     * Content that yields no cues is refused rather than returned empty.
+     *
+     * An empty result let the import modal offer to apply zero cues: the author
+     * pressed "check", read "0 cues found", and could import nothing at all.
+     * There was no error anywhere and no way to tell that the file had simply
+     * not been understood.
+     *
+     * @dataProvider unreadable_content_provider
+     * @param string $content The content a person might paste or upload
+     * @return void
+     */
+    public function test_content_yielding_no_cues_is_refused(string $content): void {
+        $this->expectException(\moodle_exception::class);
+        (new subtitle_parser())->parse($content);
+    }
+
+    /**
+     * Things that are not subtitle files.
+     *
+     * @return array The content
+     */
+    public static function unreadable_content_provider(): array {
+        return [
+            'prose' => ['this is not a subtitle file'],
+            'only a header' => ["WEBVTT\n"],
+            'text without timings' => ["Le chat dort\n\nLe chien court\n"],
+            'whitespace' => ["   \n\n  \n"],
+        ];
+    }
+
+    /**
+     * A file whose only block is skipped for a long line is refused too.
+     *
+     * The skip warning alone would leave an author looking at an empty summary
+     * with a warning they could easily miss.
+     *
+     * @return void
+     */
+    public function test_a_file_whose_every_block_is_skipped_is_refused(): void {
+        $long = str_repeat('a', subtitle_parser::MAX_LINE_LENGTH + 1);
+
+        $this->expectException(\moodle_exception::class);
+        (new subtitle_parser())->parse("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n" . $long . "\n");
+    }
 }

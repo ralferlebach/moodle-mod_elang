@@ -158,6 +158,15 @@ class subtitle_parser {
             ];
         }
 
+        // Content that yields nothing is not an empty subtitle file, it is not a
+        // subtitle file. Returning an empty result let the import modal offer to
+        // apply zero cues: the author pressed "check", saw "0 cues found", and
+        // could then import nothing at all — no error anywhere, and no way to
+        // tell that the file had simply not been understood.
+        if (empty($cues)) {
+            throw new \moodle_exception('error_importnocues', 'mod_elang');
+        }
+
         // Refused rather than truncated: silently keeping the first four
         // thousand would hand back an exercise missing its ending, and the
         // author would have no way to tell.

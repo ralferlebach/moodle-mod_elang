@@ -4,7 +4,8 @@
 # Triggered on push / PR to main.
 # Provides the "CI complete" status check for branch protection.
 #
-# Supported range: Moodle 4.5 LTS … 5.3 LTS, PHP 8.1 … 8.4.
+# Officially supported: Moodle 4.5 LTS … 5.2, PHP 8.1 … 8.4 — the range
+# version.php declares. Moodle main runs experimentally only.
 # Per-release PHP bounds are respected (4.5 → 8.1-8.3, 5.0 → 8.2-8.3,
 # 5.2 → 8.3-8.4, 5.3 → 8.3-8.4).
 #
@@ -54,7 +55,7 @@ env:
 
 jobs:
 
-  # ── Blocking matrix — Moodle 4.5, 5.0, 5.2 only ──────────────────────────
+  # ── Blocking matrix — Moodle 4.5, 5.0, 5.1, 5.2 ──────────────────────────
   ci:
     name: "CI / ${{ matrix.moodle-branch }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }}"
     runs-on: ubuntu-24.04

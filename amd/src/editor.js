@@ -56,6 +56,7 @@ const STRING_KEYS = [
     'editor_formatsubrip', 'editor_formatwebvtt',
     'editor_import', 'editor_importappend', 'editor_importapply', 'editor_importcancel',
     'editor_importcheck', 'editor_importchecking', 'editor_importcuecount',
+    'editor_importtoolarge', 'editor_importwrongtype',
     'editor_importduration', 'editor_importedcues', 'editor_importfilehint',
     'editor_importformat', 'editor_importfromfile', 'editor_importfromtext',
     'editor_importgapcount', 'editor_importhint', 'editor_importparseerror',

@@ -151,8 +151,13 @@ serialisiert, was genau der Zweck ist.
 - **Kein Gate im Pull Request.** Ein Schwellwert auf einem geteilten Runner
   erzeugt Fehlalarme statt Erkenntnis. Der Lasttest ist ein Trendinstrument und
   läuft manuell (siehe `docs/dev/ci-gates.md`).
-- **Kein JMeter.** Es misst dasselbe und bräuchte zusätzlich eine JVM;
-  `tests/load/*.jmx` bleibt liegen, wird aber nicht gepflegt.
+- **Kein JMeter mehr.** Der Plan `elang-read-endpoints.jmx` ist mit
+  2.0.0-beta.27 entfernt. Er maß **denselben** Endpunkt wie k6, verlangte eine
+  JVM, die sonst nichts in diesem Repository braucht, und war seit Monaten nicht
+  mit den Endpunkten mitgezogen worden — ein zweiter Lasttest, der dasselbe
+  misst, ist keine zweite Meinung, sondern eine zweite Pflegeschuld. Die
+  Review-Checkliste ist entsprechend geändert; `db/removed_files.txt` sorgt
+  dafür, dass die Datei auch aus bestehenden Installationen verschwindet.
 - **Keine Messung mit echten Mediendateien.** Ausgeliefert werden sie von
   Moodles Dateiapi bzw. direkt vom Anbieter — das ist nicht das Verhalten dieses
   Plugins.

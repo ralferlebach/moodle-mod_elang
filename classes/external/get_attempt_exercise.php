@@ -64,6 +64,22 @@ class get_attempt_exercise extends external_api {
      * @param int $attemptid Attempt id
      * @return array See execute_returns()
      */
+    /**
+     * Whether a provider frame may only be embedded after the learner agrees.
+     *
+     * Compared against '0' rather than cast to a boolean. get_config() returns
+     * false for a setting that has never been written, and an admin default is
+     * only written when Moodle applies defaults — so a plain boolean cast would
+     * turn "nobody has decided yet" into "no consent needed", which is the one
+     * answer a data-protection control must never give by accident. This way
+     * the frame is gated unless somebody explicitly turned the gate off.
+     *
+     * @return bool True while consent is required
+     */
+    private static function provider_consent_required(): bool {
+        return (string) get_config('mod_elang', 'providerconsent') !== '0';
+    }
+
     public static function execute(int $attemptid): array {
         global $DB;
 
@@ -162,6 +178,14 @@ class get_attempt_exercise extends external_api {
             'duration' => (int) ($version->mediaduration ?? 0),
             'files' => [],
             'posterurl' => '',
+            // Whether the player must ask before it contacts the provider.
+            // Embedding a YouTube or Vimeo frame hands the learner's IP address
+            // and user agent to that company the moment the page renders —
+            // before anyone presses play, and without their doing anything. The
+            // decision is the site's, so it is read from the plugin setting
+            // rather than from the activity.
+            'requiresconsent' => (string) ($version->mediakind ?? '') === 'provider'
+                && self::provider_consent_required(),
         ];
 
         $fs = get_file_storage();
@@ -236,6 +260,10 @@ class get_attempt_exercise extends external_api {
                 'kind' => new external_value(PARAM_ALPHA, 'Media kind: file, url, provider, or empty if none'),
                 'provider' => new external_value(PARAM_ALPHANUMEXT, 'Provider name when kind=provider, else empty'),
                 'providerref' => new external_value(PARAM_RAW, 'Provider video reference when kind=provider, else empty'),
+                'requiresconsent' => new external_value(
+                    PARAM_BOOL,
+                    'Whether the player must obtain the learner\'s agreement before embedding the provider frame'
+                ),
                 'url' => new external_value(PARAM_RAW, 'Direct media URL when kind=url, else empty'),
                 'mimetype' => new external_value(PARAM_RAW, 'MIME type hint for the medium, or empty if unknown'),
                 'duration' => new external_value(PARAM_INT, 'Media duration in seconds, or 0 if unknown'),

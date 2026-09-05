@@ -27,14 +27,12 @@
 # Tests:
 #   make phpunit      — PHPUnit testsuite for this plugin
 #   make playwright   — browser + a11y tests (installs Playwright on 1st run)
-#   make jmeter       — JMeter read-endpoint load test (downloads JMeter on 1st run)
 #   make load-k6      — k6 read-endpoint load test (needs k6 installed)
 #   make load-seed    — seed a large exercise + web-service token; prints exports
 #   make k6-setup     — download the k6 binary if it is not installed
 #
 # Setup only:
 #   make playwright-setup — install Playwright + Chromium browser
-#   make jmeter-setup     — download Apache JMeter
 #
 # Paths are auto-detected from the makefile's own location.
 # The plugin lives at <MOODLE_ROOT>/mod/elang/ — always two
@@ -54,15 +52,6 @@ PHPCBF        ?= phpcbf
 NPX           ?= npx
 NPM           ?= npm
 
-# --- Browser / load-test tooling -------------------------------------------
-PLAYWRIGHT_DIR ?= $(PLUGIN_DIR)/tests/playwright
-LOAD_DIR       ?= $(PLUGIN_DIR)/tests/load
-JMETER_VERSION ?= 5.6.3
-JMETER_HOME    ?= $(LOAD_DIR)/apache-jmeter-$(JMETER_VERSION)
-JMETER         ?= $(JMETER_HOME)/bin/jmeter
-K6             ?= k6
-K6_VERSION     ?= 0.54.0
-
 # Base URL read from the site's own config.php ($CFG->wwwroot), via Moodle's
 # ABORT_AFTER_CONFIG so only the config is loaded, not the whole bootstrap.
 # Lazily evaluated: only the load / playwright targets expand it. Empty if no
@@ -70,7 +59,6 @@ K6_VERSION     ?= 0.54.0
 MOODLE_WWWROOT = $(shell $(PHP) -r "define('CLI_SCRIPT',1); define('ABORT_AFTER_CONFIG',1); @include '$(MOODLE_ROOT)/config.php'; echo isset(\$$CFG->wwwroot) ? \$$CFG->wwwroot : '';" 2>/dev/null)
 
 # Load-test parameters (override on the command line):
-#   make jmeter BASE_URL=http://localhost/moodle45 TOKEN=... CMID=.. VERSIONID=..
 BASE_URL       ?= $(or $(MOODLE_WWWROOT),http://localhost:8000)
 TOKEN          ?=
 CMID           ?=
@@ -82,7 +70,7 @@ MAXDURATION    ?= 2000
 OPLOG          ?= 500
 
 # Values written by `make load-seed` (BASE_URL/TOKEN/CMID/VERSIONID). Auto-read
-# here so `make jmeter` / `make load-k6` need no manual eval. The leading '-'
+# here so `make load-k6` needs no manual eval. The leading '-'
 # ignores the file when it does not exist yet; a command-line override wins.
 -include $(LOAD_DIR)/.load-env
 # Optional: override the base URL Playwright uses (otherwise seed.php sets it).
@@ -92,7 +80,7 @@ ELANG_BASE_URL ?= $(MOODLE_WWWROOT)
         lint-php lint-phpdoc lint-js lint-mustache lint-cpd lint-md \
         lint-react test-react react build \
         fix-lint-php fix-phpdoc amd phpunit \
-        playwright playwright-setup jmeter jmeter-setup load-k6 k6-setup load-seed
+        playwright playwright-setup load-k6 k6-setup load-seed
 
 all: clear fix check
 	@echo ""
@@ -281,46 +269,11 @@ load-seed: clear
 	@rm -f $(LOAD_DIR)/.load-seed.out
 	@echo ""
 	@echo "Saved BASE_URL/TOKEN/CMID/VERSIONID to $(LOAD_DIR)/.load-env"
-	@echo "Now just run:  make jmeter   (or: make load-k6) — no eval needed."
+	@echo "Now just run:  make load-k6 — no eval needed."
 
-# --- Read-endpoint load test (JMeter) --------------------------------------
+# --- Read-endpoint load test (k6) ------------------------------------------
 # Needs a live, seeded site + a REST web-service token. Seed a large exercise
 # and mint a token first — see tests/load/README.md.
-
-jmeter-setup:
-	@echo ""
-	@echo "=== JMeter setup ==="
-	@if [ -x $(JMETER) ]; then \
-		echo "JMeter $(JMETER_VERSION) already present at $(JMETER_HOME)."; \
-	else \
-		echo "Downloading Apache JMeter $(JMETER_VERSION)..."; \
-		cd $(LOAD_DIR) && \
-		curl -fsSL https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).tgz -o jmeter.tgz && \
-		tar xzf jmeter.tgz && rm -f jmeter.tgz && \
-		echo "Installed to $(JMETER_HOME)."; \
-	fi
-
-jmeter: clear jmeter-setup
-	@echo ""
-	@echo "=== JMeter load test — read endpoints ==="
-	@command -v java >/dev/null 2>&1 || { echo "Java (JRE 8+) is required to run JMeter — please install a JRE."; exit 1; }
-	@if [ -z "$(TOKEN)" ] || [ -z "$(CMID)" ]; then \
-		echo "Missing required parameters. Usage:"; \
-		echo "  make jmeter BASE_URL=<wwwroot> TOKEN=<token> CMID=<id> [VERSIONID=<id> \\"; \
-		echo "             THREADS=25 RAMPUP=10 LOOPS=20 MAXDURATION=2000]"; \
-		echo ""; \
-		echo "  Run 'make load-seed' first (it seeds a large exercise + token and stores them),"; \
-		echo "  or pass TOKEN/CMID yourself. See tests/load/README.md."; \
-		exit 1; \
-	fi
-	cd $(LOAD_DIR) && $(JMETER) -n -t elang-read-endpoints.jmx \
-		-Jbase_url='$(BASE_URL)' -Jtoken='$(TOKEN)' \
-		-Jcmid='$(CMID)' -Jversionid='$(VERSIONID)' \
-		-Jthreads='$(THREADS)' -Jrampup='$(RAMPUP)' -Jloops='$(LOOPS)' \
-		-Jmaxduration='$(MAXDURATION)' \
-		-l elang-load-results.jtl
-	@echo ""
-	@echo "Results written to $(LOAD_DIR)/elang-load-results.jtl"
 
 # --- Read-endpoint load test (k6, alternative) -----------------------------
 # Download the k6 binary locally if it is not on PATH (single static binary).

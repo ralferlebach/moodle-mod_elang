@@ -19,3 +19,8 @@
 # production bundle never referenced it — and it still carried the sources of
 # ImportPanel and MediaPanel long after both components were deleted.
 js/vendor/react/editor.bundle.js.map
+
+# The JMeter plan, removed in 2.0.0-beta.27. It measured the same read path as
+# the k6 plan, needed a JVM in the runner that nothing else needs, and had not
+# been kept in step with the endpoints since. See docs/dev/load-testing.md.
+tests/load/elang-read-endpoints.jmx

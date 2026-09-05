@@ -143,13 +143,73 @@ const buildProviderEmbed = (media) => {
     if (!builder) {
         return null;
     }
-    const iframe = document.createElement('iframe');
-    iframe.src = builder(media.providerref);
-    iframe.title = media.provider;
-    iframe.className = 'mod_elang-embed';
-    iframe.setAttribute('allowfullscreen', 'allowfullscreen');
-    iframe.setAttribute('loading', 'lazy');
-    return iframe;
+
+    /**
+     * The frame itself. Nothing creates this until it is actually wanted:
+     * setting the src is the moment the provider learns who is watching.
+     *
+     * @returns {Element} The iframe
+     */
+    const buildFrame = () => {
+        const iframe = document.createElement('iframe');
+        iframe.src = builder(media.providerref);
+        iframe.title = media.provider;
+        iframe.className = 'mod_elang-embed';
+        iframe.setAttribute('allowfullscreen', 'allowfullscreen');
+        iframe.setAttribute('loading', 'lazy');
+        return iframe;
+    };
+
+    if (!media.requiresconsent) {
+        return buildFrame();
+    }
+
+    // Agreed once per browser session. Long enough that a reload or a second
+    // visit within the lesson does not ask again, short enough that the answer
+    // is not silently kept for a person who has since left the machine — and
+    // deliberately not a stored preference: consent that outlives the session
+    // it was given in stops being something the learner is aware of granting.
+    const remembered = 'mod_elang_provider_consent_' + media.provider;
+    try {
+        if (window.sessionStorage.getItem(remembered) === '1') {
+            return buildFrame();
+        }
+    } catch (error) {
+        // Storage can be denied outright; asking every time is the safe answer.
+        Log.debug(error);
+    }
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'mod_elang-consent';
+    placeholder.dataset.region = 'providerconsent';
+
+    const heading = document.createElement('p');
+    heading.className = 'mod_elang-consent-heading';
+    heading.textContent = strings.player_consentheading.replace('{$a}', media.provider);
+    placeholder.appendChild(heading);
+
+    const detail = document.createElement('p');
+    detail.className = 'mod_elang-consent-detail';
+    detail.textContent = strings.player_consentdetail.replace('{$a}', media.provider);
+    placeholder.appendChild(detail);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-primary';
+    button.dataset.action = 'acceptprovider';
+    button.textContent = strings.player_consentaccept.replace('{$a}', media.provider);
+    button.addEventListener('click', () => {
+        try {
+            window.sessionStorage.setItem(remembered, '1');
+        } catch (error) {
+            Log.debug(error);
+        }
+        const frame = buildFrame();
+        placeholder.replaceWith(frame);
+    });
+    placeholder.appendChild(button);
+
+    return placeholder;
 };
 
 /**
@@ -1133,7 +1193,8 @@ const renderControls = (player) => {
  */
 const loadStrings = async() => {
     const keys = [
-        'player_gaplabel', 'player_gaplink', 'player_check', 'player_hint', 'player_finish', 'player_finished',
+        'player_consentaccept', 'player_consentdetail', 'player_consentheading',
+    'player_gaplabel', 'player_gaplink', 'player_check', 'player_hint', 'player_finish', 'player_finished',
         'player_finishincomplete', 'player_progress',
         'player_statecorrect', 'player_stateaccepted', 'player_stateincorrect',
         'player_statehinted', 'player_submitfailed', 'player_scorelabel', 'player_ready',

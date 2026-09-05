@@ -36,7 +36,7 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
 | **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
-| **JMeter** | Kein Workflow. Misst dasselbe wie k6 und bräuchte zusätzlich eine JVM; `tests/load/*.jmx` bleibt liegen, wird aber nicht gepflegt. |
+| **JMeter** | Seit 2.0.0-beta.27 entfernt. Es maß denselben Endpunkt wie k6 und brauchte eine JVM, die sonst nichts hier braucht. Siehe `docs/dev/load-testing.md`. |
 
 ### Was das für eine Freigabe bedeutet
 

@@ -2773,6 +2773,151 @@ Behat:        43 Szenarien / 440 Steps, alle grün
 
 ---
 
+## Inkrement 39 — RR-09 bis RR-13 (2.0.0-beta.27, 2026090135)
+
+### RR-09 — eine Unterstützungszusage ohne Deckung
+
+`supported = [405, 502]` schließt **5.1** ein. Die CI-Matrix sprang von 5.0 auf
+5.2. Damit war für eine Version Unterstützung zugesagt, auf der das Plugin nie
+installiert worden war.
+
+5.1 ist jetzt in beiden Matrizen (PHP 8.3, PostgreSQL). Der Rest von RR-09 —
+finaler Lauf mit exakter SHA dokumentieren, Artefakt daraus erzeugen — ist
+Ralfs Teil und in `docs/dev/release-policy.md` als Ablauf festgehalten.
+
+### RR-10 — JMeter entfernt (Variante B)
+
+Der Plan maß **denselben** Endpunkt wie k6, verlangte eine JVM, die sonst
+nichts in diesem Repository braucht, und war seit Monaten nicht mit den
+Endpunkten mitgezogen worden.
+
+Ein zweiter Lasttest, der dasselbe misst, ist keine zweite Meinung, sondern eine
+zweite Pflegeschuld. Entfernt: `.jmx`, die `make jmeter`-Ziele, die
+Dokumentation, die Checklistenzeile — und in `db/removed_files.txt` eingetragen,
+damit die Datei auch aus bestehenden Installationen verschwindet.
+
+### RR-11 — Audit auf dem eingecheckten Lockfile
+
+Dreimal `npm ci` gefolgt von `npm audit`: Editor, nur Laufzeit, Playwright.
+**Null Befunde.** Ausgeliefert werden ohnehin nur React und ReactDOM, und auch
+die nicht als Dateien, sondern einkompiliert.
+
+Der React-18-Pin ist dokumentiert als das, was er ist: keine Trägheit, sondern
+die Vermeidung von **zwei React-Laufzeiten in einer Seite**, sobald Moodle 5.2
+die Mindestversion wird und seine eigene mitbringt. Der Ausstieg hängt an dieser
+Bedingung, nicht an einem Datum.
+
+### RR-12 — Barrierefreiheit als Test, nicht als Zusicherung
+
+Vier neue Playwright-Gates: eine lernende Person erreicht und beantwortet eine
+Lücke **ohne Maus**, die Abschluss-Schaltfläche ist fokussierbar, und die Übung
+funktioniert bei 200 % und 400 % Zoom ohne seitliches Scrollen und ohne
+abgeschnittenes Eingabefeld.
+
+Der Tastaturtest tabbt mit einer Obergrenze von 60 Schritten — eine kaputte
+Tab-Reihenfolge scheitert damit sichtbar, statt den Lauf hängen zu lassen.
+
+Screenreader-Smoke bleibt manuell; das ist keine Automatisierungsfrage.
+
+### RR-13 — ein Auslieferungsformat
+
+Variante A. Der Grund ist mechanisch: **Moodle installiert ein Plugin, indem es
+ein ZIP entpackt.** Was nicht im ZIP ist, existiert auf der Zielsite nicht — auch
+nicht `tools/cleanup_stale.sh`, das genau dort gebraucht wird, wo eine
+Installation von einem älteren Stand kommt. Ein Aufräumwerkzeug, das nur im
+Repository liegt, hilft niemandem, der ein ZIP eingespielt hat.
+
+Die eigentliche Sorge hinter RR-13 war nicht die Paketgröße, sondern ob die
+Dokumentation etwas verspricht, das im ausgelieferten Zustand fehlt. Mit
+Variante A ist die Antwort: nein, alles Genannte liegt bei.
+
+### Verifikation
+
+```
+Playwright:   17/17 gegen eine echte Site   (vorher 13/13)
+PHPUnit:      460 Tests, 1498 Assertions, 1 skipped
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+actionlint:   Exit 0
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        43 Szenarien / 440 Steps, alle grün
+```
+
+---
+
+## Inkrement 40 — RR-07: Einwilligung vor dem Anbieterrahmen (2.0.0-beta.28, 2026090136)
+
+Ralfs Entscheidung: **Variante B**.
+
+### Umgesetzt
+
+Statt des Rahmens steht eine Hinweisfläche mit Anbieternamen, Erklärung und
+Schaltfläche. Das `<iframe>` wird **erst beim Klick erzeugt** — seine `src` wird
+vorher nie gesetzt, es geht also tatsächlich nichts hinaus.
+
+Drei Entscheidungen:
+
+- **Site-Einstellung, nicht Aktivitätseinstellung.** Ob ein Anbieter vor der
+  Zustimmung kontaktiert werden darf, beantwortet die Einrichtung einmal. Pro
+  Übung gefragt, würde daraus eine didaktische Wahl derjenigen, die die
+  Aktivität zufällig anlegt.
+- **Zustimmung gilt für die Browsersitzung.** Ein Reload fragt nicht erneut; eine
+  gespeicherte Präferenz überdauert die Sitzung, in der sie gegeben wurde, und
+  hört damit auf, etwas zu sein, dessen Erteilung man bewusst wahrnimmt.
+- **Im Zweifel gesperrt.**
+
+### Der letzte Punkt war fast ein Fehler
+
+Meine erste Fassung war `(bool) get_config('mod_elang', 'providerconsent')`. Der
+Behat-Lauf zeigte: `get_config()` liefert **`false`**, solange der Admin-Standard
+nie geschrieben wurde. Der Schutz wäre im Zweifel **aus** gewesen.
+
+Jetzt `!== '0'`: gesperrt, solange niemand die Sperre ausdrücklich abschaltet.
+„Noch nicht entschieden" darf bei einer Datenschutzkontrolle nie „nicht nötig"
+heißen. Ein Test hält genau diesen Fall fest.
+
+### Die Frage nach dem Proxy
+
+Ralf fragte, ob sich der Stream über die Moodle-Instanz leiten ließe. Für
+YouTube: nein, und die Begründung steht in `docs/dev/provider-embeds.md` — die
+Nutzungsbedingungen untersagen es, die signierten IP-gebundenen Segment-URLs
+machen jede Umsetzung instabil, und der Moodle-Server würde zum CDN.
+
+Die brauchbare Antwort liegt näher: der Medientyp **direkte URL** nimmt die
+Adresse eines institutionellen Medienservers (Opencast, Panopto, Kaltura)
+**ohne jede Änderung am Plugin** entgegen. Dann bleiben die IP-Adressen im Haus,
+die Einwilligungsfrage entfällt, **und** Untertitelposition sowie Pausemodus
+funktionieren vollständig — anders als beim Anbieterrahmen, der seine
+Wiedergabezeit nicht meldet. Das steht jetzt im Hilfetext des Feldes, wo die
+Entscheidung getroffen wird.
+
+### Zwei eigene Fehler unterwegs
+
+Mein Einfügen kaperte den Docblock der folgenden Behat-Methode — die verlor ihre
+`@Given`-Annotation, und Behat blieb an einer Eingabeaufforderung hängen. Und
+ich ließ Behat einmal gegen einen **veralteten** `player.min.js` laufen: der
+`--sync`-Lauf lag vor der Player-Änderung.
+
+**Lehre zum zweiten:** `check_amd_builds.sh --sync` gehört **nach** die letzte
+Änderung an `amd/src/`, nicht irgendwann davor. Der rote Test sah aus wie ein
+Fehler in der Logik und war ein Fehler in der Reihenfolge.
+
+### Verifikation
+
+```
+PHPUnit:      464 Tests, 1503 Assertions, 1 skipped   (vorher 460/1498)
+Jest:         71/71
+tsc --noEmit: sauber
+PHPCS:        0 Errors / 0 Warnings
+moodlecheck:  0 <e>-Tags
+Mustache:     0 Fehler
+actionlint:   Exit 0
+check_amd_builds.sh: alle Artefakte entsprechen ihren Quellen
+Behat:        45 Szenarien / 466 Steps, alle grün
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

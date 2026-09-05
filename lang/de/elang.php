@@ -257,7 +257,9 @@ $string['media_sourceurl_help'] = 'Fügen Sie die Adresse eines Videos ein, stat
 
 Eine hier eingetragene Adresse ersetzt eine hochgeladene Datei. Lassen Sie das Feld leer, um den Upload oben zu verwenden.
 
-Ein Anbietervideo wird im Rahmen des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an.';
+Ein Anbietervideo wird im Rahmen des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an.
+
+**Wohin die Daten gehen.** Ein YouTube- oder Vimeo-Rahmen verbindet den Browser jeder lernenden Person mit diesem Unternehmen, das dabei IP-Adresse und Geräteangaben erhält. Standardmäßig fragt die Übung vorher nach. Wenn Ihre Einrichtung einen eigenen Medienserver betreibt — Opencast, Panopto, Kaltura oder ähnlich —, fügen Sie stattdessen die direkte Adresse der Datei von dort ein: sie gilt als gewöhnliche Medien-URL, behält die von Ihnen gewählte Untertitelposition und Pauseneinstellung, und es ist kein Dritter beteiligt.';
 $string['migratev1_approvalheading'] = 'Migriert, wartet auf Prüfung';
 $string['migratev1_approvebutton'] = 'Diese Migration freigeben';
 $string['migratev1_approved'] = 'elang {$a} wurde als freigegeben markiert.';
@@ -302,6 +304,9 @@ $string['playbackheading'] = 'Wiedergabe und Untertitel';
 $string['playbackoverlayhint'] = 'Eine Einblendung auf dem Bild zeigt nur den gerade laufenden Untertitel. Die Wiedergabe hält deshalb immer am Ende eines Untertitels an, in dem noch Lücken offen sind — hier gibt es nichts zu wählen.';
 $string['playbackproviderhint'] = 'Ein YouTube- oder Vimeo-Video wird vom Anbieter in einem eigenen Rahmen abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an, unabhängig von der Auswahl oben. Hochgeladene Dateien und direkte Medien-URLs berücksichtigen beide Einstellungen.';
 $string['player_check'] = 'Antwort prüfen';
+$string['player_consentaccept'] = 'Video von {$a} laden';
+$string['player_consentdetail'] = 'Beim Abspielen verbindet sich Ihr Browser mit {$a}. {$a} erhält dabei Ihre IP-Adresse und Angaben zu Ihrem Gerät und kann bereits gesetzte Cookies auslesen. Vorher wird nichts übertragen.';
+$string['player_consentheading'] = 'Dieses Video stammt von {$a}';
 $string['player_finish'] = 'Versuch abschließen';
 $string['player_finished'] = 'Versuch abgeschlossen. Ergebnis: %score%%';
 $string['player_finishincomplete'] = '{$a} Lücke(n) sind noch leer. Versuch trotzdem abschließen?';
@@ -353,6 +358,8 @@ $string['privacy_metadata_elang_version'] = 'Für jede Inhaltsversion speichert 
 $string['privacy_metadata_elang_version_usermodified'] = 'Die Person, die diese Inhaltsversion zuletzt geändert hat. Gespeichert, um nachvollziehen zu können, wer den Übungsinhalt bearbeitet hat.';
 $string['provider_vimeo'] = 'Vimeo';
 $string['provider_youtube'] = 'YouTube';
+$string['providerconsent'] = 'Vor dem Einbetten von YouTube oder Vimeo fragen';
+$string['providerconsent_desc'] = 'Übungen mit einem YouTube- oder Vimeo-Video zeigen zunächst einen Hinweis statt des Videos und betten es erst nach Zustimmung der lernenden Person ein. Ohne diese Einstellung erhält der Anbieter IP-Adresse und Browserdaten bereits beim Öffnen der Seite — bevor jemand auf Abspielen drückt. Nur abschalten, wenn Ihre Einrichtung diese Einwilligung an anderer Stelle einholt.';
 $string['report_actions'] = 'Aktionen';
 $string['report_answered'] = 'Beantwortet';
 $string['report_attemptnumber'] = 'Versuch';

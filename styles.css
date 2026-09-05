@@ -513,3 +513,29 @@
     cursor: pointer;
     color: #2b6cb0;
 }
+
+/* The provider consent notice. Sized like the frame it replaces, so agreeing
+ * does not make the page jump. */
+.mod_elang-consent {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    min-height: 12rem;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.25rem;
+    background: #f5f6f7;
+}
+
+.mod_elang-consent-heading {
+    margin: 0;
+    font-weight: bold;
+}
+
+.mod_elang-consent-detail {
+    margin: 0;
+    max-width: 46rem;
+    color: #4f575e;
+}

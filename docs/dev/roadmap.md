@@ -45,10 +45,10 @@ Nicht gemacht, weil es **cross-origin** ist und sich in keiner der hier
 verfügbaren Umgebungen verifizieren lässt. Eine Änderung, die man nicht prüfen
 kann, gehört nicht in ein Release.
 
-### JMeter
+### JMeter — entfernt
 
-`tests/load/*.jmx` bleibt liegen, wird aber nicht gepflegt. Es misst dasselbe
-wie der k6-Plan und bräuchte zusätzlich eine JVM im Runner.
+Mit 2.0.0-beta.27 gelöscht statt weiter mitgeschleppt. Die Begründung steht in
+`docs/dev/load-testing.md`; die Entscheidung war Variante B des DoD RR-10.
 
 ## Vor der Stable-Freigabe zu erledigen
 

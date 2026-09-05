@@ -11,6 +11,64 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.28] - 2026-09-04
+
+### Security
+- **RR-07.** A YouTube or Vimeo video is no longer embedded when the page opens.
+  Until then the provider received every learner's IP address, user agent and any
+  cookies it had already set — before anyone pressed play and without their doing
+  anything. A notice now stands where the frame would, naming the provider and
+  what it receives; the `<iframe>` is created only when the learner agrees, so
+  its `src` is never set beforehand and nothing leaves the browser.
+- The gate is a site setting (`mod_elang/providerconsent`, on by default), not an
+  activity one: whether a provider may be contacted before consent is a question
+  an institution answers once, not a didactic choice for whoever creates the
+  exercise.
+- It is checked as `!== '0'` rather than cast to a boolean. `get_config()` returns
+  false for a setting whose default was never written, and a cast would have
+  turned "nobody has decided yet" into "no consent needed" — the one answer a
+  data-protection control must not give by accident. A Behat run found this.
+- Consent lasts for the browser session. A reload does not ask again; a stored
+  preference would outlive the session it was given in and stop being something
+  the learner is aware of granting.
+
+### Added
+- `docs/dev/provider-embeds.md`: what the embed discloses, why routing the stream
+  through Moodle is not a real option for YouTube — the terms of service forbid
+  it, the signed IP-bound segment URLs make it unstable, and it would turn the
+  learning platform into a CDN — and what works instead.
+- The "source address" field help now points at institutional media servers
+  (Opencast, Panopto, Kaltura): their direct file URL needs no plugin change, keeps
+  IP addresses in-house, involves no consent question, and unlike a provider frame
+  reports its playback time, so subtitle position and pause mode work fully.
+- Four PHPUnit tests and two Behat scenarios covering the gate, its off switch,
+  the unset-setting case and the file medium that never asks.
+
+## [2.0.0-beta.27] - 2026-09-04
+
+### Added
+- **RR-09.** Moodle 5.1 joins both CI matrices. `supported = [405, 502]` covers
+  everything from 4.5 to 5.2, so leaving 5.1 out meant claiming support for a
+  version no job had ever installed the plugin on.
+- **RR-11.** `docs/dev/dependencies.md`: the audit result on the exact lockfile
+  (three scopes, zero findings), why React stays on 18 and what would end that,
+  and why Jest stays on 29.
+- **RR-12.** Four Playwright gates: a learner reaches and answers a gap with the
+  keyboard alone, the finish button is focusable, and the exercise still works at
+  200% and 400% zoom without sideways scrolling or a clipped input.
+- **RR-13.** `docs/dev/release-policy.md`: one delivery format, the complete
+  repository. Moodle installs a plugin by unpacking a ZIP, so a cleanup script
+  that only exists in the repository helps nobody who installed one — and two
+  formats would make "which one did you install?" the first question after every
+  report.
+
+### Removed
+- **RR-10.** The JMeter plan, its makefile targets and its documentation.
+  It measured the same endpoint as k6, needed a JVM nothing else here needs, and
+  had drifted out of step. A second load test that measures the same thing is not
+  a second opinion, it is a second maintenance debt. Listed in
+  `db/removed_files.txt`; needs an explicit `git rm`.
+
 ## [2.0.0-beta.26] - 2026-09-03
 
 ### Fixed

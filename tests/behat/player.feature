@@ -120,3 +120,29 @@ Feature: Attempt a language exercise in the player
     When I am on the "Listening exercise 1" "elang activity" page logged in as student1
     And I answer elang gap "Gap 1" with "chat"
     Then elang gap "Gap 1" should contain "chat"
+
+  Scenario: A provider video is not embedded until the learner agrees
+    Given the following "activities" exist:
+      | activity | course | name        | idnumber |
+      | elang    | C1     | Provider ex | elang9   |
+    And elang "Provider ex" has version transcript "Le chat dort" gap "chat"
+    And elang "Provider ex" has a youtube medium "dQw4w9WgXcQ"
+    When I am on the "Provider ex" "elang activity" page logged in as student1
+    Then I should see "Exercise ready."
+    # The notice stands where the video would, and no frame has been created —
+    # so nothing has reached the provider yet.
+    And ".mod_elang-consent" "css_element" should exist
+    And "iframe.mod_elang-embed" "css_element" should not exist
+    And I should see "This video is provided by youtube"
+
+  Scenario: Agreeing loads the provider frame
+    Given the following "activities" exist:
+      | activity | course | name         | idnumber |
+      | elang    | C1     | Provider ex2 | elang10  |
+    And elang "Provider ex2" has version transcript "Le chat dort" gap "chat"
+    And elang "Provider ex2" has a youtube medium "dQw4w9WgXcQ"
+    And I am on the "Provider ex2" "elang activity" page logged in as student1
+    And I should see "Exercise ready."
+    When I press "Load the video from youtube"
+    Then "iframe.mod_elang-embed" "css_element" should exist
+    And ".mod_elang-consent" "css_element" should not exist

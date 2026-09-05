@@ -18,6 +18,9 @@ namespace mod_elang\external;
 
 use core_external\external_api;
 use mod_elang\fixtures\attempt_test_fixture_builder;
+use mod_elang\local\domain\attempt_manager;
+use mod_elang\local\grading\answer_evaluator;
+use mod_elang\local\grading\script_handler_manager;
 
 /**
  * Tests for the get_attempt_exercise external function.
@@ -341,5 +344,116 @@ final class get_attempt_exercise_test extends \advanced_testcase {
         $this->assertSame('stop', $result['playback']['cuepausemode']);
         $this->assertSame('below', $result['playback']['effectivesubtitleposition']);
         $this->assertSame('nostop', $result['playback']['effectivecuepausemode']);
+    }
+
+    /**
+     * A provider medium asks before it is embedded, unless the site turned that
+     * off.
+     *
+     * @return void
+     */
+    public function test_a_provider_medium_requires_consent_by_default(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        [$elang, $version, $student] = $this->make_provider_exercise();
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+        $this->setUser($student);
+
+        $result = get_attempt_exercise::execute((int) $attempt->id);
+        $this->assertTrue($result['media']['requiresconsent']);
+    }
+
+    /**
+     * "Never written" must not mean "not needed".
+     *
+     * get_config() returns false for an admin setting whose default has not been
+     * applied. A boolean cast would turn that into "no consent required" — the
+     * one answer a data-protection control must not give by accident.
+     *
+     * @return void
+     */
+    public function test_an_unset_setting_still_requires_consent(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        unset_config('providerconsent', 'mod_elang');
+        $this->assertFalse(get_config('mod_elang', 'providerconsent'));
+
+        [$elang, $version, $student] = $this->make_provider_exercise();
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+        $this->setUser($student);
+
+        $result = get_attempt_exercise::execute((int) $attempt->id);
+        $this->assertTrue($result['media']['requiresconsent']);
+    }
+
+    /**
+     * A site that obtains consent elsewhere can switch the gate off.
+     *
+     * @return void
+     */
+    public function test_the_site_can_switch_the_consent_gate_off(): void {
+        $this->resetAfterTest();
+
+        set_config('providerconsent', 0, 'mod_elang');
+
+        [$elang, $version, $student] = $this->make_provider_exercise();
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+        $this->setUser($student);
+
+        $result = get_attempt_exercise::execute((int) $attempt->id);
+        $this->assertFalse($result['media']['requiresconsent']);
+    }
+
+    /**
+     * A file medium never asks: no third party is involved.
+     *
+     * @return void
+     */
+    public function test_a_file_medium_never_requires_consent(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        [$elang, $version, $student] = $this->make_provider_exercise();
+        $DB->set_field('elang_version', 'mediakind', 'url', ['id' => $version->id]);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $attempt = $manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+        $this->setUser($student);
+
+        $result = get_attempt_exercise::execute((int) $attempt->id);
+        $this->assertFalse($result['media']['requiresconsent']);
+    }
+
+    /**
+     * An activity whose published version carries a YouTube medium.
+     *
+     * @return array The activity, the version and an enrolled learner
+     */
+    private function make_provider_exercise(): array {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+        $cue = $generator->create_cue(['versionid' => $version->id, 'transcript' => 'Le chat dort']);
+        $generator->create_gap(['cueid' => $cue->id, 'solution' => 'chat']);
+
+        $DB->set_field('elang_version', 'mediakind', 'provider', ['id' => $version->id]);
+        $DB->set_field('elang_version', 'mediaprovider', 'youtube', ['id' => $version->id]);
+        $DB->set_field('elang_version', 'mediaproviderref', 'dQw4w9WgXcQ', ['id' => $version->id]);
+
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        return [$elang, $version, $student];
     }
 }

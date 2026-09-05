@@ -257,7 +257,9 @@ $string['media_sourceurl_help'] = 'Paste the address of a video instead of uploa
 
 An address entered here replaces an uploaded file. Leave it empty to use the upload above.
 
-A provider video is played in the provider\\\'s own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries.';
+A provider video is played in the provider\\\'s own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries.
+
+**Where the data goes.** A YouTube or Vimeo frame connects each learner\\\'s browser to that company, which then receives their IP address and device details. By default the exercise asks before it does so. If your institution runs its own media server — Opencast, Panopto, Kaltura or similar — paste the direct address of the file from there instead: it is treated as a plain media URL, keeps the subtitle position and pause settings you chose, and no third party is involved.';
 $string['migratev1_approvalheading'] = 'Migrated, awaiting review';
 $string['migratev1_approvebutton'] = 'Approve this migration';
 $string['migratev1_approved'] = 'elang {$a} has been marked as approved.';
@@ -302,6 +304,9 @@ $string['playbackheading'] = 'Playback and subtitles';
 $string['playbackoverlayhint'] = 'A caption over the picture shows only the subtitle currently playing, so playback always pauses at the end of a subtitle that still has gaps to fill. There is nothing to choose here.';
 $string['playbackproviderhint'] = 'A YouTube or Vimeo video is played by the provider in its own frame, which does not report its playback time. Such an exercise always shows the subtitles below the medium and never stops at subtitle boundaries, whatever is chosen above. Uploaded files and direct media URLs honour both settings.';
 $string['player_check'] = 'Check answer';
+$string['player_consentaccept'] = 'Load the video from {$a}';
+$string['player_consentdetail'] = 'Playing it connects your browser to {$a}. {$a} receives your IP address and information about your device, and may read cookies it has already set. Nothing is sent until you choose to load the video.';
+$string['player_consentheading'] = 'This video is provided by {$a}';
 $string['player_finish'] = 'Finish attempt';
 $string['player_finished'] = 'Attempt finished. Score: %score%%';
 $string['player_finishincomplete'] = '{$a} gap(s) are still empty. Finish the attempt anyway?';
@@ -353,6 +358,8 @@ $string['privacy_metadata_elang_version'] = 'For each content version, the activ
 $string['privacy_metadata_elang_version_usermodified'] = 'The user who last modified this content version. Stored for auditing who edited the exercise content.';
 $string['provider_vimeo'] = 'Vimeo';
 $string['provider_youtube'] = 'YouTube';
+$string['providerconsent'] = 'Ask before embedding YouTube or Vimeo';
+$string['providerconsent_desc'] = 'Exercises built on a YouTube or Vimeo video show a notice instead of the video, and embed it only after the learner agrees. Without this, the provider receives the learner\\\'s IP address and browser details as soon as the page opens — before anyone presses play. Turn it off only if your institution obtains this consent elsewhere.';
 $string['report_actions'] = 'Actions';
 $string['report_answered'] = 'Answered';
 $string['report_attemptnumber'] = 'Attempt';

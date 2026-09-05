@@ -273,3 +273,71 @@ test.describe('right-to-left', () => {
         expect(rtl.left).toBe('0px');
     });
 });
+
+test.describe('keyboard only', () => {
+    test.beforeEach(async({page}) => {
+        await loginAs(page, requireEnv('ELANG_STUDENT'), requireEnv('ELANG_STUDENT_PASS'));
+    });
+
+    test('a learner can reach and answer a gap without a mouse', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        // Tab until a gap has the focus. Bounded, so a broken tab order fails
+        // here rather than hanging.
+        let reached = false;
+        for (let step = 0; step < 60 && !reached; step++) {
+            await page.keyboard.press('Tab');
+            reached = await page.evaluate(
+                () => document.activeElement?.closest('.mod_elang-gapwrap') !== null
+                    && document.activeElement?.tagName === 'INPUT'
+            );
+        }
+        expect(reached).toBe(true);
+
+        // Typing and Enter are the whole interaction; nothing here needs a
+        // pointer.
+        await page.keyboard.type('chat');
+        await page.keyboard.press('Enter');
+
+        // The graded state appears, which is what says the answer arrived.
+        await expect(page.locator('.mod_elang-gapstate .fa').first()).toBeVisible();
+    });
+
+    test('the exercise can be finished from the keyboard', async({page}) => {
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        const finish = page.locator('.mod_elang-finishbtn');
+        await finish.focus();
+        await expect(finish).toBeFocused();
+    });
+});
+
+test.describe('zoom', () => {
+    test.beforeEach(async({page}) => {
+        await loginAs(page, requireEnv('ELANG_STUDENT'), requireEnv('ELANG_STUDENT_PASS'));
+    });
+
+    // 200% is the WCAG AA reflow requirement; 400% is AAA and the case a
+    // learner with low vision actually uses. Both are simulated by shrinking
+    // the viewport, which is what the browser does to the layout either way.
+    for (const [label, width, height] of [['200%', 640, 512], ['400%', 320, 256]] as const) {
+        test(`the exercise still works at ${label} zoom`, async({page}) => {
+            await page.setViewportSize({width, height});
+            await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+            // No sideways scrolling: at this size every line would otherwise
+            // have to be scrolled to be read.
+            const overflow = await page.evaluate(
+                () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+            );
+            expect(overflow).toBeLessThanOrEqual(2);
+
+            // The gap is still reachable and still an input, not a clipped box.
+            const gap = page.locator('.mod_elang-gapwrap input').first();
+            await expect(gap).toBeVisible();
+            const box = await gap.boundingBox();
+            expect(box).not.toBeNull();
+            expect(box!.width).toBeGreaterThan(20);
+        });
+    }
+});

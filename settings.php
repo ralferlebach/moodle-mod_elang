@@ -60,4 +60,16 @@ if ($ADMIN->fulltree) {
         [],
         $languagechoices
     ));
+
+    // A site-wide decision, not a per-activity one. Whether a provider may be
+    // contacted before a learner has agreed is a data-protection question the
+    // institution answers once; asking it per exercise would make it a didactic
+    // choice, which it is not, and would leave it to whoever happens to create
+    // the activity.
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_elang/providerconsent',
+        get_string('providerconsent', 'mod_elang'),
+        get_string('providerconsent_desc', 'mod_elang'),
+        1
+    ));
 }

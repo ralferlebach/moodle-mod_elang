@@ -2918,6 +2918,66 @@ Behat:        45 Szenarien / 466 Steps, alle grün
 
 ---
 
+## Inkrement 41 — Ein Docblock und eine blinde Prüfung (2.0.0-beta.29, 2026090137)
+
+```
+get_attempt_exercise.php:83  ERROR  Missing docblock for function execute
+```
+
+Der Consent-Helfer aus beta.28 landete **zwischen** dem Docblock und der
+Funktion, zu der er gehörte. Derselbe Fehler wie bei der Behat-Methode zwei
+Inkremente zuvor — beim Einfügen vor einem Anker geht der darüberstehende
+Docblock an das neue Element über.
+
+Behoben, und der gesamte Baum auf dasselbe Muster durchsucht: „Docblock mit
+`@param`/`@return`, unmittelbar gefolgt von einem weiteren Docblock". **Keine
+weiteren Fundstellen.**
+
+### Warum mein lokaler Lauf das nicht meldete
+
+Zuerst vermutete ich einen zu alten `moodle-cs`. Nachgeprüft: der Sniff feuert
+lokal einwandfrei — ich habe den Fehler künstlich nachgebaut und phpcs meldete
+ihn sofort.
+
+Der Fehler lag in **meinem Prüfbefehl**:
+
+```bash
+phpcs --standard=moodle --severity=1 work/elang 2>&1 | tail -3
+```
+
+Ein sauberer Lauf endet mit einer Zeitzeile. Ein Lauf mit zwanzig Befunden endet
+mit **derselben** Zeitzeile, denn die Befunde stehen darüber. Durch `tail -3`
+sahen beide Fälle identisch aus, und ich habe „sauber" gelesen, wo Befunde
+standen.
+
+Das ist dieselbe Fehlerklasse wie das fehlende `--max-lint-warnings=0` aus
+Inkrement 16: eine Prüfung, die eine Fehlerklasse strukturell nicht sehen kann.
+Und wieder war die Ursache nicht das Werkzeug, sondern wie ich es aufrief.
+
+### `tools/verify.sh`
+
+Nichts wird mehr mit dem Auge gelesen. Jede Prüfung meldet über ihren
+**Exit-Code**, eine fehlgeschlagene druckt ihre vollständige Ausgabe, und ein
+**fehlendes** phpcs ist ein Fehlschlag statt eines stillen Übersprungs — ein
+übersprungener Test, der wie ein bestandener aussieht, ist genau die Falle, die
+hier zugeschnappt ist.
+
+`moodlecheck` ist die eine Ausnahme: es endet mit 0, auch wenn es Probleme
+meldet. Dort ist das Durchsuchen der Ausgabe die Prüfung, und das steht
+kommentiert dabei.
+
+### Verifikation, ab jetzt per Exit-Code
+
+```
+tools/verify.sh   EXIT=0   (phpcs, moodlecheck, mustache, actionlint)
+PHPUnit           EXIT=0   464 Tests, 1503 Assertions, 1 skipped
+Jest              EXIT=0   71/71
+check_amd_builds  EXIT=0
+Behat             EXIT=0   45 Szenarien / 466 Steps
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

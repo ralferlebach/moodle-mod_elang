@@ -11,6 +11,21 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.29] - 2026-09-04
+
+### Fixed
+- `get_attempt_exercise::execute()` lost its docblock: the consent helper added in
+  beta.28 was inserted between the docblock and the function it belonged to, so
+  `moodle.Commenting.MissingDocblock.Function` failed the lint job.
+
+### Added
+- `tools/verify.sh` runs the static checks and reports by **exit code**. The
+  reason is the mistake above: the checks were being read by eye with the output
+  piped through `tail`, and a clean phpcs run ends with a timing line — so does a
+  run with findings, because the findings print above it. The two looked
+  identical. Nothing in the script is read by eye, a failing check prints its
+  full output, and a missing phpcs is a failure rather than a silent skip.
+
 ## [2.0.0-beta.28] - 2026-09-04
 
 ### Security

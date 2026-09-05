@@ -59,12 +59,6 @@ class get_attempt_exercise extends external_api {
     }
 
     /**
-     * Return the attempt version's identifiers and counts.
-     *
-     * @param int $attemptid Attempt id
-     * @return array See execute_returns()
-     */
-    /**
      * Whether a provider frame may only be embedded after the learner agrees.
      *
      * Compared against '0' rather than cast to a boolean. get_config() returns
@@ -80,6 +74,12 @@ class get_attempt_exercise extends external_api {
         return (string) get_config('mod_elang', 'providerconsent') !== '0';
     }
 
+    /**
+     * Return the attempt version's identifiers and counts.
+     *
+     * @param int $attemptid Attempt id
+     * @return array See execute_returns()
+     */
     public static function execute(int $attemptid): array {
         global $DB;
 

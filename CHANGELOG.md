@@ -11,6 +11,26 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.33] - 2026-09-06
+
+### Fixed
+- The migration fixture's subtitle file contained no gaps at all, while the cues
+  and their gaps were written by hand in the seed script beside it. The file was
+  decoration and the gaps were invented — the two had no relationship, so nothing
+  connected the learner answers being checked to anything a teacher would
+  recognise as their exercise.
+- Version 1 marked gaps **in the subtitle file itself**: `[word]` for a gap with
+  a help button, `{word}` for one without, `{word(https://…)}` for one with a
+  reference link. The fixture now uses that syntax, and the seed derives the cues
+  from the file with the same split version 1's own importer used. That is the
+  difference between a fixture that looks like version 1 data and one that is
+  version 1 data.
+
+### Added
+- Two checks closing the loop: the migrated solutions are exactly the words that
+  were bracketed in the file, in order, and the one hint hangs on the gap written
+  in square brackets rather than braces. 34 checks in total.
+
 ## [2.0.0-beta.32] - 2026-09-06
 
 ### Fixed

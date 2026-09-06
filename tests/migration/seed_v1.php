@@ -109,46 +109,113 @@ foreach ([['videos', 'lesson.mp4'], ['subtitle', 'lesson.vtt']] as [$area, $name
     ], __DIR__ . '/../fixtures/v1/' . $name);
 }
 
-// The cues, in V1's own JSON shape. A cue is a list of segments; a segment is
-// either plain text or an "input", and an input's content is the solution. The
-// gap word stays part of the transcript — that convention is V1's, and the
-// migration reproduces it rather than inventing another.
-$cues = [
-    [
-        'title' => 'Cue 1',
-        'begin' => 0,
-        'end' => 3000,
-        'segments' => [
-            ['type' => 'text', 'content' => 'Le '],
-            ['type' => 'input', 'content' => 'chat', 'help' => true],
-            ['type' => 'text', 'content' => ' dort sur le '],
-            ['type' => 'input', 'content' => 'canapé'],
-            ['type' => 'text', 'content' => '.'],
-        ],
-    ],
-    [
-        'title' => 'Cue 2',
-        'begin' => 3000,
-        'end' => 6500,
-        'segments' => [
-            ['type' => 'text', 'content' => 'Le '],
-            ['type' => 'input', 'content' => 'chien', 'link' => 'https://example.org/chien'],
-            ['type' => 'text', 'content' => ' court dans le jardin.'],
-        ],
-    ],
-    [
-        'title' => 'Cue 3',
-        'begin' => 6500,
-        'end' => 10000,
-        'segments' => [
-            ['type' => 'text', 'content' => 'Les '],
-            ['type' => 'input', 'content' => 'oiseaux'],
-            ['type' => 'text', 'content' => ' chantent le '],
-            ['type' => 'input', 'content' => 'matin'],
-            ['type' => 'text', 'content' => '.'],
-        ],
-    ],
-];
+// The cues are read out of the subtitle fixture, not written by hand here.
+//
+// V1 marked gaps **in the subtitle file itself**, and its own importer
+// (locallib.php, elang_update_cues) split each cue's text on that markup:
+//
+// - [word] is a gap whose learner may ask for help.
+// - {word} is a gap without help.
+// - {word(https://…)} is a gap with a reference link.
+// - Anything else is plain transcript text.
+//
+// The rule below is that same split, applied to the same file the fixture
+// uploads into V1's subtitle area. Writing the segment JSON by hand instead —
+// which is what this script did first — produced cues that had no relationship
+// to the subtitle file sitting next to them: the file was decoration, and the
+// gaps were invented. Reading them from the file is the difference between a
+// fixture that looks like V1 data and one that is V1 data.
+$vttpath = __DIR__ . '/../fixtures/v1/lesson.vtt';
+$vtt = file_get_contents($vttpath);
+if ($vtt === false) {
+    cli_error('Cannot read the subtitle fixture at ' . $vttpath);
+}
+
+$cues = [];
+foreach (preg_split('/\R\s*\R/', trim(str_replace(["\r\n", "\r"], "\n", $vtt))) as $block) {
+    $lines = explode("\n", trim($block));
+    if ($lines[0] === 'WEBVTT') {
+        continue;
+    }
+
+    // A block is: an optional identifier line, a timing line, then the text.
+    $timingindex = null;
+    foreach ($lines as $index => $line) {
+        if (strpos($line, '-->') !== false) {
+            $timingindex = $index;
+            break;
+        }
+    }
+    if ($timingindex === null) {
+        continue;
+    }
+
+    [$from, $to] = array_map('trim', explode('-->', $lines[$timingindex]));
+    $text = implode(' ', array_slice($lines, $timingindex + 1));
+
+    // V1's own split, delimiters kept so the gap markers survive.
+    $segments = [];
+    $order = 0;
+    foreach (preg_split('/(\[[^\]]*\]|\{[^}]*\})/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE) as $part) {
+        if ($part === '') {
+            continue;
+        }
+
+        $first = mb_substr($part, 0, 1);
+        $last = mb_substr($part, -1);
+        $help = null;
+        if ($first === '[' && $last === ']') {
+            $help = true;
+        } else if ($first === '{' && $last === '}') {
+            $help = false;
+        }
+
+        if ($help === null) {
+            $segments[] = ['type' => 'text', 'content' => $part];
+            continue;
+        }
+
+        $inner = mb_substr($part, 1, mb_strlen($part) - 2);
+        preg_match('/([^(]*)(\((.*)\))?$/u', $inner, $matches);
+        $segment = [
+            'type' => 'input',
+            'content' => trim($matches[1]),
+            'order' => $order++,
+            'help' => $help,
+        ];
+        if (isset($matches[3]) && $matches[3] !== '') {
+            $segment['link'] = $matches[3];
+        }
+        $segments[] = $segment;
+    }
+
+    // A WebVTT timestamp, in milliseconds.
+    $ms = function (string $stamp): int {
+        $parts = array_reverse(explode(':', trim($stamp)));
+        $seconds = (float) str_replace(',', '.', $parts[0]);
+        $total = $seconds;
+        if (isset($parts[1])) {
+            $total += ((int) $parts[1]) * 60;
+        }
+        if (isset($parts[2])) {
+            $total += ((int) $parts[2]) * 3600;
+        }
+
+        return (int) round($total * 1000);
+    };
+
+    $plain = preg_replace('/(\[[^\]]*\]|\{[^}]*\})/u', '...', $text);
+    $cues[] = [
+        'title' => mb_substr((string) $plain, 0, 60),
+        'begin' => $ms($from),
+        'end' => $ms($to),
+        'segments' => $segments,
+    ];
+}
+
+if (count($cues) === 0) {
+    cli_error('No cues were read from the subtitle fixture — the markup or the parser is wrong.');
+}
 
 $cueids = [];
 foreach ($cues as $index => $cue) {
@@ -247,5 +314,15 @@ echo "export MIGV1_CONTEXTID='" . $context->id . "'\n";
 foreach ($userids as $label => $userid) {
     echo "export MIGV1_USER_" . strtoupper($label) . "='" . $userid . "'\n";
 }
-echo "# Seeded a V1 activity: " . count($cues) . " cues, 7 gaps, "
+$gapcount = 0;
+foreach ($cues as $cue) {
+    foreach ($cue['segments'] as $segment) {
+        if ($segment['type'] === 'input') {
+            $gapcount++;
+        }
+    }
+}
+
+echo "# Seeded a V1 activity from " . basename($vttpath) . ': '
+    . count($cues) . ' cues, ' . $gapcount . ' gaps, '
     . count($learners) . " learners.\n";

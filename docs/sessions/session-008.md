@@ -3138,6 +3138,35 @@ geprüft —, aber der Ausdruck enthält ein `&`, und ein Wert, dessen Richtigke
 davon abhängt, dass eine Shell Kontrolloperatoren nicht aus expandierten
 Variablen nachliest, ist ein Wert, der auf sein Kaputtgehen wartet.
 
+### Ralfs Einwand: die Untertiteldatei hatte gar keine Lücken
+
+Zu Recht bemerkt: `lesson.vtt` enthielt reinen Text, während Cues und Lücken
+daneben im Seed-Skript von Hand standen. Die Datei war **Dekoration**, die
+Lücken waren **erfunden**, und zwischen beidem bestand kein Zusammenhang.
+
+Beim Nachsehen in V1s `locallib.php` zeigte sich, dass V1 die Lücken **in der
+Untertiteldatei selbst** markiert:
+
+| Markup | Bedeutung |
+|---|---|
+| `[wort]` | Lücke mit Hilfe-Schaltfläche |
+| `{wort}` | Lücke ohne Hilfe |
+| `{wort(https://…)}` | Lücke mit Nachschlage-Link |
+| alles andere | Transkripttext |
+
+Die Fixture verwendet jetzt diese Syntax, und der Seed leitet die Cues **aus der
+Datei** ab — mit derselben Zerlegung, die V1s eigener Importer benutzte. Die
+erzeugte JSON-Struktur stimmt bis zum `title` mit `...` an den Lückenstellen
+überein.
+
+Dazu zwei Prüfungen, die den Kreis schließen: die migrierten Lösungen sind genau
+die geklammerten Wörter in ihrer Reihenfolge, und der eine Hinweis hängt an der
+Lücke, die in **eckigen** statt geschweiften Klammern stand.
+
+**Lehre:** Eine Fixture, die aus zwei unverbundenen Teilen besteht, prüft
+weniger, als sie zu prüfen scheint — und man sieht es ihr nicht an, solange die
+Tests grün sind. Der Einwand kam von außen; die Tests hätten ihn nie erhoben.
+
 ### Die vier Lernenden sind der Kern
 
 Bewusst **nicht** vier Varianten von „richtig getippt" — ein Migrationstest aus
@@ -3168,7 +3197,7 @@ MariaDB-Variante baut ihn deshalb über `chr(96)`.
 ### Verifikation
 
 ```
-Migrationspfad:   32/32, dreimal reproduziert (zuletzt in der Workflow-Konstellation)
+Migrationspfad:   34/34, fuenfmal reproduziert (zuletzt mit dateibasierter Fixture)
 verify.sh         EXIT=0   phpcs, moodlecheck, mustache, tsc, actionlint
 check_amd_builds  EXIT=0
 PHPUnit           EXIT=0   469 Tests, 1507 Assertions

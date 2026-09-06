@@ -275,6 +275,37 @@ check(
     var_export($responsetext, true)
 );
 
+// The gap set matches the markup in the subtitle fixture.
+//
+// The fixture's cues are read out of lesson.vtt using V1's own rule, so this
+// closes the loop: the solutions that arrived in V2 are the words that were
+// bracketed in the file a teacher uploaded, and the one with help is the one
+// written in square brackets rather than braces.
+$solutions = $DB->get_fieldset_sql(
+    'SELECT g.solution FROM {elang_gap} g JOIN {elang_cue} c ON c.id = g.cueid
+      WHERE c.versionid = ? ORDER BY c.sortorder ASC, g.sortorder ASC',
+    [$version->id]
+);
+check(
+    $solutions === ['chat', 'canapé', 'chien', 'oiseaux', 'matin'],
+    'Die Lösungen sind genau die im Untertitelfile markierten Wörter',
+    implode(', ', $solutions)
+);
+
+$helpsolution = $DB->get_field_sql(
+    'SELECT g.solution FROM {elang_gaphint} h
+       JOIN {elang_gap} g ON g.id = h.gapid
+       JOIN {elang_cue} c ON c.id = g.cueid
+      WHERE c.versionid = ?',
+    [$version->id],
+    IGNORE_MULTIPLE
+);
+check(
+    $helpsolution === 'chat',
+    'Der Hinweis hängt an der Lücke, die in der Datei in eckigen Klammern stand',
+    var_export($helpsolution, true)
+);
+
 // The migration is recorded as done.
 check(
     $DB->record_exists_select('elang', 'id = ? AND migrationapproveduserid IS NULL', [$elangid]),

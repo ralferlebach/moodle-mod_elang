@@ -51,7 +51,8 @@ ausgelieferten Zustand fehlt.
 
 1. Der Stand ist ein grüner CI-Lauf. Welche Prüfungen das einschließt und welche
    **nicht**, steht in `docs/dev/ci-gates.md`.
-2. Playwright/Axe, k6 **und JMeter** laufen zusätzlich und bewusst. Keines der
+2. Playwright/Axe, k6, JMeter **und der Migrationslauf 1.3.5 → 2.0** laufen
+   zusätzlich und bewusst. Keines der
    drei ist blockierend, keines wird von einem grünen Pipeline-Lauf belegt, und
    alle drei müssen denselben SHA betreffen — sonst vergleichen sie nichts.
 3. Das ZIP wird aus **genau diesem** Commit erzeugt, ohne die oben genannten
@@ -70,6 +71,7 @@ ausgelieferten Zustand fehlt.
    | Playwright/Axe | Anzahl Tests, Ergebnis |
    | k6 | Szenario, p95, Anteil unter dem Ziel, Fehlerrate |
    | JMeter | Szenario, Threads/Loops, Grenze, Fehlerrate |
+   | Migration 1.3.5 → 2.0 | Moodle-Branch, Ergebnis der 32 Prüfungen |
    | Dependency-Audit | Kommandos und Befunde, oder „keine" |
    | A11y-Smoke | welche Assistenztechnik, welcher Ablauf, Datum |
 

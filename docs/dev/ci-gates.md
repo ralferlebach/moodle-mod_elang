@@ -36,6 +36,7 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
 | **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
+| **Migration 1.3.5 → 2.0** (`migration-v1.yml`) | Installiert das Plugin von 2018, füllt es, aktualisiert auf diesen Stand und prüft Aktivität, Medium, Cues, Lücken, Einstellungen und Nutzerdaten. Manuell und montags 04:00. Vor einer Freigabe **verpflichtend**. |
 | **JMeter** (`load-jmeter.yml`) | Zweite, unabhängige Messung derselben Lesestrecke. Nur manuell, braucht eine JVM. Vor einer Freigabe **verpflichtend**, aber nie Teil des Push-Gates. Siehe `docs/dev/load-testing.md`. |
 
 ### Was das für eine Freigabe bedeutet
@@ -59,9 +60,15 @@ sichtbar:
 
 - **Fresh Install** führt `moodle-plugin-ci install` in jedem PHPUnit- und
   Behat-Job durch — 7 Läufe je Push, über beide Datenbanken.
-- **Upgrade** wird von `tests/upgrade_test.php` abgedeckt, das eine echte
-  V1-Datenbank aufbaut und `xmldb_elang_upgrade()` darüber laufen lässt; dazu
-  prüft `moodle-plugin-ci savepoints` die Savepoints im Lint-Job.
+- **Upgrade** wird von `tests/upgrade_test.php` abgedeckt, das eine V1-förmige
+  Datenbank aufbaut und `xmldb_elang_upgrade()` darüber laufen lässt; dazu prüft
+  `moodle-plugin-ci savepoints` die Savepoints im Lint-Job.
+
+  Dieser Test definiert das V1-Schema allerdings **selbst** und kann damit nur
+  bestätigen, womit er geschrieben wurde. Der Workflow `migration-v1.yml`
+  schließt genau diese Lücke: dort stammt das Schema aus V1s eigener
+  `db/install.xml`, installiert von Moodles eigenem Installer. Wenn beide
+  auseinanderlaufen, zeigt es sich dort — und nur dort.
 - **Backup/Restore** deckt `tests/backup/restore_test.php` ab.
 
 Der geprüfte Pfad ist der einzige, den es gibt: **Version 1 → 2.0**. Keine

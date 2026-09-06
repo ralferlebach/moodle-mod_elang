@@ -3081,6 +3081,80 @@ Bundle             868e209c, über zwei Läufe identisch
 
 ---
 
+## Inkrement 43 — Der Migrationspfad 1.3.5 → 2.0, automatisiert (2.0.0-beta.31, 2026090139)
+
+### Warum das nicht dasselbe ist wie `upgrade_test.php`
+
+Der vorhandene Upgrade-Test baut eine V1-**förmige** Datenbank aus eigenen
+Fixtures und lässt `xmldb_elang_upgrade()` darüber laufen. Schnell und präzise —
+aber er **definiert das V1-Schema selbst** und kann deshalb nur bestätigen,
+womit er geschrieben wurde.
+
+Der neue Workflow installiert das Plugin von 2018, sodass **dessen eigene**
+`db/install.xml` die Tabellen anlegt. Weichen beide Auffassungen voneinander ab,
+zeigt es sich dort — und nur dort.
+
+### Real durchgespielt, nicht nur geschrieben
+
+Ich habe den gesamten Pfad zweimal in der Sandbox ausgeführt, von einer frischen
+Installation aus:
+
+```
+V1 1.3.5 auf Moodle 4.5 installiert     → EXIT 0, alle fünf V1-Tabellen da
+Seed (3 Cues, 5 Lücken, 4 Lernende)     → EXIT 0
+Plugin ersetzt, admin/cli/upgrade.php   → EXIT 0, keine Exception, kein debugging
+migrate_v1.php --execute --yes          → Task eingereiht
+adhoc_task.php --execute                → 3 Cues, 5 Lücken, 4 Versuche,
+                                          17 Antworten, 0 Fehler
+assert_v2.php                           → 32/32
+```
+
+Dabei kam heraus, was der erste Entwurf des Workflows übersehen hatte: die CLI
+**reiht einen Adhoc-Task ein**, statt inline zu migrieren — richtig so, damit
+eine große Site in Blöcken migriert. Ohne den zusätzlichen
+`adhoc_task.php`-Schritt hätte der Workflow eine nie ausgeführte Migration für
+erfolgreich gehalten. Genau dafür war das Durchspielen da.
+
+### Die vier Lernenden sind der Kern
+
+Bewusst **nicht** vier Varianten von „richtig getippt" — ein Migrationstest aus
+lauter korrekten Antworten bestünde auch dann, wenn die Bewertung verloren ginge:
+
+| Fixture | Was sie prüft |
+|---|---|
+| `exact` | der Normalfall |
+| `accents` | „canape" statt „canapé", „CHIEN" statt „chien" — V1 akzeptierte beides; würde die Migration streng werten, sänke ein Punktestand durch ein Upgrade, das niemand verlangt hat |
+| `partial` | teils richtig, teils falsch, eine leer, eine mit Hinweis |
+| `untouched` | nichts beantwortet — der Versuch muss **trotzdem** existieren: „keine Antworten" sind Daten, nicht deren Abwesenheit |
+
+Geprüft wird außerdem, dass `charstart`/`charlength` weiterhin auf das
+Lösungswort **im Transkript** zeigen. Stimmt das nicht, zeigt der Player
+Lernenden die Lösung.
+
+### Zwei Details, die nur beim Bauen auffallen
+
+`elang_cues` verwendet `begin` und `end` als Spaltennamen — in PostgreSQL
+reservierte Wörter, und Moodles `insert_record()` quotet keine Bezeichner. Der
+Seed schreibt diese Zeile deshalb mit ausdrücklich gequoteten Spalten, je nach
+Datenbankfamilie. Umbenennen ginge nicht: es ist V1s Schema, und ein
+umbenanntes wäre kein V1-Schema mehr.
+
+Und: phpcs beanstandet einen Backtick im Quelltext als Shell-Aufruf. Die
+MariaDB-Variante baut ihn deshalb über `chr(96)`.
+
+### Verifikation
+
+```
+Migrationspfad:   32/32, zweimal reproduziert
+verify.sh         EXIT=0   phpcs, moodlecheck, mustache, tsc, actionlint
+check_amd_builds  EXIT=0
+PHPUnit           EXIT=0   469 Tests, 1507 Assertions
+Jest              EXIT=0   75/75
+Behat             EXIT=0   45 Szenarien / 466 Steps
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

@@ -11,6 +11,34 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.31] - 2026-09-06
+
+### Added
+- `.github/workflows/migration-v1.yml` tests the upgrade path from 1.3.5 end to
+  end: it installs the 2018 plugin so that **its own** `db/install.xml` creates
+  the legacy tables, fills them with an activity, a video, a subtitle file and
+  four learners' work, replaces the plugin with this branch, runs Moodle's
+  upgrade and the migration, and then checks what survived.
+- `tests/migration/seed_v1.php` and `tests/migration/assert_v2.php`, plus
+  fixtures. 32 checks: the activity and its name, language and course module; the
+  published version; the media file at its new location under its own name; the
+  cues with their timings and assembled transcripts; every gap with its solution,
+  its character offsets pointing at the solution word, its hint and its reference
+  link; the grading algorithm mapped from V1's activity-wide options; and each of
+  the four learners' attempts with their answer counts and the exact text they
+  typed.
+- The learners are deliberately not four variations of "typed it right". One
+  answered without accents and in capitals — V1 accepted both, and grading them
+  wrong now would silently reduce a score through an upgrade nobody asked for.
+  One left a gap empty and used a hint. One answered nothing at all, and must
+  still have an attempt afterwards: "no answers" is data, not the absence of it.
+
+### Notes
+- This closes a gap `tests/upgrade_test.php` cannot: that test builds a V1-shaped
+  database from its own fixtures, so it can only confirm the assumptions it was
+  written with. Here the schema comes from V1 itself.
+- Run twice from a clean install while writing it, both times 32/32.
+
 ## [2.0.0-beta.30] - 2026-09-05
 
 ### Fixed

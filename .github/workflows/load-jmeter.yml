@@ -289,6 +289,17 @@ jobs:
           failures=$(awk -F, 'NR>1 && $8=="false"' jmeter-results.jtl | wc -l)
           total=$(( $(wc -l < jmeter-results.jtl) - 1 ))
           echo "samples=$total failures=$failures"
+
+          # A request without a query string means the plan is broken, not the
+          # server. JMeter silently drops configured arguments when the path
+          # holds an absolute URL, and the symptom is indistinguishable from an
+          # outage unless it is named.
+          if ! awk -F',' 'NR==2 {exit ($14 ~ /wsfunction=/) ? 0 : 1}' jmeter-results.jtl; then
+            echo "Die aufgerufene URL enthält keine Parameter — der Testplan ist fehlerhaft,"
+            echo "nicht das Ziel. Erste URL:"
+            awk -F',' 'NR==2 {print "  " $14}' jmeter-results.jtl
+            exit 1
+          fi
           if [ "$total" -eq 0 ]; then
             echo "Keine Messwerte — der Lauf hat den Endpunkt nicht erreicht."
             exit 1
@@ -296,6 +307,17 @@ jobs:
           # The same 1% error budget as the k6 plan.
           if [ "$(( failures * 100 ))" -gt "$total" ]; then
             echo "Mehr als 1 % der Anfragen sind fehlgeschlagen ($failures von $total)."
+            echo ""
+            # Why they failed, not just how many. A plan that sends a malformed
+            # request produces 100% failures at a few milliseconds each, which
+            # reads exactly like a dead server until you see the message — that
+            # cost a full debugging round once already.
+            echo "Erste Fehlermeldungen aus der .jtl:"
+            awk -F',' 'NR>1 && $8=="false" {print "  " $4 " " $5 " :: " $9}' jmeter-results.jtl \
+              | sort | uniq -c | sort -rn | head -5
+            echo ""
+            echo "Aufgerufene URL (erste Zeile):"
+            awk -F',' 'NR==2 {print "  " $14}' jmeter-results.jtl
             exit 1
           fi
 

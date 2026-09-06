@@ -244,7 +244,12 @@ jobs:
       - name: Install Node dependencies
         run: |
           npm ci
-          npx browserslist@latest --update-db
+          # update-browserslist-db, not "browserslist --update-db": the latter
+          # still works but prints a deprecation, and the two are easy to
+          # confuse because the old form is what most search results show.
+          # tools/check_amd_builds.sh has used the current one for a while;
+          # this brings the workflow in line with it.
+          npx update-browserslist-db@latest
         working-directory: ${{ github.workspace }}/moodle
 
       - name: Grunt – AMD / ESLint / Stylelint

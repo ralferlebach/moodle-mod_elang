@@ -448,6 +448,106 @@ function elang_get_scale_item_count(int $scaleid): int {
 }
 
 /**
+ * Add this module's options to the course reset form.
+ *
+ * Without these three functions a course reset leaves every attempt in place.
+ * A teacher reusing a course for the next cohort would then hand the new group
+ * an exercise that already holds the previous group's answers — visible in the
+ * report, counted in the gradebook, and belonging to people who are no longer
+ * in the course.
+ *
+ * @param \MoodleQuickForm $mform The reset form
+ * @return void
+ */
+function elang_reset_course_form_definition($mform): void {
+    $mform->addElement('header', 'elangheader', get_string('modulenameplural', 'mod_elang'));
+    $mform->addElement('advcheckbox', 'reset_elang_attempts', get_string('resetattempts', 'mod_elang'));
+}
+
+/**
+ * Default state of this module's reset options.
+ *
+ * Off by default. Deleting learner work is not something a reset should do
+ * because the box happened to be pre-ticked.
+ *
+ * @param \stdClass $course The course being reset
+ * @return array The defaults
+ */
+function elang_reset_course_form_defaults($course): array {
+    return ['reset_elang_attempts' => 0];
+}
+
+/**
+ * Remove learner data from every mod_elang activity in a course.
+ *
+ * Deletes attempts and their responses, and resets the grade items so the
+ * gradebook does not keep scores for work that no longer exists. The exercises
+ * themselves — versions, cues, gaps — are the teaching material and stay: a
+ * reset prepares a course for the next cohort, it does not empty it.
+ *
+ * @param \stdClass $data The reset form data
+ * @return array Status lines for the reset report
+ */
+function elang_reset_userdata($data): array {
+    global $DB;
+
+    $status = [];
+    $componentstr = get_string('modulenameplural', 'mod_elang');
+
+    if (empty($data->reset_elang_attempts)) {
+        return $status;
+    }
+
+    $elangids = $DB->get_fieldset_select('elang', 'id', 'course = ?', [$data->courseid]);
+
+    if (!empty($elangids)) {
+        [$insql, $params] = $DB->get_in_or_equal($elangids);
+
+        // Responses first: they reference the attempts.
+        $DB->delete_records_select(
+            'elang_response',
+            'attemptid IN (SELECT id FROM {elang_attempt} WHERE elangid ' . $insql . ')',
+            $params
+        );
+        $DB->delete_records_select('elang_attempt', 'elangid ' . $insql, $params);
+    }
+
+    // Even with no activities, the grade items are reset when asked for: a
+    // course can carry grade items whose activity was already removed.
+    if (empty($data->reset_gradebook_grades)) {
+        elang_reset_gradebook($data->courseid);
+    }
+
+    $status[] = [
+        'component' => $componentstr,
+        'item' => get_string('resetattempts', 'mod_elang'),
+        'error' => false,
+    ];
+
+    return $status;
+}
+
+/**
+ * Set every mod_elang grade item in a course back to empty.
+ *
+ * @param int $courseid The course
+ * @return void
+ */
+function elang_reset_gradebook(int $courseid): void {
+    global $DB;
+
+    $sql = "SELECT e.*, cm.idnumber AS cmidnumber, e.course AS courseid
+              FROM {elang} e
+              JOIN {course_modules} cm ON cm.instance = e.id
+              JOIN {modules} m ON m.id = cm.module AND m.name = 'elang'
+             WHERE e.course = ?";
+
+    foreach ($DB->get_records_sql($sql, [$courseid]) as $elang) {
+        elang_grade_item_update($elang, 'reset');
+    }
+}
+
+/**
  * Return the file areas mod_elang exposes through the file browser.
  *
  * Both areas are versioned: a file's itemid is the elang_version id it

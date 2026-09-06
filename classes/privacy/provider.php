@@ -54,6 +54,24 @@ class provider implements
      * @return collection The updated metadata collection
      */
     public static function get_metadata(collection $collection): collection {
+        // Not a table: a place data goes. When an activity uses a YouTube or
+        // Vimeo video, opening it connects the learner's browser to that
+        // company, which then receives their IP address and device details.
+        // The plugin sends nothing there itself, which is why this is easy to
+        // overlook — but the activity causes the transfer, so a subject access
+        // request should say so.
+        //
+        // Whether it happens at all depends on the mod_elang/providerconsent
+        // setting and on the learner agreeing; see docs/dev/provider-embeds.md.
+        $collection->add_external_location_link(
+            'videoprovider',
+            [
+                'ipaddress' => 'privacy_provider_ipaddress',
+                'useragent' => 'privacy_provider_useragent',
+            ],
+            'privacy_provider_externallink'
+        );
+
         $collection->add_database_table('elang_attempt', [
             'versionid' => 'privacy_metadata_elang_attempt_versionid',
             'userid' => 'privacy_metadata_elang_attempt_userid',

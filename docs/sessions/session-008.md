@@ -3260,6 +3260,70 @@ Gesamtdurchlauf mit der neuen Reihenfolge:
 
 ---
 
+## Inkrement 44 — JMeter repariert, RC1 (2.0.0-RC1, 2026090600)
+
+### Der JMeter-Lauf war kein Lastproblem
+
+```
+summary = 500 in 00:00:10 = 49.4/s  Avg: 21  Err: 500 (100.00%)
+```
+
+100 % Fehler bei **21 ms** — kein Server bricht so zusammen. k6 lieferte gegen
+denselben Endpunkt mit demselben Token 409,9 ms und grün.
+
+Lokal reproduziert: HTTP 200, aber die Antwort war ein
+`invalidtoken`-**XML**-Dokument. Also erreichte weder `wstoken` noch
+`moodlewsrestformat=json` den Server. Die aufgezeichnete URL bestätigte es —
+**kein Query-String**.
+
+**Ursache:** JMeter hängt konfigurierte Argumente nicht an, wenn im Pfadfeld eine
+absolute URL steht. Und absolut muss sie sein, weil das Ziel als eine einzige
+`base_url`-Eigenschaft hereinkommt — so wie beim k6-Plan auch.
+
+Behoben, indem der Query in den Pfad wandert. Danach lokal: **0 % Fehler.**
+
+### Wichtiger als der Fix: die Diagnose
+
+Dieser Fehler *sah aus* wie ein toter Server, und genau das hat eine
+Debugging-Runde gekostet. Der Workflow meldet jetzt
+
+- die häufigsten Fehlermeldungen aus der `.jtl`, nicht nur ihre Anzahl,
+- die tatsächlich aufgerufene URL,
+- und **eigens**: „die URL enthält keine Parameter — der Testplan ist fehlerhaft,
+  nicht das Ziel."
+
+Eine Zahl allein unterscheidet einen kaputten Plan nicht von einem Ausfall.
+
+### Browserslist
+
+Ralfs Vermutung traf nicht diesen Lauf: die CI war auf allen blockierenden Jobs
+grün, und die Browserslist-Ausgabe war eine **Deprecation**, kein Fehler.
+`moodle-ci.yml` rief noch `npx browserslist@latest --update-db` auf;
+`tools/check_amd_builds.sh` benutzte längst `npx update-browserslist-db@latest`.
+Der Workflow zieht nach — die alte Form ist die, die in Suchergebnissen steht,
+und deshalb die, die man versehentlich stehen lässt.
+
+### Release Candidate
+
+`maturity = MATURITY_RC`, `release = '2.0.0-RC1'`, Version `2026090600`.
+
+Die Belege dieses Stands: CI grün, Playwright 26/26, k6 p95 409,9 ms innerhalb
+der 800-ms-Grenze, Migration 1.3.5 → 2.0 durchgelaufen — und JMeter jetzt
+ebenfalls, nachdem der Plan reparierbar geworden ist.
+
+### Verifikation
+
+```
+verify.sh         EXIT=0   phpcs, moodlecheck, mustache, tsc, actionlint
+check_amd_builds  EXIT=0
+PHPUnit           EXIT=0   469 Tests, 1507 Assertions, 1 skipped
+Jest              EXIT=0   75/75
+Behat             EXIT=0   45 Szenarien / 466 Steps
+JMeter lokal      20 Samples, 0 Fehler
+```
+
+---
+
 ## Stand der acht UI-Issues
 
 Alle acht sind umgesetzt. Die JS-Unit-Tests zu #3 und #4 kamen mit

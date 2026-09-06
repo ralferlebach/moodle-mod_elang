@@ -11,6 +11,59 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-RC1] - 2026-09-06
+
+Release candidate. `$plugin->maturity` is `MATURITY_RC`.
+
+Includes a full pass through the extended review checklist; the result is
+recorded in `docs/dev/code-review-rc1.md`.
+
+### Added
+- **Course reset.** `elang_reset_userdata()` and its two form functions did not
+  exist, so a course reset left every attempt in place. A teacher reusing a
+  course for the next cohort would have handed the new group an exercise already
+  holding the previous group's answers — visible in the report, counted in the
+  gradebook, belonging to people no longer in the course. Attempts, responses and
+  grade items are cleared; the exercise itself stays, because versions, cues and
+  gaps are the teaching material and a reset prepares a course rather than
+  emptying it. Off by default: deleting learner work is not something a reset
+  should do because a box arrived pre-ticked. Five tests.
+- **Provider transfer declared in the Privacy API.**
+  `add_external_location_link('videoprovider')` records that opening an exercise
+  built on a YouTube or Vimeo video hands that company the learner's IP address
+  and device details. The plugin sends nothing itself, which is why it was easy
+  to miss, but the activity causes the transfer and a subject access request
+  should say so.
+- `referrerpolicy="strict-origin"` on the provider iframe: the provider learns
+  which site embedded the video, not which course, activity or attempt.
+
+### Fixed
+- The JMeter plan sent no query string at all. JMeter drops configured arguments
+  when the path field holds an absolute URL, and the path has to be absolute
+  because the target arrives as one `base_url` property, the way the k6 plan
+  takes it. Moodle answered HTTP 200 with an `invalidtoken` XML document, every
+  sample failed its assertion, and a run of 500 requests at 21 ms each looked
+  exactly like a dead server. Reproduced locally, then fixed by putting the query
+  in the path; verified at 0% failures.
+- The workflow now prints *why* samples failed — the top failure messages and the
+  URL that was called — instead of only how many. It also fails with a specific
+  message when the called URL carries no parameters at all, because a broken plan
+  and an outage are otherwise indistinguishable from the numbers.
+- `moodle-ci.yml` used `npx browserslist@latest --update-db`, which works but
+  prints a deprecation notice; `tools/check_amd_builds.sh` had already moved to
+  `npx update-browserslist-db@latest`. The workflow now matches.
+
+### Notes
+- The CI run reviewed for this release was green on every blocking job. The
+  browserslist output in it was the deprecation notice above, not a failure.
+- Playwright 26/26, k6 p95 409.9 ms (limit 800, target 300, 79.3% under target),
+  and the 1.3.5 → 2.0 migration all completed on the same code.
+- Measured during the review, no change warranted: saving a draft costs a
+  constant 4 queries per cue and 0.5 ms per cue at 400 cues.
+- Two findings remain open and cannot be closed from here: the manual screen
+  reader acceptance, and producing all non-blocking runs against a single SHA.
+  Both are recorded in `docs/dev/code-review-rc1.md` as RC-03 and RC-04.
+
 ## [2.0.0-beta.33] - 2026-09-06
 
 ### Fixed

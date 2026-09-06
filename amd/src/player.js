@@ -157,6 +157,10 @@ const buildProviderEmbed = (media) => {
         iframe.className = 'mod_elang-embed';
         iframe.setAttribute('allowfullscreen', 'allowfullscreen');
         iframe.setAttribute('loading', 'lazy');
+        // The provider is told which site embedded the video, not which course,
+        // activity or attempt. A full referrer would hand it the URL a learner
+        // is working on, which says more about them than the embed needs.
+        iframe.setAttribute('referrerpolicy', 'strict-origin');
         return iframe;
     };
 

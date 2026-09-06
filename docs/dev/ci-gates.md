@@ -36,7 +36,19 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
 | **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
-| **Migration 1.3.5 → 2.0** (`migration-v1.yml`) | Installiert das Plugin von 2018, füllt es, aktualisiert auf diesen Stand und prüft Aktivität, Medium, Cues, Lücken, Einstellungen und Nutzerdaten. Manuell und montags 04:00. Vor einer Freigabe **verpflichtend**. |
+| **Migration 1.3.5 → 2.0** (`migration-v1.yml`) | Installiert das Plugin von 2018, füllt es, aktualisiert auf diesen Stand und prüft Aktivität, Medium, Cues, Lücken, Einstellungen und Nutzerdaten (32 Prüfungen). Manuell und montags 04:00. Vor einer Freigabe **verpflichtend**. |
+
+Zur Fehlerstrenge in diesem Lauf: Die **Version-1-Phase** (Installation und
+Befüllung) läuft mit `error_reporting=8191`, also ohne Deprecation-Meldungen.
+Version 1 ist Code von 2018 auf einem Moodle, für das er nie geschrieben wurde;
+was PHP davon hält, ist nicht die Frage dieses Jobs — und der Code verschwindet
+ohnehin, sobald der Migrationspfad entfällt (siehe `docs/dev/v1-legacy-exit.md`).
+
+Unmittelbar **vor** dem Upgrade wird `debug` auf 32767 gesetzt. Ab dort ist jede
+ausgeführte Zeile entweder Moodles oder unsere, und das Protokoll wird
+ungefiltert auf `exception`, `fatal error` und `debugging` durchsucht. Global zu
+dämpfen wäre die bequeme Variante gewesen und hätte genau das verborgen, wofür
+der Job existiert.
 | **JMeter** (`load-jmeter.yml`) | Zweite, unabhängige Messung derselben Lesestrecke. Nur manuell, braucht eine JVM. Vor einer Freigabe **verpflichtend**, aber nie Teil des Push-Gates. Siehe `docs/dev/load-testing.md`. |
 
 ### Was das für eine Freigabe bedeutet

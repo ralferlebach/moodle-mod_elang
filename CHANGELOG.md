@@ -11,6 +11,23 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.32] - 2026-09-06
+
+### Fixed
+- The migration workflow switched developer debugging on straight after
+  installing version 1, so PHP's deprecation notices about 2018 code were
+  emitted while the legacy plugin was still in place — and the log scan treated
+  them as failures. They are now suppressed for the version 1 phase only, which
+  is install and seed and nothing else. Developer debugging goes on the moment
+  the plugin is replaced, and from there nothing is filtered: everything that
+  runs is Moodle's or ours, and a warning there is a finding rather than noise.
+
+### Notes
+- The warnings could not be reproduced locally even at `debug=32767`, so the
+  suppression was scoped rather than applied globally. Turning it off everywhere
+  would have been the quick version and would have blinded the half of the job
+  that exists to catch our own mistakes.
+
 ## [2.0.0-beta.31] - 2026-09-06
 
 ### Added
@@ -34,6 +51,12 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
   still have an attempt afterwards: "no answers" is data, not the absence of it.
 
 ### Notes
+- Error strictness is split rather than switched off. The version 1 phase runs
+  with deprecation notices suppressed — 2018 code on a Moodle it was never
+  written for, and code that goes away with the migration path itself. Developer
+  debugging is switched on immediately before the upgrade, so every line that is
+  Moodle's or ours is checked at full strictness and the log is scanned
+  unfiltered. Suppressing globally would have hidden what the job exists to find.
 - This closes a gap `tests/upgrade_test.php` cannot: that test builds a V1-shaped
   database from its own fixtures, so it can only confirm the assumptions it was
   written with. Here the schema comes from V1 itself.

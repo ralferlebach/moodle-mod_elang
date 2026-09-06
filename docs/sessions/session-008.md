@@ -3115,6 +3115,29 @@ eine große Site in Blöcken migriert. Ohne den zusätzlichen
 `adhoc_task.php`-Schritt hätte der Workflow eine nie ausgeführte Migration für
 erfolgreich gehalten. Genau dafür war das Durchspielen da.
 
+### Warnungen: gedämpft, aber nicht blind
+
+Ralf meldete Warnungen im Lauf. Ich konnte sie in der Sandbox **nicht
+reproduzieren** — auch mit `debug=32767` blieben Installation, Seed, Upgrade und
+Migration ohne einen einzigen Treffer.
+
+Deshalb habe ich nicht geraten und nicht pauschal unterdrückt, sondern die
+Strenge **aufgeteilt**:
+
+| Phase | Fehlerstrenge | Begründung |
+|---|---|---|
+| V1 installieren und befüllen | `error_reporting=8191` (ohne Deprecations) | Code von 2018 auf einem Moodle, für das er nie geschrieben wurde — und Code, der mit dem Migrationspfad ohnehin verschwindet |
+| Upgrade und Migration | `debug=32767`, Protokoll ungefiltert geprüft | ab hier ist jede Zeile Moodles oder unsere |
+
+Global zu dämpfen wäre die bequeme Variante gewesen und hätte genau das
+verborgen, wofür der Job existiert.
+
+Ein Detail am Rande: `8191` steht dort als **Zahl**, nicht als Ausdruck
+`E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED`. Beides funktioniert — ich habe es
+geprüft —, aber der Ausdruck enthält ein `&`, und ein Wert, dessen Richtigkeit
+davon abhängt, dass eine Shell Kontrolloperatoren nicht aus expandierten
+Variablen nachliest, ist ein Wert, der auf sein Kaputtgehen wartet.
+
 ### Die vier Lernenden sind der Kern
 
 Bewusst **nicht** vier Varianten von „richtig getippt" — ein Migrationstest aus
@@ -3145,12 +3168,65 @@ MariaDB-Variante baut ihn deshalb über `chr(96)`.
 ### Verifikation
 
 ```
-Migrationspfad:   32/32, zweimal reproduziert
+Migrationspfad:   32/32, dreimal reproduziert (zuletzt in der Workflow-Konstellation)
 verify.sh         EXIT=0   phpcs, moodlecheck, mustache, tsc, actionlint
 check_amd_builds  EXIT=0
 PHPUnit           EXIT=0   469 Tests, 1507 Assertions
 Jest              EXIT=0   75/75
 Behat             EXIT=0   45 Szenarien / 466 Steps
+```
+
+---
+
+## Inkrement 44 — Warnungen: unterdrücken, aber nicht überall (2.0.0-beta.32, 2026090140)
+
+Ralf: der Migrationslauf funktioniert, aber die Warnungen müssen weg.
+
+### Was der Fehler war
+
+Mein Workflow schaltete Developer-Debugging **direkt nach der V1-Installation**
+ein — also **während** das Plugin von 2018 noch im Baum lag. Damit sammelte der
+Lauf PHP-Deprecations über zehn Jahre alten Code ein, und mein Log-Filter
+wertete sie als Fehlschlag.
+
+### Was ich nicht getan habe
+
+Global abschalten. Das wäre die schnelle Fassung gewesen und hätte genau die
+Hälfte des Jobs blind gemacht, die es gibt, um **eigene** Fehler zu finden.
+
+### Zwei Phasen, zwei Strengegrade
+
+| Phase | Was läuft | Einstellung |
+|---|---|---|
+| V1: Install + Seed | Code von 2018 auf einem Moodle, für das er nie geschrieben wurde | Deprecations unterdrückt |
+| Ab dem Plugin-Tausch | ausschließlich Moodle-Kern und unser Code | `debug=32767`, kein Filter |
+
+Was PHP über die Reife eines Plugins von 2018 denkt, ist nicht die Frage dieses
+Jobs. Ob **unser** Upgrade sauber läuft, schon.
+
+### Nicht reproduzierbar — und was das für die Lösung heißt
+
+Ich konnte die Warnungen in der Sandbox **nicht** auslösen: Install, Seed,
+Upgrade und Migration liefen auch mit `debug=32767` ohne einen einzigen Treffer
+auf `exception|fatal error|debugging|deprecat`.
+
+Gerade deshalb habe ich die Unterdrückung **eng** gefasst statt breit. Eine
+Ursache, die man nicht sieht, ist ein schlechter Grund, die Sicht überall
+abzuschalten — und ein guter, die Sichtbarkeit dort zu erhalten, wo sie zählt.
+
+Ein Detail, das ich geprüft statt angenommen habe: `-d error_reporting=E_ALL&~E_DEPRECATED`
+enthält ein `&`. Aus einer Variablen expandiert deutet Bash das **nicht** als
+Kontrolloperator — nachgemessen, `E_DEPRECATED` ist danach tatsächlich aus.
+
+### Verifikation
+
+```
+Gesamtdurchlauf mit der neuen Reihenfolge:
+  install (unterdrückt)   EXIT 0
+  seed    (unterdrückt)   EXIT 0
+  upgrade (voll streng)   EXIT 0, 0 Treffer
+  migrate + adhoc         3 Cues, 5 Lücken, 4 Versuche, 17 Antworten, 0 Fehler
+  assert                  32/32
 ```
 
 ---

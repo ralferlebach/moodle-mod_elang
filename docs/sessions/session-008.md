@@ -3006,6 +3006,30 @@ leere Zusammenfassung mit einer leicht zu übersehenden Warnung.
 zufällig: Er prüft einen Zustand, den vorher niemand herbeigeführt hatte, und
 das Herbeiführen war die Prüfung.
 
+### Ein veraltetes Bundle — und ein Wächter, der es nicht sah
+
+Die CI meldete für `js/vendor/react/editor.bundle.js` einen anderen Hash als den
+eingecheckten. Nachgebaut: **exakt derselbe Hash wie die CI** (`b8dd0e13`). Die
+CI hatte recht — ich hatte `ImportModal.tsx` nach dem letzten `npm run build`
+geändert.
+
+Der eigentliche Befund ist aber der Wächter: `check_amd_builds.sh` sah **nur**
+`amd/build/`. Das React-Bundle ist das zweite eingecheckte Build-Artefakt mit
+genau derselben Fehlerart, und es war ungeschützt.
+
+Beim Erweitern lief ich in eine Falle, die ich nur durch Ausprobieren fand: mein
+erster Entwurf baute das Bundle **vor** dem Vergleich neu. Damit vergleicht man
+eine Datei mit sich selbst — eine Prüfung, die nicht fehlschlagen kann. Ich habe
+sie mit einem manipulierten Bundle getestet: **Exit 0**. Erst nach dem Umbau
+(erst Momentaufnahme, dann bauen) meldete sie korrekt.
+
+Drei Fälle abgesichert: manipuliert → Exit 1, sauber → Exit 0, fehlendes
+`node_modules` → Exit 1 statt stillem Überspringen.
+
+**Lehre:** Einen neuen Wächter zuerst gegen den Fehler testen, den er fangen
+soll. Ein Test, der nur den guten Fall sieht, sagt nichts darüber, ob er den
+schlechten sähe.
+
 ### JMeter: nicht zurückkopiert, sondern hergerichtet
 
 Der Plan aus `8c697ea` hatte **keine Latenzschwelle** — nur HTTP 200 und

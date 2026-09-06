@@ -14,6 +14,14 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 ## [2.0.0-beta.30] - 2026-09-05
 
 ### Fixed
+- The committed React bundle did not match its sources: `ImportModal.tsx` was
+  edited after the last `npm run build`, and nothing rebuilt it on the way into
+  the release. CI caught it; `tools/check_amd_builds.sh` did not, because it only
+  ever looked at `amd/build/`. It now snapshots and rebuilds the React bundle
+  too — snapshot first, because building and then comparing compares a file with
+  itself, which is a check that cannot fail. Verified against a tampered bundle
+  (exit 1), a clean tree (exit 0) and a missing toolchain (exit 1, not a silent
+  skip).
 - Content that is not a subtitle file was accepted. The parser returned zero
   cues, zero warnings and no error, so the import modal reported "0 cues found"
   and offered to apply nothing — with no way for the author to tell the file had

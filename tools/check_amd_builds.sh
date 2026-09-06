@@ -110,22 +110,59 @@ for kept in "$before"/*; do
     fi
 done
 
+# The React bundle is the plugin's other committed build artefact, and it has
+# the same failure mode: nothing rebuilds it on the way into a release, so a
+# source change without a rebuild ships an artefact that no longer matches. That
+# happened — ImportModal.tsx was edited after the last `npm run build`, and CI
+# caught it instead of this script, because this script only ever looked at
+# amd/build.
+#
+# Snapshotted before it is rebuilt, exactly like amd/build above. Building first
+# and comparing afterwards compares a file with itself, which is a check that
+# cannot fail.
+bundle="$plugindir/js/vendor/react/editor.bundle.js"
+if [[ -f "$plugindir/package.json" ]]; then
+    if [[ ! -d "$plugindir/node_modules" ]]; then
+        echo "node_modules fehlt in $plugindir — das React-Bundle kann nicht geprueft werden."
+        echo "Erst 'npm ci' im Plugin-Verzeichnis ausfuehren."
+        rc=1
+    elif [[ -f "$bundle" ]]; then
+        before_bundle="$(mktemp)"
+        cp "$bundle" "$before_bundle"
+
+        echo "React-Bundle wird neu gebaut ..."
+        if (cd "$plugindir" && npm run build >/dev/null 2>&1); then
+            if ! cmp -s "$bundle" "$before_bundle"; then
+                echo "Veraltet: js/vendor/react/editor.bundle.js"
+                rc=1
+            fi
+        else
+            echo "Der Bundle-Build ist fehlgeschlagen."
+            rc=1
+        fi
+        rm -f "$before_bundle"
+    fi
+fi
+
 if [[ -n "$syncdir" ]]; then
     if [[ ! -d "$syncdir/amd/build" ]]; then
         echo "Kein amd/build/ unter $syncdir."
         exit 2
     fi
     cp -a "$plugindir/amd/build/." "$syncdir/amd/build/"
-    echo "Artefakte nach $syncdir/amd/build/ uebernommen."
+    if [[ -f "$plugindir/js/vendor/react/editor.bundle.js" ]]; then
+        cp "$plugindir/js/vendor/react/editor.bundle.js" "$syncdir/js/vendor/react/editor.bundle.js"
+    fi
+    echo "Artefakte nach $syncdir uebernommen."
     exit 0
 fi
 
 if [[ $rc -ne 0 ]]; then
     echo
-    echo "Die neu gebauten Artefakte in amd/build/ in den Arbeitsbaum zurueckkopieren"
-    echo "und mit ausliefern - inklusive der .map-Dateien. Mit --sync=<Arbeitsbaum>"
-    echo "erledigt dieses Skript das selbst."
+    echo "Die neu gebauten Artefakte in den Arbeitsbaum zurueckkopieren und mit"
+    echo "ausliefern - amd/build/ inklusive der .map-Dateien, und das React-Bundle."
+    echo "Mit --sync=<Arbeitsbaum> erledigt dieses Skript das selbst."
     exit 1
 fi
 
-echo "Alle Artefakte in amd/build/ entsprechen ihren Quellen."
+echo "Alle Build-Artefakte entsprechen ihren Quellen."

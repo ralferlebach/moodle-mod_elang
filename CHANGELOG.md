@@ -49,6 +49,14 @@ recorded in `docs/dev/code-review-rc1.md`.
   URL that was called — instead of only how many. It also fails with a specific
   message when the called URL carries no parameters at all, because a broken plan
   and an outage are otherwise indistinguishable from the numbers.
+- `moodle-release.yml` never updated the browserslist database at all, so
+  `moodle-plugin-ci grunt` on `main` built `amd/build/player.min.js` against the
+  years-old caniuse-lite in Moodle's own lockfile. Rollup's output depends on
+  that data, so identical sources produced different bytes and the stale-file
+  check reported the committed artefact as out of date although nothing in it
+  had changed. Both jobs now update it in the tree Grunt actually runs in —
+  Moodle's, not the plugin's — and a missing directory fails the step rather
+  than skipping silently.
 - `moodle-ci.yml` used `npx browserslist@latest --update-db`, which works but
   prints a deprecation notice; `tools/check_amd_builds.sh` had already moved to
   `npx update-browserslist-db@latest`. The workflow now matches.

@@ -99,7 +99,17 @@ vendor/bin/phpunit -c mod/elang
 vendor/bin/behat --config <behat.yml> --profile=chrome --tags=@mod_elang
 ```
 
-`check_amd_builds.sh` aktualisiert vorher die Browserslist-Datenbank. Ohne das
-weicht der lokale Rollup-Build vom Build der CI ab, und die CI meldet ein
-eingechecktes Artefakt als veraltet, obwohl lokal alles stimmte — siehe
-`docs/sessions/session-008.md`, Inkrement 20.
+`check_amd_builds.sh` aktualisiert vorher die Browserslist-Datenbank, und beide
+CI-Workflows tun dasselbe im **Moodle**-Baum, in dem Grunt läuft — nicht im
+Plugin-Verzeichnis. Ohne das weicht der Rollup-Build ab, und ein eingechecktes
+Artefakt gilt als veraltet, obwohl sich nichts daran geändert hat.
+
+Das ist zweimal passiert: in Inkrement 20 lokal, und danach auf `main`, weil
+`moodle-release.yml` den Schritt gar nicht hatte, während `moodle-ci.yml` ihn
+längst hatte. Zwei Workflows, die dasselbe Werkzeug aufrufen, brauchen dieselbe
+Vorbereitung — sonst ist grün auf dem einen kein Hinweis auf den anderen.
+
+**Rest-Risiko:** Erscheint zwischen dem lokalen Build und dem CI-Lauf eine neue
+`caniuse-lite`-Version, können die Bytes erneut abweichen. Der Fix ist dann
+immer derselbe: `tools/check_amd_builds.sh --sync=<Arbeitsbaum>` und die
+Artefakte mit einchecken.

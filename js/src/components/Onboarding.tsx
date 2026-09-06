@@ -43,12 +43,12 @@ interface Props {
 export function Onboarding({t, hasmedia}: Props): JSX.Element {
     return (
         <div className="mod_elang-editor-onboarding alert alert-info" data-region="onboarding">
-            <h4>{t('editor:onboardingtitle')}</h4>
-            <p className="mb-1">{t('editor:onboardingintro')}</p>
+            <h4>{t('editor_onboardingtitle')}</h4>
+            <p className="mb-1">{t('editor_onboardingintro')}</p>
             <ol className="mb-0">
-                <li className={hasmedia ? 'text-muted' : ''}>{t('editor:onboardingmedia')}</li>
-                <li>{t('editor:onboardingimport')}</li>
-                <li>{t('editor:onboardinggaps')}</li>
+                <li className={hasmedia ? 'text-muted' : ''}>{t('editor_onboardingmedia')}</li>
+                <li>{t('editor_onboardingimport')}</li>
+                <li>{t('editor_onboardinggaps')}</li>
             </ol>
         </div>
     );

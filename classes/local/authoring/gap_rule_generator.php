@@ -19,9 +19,9 @@ namespace mod_elang\local\authoring;
 /**
  * Generates gap definitions from a rule instead of hand-placed markers.
  *
- * The 2.1 "rule-based gaps" feature lets an author say, for example, "blank out
- * this vocabulary list wherever it appears" or "blank out every third word"
- * rather than selecting each word by hand. This class is the pure foundation:
+ * Rule-based gaps let an author say, for example, "blank out this vocabulary
+ * list wherever it appears" or "blank out every third word" rather than
+ * selecting each word by hand. This class is the pure foundation:
  * given a cue transcript and a rule it returns the resulting gap spans as
  * codepoint offsets (the same shape gap_syntax_parser produces), which the
  * authoring layer then turns into elang_gap rows. It does not touch the database

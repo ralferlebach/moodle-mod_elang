@@ -60,7 +60,7 @@ trait authoring_helper {
             // A friendly message rather than a raw dml_missing_record_exception
             // when a caller (a direct web-service call, not the editor) passes a
             // version id that does not exist.
-            throw new \moodle_exception('error:versionnotfound', 'mod_elang');
+            throw new \moodle_exception('error_versionnotfound', 'mod_elang');
         }
         $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);

@@ -24,6 +24,28 @@
 import {Page, expect} from '@playwright/test';
 import type AxeBuilder from '@axe-core/playwright';
 
+/**
+ * Read a seeded environment variable, failing loudly when it is missing.
+ *
+ * The seed script prints these and CI copies them into the job environment. A
+ * missing one used to surface as an empty id in a URL and a 404 three
+ * assertions later, which reads as a broken page rather than as a broken
+ * setup.
+ *
+ * @param name The variable name.
+ * @returns Its value.
+ */
+export function requireEnv(name: string): string {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(
+            `${name} is not set. Run tests/playwright/seed.php and export what it prints.`
+        );
+    }
+
+    return value;
+}
+
 /** The seeded course-module id under test. */
 export const CMID = process.env.ELANG_CMID || '';
 /** The seeded editing-teacher login. */
@@ -36,6 +58,21 @@ export const PASS = process.env.ELANG_PASS || '';
  * @param page The Playwright page.
  */
 export async function login(page: Page): Promise<void> {
+    await loginAs(page, USER, PASS);
+}
+
+/**
+ * Log in as a specific person.
+ *
+ * Only the student archetype holds mod/elang:attempt, so the seeded teacher
+ * cannot start an attempt and the player refuses to load for them. Anything
+ * about what a learner sees has to be driven by the seeded learner.
+ *
+ * @param page The Playwright page.
+ * @param username The username.
+ * @param password The password.
+ */
+export async function loginAs(page: Page, username: string, password: string): Promise<void> {
     await page.goto('/login/index.php');
 
     // Wait for the page's own scripts before typing. Moodle initialises a
@@ -45,11 +82,11 @@ export async function login(page: Page): Promise<void> {
     // with "Invalid login" — with the correct credentials.
     await page.waitForLoadState('networkidle');
 
-    await page.fill('#username', USER);
-    await page.fill('#password', PASS);
+    await page.fill('#username', username);
+    await page.fill('#password', password);
     // Confirm the value survived to the moment of submitting, rather than
     // trusting that filling it was enough.
-    await expect(page.locator('#password')).toHaveValue(PASS);
+    await expect(page.locator('#password')).toHaveValue(password);
 
     await page.click('#loginbtn');
 

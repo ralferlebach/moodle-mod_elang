@@ -90,9 +90,9 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
             const spans = await onGenerate(cue.transcript, buildRule());
             const gaps = spansToGaps(spans);
             setPending(gaps);
-            onStatus(t('editor:rulefound').replace('%count%', String(gaps.length)));
+            onStatus(t('editor_rulefound').replace('%count%', String(gaps.length)));
         } catch (error) {
-            onStatus(t('editor:ruleerror'));
+            onStatus(t('editor_ruleerror'));
         } finally {
             setBusy(false);
         }
@@ -103,14 +103,14 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
             return;
         }
         onApply(pending);
-        onStatus(t('editor:ruleapplied').replace('%count%', String(pending.length)));
+        onStatus(t('editor_ruleapplied').replace('%count%', String(pending.length)));
         setPending(null);
     };
 
     return (
         <div className="mod_elang-editor-rulegaps" data-region="rulegaps">
             <label className="mr-2">
-                {t('editor:ruletype')}
+                {t('editor_ruletype')}
                 <select
                     className="form-control form-control-sm d-inline-block w-auto ml-1"
                     value={ruletype}
@@ -119,8 +119,8 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
                         setPending(null);
                     }}
                 >
-                    <option value="words">{t('editor:rulewords')}</option>
-                    <option value="everynth">{t('editor:ruleeverynth')}</option>
+                    <option value="words">{t('editor_rulewords')}</option>
+                    <option value="everynth">{t('editor_ruleeverynth')}</option>
                 </select>
             </label>
 
@@ -128,8 +128,8 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
                 <input
                     type="text"
                     className="form-control form-control-sm d-inline-block w-auto"
-                    aria-label={t('editor:rulewordlist')}
-                    placeholder={t('editor:rulewordlist')}
+                    aria-label={t('editor_rulewordlist')}
+                    placeholder={t('editor_rulewordlist')}
                     value={words}
                     onChange={(event) => {
                         setWords(event.target.value);
@@ -141,7 +141,7 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
                     type="number"
                     min={1}
                     className="form-control form-control-sm d-inline-block w-auto"
-                    aria-label={t('editor:ruleinterval')}
+                    aria-label={t('editor_ruleinterval')}
                     value={interval}
                     onChange={(event) => {
                         setInterval(Math.max(1, parseInt(event.target.value, 10) || 1));
@@ -156,7 +156,7 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
                 disabled={busy}
                 onClick={() => void handleGenerate()}
             >
-                {t('editor:rulegenerate')}
+                {t('editor_rulegenerate')}
             </button>
 
             {pending !== null && (
@@ -166,7 +166,7 @@ export function RuleGapControl({cue, t, onGenerate, onApply, onStatus}: Props): 
                     data-action="applyrule"
                     onClick={handleApply}
                 >
-                    {t('editor:ruleapply').replace('%count%', String(pending.length))}
+                    {t('editor_ruleapply').replace('%count%', String(pending.length))}
                 </button>
             )}
         </div>

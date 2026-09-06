@@ -49,3 +49,40 @@ test('subtitle studio editor is accessible', async ({page}) => {
     await page.getByRole('button', {name: 'Save draft'}).waitFor();
     await expectNoSeriousA11yViolations(new AxeBuilder({page}), 'edit.php');
 });
+
+test('the media page is accessible', async({page}) => {
+    await page.goto(`/mod/elang/media.php?id=${CMID}`);
+    await expectNoSeriousA11yViolations(new AxeBuilder({page}), 'media.php');
+});
+
+test('the transcript export page is accessible', async({page}) => {
+    await page.goto(`/mod/elang/transcript.php?id=${CMID}`);
+    await expectNoSeriousA11yViolations(new AxeBuilder({page}), 'transcript.php');
+});
+
+test('the open import modal is accessible', async({page}) => {
+    // A dialog is scanned in the state it is actually used in. Scanning the page
+    // behind it says nothing about the dialog's own labels, roles or contrast.
+    await page.goto(`/mod/elang/edit.php?id=${CMID}`);
+    await page.getByRole('button', {name: 'Save draft'}).waitFor();
+    await page.locator('[data-action="openimport"]').click();
+    await page.locator('[data-region="importmodal"]').waitFor();
+
+    await expectNoSeriousA11yViolations(new AxeBuilder({page}), 'import modal');
+});
+
+test('an error state in the import modal is accessible', async({page}) => {
+    // The error is rendered dynamically and is the moment a person most needs to
+    // be able to read it, so it gets its own scan rather than being assumed to
+    // inherit the dialog's result.
+    await page.goto(`/mod/elang/edit.php?id=${CMID}`);
+    await page.getByRole('button', {name: 'Save draft'}).waitFor();
+    await page.locator('[data-action="openimport"]').click();
+    await page.locator('[data-action="importtabtext"]').click();
+    await page.locator('[data-region="importtext"]').fill('this is not a subtitle file');
+    await page.locator('[data-action="importpreview"]').click();
+    await page.locator('[data-region="importerror"]').waitFor();
+
+    await expectNoSeriousA11yViolations(new AxeBuilder({page}), 'import modal error');
+});
+

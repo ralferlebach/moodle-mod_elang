@@ -136,7 +136,7 @@ if ($action === 'delete') {
         elang_update_grades($elang, (int) $deleted->userid);
         redirect(
             new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
-            get_string('report:deleted', 'mod_elang'),
+            get_string('report_deleted', 'mod_elang'),
             null,
             \core\output\notification::NOTIFY_SUCCESS
         );
@@ -145,7 +145,7 @@ if ($action === 'delete') {
     $PAGE->set_url('/mod/elang/report.php', ['id' => $cm->id, 'action' => 'delete', 'attemptid' => $deleteid]);
     echo $OUTPUT->header();
     echo $OUTPUT->confirm(
-        get_string('report:deleteconfirm', 'mod_elang'),
+        get_string('report_deleteconfirm', 'mod_elang'),
         new moodle_url('/mod/elang/report.php', [
             'id' => $cm->id,
             'action' => 'delete',
@@ -159,48 +159,19 @@ if ($action === 'delete') {
     exit;
 }
 
-$statelabel = function (string $state): string {
-    $labels = [
-        'inprogress' => get_string('report:state_inprogress', 'mod_elang'),
-        'finished' => get_string('report:state_finished', 'mod_elang'),
-        'abandoned' => get_string('report:state_abandoned', 'mod_elang'),
-    ];
-    return $labels[$state] ?? $state;
-};
-
-$resultlabel = function (string $state): string {
-    if ($state === '') {
-        return get_string('report:result_none', 'mod_elang');
-    }
-    $labels = [
-        'exact' => get_string('report:result_exact', 'mod_elang'),
-        'wordrecognized' => get_string('report:result_wordrecognized', 'mod_elang'),
-        'incorrect' => get_string('report:result_incorrect', 'mod_elang'),
-        'empty' => get_string('report:result_empty', 'mod_elang'),
-    ];
-    return $labels[$state] ?? $state;
-};
-
 $report = new \mod_elang\local\report\attempt_report();
 
 // Built before any output: submitting the filters redirects to their
 // canonical URL, and a redirect after the header has been sent is too late.
 $filterform = null;
 if (!$attemptid) {
-    // Only the learners who actually have an attempt here. Offering every
-    // enrolled user would make the list long and most of its entries would
-    // return nothing.
-    $attemptusers = $DB->get_records_sql(
-        'SELECT DISTINCT u.id, ' . \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects . '
-           FROM {elang_attempt} a
-           JOIN {user} u ON u.id = a.userid
-          WHERE a.elangid = :elangid',
-        ['elangid' => (int) $elang->id]
-    );
-    $useroptions = [0 => get_string('report:filterany', 'mod_elang')];
-    foreach ($attemptusers as $attemptuser) {
-        $useroptions[(int) $attemptuser->id] = fullname($attemptuser);
-    }
+    // The person filter offers exactly the people this caller may already see:
+    // filter_users() reuses the report's own group-scoped query. Its own
+    // "everyone with an attempt here" query ignored the group scope, which in
+    // separate-groups mode showed a teacher the names of learners whose
+    // attempts the report itself was hiding.
+    $useroptions = [0 => get_string('report_filterany', 'mod_elang')]
+        + $report->filter_users((int) $elang->id, (int) $currentgroup);
 
     $filterform = new \mod_elang\form\report_filter_form(
         new moodle_url('/mod/elang/report.php'),
@@ -227,45 +198,20 @@ if (!$attemptid) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('report:heading', 'mod_elang'));
+echo $OUTPUT->heading(get_string('report_heading', 'mod_elang'));
 
 if ($attemptid) {
     $report->require_attempt_access($attemptid, (int) $elang->id, $cm, $context);
     $detail = $report->detail($attemptid);
 
-    $attempt = $detail['attempt'];
-    $user = $DB->get_record('user', ['id' => $attempt['userid']]);
-    echo html_writer::tag('p', ($user ? fullname($user) : (string) $attempt['userid'])
-        . ' — ' . $statelabel($attempt['state'])
-        . ' — ' . get_string('report:score', 'mod_elang') . ': ' . format_float($attempt['score'], 2));
+    $owner = $DB->get_record('user', ['id' => $detail['attempt']['userid']]);
 
-    $table = new html_table();
-    $table->head = [
-        get_string('report:transcript', 'mod_elang'),
-        get_string('report:solution', 'mod_elang'),
-        get_string('report:response', 'mod_elang'),
-        get_string('report:result', 'mod_elang'),
-        get_string('report:tries', 'mod_elang'),
-        get_string('report:hints', 'mod_elang'),
-        get_string('report:score', 'mod_elang'),
-    ];
-    foreach ($detail['gaps'] as $gap) {
-        $table->data[] = [
-            s(shorten_text($gap['transcript'], 60)),
-            s($gap['solution']),
-            s($gap['responsetext']),
-            $resultlabel($gap['resultstate']),
-            $gap['tries'],
-            $gap['hintlevel'],
-            format_float($gap['score'], 2),
-        ];
-    }
-    echo html_writer::table($table);
-
-    echo html_writer::div(html_writer::link(
-        new moodle_url('/mod/elang/report.php', ['id' => $cm->id]),
-        get_string('report:back', 'mod_elang')
-    ));
+    echo $OUTPUT->render_from_template('mod_elang/attempt_detail', (new \mod_elang\output\attempt_detail(
+        $detail['attempt'],
+        $detail['gaps'],
+        $owner ? fullname($owner) : (string) $detail['attempt']['userid'],
+        (int) $cm->id
+    ))->export_for_template($OUTPUT));
 } else {
     if ($groupmode != NOGROUPS) {
         echo groups_print_activity_menu($cm, $PAGE->url, true);

@@ -87,7 +87,7 @@ final class v1_verifier {
 
         $actualjarothreshold = (float) $elang->jarothreshold;
         if (abs($actualjarothreshold - $expectedjarothreshold) > 0.00001) {
-            $discrepancies[] = get_string('verify:jarothreshold', 'mod_elang', (object) [
+            $discrepancies[] = get_string('verify_jarothreshold', 'mod_elang', (object) [
                 'actual' => $actualjarothreshold,
                 'expected' => $expectedjarothreshold,
             ]);
@@ -165,12 +165,12 @@ final class v1_verifier {
             $cuekey = 'v1-cue-' . $v1cue->id;
             $cue = $cuesbykey[$cuekey] ?? null;
             if (!$cue) {
-                $discrepancies[] = get_string('verify:missingcue', 'mod_elang', $cuekey);
+                $discrepancies[] = get_string('verify_missingcue', 'mod_elang', $cuekey);
                 continue;
             }
 
             if ($cue->transcript !== $parsed->transcript) {
-                $discrepancies[] = get_string('verify:transcriptmismatch', 'mod_elang', $cuekey);
+                $discrepancies[] = get_string('verify_transcriptmismatch', 'mod_elang', $cuekey);
             }
 
             foreach ($parsed->gaps as $gapindex => $gap) {
@@ -180,22 +180,22 @@ final class v1_verifier {
 
                 $gaprecord = $gapsbycueandkey[(int) $cue->id][$gapkey] ?? null;
                 if (!$gaprecord) {
-                    $discrepancies[] = get_string('verify:missinggap', 'mod_elang', $gapkey);
+                    $discrepancies[] = get_string('verify_missinggap', 'mod_elang', $gapkey);
                     continue;
                 }
 
                 if ($gaprecord->solution !== $gap->solution) {
-                    $discrepancies[] = get_string('verify:solutionmismatch', 'mod_elang', (object) [
+                    $discrepancies[] = get_string('verify_solutionmismatch', 'mod_elang', (object) [
                         'gapkey' => $gapkey,
                         'actual' => $gaprecord->solution,
                         'expected' => $gap->solution,
                     ]);
                 }
                 if ((int) $gaprecord->charstart !== $gap->charstart || (int) $gaprecord->charlength !== $gap->charlength) {
-                    $discrepancies[] = get_string('verify:rangemismatch', 'mod_elang', $gapkey);
+                    $discrepancies[] = get_string('verify_rangemismatch', 'mod_elang', $gapkey);
                 }
                 if ($gaprecord->gradingalgorithm !== $expectedalgorithm) {
-                    $discrepancies[] = get_string('verify:algorithmmismatch', 'mod_elang', (object) [
+                    $discrepancies[] = get_string('verify_algorithmmismatch', 'mod_elang', (object) [
                         'gapkey' => $gapkey,
                         'actual' => $gaprecord->gradingalgorithm,
                         'expected' => $expectedalgorithm,
@@ -204,9 +204,9 @@ final class v1_verifier {
 
                 $hashint = isset($hintedgapids[(int) $gaprecord->id]);
                 if ($gap->hintsallowed && !$hashint) {
-                    $discrepancies[] = get_string('verify:missinghint', 'mod_elang', $gapkey);
+                    $discrepancies[] = get_string('verify_missinghint', 'mod_elang', $gapkey);
                 } else if (!$gap->hintsallowed && $hashint) {
-                    $discrepancies[] = get_string('verify:unexpectedhint', 'mod_elang', $gapkey);
+                    $discrepancies[] = get_string('verify_unexpectedhint', 'mod_elang', $gapkey);
                 }
             }
         }
@@ -218,13 +218,13 @@ final class v1_verifier {
         $expectedcuekeys = array_map(static fn ($v1cue) => 'v1-cue-' . $v1cue->id, $v1cues);
         foreach ($v2cues as $v2cue) {
             if (!in_array($v2cue->cuekey, $expectedcuekeys, true)) {
-                $discrepancies[] = get_string('verify:orphancue', 'mod_elang', $v2cue->cuekey);
+                $discrepancies[] = get_string('verify_orphancue', 'mod_elang', $v2cue->cuekey);
                 continue;
             }
 
             foreach ($gapsbycueandkey[(int) $v2cue->id] ?? [] as $v2gap) {
                 if (!isset($expectedgapkeys[$v2gap->gapkey])) {
-                    $discrepancies[] = get_string('verify:orphangap', 'mod_elang', $v2gap->gapkey);
+                    $discrepancies[] = get_string('verify_orphangap', 'mod_elang', $v2gap->gapkey);
                 }
             }
         }
@@ -255,7 +255,7 @@ final class v1_verifier {
         );
         $actuallearnercount = (int) $DB->count_records('elang_attempt', ['elangid' => $elangid, 'versionid' => $versionid]);
         if ($expectedlearnercount !== $actuallearnercount) {
-            $discrepancies[] = get_string('verify:attemptcount', 'mod_elang', (object) [
+            $discrepancies[] = get_string('verify_attemptcount', 'mod_elang', (object) [
                 'actual' => $actuallearnercount,
                 'expected' => $expectedlearnercount,
             ]);
@@ -305,13 +305,13 @@ final class v1_verifier {
         foreach ($expectedresponsesperuser as $userid => $expectedcount) {
             $attempt = $attemptsbyuser[(int) $userid] ?? null;
             if (!$attempt) {
-                $discrepancies[] = get_string('verify:missingattempt', 'mod_elang', $userid);
+                $discrepancies[] = get_string('verify_missingattempt', 'mod_elang', $userid);
                 continue;
             }
 
             $actualcount = $responsecounts[(int) $attempt->id] ?? 0;
             if ($actualcount !== $expectedcount) {
-                $discrepancies[] = get_string('verify:responsecount', 'mod_elang', (object) [
+                $discrepancies[] = get_string('verify_responsecount', 'mod_elang', (object) [
                     'userid' => $userid,
                     'actual' => $actualcount,
                     'expected' => $expectedcount,

@@ -56,7 +56,7 @@ $posterdraftid = file_get_submitted_draft_itemid('posterfiles');
 file_prepare_draft_area($posterdraftid, $context->id, 'mod_elang', 'poster', $draft->id, $posteroptions);
 
 $providers = implode(', ', array_map(
-    fn(string $key): string => get_string('provider:' . $key, 'mod_elang'),
+    fn(string $key): string => get_string('provider_' . $key, 'mod_elang'),
     \mod_elang\local\media\provider_registry::providers()
 ));
 
@@ -108,7 +108,7 @@ if ($form->is_cancelled()) {
 
     // Back to this page, not on to the editor: the medium is now visible next
     // to the form, so the author can confirm what was stored before moving on.
-    redirect($mediaurl, get_string('editor:mediasaved', 'mod_elang'));
+    redirect($mediaurl, get_string('editor_mediasaved', 'mod_elang'));
 }
 
 $PAGE->set_url('/mod/elang/media.php', ['id' => $cm->id]);

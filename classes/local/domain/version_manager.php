@@ -54,6 +54,8 @@ namespace mod_elang\local\domain;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class version_manager {
+    use transaction_trait;
+
     /** @var string A version being edited, not yet visible to learners. */
     public const STATUS_DRAFT = 'draft';
 
@@ -214,40 +216,42 @@ class version_manager {
         $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
 
         return $this->with_activity_lock((int) $version->elangid, function () use ($DB, $USER, $versionid, $userid, $validate) {
-            $transaction = $DB->start_delegated_transaction();
-
-            $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-            if ($version->status !== self::STATUS_DRAFT) {
-                throw new \coding_exception('Only a draft version can be published');
-            }
-
-            if ($validate) {
-                $problems = (new version_validator())->validate($versionid);
-                if (!empty($problems)) {
-                    throw new \moodle_exception(
-                        'error:versionnotpublishable',
-                        'mod_elang',
-                        '',
-                        implode(' ', $problems)
-                    );
+            // Publishing archives the previous version, promotes this one and
+            // repoints the activity. Half of that is a broken activity: an
+            // archived previous version with nothing published in its place
+            // leaves learners with no exercise at all.
+            return $this->in_transaction(function () use ($DB, $USER, $versionid, $userid, $validate) {
+                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                if ($version->status !== self::STATUS_DRAFT) {
+                    throw new \coding_exception('Only a draft version can be published');
                 }
-            }
 
-            $previous = $this->get_published($version->elangid);
-            if ($previous && (int) $previous->id !== (int) $version->id) {
-                $DB->set_field('elang_version', 'status', self::STATUS_ARCHIVED, ['id' => $previous->id]);
-            }
+                if ($validate) {
+                    $problems = (new version_validator())->validate($versionid);
+                    if (!empty($problems)) {
+                        throw new \moodle_exception(
+                            'error_versionnotpublishable',
+                            'mod_elang',
+                            '',
+                            implode(' ', $problems)
+                        );
+                    }
+                }
 
-            $version->status = self::STATUS_PUBLISHED;
-            $version->contenthash = $this->compute_content_hash($versionid);
-            $version->usermodified = $userid ?? (int) $USER->id;
-            $DB->update_record('elang_version', $version);
+                $previous = $this->get_published($version->elangid);
+                if ($previous && (int) $previous->id !== (int) $version->id) {
+                    $DB->set_field('elang_version', 'status', self::STATUS_ARCHIVED, ['id' => $previous->id]);
+                }
 
-            $DB->set_field('elang', 'currentversionid', $version->id, ['id' => $version->elangid]);
+                $version->status = self::STATUS_PUBLISHED;
+                $version->contenthash = $this->compute_content_hash($versionid);
+                $version->usermodified = $userid ?? (int) $USER->id;
+                $DB->update_record('elang_version', $version);
 
-            $transaction->allow_commit();
+                $DB->set_field('elang', 'currentversionid', $version->id, ['id' => $version->elangid]);
 
-            return $version;
+                return $version;
+            });
         });
     }
 
@@ -282,26 +286,32 @@ class version_manager {
         return $this->with_activity_lock(
             (int) $version->elangid,
             function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
-                $transaction = $DB->start_delegated_transaction();
+                return $this->in_transaction(function () use ($DB, $USER, $versionid, $cues, $expectedrevision) {
+                    $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                    if ($version->status !== self::STATUS_DRAFT) {
+                        throw new \moodle_exception('error_versionnotadraft', 'mod_elang');
+                    }
+                    if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
+                        throw new \moodle_exception('error_draftrevisionmismatch', 'mod_elang');
+                    }
 
-                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-                if ($version->status !== self::STATUS_DRAFT) {
-                    throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
-                }
-                if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
-                    throw new \moodle_exception('error:draftrevisionmismatch', 'mod_elang');
-                }
+                    // Validated before anything is removed. The delete wipes the
+                    // draft's whole content, so a payload rejected afterwards
+                    // would leave the author with neither their old work nor
+                    // their new — and a rejected payload is the ordinary case
+                    // here, not an exceptional one. The transaction remains the
+                    // backstop for a genuine database failure during the insert.
+                    self::validate_content_shape($cues);
 
-                $this->delete_version_content($versionid);
-                $this->insert_version_content($versionid, $cues);
+                    $this->delete_version_content($versionid);
+                    $this->insert_version_content($versionid, $cues);
 
-                $version->revision = (int) $version->revision + 1;
-                $version->usermodified = (int) $USER->id;
-                $DB->update_record('elang_version', $version);
+                    $version->revision = (int) $version->revision + 1;
+                    $version->usermodified = (int) $USER->id;
+                    $DB->update_record('elang_version', $version);
 
-                $transaction->allow_commit();
-
-                return $version;
+                    return $version;
+                });
             }
         );
     }
@@ -425,7 +435,7 @@ class version_manager {
         foreach ($cues as $cue) {
             $cuekey = (string) $cue['cuekey'];
             if (isset($seencuekeys[$cuekey])) {
-                throw new \moodle_exception('error:duplicatecuekey', 'mod_elang', '', $cuekey);
+                throw new \moodle_exception('error_duplicatecuekey', 'mod_elang', '', $cuekey);
             }
             $seencuekeys[$cuekey] = true;
 
@@ -433,17 +443,17 @@ class version_manager {
             foreach ($cue['gaps'] ?? [] as $gap) {
                 $gapkey = (string) $gap['gapkey'];
                 if (isset($seengapkeys[$gapkey])) {
-                    throw new \moodle_exception('error:duplicategapkey', 'mod_elang', '', $gapkey);
+                    throw new \moodle_exception('error_duplicategapkey', 'mod_elang', '', $gapkey);
                 }
                 $seengapkeys[$gapkey] = true;
 
                 if ((int) $gap['charstart'] < 0 || (int) $gap['charlength'] < 0) {
-                    throw new \moodle_exception('error:negativegapoffset', 'mod_elang');
+                    throw new \moodle_exception('error_negativegapoffset', 'mod_elang');
                 }
 
                 if (!in_array($gap['gradingalgorithm'], $knownalgorithms, true)) {
                     throw new \moodle_exception(
-                        'error:invalidgradingalgorithm',
+                        'error_invalidgradingalgorithm',
                         'mod_elang',
                         '',
                         $gap['gradingalgorithm']
@@ -453,13 +463,13 @@ class version_manager {
                 foreach ($gap['answers'] ?? [] as $answer) {
                     $isregex = (int) $answer['isregex'];
                     if ($isregex !== 0 && $isregex !== 1) {
-                        throw new \moodle_exception('error:invalidisregex', 'mod_elang');
+                        throw new \moodle_exception('error_invalidisregex', 'mod_elang');
                     }
                     if (
                         $isregex === 1
                         && !\mod_elang\local\grading\answer_evaluator::is_valid_regex((string) $answer['answer'])
                     ) {
-                        throw new \moodle_exception('error:invalidregexpattern', 'mod_elang', '', $answer['answer']);
+                        throw new \moodle_exception('error_invalidregexpattern', 'mod_elang', '', $answer['answer']);
                     }
                 }
 
@@ -467,16 +477,16 @@ class version_manager {
                 foreach ($gap['hints'] ?? [] as $hint) {
                     $level = (int) $hint['level'];
                     if (isset($seenlevels[$level])) {
-                        throw new \moodle_exception('error:duplicatehintlevel', 'mod_elang', '', $level);
+                        throw new \moodle_exception('error_duplicatehintlevel', 'mod_elang', '', $level);
                     }
                     $seenlevels[$level] = true;
 
                     $penalty = (float) $hint['penalty'];
                     if (!is_finite($penalty) || $penalty < 0.0 || $penalty > 1.0) {
-                        throw new \moodle_exception('error:invalidpenalty', 'mod_elang');
+                        throw new \moodle_exception('error_invalidpenalty', 'mod_elang');
                     }
                     if (!in_array($hint['hinttype'], $knownhinttypes, true)) {
-                        throw new \moodle_exception('error:invalidhinttype', 'mod_elang', '', $hint['hinttype']);
+                        throw new \moodle_exception('error_invalidhinttype', 'mod_elang', '', $hint['hinttype']);
                     }
                 }
             }
@@ -507,7 +517,7 @@ class version_manager {
 
         $kind = (string) $media['kind'];
         if (!in_array($kind, ['file', 'url', 'provider', ''], true)) {
-            throw new \moodle_exception('error:invalidmediakind', 'mod_elang');
+            throw new \moodle_exception('error_invalidmediakind', 'mod_elang');
         }
 
         $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
@@ -515,64 +525,66 @@ class version_manager {
         return $this->with_activity_lock(
             (int) $version->elangid,
             function () use ($DB, $versionid, $media, $kind) {
-                $transaction = $DB->start_delegated_transaction();
+                // The stored columns and the file areas describe one medium
+                // between them. A run that saved the files and then failed to
+                // update the columns would leave a version claiming one kind of
+                // medium while holding another.
+                return $this->in_transaction(function () use ($DB, $versionid, $media, $kind) {
+                    $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                    if ($version->status !== self::STATUS_DRAFT) {
+                        throw new \moodle_exception('error_versionnotadraft', 'mod_elang');
+                    }
 
-                $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
-                if ($version->status !== self::STATUS_DRAFT) {
-                    throw new \moodle_exception('error:versionnotadraft', 'mod_elang');
-                }
+                    $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
+                    $contextid = (int) \context_module::instance($cm->id)->id;
 
-                $cm = get_coursemodule_from_instance('elang', $version->elangid, 0, false, MUST_EXIST);
-                $contextid = (int) \context_module::instance($cm->id)->id;
+                    // Start from a clean slate, then fill in only what the chosen
+                    // kind needs.
+                    $version->mediakind = null;
+                    $version->mediaurl = null;
+                    $version->mediaprovider = null;
+                    $version->mediaproviderref = null;
+                    $version->mediamime = ((string) ($media['mime'] ?? '')) !== '' ? $media['mime'] : null;
+                    $version->mediaduration = (int) ($media['duration'] ?? 0) > 0 ? (int) $media['duration'] : null;
 
-                // Start from a clean slate, then fill in only what the chosen
-                // kind needs.
-                $version->mediakind = null;
-                $version->mediaurl = null;
-                $version->mediaprovider = null;
-                $version->mediaproviderref = null;
-                $version->mediamime = ((string) ($media['mime'] ?? '')) !== '' ? $media['mime'] : null;
-                $version->mediaduration = (int) ($media['duration'] ?? 0) > 0 ? (int) $media['duration'] : null;
+                    if ($kind === 'file') {
+                        file_save_draft_area_files(
+                            (int) ($media['mediadraftitemid'] ?? 0),
+                            $contextid,
+                            'mod_elang',
+                            'media',
+                            $versionid
+                        );
+                        file_save_draft_area_files(
+                            (int) ($media['posterdraftitemid'] ?? 0),
+                            $contextid,
+                            'mod_elang',
+                            'poster',
+                            $versionid
+                        );
 
-                if ($kind === 'file') {
-                    file_save_draft_area_files(
-                        (int) ($media['mediadraftitemid'] ?? 0),
-                        $contextid,
-                        'mod_elang',
-                        'media',
-                        $versionid
-                    );
-                    file_save_draft_area_files(
-                        (int) ($media['posterdraftitemid'] ?? 0),
-                        $contextid,
-                        'mod_elang',
-                        'poster',
-                        $versionid
-                    );
+                        $mediafiles = get_file_storage()->get_area_files($contextid, 'mod_elang', 'media', $versionid, 'id', false);
+                        $version->mediakind = !empty($mediafiles) ? 'file' : null;
+                    } else if ($kind === 'url') {
+                        $this->clear_version_files($contextid, $versionid);
+                        $version->mediakind = 'url';
+                        $version->mediaurl = ((string) ($media['url'] ?? '')) !== '' ? $media['url'] : null;
+                    } else if ($kind === 'provider') {
+                        $this->clear_version_files($contextid, $versionid);
+                        $version->mediakind = 'provider';
+                        $version->mediaprovider = ((string) ($media['provider'] ?? '')) !== '' ? $media['provider'] : null;
+                        $version->mediaproviderref = ((string) ($media['providerref'] ?? '')) !== '' ? $media['providerref'] : null;
+                    } else {
+                        // No medium at all: clear the files and every media column.
+                        $this->clear_version_files($contextid, $versionid);
+                        $version->mediamime = null;
+                        $version->mediaduration = null;
+                    }
 
-                    $mediafiles = get_file_storage()->get_area_files($contextid, 'mod_elang', 'media', $versionid, 'id', false);
-                    $version->mediakind = !empty($mediafiles) ? 'file' : null;
-                } else if ($kind === 'url') {
-                    $this->clear_version_files($contextid, $versionid);
-                    $version->mediakind = 'url';
-                    $version->mediaurl = ((string) ($media['url'] ?? '')) !== '' ? $media['url'] : null;
-                } else if ($kind === 'provider') {
-                    $this->clear_version_files($contextid, $versionid);
-                    $version->mediakind = 'provider';
-                    $version->mediaprovider = ((string) ($media['provider'] ?? '')) !== '' ? $media['provider'] : null;
-                    $version->mediaproviderref = ((string) ($media['providerref'] ?? '')) !== '' ? $media['providerref'] : null;
-                } else {
-                    // No medium at all: clear the files and every media column.
-                    $this->clear_version_files($contextid, $versionid);
-                    $version->mediamime = null;
-                    $version->mediaduration = null;
-                }
+                    $DB->update_record('elang_version', $version);
 
-                $DB->update_record('elang_version', $version);
-
-                $transaction->allow_commit();
-
-                return $version;
+                    return $version;
+                });
             }
         );
     }
@@ -878,53 +890,54 @@ class version_manager {
     private function create_draft_locked(int $elangid, ?int $userid = null): \stdClass {
         global $DB, $USER;
 
-        $transaction = $DB->start_delegated_transaction();
+        // The row, its copied content and its copied files are one draft.
+        // A version created without the content it was branched from is a
+        // draft an author would silently start from nothing.
+        return $this->in_transaction(function () use ($DB, $USER, $elangid, $userid) {
+            $nextnumber = (int) $DB->get_field_sql(
+                'SELECT COALESCE(MAX(versionnumber), 0) + 1 FROM {elang_version} WHERE elangid = ?',
+                [$elangid]
+            );
 
-        $nextnumber = (int) $DB->get_field_sql(
-            'SELECT COALESCE(MAX(versionnumber), 0) + 1 FROM {elang_version} WHERE elangid = ?',
-            [$elangid]
-        );
+            $source = $this->get_published($elangid);
 
-        $source = $this->get_published($elangid);
+            $draft = new \stdClass();
+            $draft->elangid = $elangid;
+            $draft->versionnumber = $nextnumber;
+            $draft->status = self::STATUS_DRAFT;
+            $draft->contenthash = '';
+            $draft->revision = 1;
+            if ($source) {
+                // Branch from the published version: carry over its grading
+                // settings and media description. The content and files are copied
+                // below, after the row exists to own them.
+                $draft->language = $source->language;
+                $draft->jarothreshold = $source->jarothreshold;
+                $draft->mediakind = $source->mediakind;
+                $draft->mediaurl = $source->mediaurl;
+                $draft->mediaprovider = $source->mediaprovider;
+                $draft->mediaproviderref = $source->mediaproviderref;
+                $draft->mediamime = $source->mediamime;
+                $draft->mediaduration = $source->mediaduration;
+            } else {
+                // No version to branch from: seed the grading settings from the
+                // activity's current values (see elang_add_instance) and leave the
+                // draft empty for the caller to fill.
+                $elang = $DB->get_record('elang', ['id' => $elangid], 'language, jarothreshold', MUST_EXIST);
+                $draft->language = $elang->language;
+                $draft->jarothreshold = $elang->jarothreshold;
+            }
+            $draft->usermodified = $userid ?? (int) $USER->id;
+            $draft->timecreated = time();
+            $draft->id = $DB->insert_record('elang_version', $draft);
 
-        $draft = new \stdClass();
-        $draft->elangid = $elangid;
-        $draft->versionnumber = $nextnumber;
-        $draft->status = self::STATUS_DRAFT;
-        $draft->contenthash = '';
-        $draft->revision = 1;
-        if ($source) {
-            // Branch from the published version: carry over its grading
-            // settings and media description. The content and files are copied
-            // below, after the row exists to own them.
-            $draft->language = $source->language;
-            $draft->jarothreshold = $source->jarothreshold;
-            $draft->mediakind = $source->mediakind;
-            $draft->mediaurl = $source->mediaurl;
-            $draft->mediaprovider = $source->mediaprovider;
-            $draft->mediaproviderref = $source->mediaproviderref;
-            $draft->mediamime = $source->mediamime;
-            $draft->mediaduration = $source->mediaduration;
-        } else {
-            // No version to branch from: seed the grading settings from the
-            // activity's current values (see elang_add_instance) and leave the
-            // draft empty for the caller to fill.
-            $elang = $DB->get_record('elang', ['id' => $elangid], 'language, jarothreshold', MUST_EXIST);
-            $draft->language = $elang->language;
-            $draft->jarothreshold = $elang->jarothreshold;
-        }
-        $draft->usermodified = $userid ?? (int) $USER->id;
-        $draft->timecreated = time();
-        $draft->id = $DB->insert_record('elang_version', $draft);
+            if ($source) {
+                $this->copy_version_content((int) $source->id, (int) $draft->id);
+                $this->copy_version_files($elangid, (int) $source->id, (int) $draft->id);
+            }
 
-        if ($source) {
-            $this->copy_version_content((int) $source->id, (int) $draft->id);
-            $this->copy_version_files($elangid, (int) $source->id, (int) $draft->id);
-        }
-
-        $transaction->allow_commit();
-
-        return $draft;
+            return $draft;
+        });
     }
 
     /**
@@ -1052,7 +1065,7 @@ class version_manager {
         $lockfactory = \core\lock\lock_config::get_lock_factory('mod_elang');
         $lock = $lockfactory->get_lock("version_lifecycle_{$elangid}", self::LOCK_TIMEOUT);
         if (!$lock) {
-            throw new \moodle_exception('error:couldnotobtainlock', 'mod_elang');
+            throw new \moodle_exception('error_couldnotobtainlock', 'mod_elang');
         }
 
         try {

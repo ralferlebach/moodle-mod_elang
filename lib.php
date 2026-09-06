@@ -468,6 +468,14 @@ function elang_get_file_areas($course, $cm, $context): array {
 /**
  * Serve files from mod_elang's versioned media and poster file areas.
  *
+ * Named mod_elang_pluginfile, not elang_pluginfile. file_pluginfile() tries
+ * "{component}_pluginfile" first and only falls back to "{modname}_pluginfile",
+ * so a second callback under the shorter name would take precedence over
+ * nothing and this one would never run. There used to be exactly that: a
+ * shorter-named twin that checked only mod/elang:view and left the version
+ * access check below unreachable, which let a guessed URL serve draft media to
+ * a learner.
+ *
  * The first path segment is the elang_version id (the area itemid). Viewing the
  * activity (mod/elang:view) is necessary but not sufficient: which version a
  * user may receive is decided by version_manager::user_can_access_version_file()
@@ -487,7 +495,15 @@ function elang_get_file_areas($course, $cm, $context): array {
  * @param array $options Additional options affecting file serving
  * @return bool False if the file could not be served; otherwise sends the file and exits
  */
-function elang_pluginfile($course, $cm, $context, string $filearea, array $args, bool $forcedownload, array $options = []): bool {
+function mod_elang_pluginfile(
+    $course,
+    $cm,
+    $context,
+    string $filearea,
+    array $args,
+    bool $forcedownload,
+    array $options = []
+): bool {
     global $USER;
 
     if ($context->contextlevel !== CONTEXT_MODULE) {
@@ -568,7 +584,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
 
     if (has_capability('mod/elang:manage', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:media', 'mod_elang'),
+            get_string('nav_media', 'mod_elang'),
             new moodle_url('/mod/elang/media.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -577,7 +593,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
         ));
 
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:subtitles', 'mod_elang'),
+            get_string('nav_subtitles', 'mod_elang'),
             new moodle_url('/mod/elang/edit.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -588,7 +604,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
 
     if (has_capability('mod/elang:viewreports', $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:reports', 'mod_elang'),
+            get_string('nav_reports', 'mod_elang'),
             new moodle_url('/mod/elang/report.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -603,7 +619,7 @@ function elang_extend_settings_navigation(settings_navigation $settingsnav, navi
     $elang = $DB->get_record('elang', ['id' => $cm->instance]);
     if ($elang !== false && elang_can_export_transcript($elang, $context)) {
         $elangnode->add_node(navigation_node::create(
-            get_string('nav:exportshort', 'mod_elang'),
+            get_string('nav_exportshort', 'mod_elang'),
             new moodle_url('/mod/elang/transcript.php', ['id' => $cmid]),
             navigation_node::TYPE_SETTING,
             null,
@@ -694,61 +710,4 @@ function elang_can_export_solution(stdClass $elang, context $context, ?int $user
         'userid' => $checkuserid,
         'state' => 'finished',
     ]);
-}
-
-/**
- * Serve files from the mod_elang file areas (exercise media and poster images).
- *
- * The player references these through pluginfile.php; without this callback
- * Moodle refuses every such request and the medium never loads. Media and poster
- * files are stored per content version (the item id is the elang_version id), so
- * access is granted by resolving that version back to its activity and checking
- * the viewer may see the activity.
- *
- * @param stdClass $course The course object.
- * @param stdClass $cm The course module.
- * @param context $context The context.
- * @param string $filearea The file area ('media' or 'poster').
- * @param array $args The remaining file path arguments, starting with the item id.
- * @param bool $forcedownload Whether to force download.
- * @param array $options Additional options affecting file serving.
- * @return bool False if the file was not found; otherwise the file is served and the script exits.
- */
-function mod_elang_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []): bool {
-    global $DB;
-
-    if ($context->contextlevel !== CONTEXT_MODULE) {
-        return false;
-    }
-
-    if (!in_array($filearea, ['media', 'poster'], true)) {
-        return false;
-    }
-
-    require_login($course, true, $cm);
-    if (!has_capability('mod/elang:view', $context)) {
-        return false;
-    }
-
-    $versionid = (int) array_shift($args);
-
-    // The requested version must belong to this activity, so a valid token for
-    // one activity cannot be used to read another activity's media.
-    $elang = $DB->get_record('elang', ['id' => $cm->instance], '*', MUST_EXIST);
-    if (!$DB->record_exists('elang_version', ['id' => $versionid, 'elangid' => $elang->id])) {
-        return false;
-    }
-
-    $filename = array_pop($args);
-    $filepath = empty($args) ? '/' : '/' . implode('/', $args) . '/';
-
-    $fs = get_file_storage();
-    $file = $fs->get_file($context->id, 'mod_elang', $filearea, $versionid, $filepath, $filename);
-    if (!$file || $file->is_directory()) {
-        return false;
-    }
-
-    send_stored_file($file, 86400, 0, $forcedownload, $options);
-
-    return true;
 }

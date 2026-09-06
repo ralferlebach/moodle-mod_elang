@@ -1,0 +1,150 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_elang/attempt_detail
+
+    One attempt: who, how it ended, the counts, then the gaps grouped by cue.
+
+    A graded gap is shown as an icon carrying its wording as an accessible name,
+    so the result is not conveyed by colour and shape alone.
+
+    Context variables required for this template:
+    * fullname - The learner's name
+    * statelabel, stateclass - The attempt state as a badge
+    * scorelabel, score - The overall score
+    * startedlabel, started, finishedlabel, finished - The timestamps
+    * figures - The headline counts
+    * cues - The cues, each with its gaps
+    * hascues - Whether the attempt has any gaps at all
+    * nogaps - Message when it has none
+    * headsolution, headresponse, headtries, headscore, hintlabel - Column headings
+    * backurl, backlabel - The way back to the overview
+
+    Example context (json):
+    {
+        "fullname": "Student One",
+        "statelabel": "Finished",
+        "stateclass": "badge-success bg-success",
+        "scorelabel": "Score",
+        "score": "0.80",
+        "startedlabel": "Started",
+        "started": "1 September 2026, 12:00",
+        "finishedlabel": "Finished",
+        "finished": "1 September 2026, 12:10",
+        "figures": [{"label": "Answered", "value": "4 / 5"}],
+        "cues": [
+            {
+                "transcript": "Le chat dort",
+                "hasopen": false,
+                "gaps": [
+                    {
+                        "solution": "chat",
+                        "responsetext": "chat",
+                        "hasresponse": true,
+                        "noresponse": "Not answered",
+                        "icon": "fa-check",
+                        "iconclass": "text-success",
+                        "resultlabel": "Correct",
+                        "tries": 1,
+                        "hintlevel": 0,
+                        "usedhint": false,
+                        "score": "1.00"
+                    }
+                ]
+            }
+        ],
+        "hascues": true,
+        "nogaps": "This version has no gaps.",
+        "headsolution": "Solution",
+        "headresponse": "Response",
+        "headtries": "Tries",
+        "headscore": "Score",
+        "hintlabel": "Hints",
+        "backurl": "https://example.org/",
+        "backlabel": "Back to the overview"
+    }
+}}
+<div class="mod_elang-attemptdetail">
+    <div class="d-flex flex-wrap align-items-baseline mb-2">
+        <h3 class="h4 mb-0 mr-3 me-3">{{fullname}}</h3>
+        <span class="badge {{stateclass}} mr-3 me-3">{{statelabel}}</span>
+        <span class="text-muted">{{scorelabel}}: <strong>{{score}}</strong></span>
+    </div>
+
+    <p class="text-muted small">
+        {{startedlabel}}: {{started}} · {{finishedlabel}}: {{finished}}
+    </p>
+
+    <div class="row mb-3" data-region="attemptfigures">
+        {{#figures}}
+            <div class="col-6 col-lg-3 mb-2">
+                <div class="card h-100">
+                    <div class="card-body py-2">
+                        <div class="text-muted small">{{label}}</div>
+                        <div class="h4 mb-0">{{value}}</div>
+                    </div>
+                </div>
+            </div>
+        {{/figures}}
+    </div>
+
+    {{#hascues}}
+        {{#cues}}
+            <div class="card mb-2 mod_elang-attemptcue{{#hasopen}} mod_elang-attemptcue-open{{/hasopen}}">
+                <div class="card-body">
+                    <p class="mb-2"><em>{{transcript}}</em></p>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th scope="col">{{headsolution}}</th>
+                                    <th scope="col">{{headresponse}}</th>
+                                    <th scope="col">{{headtries}}</th>
+                                    <th scope="col">{{hintlabel}}</th>
+                                    <th scope="col">{{headscore}}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{#gaps}}
+                                    <tr>
+                                        <td>{{solution}}</td>
+                                        <td>
+                                            <i class="fa {{icon}} {{iconclass}} mr-1 me-1" aria-hidden="true"></i>
+                                            <span class="sr-only visually-hidden">{{resultlabel}}</span>
+                                            {{#hasresponse}}{{responsetext}}{{/hasresponse}}
+                                            {{^hasresponse}}<span class="text-muted">{{noresponse}}</span>{{/hasresponse}}
+                                        </td>
+                                        <td>{{tries}}</td>
+                                        <td>{{#usedhint}}{{hintlevel}}{{/usedhint}}{{^usedhint}}—{{/usedhint}}</td>
+                                        <td>{{score}}</td>
+                                    </tr>
+                                {{/gaps}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {{/cues}}
+    {{/hascues}}
+
+    {{^hascues}}
+        <div class="alert alert-info" role="status">{{nogaps}}</div>
+    {{/hascues}}
+
+    <p><a href="{{backurl}}">{{backlabel}}</a></p>
+</div>

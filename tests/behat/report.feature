@@ -43,6 +43,19 @@ Feature: Review learner attempts in the report
     And I should not see "Media"
     And I should not see "Attempts"
 
+  Scenario: An attempt detail groups the gaps under their cue
+    Given elang "Test elang" has a finished attempt by "student1" answering "chat"
+    And I am on the "Test elang" "elang activity" page logged in as teacher1
+    And I select "Attempts" from secondary navigation
+    When I follow "Student One"
+    Then I should see "Answered"
+    And I should see "Needed a hint"
+    And ".mod_elang-attemptcue" "css_element" should exist
+    # The result is a glyph carrying its wording as an accessible name, not a
+    # word in the table cell.
+    And ".mod_elang-attemptdetail .fa" "css_element" should exist
+    And I should see "Back to all attempts"
+
   Scenario: The figures describe the attempts in view
     Given elang "Test elang" has a finished attempt by "student1" answering "chat"
     And I am on the "Test elang" "elang activity" page logged in as teacher1

@@ -93,7 +93,7 @@ class generate_rule_gaps extends external_api {
 
         $known = [gap_rule_generator::RULE_WORDS, gap_rule_generator::RULE_EVERY_NTH];
         if (!in_array($rule['type'], $known, true)) {
-            throw new \moodle_exception('error:unknowngaprule', 'mod_elang', '', $rule['type']);
+            throw new \moodle_exception('error_unknowngaprule', 'mod_elang', '', $rule['type']);
         }
 
         $gaps = [];

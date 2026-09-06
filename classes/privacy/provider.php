@@ -55,41 +55,41 @@ class provider implements
      */
     public static function get_metadata(collection $collection): collection {
         $collection->add_database_table('elang_attempt', [
-            'versionid' => 'privacy:metadata:elang_attempt:versionid',
-            'userid' => 'privacy:metadata:elang_attempt:userid',
-            'attemptnumber' => 'privacy:metadata:elang_attempt:attemptnumber',
-            'state' => 'privacy:metadata:elang_attempt:state',
-            'totalgaps' => 'privacy:metadata:elang_attempt:totalgaps',
-            'answeredgaps' => 'privacy:metadata:elang_attempt:answeredgaps',
-            'exactgaps' => 'privacy:metadata:elang_attempt:exactgaps',
-            'correctgaps' => 'privacy:metadata:elang_attempt:correctgaps',
-            'hintedgaps' => 'privacy:metadata:elang_attempt:hintedgaps',
-            'score' => 'privacy:metadata:elang_attempt:score',
-            'timestart' => 'privacy:metadata:elang_attempt:timestart',
-            'timefinish' => 'privacy:metadata:elang_attempt:timefinish',
-            'timemodified' => 'privacy:metadata:elang_attempt:timemodified',
-        ], 'privacy:metadata:elang_attempt');
+            'versionid' => 'privacy_metadata_elang_attempt_versionid',
+            'userid' => 'privacy_metadata_elang_attempt_userid',
+            'attemptnumber' => 'privacy_metadata_elang_attempt_attemptnumber',
+            'state' => 'privacy_metadata_elang_attempt_state',
+            'totalgaps' => 'privacy_metadata_elang_attempt_totalgaps',
+            'answeredgaps' => 'privacy_metadata_elang_attempt_answeredgaps',
+            'exactgaps' => 'privacy_metadata_elang_attempt_exactgaps',
+            'correctgaps' => 'privacy_metadata_elang_attempt_correctgaps',
+            'hintedgaps' => 'privacy_metadata_elang_attempt_hintedgaps',
+            'score' => 'privacy_metadata_elang_attempt_score',
+            'timestart' => 'privacy_metadata_elang_attempt_timestart',
+            'timefinish' => 'privacy_metadata_elang_attempt_timefinish',
+            'timemodified' => 'privacy_metadata_elang_attempt_timemodified',
+        ], 'privacy_metadata_elang_attempt');
 
         $collection->add_database_table('elang_response', [
-            'responsetext' => 'privacy:metadata:elang_response:responsetext',
-            'resultstate' => 'privacy:metadata:elang_response:resultstate',
-            'accepted' => 'privacy:metadata:elang_response:accepted',
-            'tries' => 'privacy:metadata:elang_response:tries',
-            'hintlevel' => 'privacy:metadata:elang_response:hintlevel',
-            'score' => 'privacy:metadata:elang_response:score',
-            'timecreated' => 'privacy:metadata:elang_response:timecreated',
-            'timemodified' => 'privacy:metadata:elang_response:timemodified',
-        ], 'privacy:metadata:elang_response');
+            'responsetext' => 'privacy_metadata_elang_response_responsetext',
+            'resultstate' => 'privacy_metadata_elang_response_resultstate',
+            'accepted' => 'privacy_metadata_elang_response_accepted',
+            'tries' => 'privacy_metadata_elang_response_tries',
+            'hintlevel' => 'privacy_metadata_elang_response_hintlevel',
+            'score' => 'privacy_metadata_elang_response_score',
+            'timecreated' => 'privacy_metadata_elang_response_timecreated',
+            'timemodified' => 'privacy_metadata_elang_response_timemodified',
+        ], 'privacy_metadata_elang_response');
 
         $collection->add_database_table('elang_version', [
-            'usermodified' => 'privacy:metadata:elang_version:usermodified',
-        ], 'privacy:metadata:elang_version');
+            'usermodified' => 'privacy_metadata_elang_version_usermodified',
+        ], 'privacy_metadata_elang_version');
 
         // The activity also records which user signed off the one-way migration
         // of its 1.x content, which is a user identifier like any other.
         $collection->add_database_table('elang', [
-            'migrationapproveduserid' => 'privacy:metadata:elang:migrationapproveduserid',
-        ], 'privacy:metadata:elang');
+            'migrationapproveduserid' => 'privacy_metadata_elang_migrationapproveduserid',
+        ], 'privacy_metadata_elang');
 
         return $collection;
     }

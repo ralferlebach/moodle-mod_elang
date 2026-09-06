@@ -665,4 +665,225 @@ final class attempt_manager_test extends \advanced_testcase {
         $this->assertSame(0, (int) $DB->count_records('elang_attempt', ['id' => $attempt->id]));
         $this->assertSame(0, (int) $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
     }
+
+    /**
+     * A second finish arriving while the first is still running is a no-op.
+     *
+     * The two calls are serialised by the write lock, so the second one sees a
+     * finished attempt and returns it as it stands. What it must not do is move
+     * timefinish: a retried request or a double click would otherwise rewrite
+     * when the learner handed their work in.
+     *
+     * @return void
+     */
+    public function test_a_repeated_finish_does_not_move_the_finish_time(): void {
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $first = $this->manager->finish_attempt($attempt->id);
+        $second = $this->manager->finish_attempt($attempt->id);
+
+        $this->assertSame(attempt_manager::STATE_FINISHED, $second->state);
+        $this->assertSame((int) $first->timefinish, (int) $second->timefinish);
+    }
+
+    /**
+     * A response arriving after the attempt was finished is refused.
+     *
+     * The realistic race: a learner presses "finish" while an answer is still
+     * in flight. The write lock serialises them, and whichever lands second has
+     * to respect what the first decided — an answer accepted into a finished
+     * attempt would change a score that has already been reported.
+     *
+     * @return void
+     */
+    public function test_a_response_that_loses_the_race_to_finish_is_refused(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->finish_attempt($attempt->id);
+
+        try {
+            $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+            $this->fail('A finished attempt must not accept a response.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        // Nothing was written: no response row, and the aggregates still
+        // describe an attempt that answered nothing.
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+        $stored = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertSame(0, (int) $stored->answeredgaps);
+        $this->assertSame(0.0, (float) $stored->score);
+    }
+
+    /**
+     * A hint requested after the attempt was finished is refused, and costs
+     * nothing.
+     *
+     * @return void
+     */
+    public function test_a_hint_that_loses_the_race_to_finish_is_refused(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $this->manager->finish_attempt($attempt->id);
+
+        $before = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+
+        try {
+            $this->manager->request_hint($attempt->id, $this->gap->id);
+            $this->fail('A finished attempt must not reveal a hint.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        // The refused hint left no penalty behind: a score that dropped after
+        // the attempt was handed in would be indefensible.
+        $after = $DB->get_record('elang_attempt', ['id' => $attempt->id], '*', MUST_EXIST);
+        $this->assertSame((float) $before->score, (float) $after->score);
+        $this->assertSame((int) $before->hintedgaps, (int) $after->hintedgaps);
+        $this->assertSame(0, (int) $after->hintedgaps);
+    }
+
+    /**
+     * Two starts for the same learner and activity yield one attempt.
+     *
+     * Two browser tabs, or a reloaded page, both call start_attempt. Under the
+     * start lock the second call must resume the first attempt rather than open
+     * a second one — two in-progress attempts for one learner is a state the
+     * resume logic has no way to choose between.
+     *
+     * @return void
+     */
+    public function test_repeated_starts_yield_a_single_attempt(): void {
+        global $DB;
+
+        $first = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $second = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $third = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+
+        $this->assertSame((int) $first->id, (int) $second->id);
+        $this->assertSame((int) $first->id, (int) $third->id);
+        $this->assertSame(1, $DB->count_records('elang_attempt', [
+            'elangid' => $this->elang->id,
+            'userid' => $this->student->id,
+        ]));
+    }
+
+    /**
+     * Deleting an attempt takes its responses with it.
+     *
+     * @return void
+     */
+    public function test_deleting_an_attempt_removes_its_responses(): void {
+        global $DB;
+
+        $attempt = $this->manager->start_attempt($this->elang->id, $this->student->id, $this->version->id);
+        $this->manager->submit_response($attempt->id, $this->gap->id, 'chat');
+        $this->assertSame(1, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+
+        $deleted = $this->manager->delete_attempt($attempt->id);
+
+        $this->assertSame((int) $attempt->id, (int) $deleted->id);
+        $this->assertSame(0, $DB->count_records('elang_response', ['attemptid' => $attempt->id]));
+        $this->assertFalse($DB->record_exists('elang_attempt', ['id' => $attempt->id]));
+    }
+
+    /**
+     * Answering costs the same number of queries whether it is the first gap or
+     * the fiftieth.
+     *
+     * recalculate_attempt_aggregates() reloads every response of the attempt
+     * after each submission, so the *rows* it touches do grow with the square of
+     * the exercise. Measured, that is 2.6 ms per submission at 50 gaps and 3.1 ms
+     * at 400 — real, and far below anything worth optimising for.
+     *
+     * What would actually hurt is a query per response: at 400 gaps the last
+     * submission would issue 400 statements, and the growth would be in round
+     * trips rather than in array iteration. This asserts the shape rather than a
+     * duration, because a wall clock on a shared runner is not a measurement and
+     * a query count is.
+     *
+     * @return void
+     */
+    public function test_answering_does_not_cost_more_queries_as_the_attempt_fills_up(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $gaps = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $cue = $generator->create_cue([
+                'versionid' => $version->id,
+                'sortorder' => $i,
+                'transcript' => "Sentence number $i",
+            ]);
+            $gaps[] = $generator->create_gap(['cueid' => $cue->id, 'solution' => 'Sentence']);
+        }
+
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $attempt = $this->manager->start_attempt((int) $elang->id, (int) $student->id, (int) $version->id);
+
+        $measure = function (int $index) use ($DB, $attempt, $gaps): int {
+            $before = $DB->perf_get_queries();
+            $this->manager->submit_response((int) $attempt->id, (int) $gaps[$index]->id, 'Sentence');
+            return $DB->perf_get_queries() - $before;
+        };
+
+        $first = $measure(0);
+
+        // Fill the attempt up.
+        for ($i = 1; $i < 29; $i++) {
+            $this->manager->submit_response((int) $attempt->id, (int) $gaps[$i]->id, 'Sentence');
+        }
+
+        $last = $measure(29);
+
+        $this->assertGreaterThan(0, $first);
+
+        // Not equality: the first submission inserts its response row while a
+        // later one updates an existing one, so the later call is legitimately
+        // a little cheaper. What must not happen is growth.
+        $this->assertLessThanOrEqual(
+            $first,
+            $last,
+            "Answering the 30th gap cost $last queries against $first for the first. "
+                . 'Something now issues a statement per stored response.'
+        );
+    }
+
+    /**
+     * Deleting an attempt takes the same lock as writing to it.
+     *
+     * It used to take one of its own, so a delete could run alongside an answer
+     * that was still being graded, and the answer would be written back into an
+     * attempt that no longer existed.
+     *
+     * @return void
+     */
+    public function test_deleting_takes_the_attempt_write_lock(): void {
+        $source = file_get_contents(
+            (new \ReflectionClass(attempt_manager::class))->getFileName()
+        );
+        $this->assertNotFalse($source);
+
+        // Every per-attempt lock in this class names the same resource.
+        preg_match_all('~with_lock\(\s*[\x27"]([^\x27"]*attempt[^\x27"]*)~', $source, $matches);
+        $perattempt = array_values(array_filter(
+            $matches[1],
+            fn(string $name): bool => str_contains($name, 'attempt_write')
+                || (str_contains($name, 'attempt') && !str_contains($name, 'attempt_start'))
+        ));
+
+        $this->assertNotEmpty($perattempt);
+        foreach ($perattempt as $name) {
+            $this->assertStringStartsWith('attempt_write_', $name, 'A per-attempt lock uses its own name.');
+        }
+    }
 }

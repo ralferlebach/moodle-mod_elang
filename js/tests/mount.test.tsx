@@ -213,4 +213,169 @@ describe('editor mount()', () => {
         expect(field).not.toBeNull();
         expect(field.value).toMatch(/^\d{2}:\d{2}\.\d{3}$/);
     });
+
+    test('a gap keeps its rarely-needed settings behind an advanced section', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // The seeded draft has no gap yet, so one is imported. The import opens
+        // the cue it created, which is what puts a gap in the inspector.
+        await act(async() => {
+            (host.querySelector('[data-action="openimport"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importtabtext"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-region="parsegaps"]') as HTMLInputElement).click();
+        });
+        await act(async() => {
+            const importtext = host.querySelector('[data-region="importtext"]') as HTMLTextAreaElement;
+            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            setter?.call(importtext, 'WEBVTT stub');
+            importtext.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importpreview"]') as HTMLButtonElement).click();
+        });
+        await act(async() => {
+            (host.querySelector('[data-action="importapply"]') as HTMLButtonElement).click();
+        });
+
+        const advanced = host.querySelector('[data-region="gapadvanced"]') as HTMLDetailsElement;
+        expect(advanced).not.toBeNull();
+
+        // Closed to begin with: maximum length, the reference link and regular
+        // expressions are decisions most gaps never need.
+        expect(advanced.open).toBe(false);
+
+        // They are reachable, and they are the fields that previously had no
+        // control at all — the only way to set them was an import.
+        expect(advanced.querySelector('[data-region="maxlength"]')).not.toBeNull();
+        expect(advanced.querySelector('[data-region="linkurl"]')).not.toBeNull();
+    });
+
+    test('the import modal keeps the focus and gives it back', async() => {
+        const {transport} = memoryTransport();
+
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        const trigger = host.querySelector('[data-action="openimport"]') as HTMLButtonElement;
+        trigger.focus();
+        expect(document.activeElement).toBe(trigger);
+
+        await act(async() => {
+            trigger.click();
+        });
+
+        // The focus moves into the dialog rather than staying behind it.
+        const dialog = host.querySelector('[data-region="importmodal"]') as HTMLElement;
+        expect(dialog.contains(document.activeElement)).toBe(true);
+
+        // Tab from the last control wraps to the first instead of leaving for
+        // the page behind the backdrop, where the cursor would simply vanish.
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),'
+            + ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ));
+        expect(focusable.length).toBeGreaterThan(1);
+
+        focusable[focusable.length - 1].focus();
+        await act(async() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', bubbles: true}));
+        });
+        expect(dialog.contains(document.activeElement)).toBe(true);
+
+        // Escape closes it and the trigger gets the focus back, so a keyboard
+        // user resumes where they were rather than at the top of the document.
+        await act(async() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        });
+        expect(host.querySelector('[data-region="importmodal"]')).toBeNull();
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    /**
+     * Build a File the way a browser hands one to a change handler.
+     */
+    const makeFile = (name: string, type: string, size: number): File => {
+        const file = new File(['x'], name, {type});
+        Object.defineProperty(file, 'size', {value: size});
+        return file;
+    };
+
+    /**
+     * Open the import modal and hand it a file.
+     */
+    const chooseFile = async(file: File): Promise<HTMLElement> => {
+        await act(async() => {
+            (host.querySelector('[data-action="openimport"]') as HTMLButtonElement).click();
+        });
+        const input = host.querySelector('[data-region="importfileinput"]') as HTMLInputElement;
+        Object.defineProperty(input, 'files', {value: [file], configurable: true});
+        await act(async() => {
+            input.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        return host.querySelector('[data-region="importmodal"]') as HTMLElement;
+    };
+
+    test('a file that is not a subtitle file is refused before it is read', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // accept="" on the input is a filter the browser applies to its own
+        // dialog; a dragged file or a switched filter arrives regardless.
+        const dialog = await chooseFile(makeFile('holiday.mp4', 'video/mp4', 1000));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).not.toBeNull();
+        // Nothing was read, so there is nothing to check.
+        expect((dialog.querySelector('[data-action="importpreview"]') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    test('an oversized file is refused before it is read', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // readAsText() would load all of it into memory before anything could
+        // object, which is the whole reason the check is in front of it.
+        const dialog = await chooseFile(makeFile('huge.vtt', 'text/vtt', 3 * 1024 * 1024));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).not.toBeNull();
+    });
+
+    test('a subtitle file with no MIME type is accepted', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        // Browsers report an empty type for .vtt often enough that rejecting on
+        // it would turn away valid files.
+        const dialog = await chooseFile(makeFile('lesson.vtt', '', 1000));
+
+        expect(dialog.querySelector('[data-region="importerror"]')).toBeNull();
+    });
+
+    test('the file field is cleared so the same file can be chosen again', async() => {
+        const {transport} = memoryTransport();
+        await act(async() => {
+            mount(host, {versionid: 7, callService: transport, getString: t});
+        });
+
+        await chooseFile(makeFile('holiday.mp4', 'video/mp4', 1000));
+
+        // Without clearing, picking the corrected file — same name — fires no
+        // change event at all, and the error stays as if it had failed twice.
+        const input = host.querySelector('[data-region="importfileinput"]') as HTMLInputElement;
+        expect(input.value).toBe('');
+    });
 });

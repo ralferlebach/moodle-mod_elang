@@ -120,7 +120,7 @@ class media_page implements renderable, templatable {
             $medium['filename'] = $medium['url'];
         } else {
             $medium['filename'] = get_string(
-                'provider:' . (string) ($this->draft->mediaprovider ?? ''),
+                'provider_' . (string) ($this->draft->mediaprovider ?? ''),
                 'mod_elang'
             );
             $parts[] = (string) ($this->draft->mediaproviderref ?? '');
@@ -171,17 +171,17 @@ class media_page implements renderable, templatable {
         $medium = $this->current_medium();
 
         return [
-            'heading' => get_string('media:heading', 'mod_elang'),
-            'intro' => get_string('media:intro', 'mod_elang'),
+            'heading' => get_string('media_heading', 'mod_elang'),
+            'intro' => get_string('media_intro', 'mod_elang'),
             'formhtml' => $this->formhtml,
-            'currenttitle' => get_string('media:current', 'mod_elang'),
+            'currenttitle' => get_string('media_current', 'mod_elang'),
             'hasmedium' => !empty($medium),
             'medium' => $medium,
-            'nomedium' => get_string('media:none', 'mod_elang'),
+            'nomedium' => get_string('media_none', 'mod_elang'),
             // The warning is only worth showing to somebody who has something
             // to lose: an activity with no cues yet cannot break them.
             'showcuenote' => $this->hascues,
-            'cuenote' => get_string('media:cuenote', 'mod_elang'),
+            'cuenote' => get_string('media_cuenote', 'mod_elang'),
         ];
     }
 }

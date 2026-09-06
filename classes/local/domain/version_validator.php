@@ -49,9 +49,20 @@ final class version_validator {
         $problems = [];
         $knownalgorithms = [answer_evaluator::ALGORITHM_EXACT, answer_evaluator::ALGORITHM_WORDRECOGNIZED];
 
+        // The medium's duration, when the version records one. A cue that ends
+        // after the recording does is unreachable: playback can never get
+        // there, so its gaps can never be answered.
+        //
+        // Stored in whole seconds while cue times are milliseconds, so it is
+        // converted here — and rounded up, because a 12.4-second recording is
+        // stored as 12 and a cue ending at 12.3 s is inside it. Comparing the
+        // two units directly would have rejected essentially every exercise.
+        $durationseconds = (int) $DB->get_field('elang_version', 'mediaduration', ['id' => $versionid]);
+        $duration = $durationseconds > 0 ? ($durationseconds + 1) * 1000 : 0;
+
         $cues = $DB->get_records('elang_cue', ['versionid' => $versionid], 'sortorder ASC, id ASC');
         if (empty($cues)) {
-            $problems[] = get_string('validate:nocues', 'mod_elang');
+            $problems[] = get_string('validate_nocues', 'mod_elang');
             return $problems;
         }
 
@@ -69,6 +80,37 @@ final class version_validator {
 
         $totalgaps = 0;
         foreach ($cues as $cue) {
+            // Timings first. The editor checks them as they are typed, but the
+            // editor is not the only way in: save_draft_version and
+            // publish_version are external functions, and a published version is
+            // what every attempt reads. The server has to be the one that
+            // decides.
+            $cuewhere = get_string('validate_cuewhere', 'mod_elang', (object) [
+                'sortorder' => (int) $cue->sortorder,
+                'cuekey' => (string) $cue->cuekey,
+            ]);
+
+            $starttime = (int) $cue->starttime;
+            $endtime = (int) $cue->endtime;
+
+            if ($starttime < 0) {
+                $problems[] = get_string('validate_negativetime', 'mod_elang', $cuewhere);
+            }
+            if ($endtime <= $starttime) {
+                $problems[] = get_string('validate_cueendbeforestart', 'mod_elang', $cuewhere);
+            }
+            // Only when a duration is actually known: it is zero for a medium
+            // whose length was never determined, and for a provider embed,
+            // which reports nothing. Treating zero as "the recording is empty"
+            // would refuse to publish every one of them.
+            if ($duration > 0 && $endtime > $duration) {
+                $problems[] = get_string('validate_cueafterend', 'mod_elang', (object) [
+                    'where' => $cuewhere,
+                    'endtime' => $endtime,
+                    'duration' => $duration,
+                ]);
+            }
+
             $transcriptlength = \core_text::strlen((string) $cue->transcript);
             $gaps = $gapsbycue[(int) $cue->id] ?? [];
             $totalgaps += count($gaps);
@@ -77,31 +119,31 @@ final class version_validator {
             foreach ($gaps as $gap) {
                 $charstart = (int) $gap->charstart;
                 $charlength = (int) $gap->charlength;
-                $where = get_string('validate:where', 'mod_elang', (object) [
+                $where = get_string('validate_where', 'mod_elang', (object) [
                     'gapkey' => $gap->gapkey,
                     'cuekey' => $cue->cuekey,
                 ]);
 
                 if (trim((string) $gap->solution) === '') {
-                    $problems[] = get_string('validate:emptysolution', 'mod_elang', $where);
+                    $problems[] = get_string('validate_emptysolution', 'mod_elang', $where);
                 }
 
                 if (!in_array($gap->gradingalgorithm, $knownalgorithms, true)) {
-                    $problems[] = get_string('validate:unknownalgorithm', 'mod_elang', (object) [
+                    $problems[] = get_string('validate_unknownalgorithm', 'mod_elang', (object) [
                         'where' => $where,
                         'algorithm' => $gap->gradingalgorithm,
                     ]);
                 }
 
                 if ($charlength <= 0) {
-                    $problems[] = get_string('validate:nonpositivelength', 'mod_elang', $where);
+                    $problems[] = get_string('validate_nonpositivelength', 'mod_elang', $where);
                 } else if ($charstart < 0 || $charstart + $charlength > $transcriptlength) {
-                    $problems[] = get_string('validate:rangeoutside', 'mod_elang', $where);
+                    $problems[] = get_string('validate_rangeoutside', 'mod_elang', $where);
                 } else {
                     if ($previousend !== null && $charstart < $previousend) {
                         // Gaps are ordered by charstart, so an overlap shows up
                         // as this gap starting before the previous one ended.
-                        $problems[] = get_string('validate:rangeoverlap', 'mod_elang', $where);
+                        $problems[] = get_string('validate_rangeoverlap', 'mod_elang', $where);
                     }
                     $previousend = $charstart + $charlength;
                 }
@@ -110,7 +152,7 @@ final class version_validator {
                 sort($levels);
                 foreach ($levels as $index => $level) {
                     if ($level !== $index + 1) {
-                        $problems[] = get_string('validate:hintlevels', 'mod_elang', $where);
+                        $problems[] = get_string('validate_hintlevels', 'mod_elang', $where);
                         break;
                     }
                 }
@@ -118,7 +160,7 @@ final class version_validator {
         }
 
         if ($totalgaps === 0) {
-            $problems[] = get_string('validate:nogaps', 'mod_elang');
+            $problems[] = get_string('validate_nogaps', 'mod_elang');
         }
 
         return $problems;

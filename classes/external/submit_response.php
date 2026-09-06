@@ -96,7 +96,7 @@ class submit_response extends external_api {
             ? min((int) $gap->maxlength, self::MAX_RESPONSE_LENGTH)
             : self::MAX_RESPONSE_LENGTH;
         if (\core_text::strlen($responsetext) > $effectivelimit) {
-            throw new \moodle_exception('error:responsetoolong', 'mod_elang', '', $effectivelimit);
+            throw new \moodle_exception('error_responsetoolong', 'mod_elang', '', $effectivelimit);
         }
 
         // The optimistic-concurrency retry guard now lives in the domain

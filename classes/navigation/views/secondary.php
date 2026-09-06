@@ -49,9 +49,9 @@ class secondary extends core_secondary {
     /**
      * Define the order of this activity's secondary navigation nodes.
      *
-     * Media, subtitles and reports come before the Moodle settings entry, so
-     * the tabs read as the authoring workflow rather than as a list of
-     * administrative links. Whole-number positions are top-level tabs;
+     * Settings follows the activity, then the working areas in the order an
+     * author moves through them, so the tabs read as a workflow rather than as
+     * a list of administrative links. Whole-number positions are top-level tabs;
      * fractional ones nest under the node at the integer part, which is why
      * the inherited role entries keep their 7.x positions.
      *
@@ -60,11 +60,15 @@ class secondary extends core_secondary {
     protected function get_default_module_mapping(): array {
         $mapping = parent::get_default_module_mapping();
 
+        // Settings sits directly after the activity itself, then the working
+        // areas in the order an author moves through them: choose a medium,
+        // write subtitles and gaps, look at the attempts, take the transcript
+        // away.
         $mapping[self::TYPE_SETTING] = array_merge($mapping[self::TYPE_SETTING], [
-            'mod_elang_media' => 1,
-            'mod_elang_editcontent' => 2,
-            'mod_elang_reports' => 3,
-            'modedit' => 4,
+            'modedit' => 1,
+            'mod_elang_media' => 2,
+            'mod_elang_editcontent' => 3,
+            'mod_elang_reports' => 4,
             'mod_elang_exporttranscript' => 5,
         ]);
 

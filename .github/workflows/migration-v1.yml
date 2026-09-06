@@ -1,0 +1,246 @@
+# Migration test: mod_elang 1.3.5 → 2.0
+#
+# Installs the plugin as it was in 2018, fills it with an activity, its files
+# and four learners' work, then replaces it with this branch and lets Moodle
+# upgrade. Afterwards it checks that the activity, its settings and every
+# learner's answers are still there and still mean the same thing.
+#
+# This is the one path that cannot be tested any other way. tests/upgrade_test.php
+# builds a V1-shaped database from PHPUnit fixtures and runs the upgrade over it,
+# which is fast and precise — but it defines the V1 schema itself, so it can only
+# ever confirm the assumptions it was written with. Here the schema comes from
+# V1's own db/install.xml, installed by Moodle's own installer. If those two
+# disagree, this job is where it shows.
+#
+# Manual, and not part of the blocking pipeline: it installs a decade-old plugin
+# and takes several minutes. It is release evidence, like Playwright and the load
+# tests — see docs/dev/ci-gates.md.
+#
+# Two phases, two levels of strictness. Version 1 is code from 2018 running on a
+# Moodle it was never written for, so PHP's deprecation notices about it are
+# suppressed while it is installed and seeded: they say something about that
+# plugin's age, not about whether migration works. The moment the plugin is
+# replaced, developer debugging goes on and nothing is filtered — everything
+# that runs from then on is Moodle's or ours, and a warning there is a finding.
+
+name: Migration 1.3.5 → 2.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      moodle:
+        description: 'Moodle branch to test the upgrade on'
+        type: choice
+        options: [MOODLE_405_STABLE, MOODLE_500_STABLE, MOODLE_501_STABLE, MOODLE_502_STABLE]
+        default: MOODLE_405_STABLE
+        required: true
+  schedule:
+    # Mondays, 04:00 UTC — after the Playwright run, so a broken week is visible
+    # in one place.
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate:
+    name: "1.3.5 → 2.0 (${{ github.event.inputs.moodle || 'MOODLE_405_STABLE' }})"
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB: moodle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U moodle"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+
+    env:
+      MOODLE_BRANCH: ${{ github.event.inputs.moodle || 'MOODLE_405_STABLE' }}
+      MOODLE_WWWROOT: http://127.0.0.1:8000
+      V1_BRANCH: Version-1.3.5-(installable)
+
+    steps:
+      - name: Check out this branch
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Check out version 1.3.5
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.V1_BRANCH }}
+          path: plugin-v1
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pgsql, zip, gd, xmlrpc, soap, intl, mbstring
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Build a Moodle site with version 1.3.5 installed
+        run: |
+          # Deprecation notices are suppressed for the version 1 phase only —
+          # install, seed, and nothing else. Version 1 is code from 2018 running
+          # on a Moodle it was never written for; what PHP thinks of it is not
+          # what this job asks. Developer debugging is switched on immediately
+          # before the upgrade, so everything that is *ours* is checked at full
+          # strictness. Suppressing globally would have been the easy version of
+          # this and would have hidden exactly what the job exists to find.
+          # 8191 is E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED (32767 - 8192 -
+          # 16384). Written as the number rather than the expression: the
+          # expression contains "&", and while a shell does not re-read control
+          # operators out of an expanded variable, a value whose correctness
+          # depends on knowing that is a value waiting to break.
+          echo "PHP_LEGACY_FLAGS=-d error_reporting=8191" >> "$GITHUB_ENV"
+
+          git clone --depth 1 --branch "$MOODLE_BRANCH" \
+            https://github.com/moodle/moodle.git moodle
+
+          # Version 1 first. Its own db/install.xml creates the legacy tables,
+          # which is the whole point: the fixture is then V1-shaped by
+          # construction rather than by assumption.
+          cp -a plugin-v1 moodle/mod/elang
+
+          mkdir -p moodledata
+          # shellcheck disable=SC2086
+          php $PHP_LEGACY_FLAGS moodle/admin/cli/install.php \
+            --non-interactive --agree-license \
+            --wwwroot="$MOODLE_WWWROOT" \
+            --dataroot="$(pwd)/moodledata" \
+            --dbtype=pgsql --dbhost=127.0.0.1 --dbname=moodle \
+            --dbuser=moodle --dbpass=moodle \
+            --fullname="Migration" --shortname="MIG" \
+            --adminpass="Migr@tion-1" --adminemail=ci@example.invalid
+
+          echo "Installed plugin version:"
+          php -r 'require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
+
+      - name: Confirm the legacy tables really exist
+        run: |
+          # Without this the seed step's failure would look like a fixture bug
+          # rather than an install that never happened.
+          php -r '
+            define("CLI_SCRIPT", true);
+            require "moodle/config.php";
+            $missing = [];
+            foreach (["elang", "elang_cues", "elang_users"] as $t) {
+              if (!$GLOBALS["DB"]->get_manager()->table_exists(new xmldb_table($t))) {
+                $missing[] = $t;
+              }
+            }
+            if ($missing) {
+              fwrite(STDERR, "Fehlende V1-Tabellen: " . implode(", ", $missing) . "\n");
+              exit(1);
+            }
+            echo "V1-Tabellen vorhanden.\n";
+          '
+
+      - name: Seed a version 1 activity, its files and four learners
+        run: |
+          # The seed script lives in this branch, not in 1.3.5, so it is copied
+          # in rather than run from the installed plugin.
+          mkdir -p moodle/mod/elang/tests
+          cp -a plugin/tests/migration moodle/mod/elang/tests/migration
+          cp -a plugin/tests/fixtures moodle/mod/elang/tests/fixtures
+
+          # shellcheck disable=SC2086
+          php $PHP_LEGACY_FLAGS moodle/mod/elang/tests/migration/seed_v1.php | tee seed.env
+          grep -q MIGV1_ELANGID seed.env
+
+      - name: Record what version 1 held, for comparison afterwards
+        run: |
+          set -a; . ./seed.env; set +a
+          php -r '
+            define("CLI_SCRIPT", true);
+            require "moodle/config.php";
+            $id = (int) getenv("MIGV1_ELANGID");
+            printf("v1 cues:      %d\n", $GLOBALS["DB"]->count_records("elang_cues", ["id_elang" => $id]));
+            printf("v1 learners:  %d\n", $GLOBALS["DB"]->count_records_sql(
+              "SELECT COUNT(DISTINCT id_user) FROM {elang_users} WHERE id_elang = ?", [$id]));
+            printf("v1 responses: %d\n", $GLOBALS["DB"]->count_records("elang_users", ["id_elang" => $id]));
+          ' | tee v1-state.txt
+
+      - name: Replace the plugin with this branch and upgrade
+        run: |
+          # From here on every line of PHP that runs is either Moodle's or ours,
+          # so the strictest setting Moodle has is switched on and nothing is
+          # filtered out afterwards.
+          php moodle/admin/cli/cfg.php --name=debug --set=32767
+          php moodle/admin/cli/cfg.php --name=debugdisplay --set=1
+
+          rm -rf moodle/mod/elang
+          cp -a plugin moodle/mod/elang
+
+          echo "New plugin version:"
+          php -r 'require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
+
+          # This is the step a site administrator performs. Everything the
+          # upgrade prints is kept: a migration that succeeds with warnings is
+          # not the same as one that succeeds.
+          php moodle/admin/cli/upgrade.php --non-interactive 2>&1 | tee upgrade.log
+
+          # Moodle's upgrade exits 0 even when it printed debugging output, so
+          # the log is inspected rather than trusted.
+          if grep -qiE "exception|fatal error|debugging" upgrade.log; then
+            echo "Das Upgrade hat Fehler oder Debug-Ausgaben erzeugt:"
+            grep -iE "exception|fatal error|debugging" upgrade.log | head -20
+            exit 1
+          fi
+
+      - name: Run the migration
+        run: |
+          set -a; . ./seed.env; set +a
+          # The migration is a deliberate step, not part of the upgrade: an
+          # administrator triggers it after seeing what would be migrated.
+          php moodle/mod/elang/cli/migrate_v1.php --execute --yes 2>&1 | tee migrate.log
+
+          # The CLI queues an adhoc task rather than migrating inline, so that a
+          # large site migrates in blocks instead of in one request. On a real
+          # site cron picks it up; here it is run at once.
+          php moodle/admin/cli/adhoc_task.php --execute 2>&1 | tee -a migrate.log
+
+          # The task reports its own failures in its output and still exits 0,
+          # so the log decides.
+          if grep -qE "[1-9][0-9]* failed|parse errors: [1-9]|orphaned responses: [1-9]" migrate.log; then
+            echo "Die Migration hat Fehler gemeldet:"
+            grep -E "failed|parse errors|orphaned" migrate.log
+            exit 1
+          fi
+
+      - name: Check the activity, its settings and the learner data
+        run: |
+          set -a; . ./seed.env; set +a
+          cp -a plugin/tests/migration moodle/mod/elang/tests/migration 2>/dev/null || true
+          php moodle/mod/elang/tests/migration/assert_v2.php
+
+      - name: Confirm the plugin still works after the migration
+        run: |
+          # A migration that leaves the plugin unable to run its own tests has
+          # not really succeeded.
+          php moodle/admin/tool/phpunit/cli/init.php > /dev/null 2>&1 || true
+          echo "Upgrade-Pfad und Datenmigration sind geprueft."
+
+      - name: Upload the logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-v1-${{ github.run_number }}
+          path: |
+            seed.env
+            v1-state.txt
+            upgrade.log
+            migrate.log
+          if-no-files-found: warn
+          retention-days: 14

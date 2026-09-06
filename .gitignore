@@ -71,3 +71,9 @@ behatfaildumps/
 #   "The `npm ci` command can only install with an existing package-lock.json".
 # Pinning it also means a Playwright release cannot silently change what the
 # scheduled run tests.
+
+# The production bundle carries no source map (build.mjs sets sourcemap: dev),
+# so any .map here is the leftover of a development build. One was committed in
+# August and shipped in every release afterwards, still containing the sources
+# of two components that had since been deleted.
+/js/vendor/react/*.map

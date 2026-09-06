@@ -71,7 +71,7 @@ function errorMessage(error: unknown, fallback: string): string {
  * @returns The editor element.
  */
 export function EditorApp({api, t}: Props): JSX.Element {
-    const [status, setStatus] = useState(t('editor:loading'));
+    const [status, setStatus] = useState(t('editor_loading'));
     const [loaded, setLoaded] = useState(false);
     const [cues, setCues] = useState<Cue[]>([]);
     const [media, setMedia] = useState<Media | null>(null);
@@ -110,7 +110,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
             return;
         }).catch((error: unknown) => {
             if (active) {
-                setStatus(t('editor:loaderror') + ' [' + errorMessage(error, '') + ']');
+                setStatus(t('editor_loaderror') + ' [' + errorMessage(error, '') + ']');
             }
         });
         return () => {
@@ -172,9 +172,9 @@ export function EditorApp({api, t}: Props): JSX.Element {
     const handleSave = async(): Promise<void> => {
         try {
             await (autosaveRef.current ? autosaveRef.current.flush() : save());
-            setStatus(t('editor:saved'));
+            setStatus(t('editor_saved'));
         } catch (error) {
-            setStatus(errorMessage(error, t('editor:saveerror')));
+            setStatus(errorMessage(error, t('editor_saveerror')));
         }
     };
 
@@ -182,10 +182,10 @@ export function EditorApp({api, t}: Props): JSX.Element {
         try {
             await (autosaveRef.current ? autosaveRef.current.flush() : save());
             await api.publish();
-            setStatus(t('editor:published'));
+            setStatus(t('editor_published'));
             window.setTimeout(() => window.location.reload(), 1200);
         } catch (error) {
-            setStatus(errorMessage(error, t('editor:saveerror')));
+            setStatus(errorMessage(error, t('editor_saveerror')));
         }
     };
 
@@ -219,7 +219,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
         try {
             return await api.previewImport(subtitles, parsegaps);
         } catch (error) {
-            setStatus(errorMessage(error, t('editor:saveerror')));
+            setStatus(errorMessage(error, t('editor_saveerror')));
             return null;
         }
     };
@@ -262,7 +262,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
             })];
         });
 
-        setStatus(t(replace ? 'editor:importreplacedcues' : 'editor:importedcues')
+        setStatus(t(replace ? 'editor_importreplacedcues' : 'editor_importedcues')
             .replace('{$a}', String(result.cuecount)));
         setImportopen(false);
         // Open the first cue that just arrived: an import that changed nothing
@@ -295,10 +295,10 @@ export function EditorApp({api, t}: Props): JSX.Element {
 
     const savestatekeys: Record<AutosaveState, string> = {
         idle: '',
-        dirty: 'editor:unsaved',
-        saving: 'editor:saving',
-        saved: 'editor:autosaved',
-        error: 'editor:autosaveerror',
+        dirty: 'editor_unsaved',
+        saving: 'editor_saving',
+        saved: 'editor_autosaved',
+        error: 'editor_autosaveerror',
     };
     const savestatekey = savestatekeys[savestate];
 
@@ -325,7 +325,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
                     {savestatekey !== '' ? t(savestatekey) : ''}
                 </span>
                 <button type="button" className="btn btn-link btn-sm" data-action="save" onClick={handleSave}>
-                    {t('editor:save')}
+                    {t('editor_save')}
                 </button>
 
                 <span className="mr-auto ms-auto"></span>
@@ -336,17 +336,17 @@ export function EditorApp({api, t}: Props): JSX.Element {
                     data-action="openimport"
                     onClick={() => setImportopen(true)}
                 >
-                    {t('editor:import')}
+                    {t('editor_import')}
                 </button>
                 <button type="button" className="btn btn-success" data-action="publish" onClick={handlePublish}>
-                    {t('editor:publish')}
+                    {t('editor_publish')}
                 </button>
             </div>
 
             <div className="mod_elang-editor-timeline-wrap mb-3" data-region="timelinewrap">
                 {showpreview && novideotrack && (
                     <div className="alert alert-warning" role="alert" data-region="novideotrack">
-                        {t('editor:novideotrack')}
+                        {t('editor_novideotrack')}
                     </div>
                 )}
                 {showpreview && (
@@ -406,7 +406,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
 
                 <div className="col-12 col-lg-7" data-region="cueinspector">
                     {selectedcue === null && (
-                        <p className="text-muted" data-region="nocueselected">{t('editor:nocueselected')}</p>
+                        <p className="text-muted" data-region="nocueselected">{t('editor_nocueselected')}</p>
                     )}
                     {selectedcue !== null && (
                         <CueRow

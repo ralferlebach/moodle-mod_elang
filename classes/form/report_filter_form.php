@@ -48,36 +48,36 @@ class report_filter_form extends \moodleform {
         $mform->addElement(
             'select',
             'filteruserid',
-            get_string('report:filteruser', 'mod_elang'),
+            get_string('report_filteruser', 'mod_elang'),
             $this->_customdata['users']
         );
         $mform->setType('filteruserid', PARAM_INT);
 
-        $mform->addElement('select', 'filterstate', get_string('report:filterstate', 'mod_elang'), [
-            '' => get_string('report:filterany', 'mod_elang'),
-            'inprogress' => get_string('report:state_inprogress', 'mod_elang'),
-            'finished' => get_string('report:state_finished', 'mod_elang'),
-            'abandoned' => get_string('report:state_abandoned', 'mod_elang'),
+        $mform->addElement('select', 'filterstate', get_string('report_filterstate', 'mod_elang'), [
+            '' => get_string('report_filterany', 'mod_elang'),
+            'inprogress' => get_string('report_state_inprogress', 'mod_elang'),
+            'finished' => get_string('report_state_finished', 'mod_elang'),
+            'abandoned' => get_string('report_state_abandoned', 'mod_elang'),
         ]);
         $mform->setType('filterstate', PARAM_ALPHA);
 
         $mform->addElement(
             'date_selector',
             'filterfrom',
-            get_string('report:filterfrom', 'mod_elang'),
+            get_string('report_filterfrom', 'mod_elang'),
             ['optional' => true]
         );
         $mform->addElement(
             'date_selector',
             'filterto',
-            get_string('report:filterto', 'mod_elang'),
+            get_string('report_filterto', 'mod_elang'),
             ['optional' => true]
         );
 
-        $mform->addElement('text', 'filterattemptnumber', get_string('report:filterattempt', 'mod_elang'), ['size' => 4]);
+        $mform->addElement('text', 'filterattemptnumber', get_string('report_filterattempt', 'mod_elang'), ['size' => 4]);
         $mform->setType('filterattemptnumber', PARAM_INT);
 
-        $mform->addElement('submit', 'applyfilters', get_string('report:filterapply', 'mod_elang'));
+        $mform->addElement('submit', 'applyfilters', get_string('report_filterapply', 'mod_elang'));
     }
 
     /**
@@ -96,7 +96,7 @@ class report_filter_form extends \moodleform {
         $from = (int) ($data['filterfrom'] ?? 0);
         $to = (int) ($data['filterto'] ?? 0);
         if ($from > 0 && $to > 0 && $from > $to) {
-            $errors['filterto'] = get_string('report:filterrangeerror', 'mod_elang');
+            $errors['filterto'] = get_string('report_filterrangeerror', 'mod_elang');
         }
 
         return $errors;

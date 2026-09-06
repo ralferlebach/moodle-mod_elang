@@ -35,6 +35,38 @@ namespace mod_elang\local\import;
  */
 class subtitle_parser {
     /**
+     * The largest subtitle content this parser will look at, in bytes.
+     *
+     * A subtitle file for a lesson recording is a few tens of kilobytes; two
+     * megabytes is a generous ceiling for anything that is genuinely a
+     * transcript. Above it the input is not a subtitle file, and the parser
+     * should say so rather than spend a request finding out — the split on
+     * blank lines alone allocates a copy of the whole content.
+     *
+     * Enforced here rather than at the web service, because the editor, the
+     * import modal and any later caller all arrive through this one method.
+     */
+    public const MAX_CONTENT_BYTES = 2 * 1024 * 1024;
+
+    /**
+     * The largest number of cues one import may produce.
+     *
+     * Four thousand is roughly a full day of continuous speech. Beyond it the
+     * result would be an exercise nobody could work through, and the editor
+     * would have to render every one of them.
+     */
+    public const MAX_CUES = 4000;
+
+    /**
+     * The longest single line the parser accepts, in characters.
+     *
+     * A subtitle line is a sentence. A single line of hundreds of kilobytes is
+     * a minified file, a data URL or a corrupted download, and treating it as
+     * a transcript produces one unusable cue rather than an error.
+     */
+    public const MAX_LINE_LENGTH = 5000;
+
+    /**
      * Parse subtitle file content into ordered cue segments.
      *
      * @param string $content The raw subtitle file content
@@ -46,7 +78,25 @@ class subtitle_parser {
         $warnings = [];
         $cues = [];
 
+        // Refused before anything is allocated. The checks below are ordered by
+        // what they cost: length first, then encoding, then the split.
+        if (strlen($content) > self::MAX_CONTENT_BYTES) {
+            throw new \moodle_exception('error_importtoolarge', 'mod_elang', '', (object) [
+                'size' => display_size(strlen($content)),
+                'max' => display_size(self::MAX_CONTENT_BYTES),
+            ]);
+        }
+
+        // Invalid UTF-8 would otherwise travel all the way into the database
+        // and surface later as a broken transcript nobody can explain. A file
+        // saved in a legacy encoding is the ordinary cause, and the message
+        // says so instead of blaming the content.
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            throw new \moodle_exception('error_importnotutf8', 'mod_elang');
+        }
+
         $content = str_replace(["\r\n", "\r"], "\n", $content);
+
         $blocks = preg_split('/\n[ \t]*\n/', trim($content));
 
         $sortorder = 0;
@@ -57,6 +107,23 @@ class subtitle_parser {
             }
 
             $lines = explode("\n", $block);
+
+            // One absurdly long line is a minified file or a corrupted
+            // download, not a sentence. Skipped with a warning rather than
+            // refused outright, so one bad block does not cost the whole
+            // import.
+            $longest = 0;
+            foreach ($lines as $line) {
+                $longest = max($longest, \core_text::strlen($line));
+            }
+            if ($longest > self::MAX_LINE_LENGTH) {
+                $warnings[] = get_string('import_warnlinetoolong', 'mod_elang', (object) [
+                    'block' => $sortorder + 1,
+                    'max' => self::MAX_LINE_LENGTH,
+                ]);
+                continue;
+            }
+
             $timingindex = null;
             foreach ($lines as $index => $line) {
                 if (strpos($line, '-->') !== false) {
@@ -72,13 +139,13 @@ class subtitle_parser {
 
             $timing = $this->parse_timing_line($lines[$timingindex]);
             if ($timing === null) {
-                $warnings[] = get_string('import:badtiming', 'mod_elang', trim($lines[$timingindex]));
+                $warnings[] = get_string('import_badtiming', 'mod_elang', trim($lines[$timingindex]));
                 continue;
             }
 
             $transcript = trim(implode("\n", array_slice($lines, $timingindex + 1)));
             if ($transcript === '') {
-                $warnings[] = get_string('import:emptytranscript', 'mod_elang');
+                $warnings[] = get_string('import_emptytranscript', 'mod_elang');
                 continue;
             }
 
@@ -89,6 +156,25 @@ class subtitle_parser {
                 'endtime' => $timing[1],
                 'transcript' => $transcript,
             ];
+        }
+
+        // Content that yields nothing is not an empty subtitle file, it is not a
+        // subtitle file. Returning an empty result let the import modal offer to
+        // apply zero cues: the author pressed "check", saw "0 cues found", and
+        // could then import nothing at all — no error anywhere, and no way to
+        // tell that the file had simply not been understood.
+        if (empty($cues)) {
+            throw new \moodle_exception('error_importnocues', 'mod_elang');
+        }
+
+        // Refused rather than truncated: silently keeping the first four
+        // thousand would hand back an exercise missing its ending, and the
+        // author would have no way to tell.
+        if (count($cues) > self::MAX_CUES) {
+            throw new \moodle_exception('error_importtoomanycues', 'mod_elang', '', (object) [
+                'count' => count($cues),
+                'max' => self::MAX_CUES,
+            ]);
         }
 
         return (object) ['cues' => $cues, 'warnings' => $warnings];

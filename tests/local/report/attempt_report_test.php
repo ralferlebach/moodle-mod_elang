@@ -531,4 +531,102 @@ final class attempt_report_test extends \advanced_testcase {
         $this->assertCount(1, $rows);
         $this->assertStringContainsString('Aaltonen', $rows[0]['user']);
     }
+
+    /**
+     * The person filter offers nobody outside the caller's group scope.
+     *
+     * The dropdown used to be built from its own query — everyone with an
+     * attempt in this activity — while the report itself was correctly scoped.
+     * In separate-groups mode a teacher was therefore shown the names of
+     * learners whose attempts they were not allowed to see. A name is personal
+     * data; leaking it through a filter is the same disclosure as leaking the
+     * row.
+     *
+     * @return void
+     */
+    public function test_the_person_filter_stays_inside_the_group_scope(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $insider = $this->getDataGenerator()->create_and_enrol(
+            $course,
+            'student',
+            ['lastname' => 'Innen', 'firstname' => 'Ines']
+        );
+        $outsider = $this->getDataGenerator()->create_and_enrol(
+            $course,
+            'student',
+            ['lastname' => 'Aussen', 'firstname' => 'Ansgar']
+        );
+
+        $mine = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
+        $theirs = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
+        $this->getDataGenerator()->create_group_member(['groupid' => $mine->id, 'userid' => $insider->id]);
+        $this->getDataGenerator()->create_group_member(['groupid' => $theirs->id, 'userid' => $outsider->id]);
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
+        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
+
+        $report = new attempt_report();
+
+        // Scoped to one group: only that group's learner is offered.
+        $scoped = $report->filter_users((int) $elang->id, (int) $mine->id);
+        $this->assertSame([(int) $insider->id], array_keys($scoped));
+        $this->assertStringContainsString('Innen', reset($scoped));
+
+        // The other group sees the other person, and only them.
+        $other = $report->filter_users((int) $elang->id, (int) $theirs->id);
+        $this->assertSame([(int) $outsider->id], array_keys($other));
+
+        // Without a group restriction — no groups, or accessallgroups — both
+        // are offered, which is the unchanged behaviour.
+        $all = $report->filter_users((int) $elang->id);
+        $this->assertCount(2, $all);
+    }
+
+    /**
+     * Naming a person from another group in the filter parameter returns
+     * nothing rather than their attempts.
+     *
+     * Hiding a name from the dropdown is not a protection if the id behind it
+     * still works when typed into the URL. The filter runs through the same
+     * group-scoped query as everything else, so it cannot.
+     *
+     * @return void
+     */
+    public function test_a_foreign_userid_in_the_filter_returns_nothing(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $insider = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $outsider = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $mine = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
+        $this->getDataGenerator()->create_group_member(['groupid' => $mine->id, 'userid' => $insider->id]);
+
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
+        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
+
+        $report = new attempt_report();
+        $filters = ['userid' => (int) $outsider->id];
+
+        $this->assertCount(0, $report->list_for_activity((int) $elang->id, (int) $mine->id, 0, 0, $filters));
+        $this->assertSame(0, $report->count_for_activity((int) $elang->id, (int) $mine->id, $filters));
+        $this->assertSame(0, $report->aggregate_for_activity((int) $elang->id, (int) $mine->id, $filters)['total']);
+        $this->assertCount(
+            0,
+            iterator_to_array($report->export_rows((int) $elang->id, (int) $mine->id, $filters))
+        );
+    }
 }

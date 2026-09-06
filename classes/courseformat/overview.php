@@ -88,7 +88,7 @@ class overview extends activityoverviewbase {
         $count = $DB->count_records('elang_attempt', ['elangid' => $this->cm->instance]);
 
         return new overviewitem(
-            name: get_string('overview:attempts', 'mod_elang'),
+            name: get_string('overview_attempts', 'mod_elang'),
             value: $count,
             content: (string) $count,
             textalign: text_align::CENTER,

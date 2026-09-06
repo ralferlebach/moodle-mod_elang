@@ -64,7 +64,7 @@ final class v1_cue_parser {
         $segments = json_decode($json, false);
         if (!is_array($segments)) {
             throw new \moodle_exception(
-                'error:invalidv1cuejson',
+                'error_invalidv1cuejson',
                 'mod_elang',
                 '',
                 null,

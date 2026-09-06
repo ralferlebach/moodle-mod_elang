@@ -100,9 +100,9 @@ class transcript_page implements renderable, templatable {
      */
     private function secondary_formats(bool $solution): array {
         $formats = [
-            'docx' => 'export:docx',
-            'odt' => 'export:odt',
-            'txt' => 'export:text',
+            'docx' => 'export_docx',
+            'odt' => 'export_odt',
+            'txt' => 'export_text',
         ];
 
         $out = [];
@@ -129,11 +129,11 @@ class transcript_page implements renderable, templatable {
     private function solution_audience(): string {
         switch ($this->solutionavailability) {
             case 'always':
-                return get_string('export:audiencealways', 'mod_elang');
+                return get_string('export_audiencealways', 'mod_elang');
             case 'aftersubmission':
-                return get_string('export:audienceaftersubmission', 'mod_elang');
+                return get_string('export_audienceaftersubmission', 'mod_elang');
             default:
-                return get_string('export:audiencestaff', 'mod_elang');
+                return get_string('export_audiencestaff', 'mod_elang');
         }
     }
 
@@ -149,12 +149,12 @@ class transcript_page implements renderable, templatable {
         if ($this->canworksheet) {
             $cards[] = [
                 'key' => 'worksheet',
-                'title' => get_string('export:worksheet', 'mod_elang'),
-                'description' => get_string('export:worksheethint', 'mod_elang'),
+                'title' => get_string('export_worksheet', 'mod_elang'),
+                'description' => get_string('export_worksheethint', 'mod_elang'),
                 'audience' => '',
                 'hasaudience' => false,
                 'primaryurl' => $this->download_url('pdf', false),
-                'primarylabel' => get_string('export:downloadpdf', 'mod_elang'),
+                'primarylabel' => get_string('export_downloadpdf', 'mod_elang'),
                 'formats' => $this->secondary_formats(false),
             ];
         }
@@ -162,25 +162,25 @@ class transcript_page implements renderable, templatable {
         if ($this->cansolution) {
             $cards[] = [
                 'key' => 'solution',
-                'title' => get_string('export:solution', 'mod_elang'),
-                'description' => get_string('export:solutionhint', 'mod_elang'),
+                'title' => get_string('export_solution', 'mod_elang'),
+                'description' => get_string('export_solutionhint', 'mod_elang'),
                 'audience' => $this->solution_audience(),
                 'hasaudience' => true,
                 'primaryurl' => $this->download_url('pdf', true),
-                'primarylabel' => get_string('export:downloadpdf', 'mod_elang'),
+                'primarylabel' => get_string('export_downloadpdf', 'mod_elang'),
                 'formats' => $this->secondary_formats(true),
             ];
         }
 
         return [
-            'heading' => get_string('export:heading', 'mod_elang'),
-            'intro' => get_string('export:intro', 'mod_elang'),
+            'heading' => get_string('export_heading', 'mod_elang'),
+            'intro' => get_string('export_intro', 'mod_elang'),
             'haspublished' => $this->haspublished,
-            'nocontent' => get_string('export:nocontent', 'mod_elang'),
+            'nocontent' => get_string('export_nocontent', 'mod_elang'),
             'hascards' => !empty($cards),
             'cards' => $cards,
-            'moreformats' => get_string('export:moreformats', 'mod_elang'),
-            'versionnote' => get_string('export:versionnote', 'mod_elang'),
+            'moreformats' => get_string('export_moreformats', 'mod_elang'),
+            'versionnote' => get_string('export_versionnote', 'mod_elang'),
         ];
     }
 }

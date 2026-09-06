@@ -30,13 +30,45 @@ final class playback_settings_test extends \basic_testcase {
      *
      * @return void No return value.
      */
-    public function test_a_video_file_honours_every_setting(): void {
+    public function test_a_video_file_honours_every_subtitle_position(): void {
         foreach (playback_settings::positions() as $position) {
             foreach (playback_settings::pausemodes() as $pausemode) {
                 $resolved = playback_settings::resolve($position, $pausemode, 'file', false);
 
                 $this->assertSame($position, $resolved['subtitleposition']);
-                $this->assertSame($pausemode, $resolved['cuepausemode']);
+            }
+        }
+    }
+
+    /**
+     * Below the medium, the pause mode is honoured as stored.
+     *
+     * @return void No return value.
+     */
+    public function test_below_the_medium_honours_every_pause_mode(): void {
+        foreach (playback_settings::pausemodes() as $pausemode) {
+            $resolved = playback_settings::resolve('below', $pausemode, 'file', false);
+
+            $this->assertSame($pausemode, $resolved['cuepausemode']);
+        }
+    }
+
+    /**
+     * An overlay always pauses at a cue boundary, whatever is stored.
+     *
+     * The caption shows only the cue that is playing: running on would take the
+     * sentence being answered off the screen while the learner types. The
+     * activity form hides the choice for the same reason.
+     *
+     * @return void No return value.
+     */
+    public function test_an_overlay_always_pauses_at_a_cue_boundary(): void {
+        foreach (['overlaytop', 'overlaybottom'] as $position) {
+            foreach (playback_settings::pausemodes() as $pausemode) {
+                $resolved = playback_settings::resolve($position, $pausemode, 'file', false);
+
+                $this->assertSame($position, $resolved['subtitleposition']);
+                $this->assertSame('auto', $resolved['cuepausemode']);
             }
         }
     }
@@ -47,9 +79,9 @@ final class playback_settings_test extends \basic_testcase {
      * @return void No return value.
      */
     public function test_a_direct_url_honours_every_setting(): void {
-        $resolved = playback_settings::resolve('overlaytop', 'stop', 'url', false);
+        $resolved = playback_settings::resolve('below', 'stop', 'url', false);
 
-        $this->assertSame('overlaytop', $resolved['subtitleposition']);
+        $this->assertSame('below', $resolved['subtitleposition']);
         $this->assertSame('stop', $resolved['cuepausemode']);
     }
 
@@ -111,9 +143,14 @@ final class playback_settings_test extends \basic_testcase {
         $onaudio = playback_settings::resolve($position, $pausemode, 'file', true);
         $onvideo = playback_settings::resolve($position, $pausemode, 'file', false);
 
+        // Audio has no picture, so the overlay falls back and the stored pause
+        // mode applies again — the very same input resolves differently only
+        // because the medium differs.
         $this->assertSame('below', $onaudio['subtitleposition']);
+        $this->assertSame('stop', $onaudio['cuepausemode']);
+
         $this->assertSame('overlaytop', $onvideo['subtitleposition']);
-        $this->assertSame('stop', $onvideo['cuepausemode']);
+        $this->assertSame('auto', $onvideo['cuepausemode']);
     }
 
     /**

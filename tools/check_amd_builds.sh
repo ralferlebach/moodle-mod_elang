@@ -1,0 +1,168 @@
+#!/bin/bash
+# This file is part of Moodle - http://moodle.org/
+#
+# Moodle is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Moodle is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+#
+# Verify that every committed AMD build artefact matches its source.
+#
+# moodle-plugin-ci runs the full Grunt task set with --max-lint-warnings=0 and
+# then fails the build for any file under amd/build/ that Grunt would have
+# written differently — "File is stale and needs to be rebuilt". This script
+# runs Grunt the same way, so a lint warning fails here rather than in CI.
+# Checking the minified JavaScript alone is not
+# enough: a source map embeds the original source in `sourcesContent`, so a
+# change to nothing but a comment leaves the .min.js byte-identical while the
+# .map differs. That exact case has slipped through twice.
+#
+# Usage, from a Moodle tree with this plugin installed at mod/elang and Moodle's
+# own npm dependencies present:
+#
+#   bash mod/elang/tools/check_amd_builds.sh
+#
+# Exits non-zero and names every file that would change. With
+#
+#   bash mod/elang/tools/check_amd_builds.sh --sync=/path/to/working/tree
+#
+# the rebuilt artefacts are copied into that tree instead, so the copy that
+# gets packaged cannot fall behind the copy that was checked.
+#
+
+set -u
+
+plugindir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+moodleroot="$(cd "$plugindir/../.." && pwd)"
+grunt="$moodleroot/node_modules/.bin/grunt"
+
+# Where the rebuilt artefacts should also land. Moodle's Grunt only runs on a
+# plugin inside a Moodle tree, so the checked copy is usually not the working
+# tree the release is packaged from — and copying the results back by hand is a
+# step that can be forgotten. It has been: a patch once shipped a build that did
+# not match the source it shipped alongside, and CI reported the file as stale
+# while every local check said it was fine.
+syncdir=""
+for arg in "$@"; do
+    case "$arg" in
+        --sync=*) syncdir="${arg#--sync=}" ;;
+        *) echo "Unbekannte Option: $arg"; exit 2 ;;
+    esac
+done
+
+if [[ ! -x "$grunt" ]]; then
+    echo "Grunt nicht gefunden unter $grunt."
+    echo "Im Moodle-Root 'npm ci' ausfuehren."
+    exit 2
+fi
+
+before="$(mktemp -d)"
+trap 'rm -rf "$before"' EXIT
+cp -a "$plugindir/amd/build/." "$before/"
+
+# The browserslist database first. Rollup's output depends on the installed
+# caniuse-lite version, and Moodle's package-lock pins one that is years old
+# while CI refreshes it before building. Two builds of identical sources then
+# differ, CI reports the committed artefact as stale, and the difference is
+# invisible in the source — which is exactly how one such report was
+# misdiagnosed here as a lost file.
+echo "Browserslist-DB pruefen ..."
+(cd "$moodleroot" && npx --yes update-browserslist-db@latest) || {
+    echo "Die Browserslist-DB konnte nicht aktualisiert werden."
+    echo "Ohne sie kann dieser Build von dem der CI abweichen."
+    exit 2
+}
+
+# --max-lint-warnings=0 is what moodle-plugin-ci passes, and without it a plain
+# `grunt` run reports lint warnings and still exits 0. Two findings have reached
+# CI that way. The value must be attached with "=": `--max-lint-warnings 0`
+# makes Grunt read the 0 as a task name and fail with "Task \"0\" not found".
+echo "Grunt laeuft in $plugindir ..."
+if ! (cd "$plugindir" && "$grunt" --max-lint-warnings=0); then
+    echo "Grunt selbst ist fehlgeschlagen - siehe Ausgabe oben."
+    exit 1
+fi
+
+rc=0
+for built in "$plugindir"/amd/build/*; do
+    name="$(basename "$built")"
+    if ! cmp -s "$built" "$before/$name"; then
+        echo "Veraltet: amd/build/$name"
+        rc=1
+    fi
+done
+
+# A file Grunt no longer produces would also fail the CI check.
+for kept in "$before"/*; do
+    name="$(basename "$kept")"
+    if [[ ! -e "$plugindir/amd/build/$name" ]]; then
+        echo "Nicht mehr erzeugt: amd/build/$name"
+        rc=1
+    fi
+done
+
+# The React bundle is the plugin's other committed build artefact, and it has
+# the same failure mode: nothing rebuilds it on the way into a release, so a
+# source change without a rebuild ships an artefact that no longer matches. That
+# happened — ImportModal.tsx was edited after the last `npm run build`, and CI
+# caught it instead of this script, because this script only ever looked at
+# amd/build.
+#
+# Snapshotted before it is rebuilt, exactly like amd/build above. Building first
+# and comparing afterwards compares a file with itself, which is a check that
+# cannot fail.
+bundle="$plugindir/js/vendor/react/editor.bundle.js"
+if [[ -f "$plugindir/package.json" ]]; then
+    if [[ ! -d "$plugindir/node_modules" ]]; then
+        echo "node_modules fehlt in $plugindir — das React-Bundle kann nicht geprueft werden."
+        echo "Erst 'npm ci' im Plugin-Verzeichnis ausfuehren."
+        rc=1
+    elif [[ -f "$bundle" ]]; then
+        before_bundle="$(mktemp)"
+        cp "$bundle" "$before_bundle"
+
+        echo "React-Bundle wird neu gebaut ..."
+        if (cd "$plugindir" && npm run build >/dev/null 2>&1); then
+            if ! cmp -s "$bundle" "$before_bundle"; then
+                echo "Veraltet: js/vendor/react/editor.bundle.js"
+                rc=1
+            fi
+        else
+            echo "Der Bundle-Build ist fehlgeschlagen."
+            rc=1
+        fi
+        rm -f "$before_bundle"
+    fi
+fi
+
+if [[ -n "$syncdir" ]]; then
+    if [[ ! -d "$syncdir/amd/build" ]]; then
+        echo "Kein amd/build/ unter $syncdir."
+        exit 2
+    fi
+    cp -a "$plugindir/amd/build/." "$syncdir/amd/build/"
+    if [[ -f "$plugindir/js/vendor/react/editor.bundle.js" ]]; then
+        cp "$plugindir/js/vendor/react/editor.bundle.js" "$syncdir/js/vendor/react/editor.bundle.js"
+    fi
+    echo "Artefakte nach $syncdir uebernommen."
+    exit 0
+fi
+
+if [[ $rc -ne 0 ]]; then
+    echo
+    echo "Die neu gebauten Artefakte in den Arbeitsbaum zurueckkopieren und mit"
+    echo "ausliefern - amd/build/ inklusive der .map-Dateien, und das React-Bundle."
+    echo "Mit --sync=<Arbeitsbaum> erledigt dieses Skript das selbst."
+    exit 1
+fi
+
+echo "Alle Build-Artefakte entsprechen ihren Quellen."

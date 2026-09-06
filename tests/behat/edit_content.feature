@@ -136,8 +136,8 @@ Feature: Reach the activity's working areas from its navigation
     Given I am on the "Test elang" "elang activity editing" page logged in as teacher1
     When I set the following fields to these values:
       | Subtitle display                | On the medium — top |
-      | Playback at subtitle boundaries | Always stop         |
+      | Playback at subtitle boundaries | Stop at every unanswered subtitle |
     And I press "Save and display"
     And I am on the "Test elang" "elang activity editing" page
     Then the field "Subtitle display" matches value "On the medium — top"
-    And the field "Playback at subtitle boundaries" matches value "Always stop"
+    And the field "Playback at subtitle boundaries" matches value "Stop at every unanswered subtitle"

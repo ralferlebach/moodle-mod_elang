@@ -57,8 +57,8 @@ $mediakind = (string) ($draft->mediakind ?? '');
 if ($mediakind === '' || $mediakind === 'none') {
     $mediaurl = new moodle_url('/mod/elang/media.php', ['id' => $cm->id]);
     echo $OUTPUT->header();
-    echo $OUTPUT->notification(get_string('editor:nomedianotice', 'mod_elang'), 'info');
-    echo $OUTPUT->single_button($mediaurl, get_string('editor:gotomedia', 'mod_elang'), 'get');
+    echo $OUTPUT->notification(get_string('editor_nomedianotice', 'mod_elang'), 'info');
+    echo $OUTPUT->single_button($mediaurl, get_string('editor_gotomedia', 'mod_elang'), 'get');
     echo $OUTPUT->footer();
     exit;
 }

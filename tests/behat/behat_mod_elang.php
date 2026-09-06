@@ -203,6 +203,25 @@ JS;
     }
 
     /**
+     * Give an activity's current version a provider medium.
+     *
+     * @Given /^elang "(?P<name_string>(?:[^"]|\\")*)" has a youtube medium "(?P<ref_string>(?:[^"]|\\")*)"$/
+     * @param string $name The activity name
+     * @param string $reference The YouTube video id
+     * @return void
+     */
+    public function elang_has_a_youtube_medium(string $name, string $reference): void {
+        global $DB;
+
+        $elang = $DB->get_record('elang', ['name' => $name], '*', MUST_EXIST);
+        $versionid = (int) $elang->currentversionid;
+
+        $DB->set_field('elang_version', 'mediakind', 'provider', ['id' => $versionid]);
+        $DB->set_field('elang_version', 'mediaprovider', 'youtube', ['id' => $versionid]);
+        $DB->set_field('elang_version', 'mediaproviderref', $reference, ['id' => $versionid]);
+    }
+
+    /**
      * Attach a media file to a named activity's current version, so a scenario
      * can assert the player's media pluginfile URL actually serves (the callback
      * mod_elang_pluginfile that once was missing).

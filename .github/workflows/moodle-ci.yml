@@ -3,7 +3,10 @@
 #
 # Triggered on push / PR to any branch EXCEPT main (dev workflow).
 #
-# Supported range: Moodle 4.5 LTS … 5.3 LTS, PHP 8.1 … 8.4.
+# Officially supported: Moodle 4.5 LTS … 5.2, PHP 8.1 … 8.4 — the range
+# version.php declares in $plugin->supported. Moodle main (5.3-to-be) runs in
+# the experimental jobs only and is not a support claim; it will not be called
+# 5.3 LTS here until it is released and declared.
 #
 # The matrix deliberately samples that range instead of forming the full cross
 # product, and it respects the per-release PHP bounds:
@@ -232,12 +235,12 @@ jobs:
           DB: mysqli
           MOODLE_BRANCH: MOODLE_405_STABLE
 
-      - name: Set up Node.js 22
+      - name: Set Node.js to 22
         if: ${{ always() }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
-    
+
       - name: Install Node dependencies
         run: |
           npm ci
@@ -276,12 +279,6 @@ jobs:
       # ci-logs/ would resolve inside the plugin directory, where it does not
       # exist — tee then fails and the step's output is lost precisely when it
       # is needed.
-      - name: Set up Node for the editor toolchain
-        if: ${{ always() }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Install editor dependencies
         if: ${{ always() }}
         run: set -o pipefail; npm ci 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/npm-ci.log"
@@ -342,7 +339,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.2 only) ────────────────────
+  # ── 2. PHPUnit (blocking — Moodle 4.5, 5.0, 5.1, 5.2) ────────────────────
   phpunit:
     name: "PHPUnit (${{ matrix.moodle }} / PHP ${{ matrix.php }} / ${{ matrix.db.engine }})"
     runs-on: ubuntu-24.04
@@ -354,6 +351,10 @@ jobs:
           - { moodle: MOODLE_405_STABLE, php: '8.1', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
           - { moodle: MOODLE_405_STABLE, php: '8.3', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
           - { moodle: MOODLE_500_STABLE, php: '8.2', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
+          # 5.1 is inside the declared support range (supported = [405, 502]),
+          # so it has to be tested. Leaving it out meant claiming support for a
+          # version no job had ever installed the plugin on.
+          - { moodle: MOODLE_501_STABLE, php: '8.3', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
           - { moodle: MOODLE_502_STABLE, php: '8.3', db: { engine: pgsql,   type: pgsql,   port: 5432, user: moodle, pass: moodle } }
           - { moodle: MOODLE_502_STABLE, php: '8.4', db: { engine: mariadb, type: mariadb, port: 3306, user: root,   pass: root   } }
 
@@ -461,7 +462,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The two ends of the declared range, plus 5.1 in the middle: the
+          # supported span is 4.5 to 5.2, and a version inside it that no
+          # browser test ever touched is a claim rather than a result.
           - { moodle: MOODLE_405_STABLE, php: '8.3' }
+          - { moodle: MOODLE_501_STABLE, php: '8.3' }
           - { moodle: MOODLE_502_STABLE, php: '8.3' }
 
     services:

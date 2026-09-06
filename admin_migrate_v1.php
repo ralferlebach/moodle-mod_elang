@@ -53,7 +53,7 @@ if ($action === 'migrate' && confirm_sesskey()) {
     if (!$confirmed) {
         echo $OUTPUT->header();
         echo $OUTPUT->confirm(
-            get_string('migratev1:confirmmigrate', 'mod_elang'),
+            get_string('migratev1_confirmmigrate', 'mod_elang'),
             new moodle_url($pageurl, ['action' => 'migrate', 'confirm' => 1, 'sesskey' => sesskey()]),
             $pageurl
         );
@@ -62,12 +62,12 @@ if ($action === 'migrate' && confirm_sesskey()) {
     }
 
     migrate_v1_activities_task::queue();
-    redirect($pageurl, get_string('migratev1:queued', 'mod_elang'), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect($pageurl, get_string('migratev1_queued', 'mod_elang'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 if ($action === 'approve' && $elangid > 0 && confirm_sesskey()) {
     v1_signoff::approve($elangid, (int) $USER->id);
-    redirect($pageurl, get_string('migratev1:approved', 'mod_elang', $elangid), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect($pageurl, get_string('migratev1_approved', 'mod_elang', $elangid), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 if ($action === 'decommission' && confirm_sesskey()) {
@@ -75,7 +75,7 @@ if ($action === 'decommission' && confirm_sesskey()) {
     if (!empty($blockers)) {
         redirect(
             $pageurl,
-            get_string('migratev1:decommissionblocked', 'mod_elang'),
+            get_string('migratev1_decommissionblocked', 'mod_elang'),
             null,
             \core\output\notification::NOTIFY_ERROR
         );
@@ -84,7 +84,7 @@ if ($action === 'decommission' && confirm_sesskey()) {
     if (!$confirmed) {
         echo $OUTPUT->header();
         echo $OUTPUT->confirm(
-            get_string('migratev1:confirmdecommission', 'mod_elang'),
+            get_string('migratev1_confirmdecommission', 'mod_elang'),
             new moodle_url($pageurl, ['action' => 'decommission', 'confirm' => 1, 'sesskey' => sesskey()]),
             $pageurl
         );
@@ -93,33 +93,33 @@ if ($action === 'decommission' && confirm_sesskey()) {
     }
 
     v1_decommissioner::decommission();
-    redirect($pageurl, get_string('migratev1:decommissioned', 'mod_elang'), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect($pageurl, get_string('migratev1_decommissioned', 'mod_elang'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('migratev1:heading', 'mod_elang'));
+echo $OUTPUT->heading(get_string('migratev1_heading', 'mod_elang'));
 
 if (!v1_detector::v1_tables_present()) {
-    echo $OUTPUT->notification(get_string('migratev1:notablespresent', 'mod_elang'), \core\output\notification::NOTIFY_INFO);
+    echo $OUTPUT->notification(get_string('migratev1_notablespresent', 'mod_elang'), \core\output\notification::NOTIFY_INFO);
     echo $OUTPUT->footer();
     exit;
 }
 
 // Section 1: activities not migrated yet.
-echo $OUTPUT->heading(get_string('migratev1:pendingheading', 'mod_elang'), 3);
+echo $OUTPUT->heading(get_string('migratev1_pendingheading', 'mod_elang'), 3);
 
 $pending = v1_detector::dry_run_report();
 if (empty($pending)) {
-    echo html_writer::tag('p', get_string('migratev1:nonepending', 'mod_elang'));
+    echo html_writer::tag('p', get_string('migratev1_nonepending', 'mod_elang'));
 } else {
     $table = new html_table();
     $table->head = [
-        get_string('migratev1:colactivity', 'mod_elang'),
-        get_string('migratev1:colcues', 'mod_elang'),
-        get_string('migratev1:colgaps', 'mod_elang'),
-        get_string('migratev1:collearners', 'mod_elang'),
-        get_string('migratev1:colalgorithm', 'mod_elang'),
-        get_string('migratev1:colissues', 'mod_elang'),
+        get_string('migratev1_colactivity', 'mod_elang'),
+        get_string('migratev1_colcues', 'mod_elang'),
+        get_string('migratev1_colgaps', 'mod_elang'),
+        get_string('migratev1_collearners', 'mod_elang'),
+        get_string('migratev1_colalgorithm', 'mod_elang'),
+        get_string('migratev1_colissues', 'mod_elang'),
     ];
     foreach ($pending as $entry) {
         $issuecount = count($entry->parseerrors);
@@ -130,23 +130,23 @@ if (empty($pending)) {
             $entry->learnercount,
             s($entry->gradingalgorithm),
             $issuecount > 0
-                ? get_string('migratev1:parseerrorcount', 'mod_elang', $issuecount)
-                : get_string('migratev1:noissues', 'mod_elang'),
+                ? get_string('migratev1_parseerrorcount', 'mod_elang', $issuecount)
+                : get_string('migratev1_noissues', 'mod_elang'),
         ];
     }
     echo html_writer::table($table);
     echo $OUTPUT->single_button(
         new moodle_url($pageurl, ['action' => 'migrate']),
-        get_string('migratev1:migratebutton', 'mod_elang')
+        get_string('migratev1_migratebutton', 'mod_elang')
     );
 }
 
 // Section 2: migrated, awaiting review and sign-off.
-echo $OUTPUT->heading(get_string('migratev1:approvalheading', 'mod_elang'), 3);
+echo $OUTPUT->heading(get_string('migratev1_approvalheading', 'mod_elang'), 3);
 
 $needapproval = v1_signoff::pending_approval_ids();
 if (empty($needapproval)) {
-    echo html_writer::tag('p', get_string('migratev1:nonependingapproval', 'mod_elang'));
+    echo html_writer::tag('p', get_string('migratev1_nonependingapproval', 'mod_elang'));
 } else {
     $verifier = new v1_verifier();
 
@@ -157,7 +157,7 @@ if (empty($needapproval)) {
             $result = $verifier->verify_activity($id);
         } catch (\Throwable $e) {
             echo $OUTPUT->notification(
-                get_string('migratev1:verifyfailed', 'mod_elang', s($e->getMessage())),
+                get_string('migratev1_verifyfailed', 'mod_elang', s($e->getMessage())),
                 \core\output\notification::NOTIFY_ERROR
             );
             continue;
@@ -165,12 +165,12 @@ if (empty($needapproval)) {
 
         if ($result->ok) {
             echo $OUTPUT->notification(
-                get_string('migratev1:verifiedclean', 'mod_elang'),
+                get_string('migratev1_verifiedclean', 'mod_elang'),
                 \core\output\notification::NOTIFY_SUCCESS
             );
         } else {
             echo $OUTPUT->notification(
-                get_string('migratev1:verifieddiscrepancies', 'mod_elang', count($result->discrepancies)),
+                get_string('migratev1_verifieddiscrepancies', 'mod_elang', count($result->discrepancies)),
                 \core\output\notification::NOTIFY_WARNING
             );
             $items = array_map('s', $result->discrepancies);
@@ -179,7 +179,7 @@ if (empty($needapproval)) {
 
         echo $OUTPUT->single_button(
             new moodle_url($pageurl, ['action' => 'approve', 'elangid' => $id]),
-            get_string('migratev1:approvebutton', 'mod_elang')
+            get_string('migratev1_approvebutton', 'mod_elang')
         );
     }
 }
@@ -187,18 +187,18 @@ if (empty($needapproval)) {
 // Section 3: decommissioning (Migration_V1_V2.md chapter 2 step 5) — only
 // ever offered once nothing blocks it; see v1_decommissioner's own
 // docblock for why this is deliberately not automatic.
-echo $OUTPUT->heading(get_string('migratev1:decommissionheading', 'mod_elang'), 3);
+echo $OUTPUT->heading(get_string('migratev1_decommissionheading', 'mod_elang'), 3);
 
 $decommissionblockers = v1_decommissioner::blockers();
 if (!empty($decommissionblockers)) {
     $items = array_map('s', $decommissionblockers);
-    echo html_writer::tag('p', get_string('migratev1:decommissionblockedintro', 'mod_elang'));
+    echo html_writer::tag('p', get_string('migratev1_decommissionblockedintro', 'mod_elang'));
     echo html_writer::alist($items);
 } else {
-    echo html_writer::tag('p', get_string('migratev1:decommissionready', 'mod_elang'));
+    echo html_writer::tag('p', get_string('migratev1_decommissionready', 'mod_elang'));
     echo $OUTPUT->single_button(
         new moodle_url($pageurl, ['action' => 'decommission']),
-        get_string('migratev1:decommissionbutton', 'mod_elang'),
+        get_string('migratev1_decommissionbutton', 'mod_elang'),
         'post'
     );
 }

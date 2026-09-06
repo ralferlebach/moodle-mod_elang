@@ -210,7 +210,7 @@ Die Skalierungs-/Integritätsbefunde des Reviews (Punkte 4–8, 18):
 
 ### E1 — Kleinreste — **[ERLEDIGT alpha.71]**
 - **Player-Meldung**: `view.php` mountet den Player nur bei publizierter Version
-  und zeigt sonst `player:nocontent` (String neu ergänzt).
+  und zeigt sonst `player_nocontent` (String neu ergänzt).
 - **P1.3 — Sprache NICHT `required`.** Bestätigt, bleibt optional.
 - **Report-Gruppenfilter**: Sichtprüfung vorhanden (SEPARATEGROUPS +
   `moodle/site:accessallgroups` in `report.php`).

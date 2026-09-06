@@ -117,7 +117,7 @@ export function Timeline({cues, durationms, currentms, mediasrc, t, onSeek, onEd
                 data-edge={edge}
                 role="slider"
                 tabIndex={0}
-                aria-label={t(edge === 'start' ? 'editor:starttime' : 'editor:endtime')}
+                aria-label={t(edge === 'start' ? 'editor_starttime' : 'editor_endtime')}
                 aria-valuemin={0}
                 aria-valuemax={total}
                 aria-valuenow={value}

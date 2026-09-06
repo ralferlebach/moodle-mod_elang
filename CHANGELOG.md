@@ -11,12 +11,751 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+## [2.0.0-beta.33] - 2026-09-06
+
+### Fixed
+- The migration fixture's subtitle file contained no gaps at all, while the cues
+  and their gaps were written by hand in the seed script beside it. The file was
+  decoration and the gaps were invented — the two had no relationship, so nothing
+  connected the learner answers being checked to anything a teacher would
+  recognise as their exercise.
+- Version 1 marked gaps **in the subtitle file itself**: `[word]` for a gap with
+  a help button, `{word}` for one without, `{word(https://…)}` for one with a
+  reference link. The fixture now uses that syntax, and the seed derives the cues
+  from the file with the same split version 1's own importer used. That is the
+  difference between a fixture that looks like version 1 data and one that is
+  version 1 data.
+
+### Added
+- Two checks closing the loop: the migrated solutions are exactly the words that
+  were bracketed in the file, in order, and the one hint hangs on the gap written
+  in square brackets rather than braces. 34 checks in total.
+
+## [2.0.0-beta.32] - 2026-09-06
+
+### Fixed
+- The migration workflow switched developer debugging on straight after
+  installing version 1, so PHP's deprecation notices about 2018 code were
+  emitted while the legacy plugin was still in place — and the log scan treated
+  them as failures. They are now suppressed for the version 1 phase only, which
+  is install and seed and nothing else. Developer debugging goes on the moment
+  the plugin is replaced, and from there nothing is filtered: everything that
+  runs is Moodle's or ours, and a warning there is a finding rather than noise.
+
+### Notes
+- The warnings could not be reproduced locally even at `debug=32767`, so the
+  suppression was scoped rather than applied globally. Turning it off everywhere
+  would have been the quick version and would have blinded the half of the job
+  that exists to catch our own mistakes.
+
+## [2.0.0-beta.31] - 2026-09-06
+
+### Added
+- `.github/workflows/migration-v1.yml` tests the upgrade path from 1.3.5 end to
+  end: it installs the 2018 plugin so that **its own** `db/install.xml` creates
+  the legacy tables, fills them with an activity, a video, a subtitle file and
+  four learners' work, replaces the plugin with this branch, runs Moodle's
+  upgrade and the migration, and then checks what survived.
+- `tests/migration/seed_v1.php` and `tests/migration/assert_v2.php`, plus
+  fixtures. 32 checks: the activity and its name, language and course module; the
+  published version; the media file at its new location under its own name; the
+  cues with their timings and assembled transcripts; every gap with its solution,
+  its character offsets pointing at the solution word, its hint and its reference
+  link; the grading algorithm mapped from V1's activity-wide options; and each of
+  the four learners' attempts with their answer counts and the exact text they
+  typed.
+- The learners are deliberately not four variations of "typed it right". One
+  answered without accents and in capitals — V1 accepted both, and grading them
+  wrong now would silently reduce a score through an upgrade nobody asked for.
+  One left a gap empty and used a hint. One answered nothing at all, and must
+  still have an attempt afterwards: "no answers" is data, not the absence of it.
+
+### Notes
+- Error strictness is split rather than switched off. The version 1 phase runs
+  with deprecation notices suppressed — 2018 code on a Moodle it was never
+  written for, and code that goes away with the migration path itself. Developer
+  debugging is switched on immediately before the upgrade, so every line that is
+  Moodle's or ours is checked at full strictness and the log is scanned
+  unfiltered. Suppressing globally would have hidden what the job exists to find.
+- This closes a gap `tests/upgrade_test.php` cannot: that test builds a V1-shaped
+  database from its own fixtures, so it can only confirm the assumptions it was
+  written with. Here the schema comes from V1 itself.
+- Run twice from a clean install while writing it, both times 32/32.
+
+## [2.0.0-beta.30] - 2026-09-05
+
+### Fixed
+- The committed React bundle did not match its sources: `ImportModal.tsx` was
+  edited after the last `npm run build`, and nothing rebuilt it on the way into
+  the release. CI caught it; `tools/check_amd_builds.sh` did not, because it only
+  ever looked at `amd/build/`. It now snapshots and rebuilds the React bundle
+  too — snapshot first, because building and then comparing compares a file with
+  itself, which is a check that cannot fail. Verified against a tampered bundle
+  (exit 1), a clean tree (exit 0) and a missing toolchain (exit 1, not a silent
+  skip).
+- Content that is not a subtitle file was accepted. The parser returned zero
+  cues, zero warnings and no error, so the import modal reported "0 cues found"
+  and offered to apply nothing — with no way for the author to tell the file had
+  simply not been understood. Such content is now refused with a message naming
+  what a timestamp line looks like. **Found by a new accessibility test**, which
+  waited for an error that never appeared.
+- **RR-06, client side.** The import modal validated nothing before calling
+  `FileReader.readAsText()`. `accept` on the input is a filter the browser
+  applies to its own dialog; a dragged file, or one chosen with the filter
+  switched off, arrived regardless — and `readAsText()` loads the whole file into
+  memory before anything can object. Size, extension and MIME type are now
+  checked first, with the same 2 MiB ceiling the server enforces. An empty MIME
+  type is accepted: browsers report one for `.vtt` often enough that rejecting on
+  it would turn away valid files.
+- The file input is cleared after each choice, so picking the *same* file again
+  after correcting it fires another change event instead of doing nothing.
+
+### Security
+- `esbuild` raised to `^0.28` (installed 0.28.2), out of GHSA-gv7w-rqvm-qjhr.
+  Build tooling only. Worth recording: `npm audit` did not report this one —
+  an audit is a query against a database at a point in time, not proof of
+  absence.
+
+### Changed
+- **JMeter is back**, and properly integrated rather than restored: the plan from
+  `8c697ea` had no latency assertion at all, only HTTP 200 and "contains cues".
+  It now enforces the same 800 ms limit per request, carries the same scenario
+  defaults as k6, and has its own workflow. JMeter exits 0 even when every
+  assertion failed, so the run evaluates the `.jtl` against the same 1% error
+  budget afterwards. Two tools measuring one endpoint can disagree, and that
+  disagreement is information neither could produce alone.
+- Moodle 5.1 joins the blocking Behat matrix, which is now three runs. The
+  declared support range is 4.5 to 5.2, and a version inside it that no browser
+  test ever touched was a claim rather than a result.
+- Workflow headers no longer call Moodle main "5.3 LTS": it is not released and
+  not declared.
+
+### Added
+- `docs/dev/accessibility.md`: the target standard, what is checked
+  automatically, and — separately — what still has to be done by a person with a
+  screen reader. A document that blurs those two is worse than none.
+- Four more axe scans: `media.php`, `transcript.php`, the open import modal, and
+  the modal showing an error. The last is what found the parser bug.
+- README describes the real authoring order (Media → Subtitles & gaps →
+  Publish), both site settings, and the four activity settings that were
+  missing. The RTL section says what is actually tested instead of claiming
+  nothing is.
+- `settings.php` and `transcript.php` docblocks match what the code does:
+  `transcript.php` claimed the solution export needed only a capability, when
+  `solutionavailability` decides it for learners.
+
+## [2.0.0-beta.29] - 2026-09-04
+
+### Fixed
+- `get_attempt_exercise::execute()` lost its docblock: the consent helper added in
+  beta.28 was inserted between the docblock and the function it belonged to, so
+  `moodle.Commenting.MissingDocblock.Function` failed the lint job.
+
+### Added
+- `tools/verify.sh` runs the static checks and reports by **exit code**. The
+  reason is the mistake above: the checks were being read by eye with the output
+  piped through `tail`, and a clean phpcs run ends with a timing line — so does a
+  run with findings, because the findings print above it. The two looked
+  identical. Nothing in the script is read by eye, a failing check prints its
+  full output, and a missing phpcs is a failure rather than a silent skip.
+
+## [2.0.0-beta.28] - 2026-09-04
+
+### Security
+- **RR-07.** A YouTube or Vimeo video is no longer embedded when the page opens.
+  Until then the provider received every learner's IP address, user agent and any
+  cookies it had already set — before anyone pressed play and without their doing
+  anything. A notice now stands where the frame would, naming the provider and
+  what it receives; the `<iframe>` is created only when the learner agrees, so
+  its `src` is never set beforehand and nothing leaves the browser.
+- The gate is a site setting (`mod_elang/providerconsent`, on by default), not an
+  activity one: whether a provider may be contacted before consent is a question
+  an institution answers once, not a didactic choice for whoever creates the
+  exercise.
+- It is checked as `!== '0'` rather than cast to a boolean. `get_config()` returns
+  false for a setting whose default was never written, and a cast would have
+  turned "nobody has decided yet" into "no consent needed" — the one answer a
+  data-protection control must not give by accident. A Behat run found this.
+- Consent lasts for the browser session. A reload does not ask again; a stored
+  preference would outlive the session it was given in and stop being something
+  the learner is aware of granting.
+
+### Added
+- `docs/dev/provider-embeds.md`: what the embed discloses, why routing the stream
+  through Moodle is not a real option for YouTube — the terms of service forbid
+  it, the signed IP-bound segment URLs make it unstable, and it would turn the
+  learning platform into a CDN — and what works instead.
+- The "source address" field help now points at institutional media servers
+  (Opencast, Panopto, Kaltura): their direct file URL needs no plugin change, keeps
+  IP addresses in-house, involves no consent question, and unlike a provider frame
+  reports its playback time, so subtitle position and pause mode work fully.
+- Four PHPUnit tests and two Behat scenarios covering the gate, its off switch,
+  the unset-setting case and the file medium that never asks.
+
+## [2.0.0-beta.27] - 2026-09-04
+
+### Added
+- **RR-09.** Moodle 5.1 joins both CI matrices. `supported = [405, 502]` covers
+  everything from 4.5 to 5.2, so leaving 5.1 out meant claiming support for a
+  version no job had ever installed the plugin on.
+- **RR-11.** `docs/dev/dependencies.md`: the audit result on the exact lockfile
+  (three scopes, zero findings), why React stays on 18 and what would end that,
+  and why Jest stays on 29.
+- **RR-12.** Four Playwright gates: a learner reaches and answers a gap with the
+  keyboard alone, the finish button is focusable, and the exercise still works at
+  200% and 400% zoom without sideways scrolling or a clipped input.
+- **RR-13.** `docs/dev/release-policy.md`: one delivery format, the complete
+  repository. Moodle installs a plugin by unpacking a ZIP, so a cleanup script
+  that only exists in the repository helps nobody who installed one — and two
+  formats would make "which one did you install?" the first question after every
+  report.
+
+### Removed
+- **RR-10.** The JMeter plan, its makefile targets and its documentation.
+  It measured the same endpoint as k6, needed a JVM nothing else here needs, and
+  had drifted out of step. A second load test that measures the same thing is not
+  a second opinion, it is a second maintenance debt. Listed in
+  `db/removed_files.txt`; needs an explicit `git rm`.
+
+## [2.0.0-beta.26] - 2026-09-03
+
+### Fixed
+- Deleting an attempt took a lock of its own (`attempt:<id>`) while every other
+  write to an attempt takes `attempt_write_<id>`. A delete could therefore run
+  alongside an answer that was still being graded, and the answer would be
+  written back into an attempt that no longer existed. Found while measuring
+  RR-08, not by it.
+
+### Added
+- **RR-08.** The write path is measured rather than assumed. A full answer run
+  over every gap: 2.6 ms per submission at 50 gaps, 2.9 at 200, 3.1 at 400, with
+  a **constant 15 queries** per submission throughout. The quadratic growth the
+  review predicted is in rows iterated in PHP, not in database round trips —
+  eight times the exercise length costs about 20% more per submission. Against a
+  threshold of 50 ms p95 per submission, the measured figure is more than an
+  order of magnitude clear, so no delta-update was built: it would replace a
+  correct, well-tested recalculation with a running total that can drift.
+- A guard on the property whose loss would actually hurt: answering the thirtieth
+  gap must not cost more queries than answering the first. A wall clock on a
+  shared runner is not a measurement; a query count is.
+
+## [2.0.0-beta.25] - 2026-09-03
+
+### Added
+- **RR-06.** The subtitle parser enforces its own limits, so they hold for the
+  import modal, the web service and any later caller alike: 2 MB of content,
+  4000 cues, 5000 characters per line. Content that is not valid UTF-8 is
+  refused with an explanation naming the likely cause — a file saved in an older
+  encoding — rather than letting broken bytes reach the database and surface
+  later as a transcript nobody can account for. Too many cues are refused, not
+  truncated: keeping the first few thousand would hand back an exercise missing
+  its ending with no way to tell.
+- **RR-06.** One absurdly long line skips its own block with a warning instead
+  of failing the import, so a single corrupted block costs that block rather
+  than the transcript around it.
+- **RR-06.** The import modal keeps the keyboard focus. Tabbing past the last
+  control used to land on the page behind the backdrop — still there, still
+  clickable, and covered — so the cursor simply disappeared. Closing now returns
+  the focus to the button that opened the dialog.
+- Tests for all of it: five in PHPUnit for the parser limits and the accepted
+  UTF-8 case, one in Jest walking the focus into the dialog, around it and back
+  out.
+
+## [2.0.0-beta.24] - 2026-09-03
+
+### Changed
+- **RR-04.** The pause mode called "Always stop" never stopped at a subtitle
+  whose gaps were all filled in — that behaviour was asked for and is right, so
+  the name was the thing that was wrong. It is now "Stop at every unanswered
+  subtitle", and the help text, the schema comment and the code comment say the
+  same. A consequence worth stating: a second run through an exercise stops only
+  where something is still missing.
+- **RR-05.** Three capability descriptions in the README named the wrong default
+  roles: `useregex` is managers only, `exporttranscript` includes students, and
+  `deleteattempts` is editing teachers rather than all teachers. The README is
+  what an administrator reads before deciding whether to change anything, so a
+  wrong entry there is worse than none.
+- **RR-05.** `db/services.php` claimed every function was on the official mobile
+  service. Only the learner-facing ones are, which is right: the authoring
+  editor is a React application for a desktop browser, and publishing from a
+  context that cannot show it would be an endpoint with no interface behind it.
+
+### Added
+- Two contract tests: README and `db/access.php` must name exactly the same
+  capabilities, and no authoring function may appear on the mobile service while
+  every learner function must.
+
+## [2.0.0-beta.23] - 2026-09-03
+
+### Security
+- **RR-01.** The report's person filter listed everyone with an attempt in the
+  activity, ignoring the group scope the report itself applies. In
+  separate-groups mode a teacher without `moodle/site:accessallgroups` was shown
+  the names of learners whose attempts the report correctly hid — a name is
+  personal data, and leaking it through a dropdown is the same disclosure as
+  leaking the row. The options now come from `attempt_report::filter_users()`,
+  which reuses the same group-scoped query as the listing, count, aggregate and
+  export. Naming a foreign user id in the filter parameter already returned
+  nothing; there is now a test that says so.
+
+### Fixed
+- **RR-02.** `js/vendor/react/editor.bundle.js.map` was a leftover of a
+  development build committed in August. `build.mjs` writes a map only in dev
+  mode, so the production bundle never referenced it — yet it shipped in every
+  release since, carrying the full source of `ImportPanel` and `MediaPanel` long
+  after both were deleted. Removed, listed in `db/removed_files.txt`, and
+  excluded in `.gitignore`.
+- **RR-03.** Cue timings are validated before publishing: a negative start, an
+  end that is not after its start, and an end past the medium's duration each
+  block the publish and name the cue by sort order and key. The editor checked
+  these while typing, but `save_draft_version` and `publish_version` are external
+  functions and a published version is what every attempt reads.
+
+### Added
+- `tests/artefacts_test.php`: no source map ships, the bundle points at no map
+  that is not there, no deleted component survives in any built artefact, and
+  every path in `db/removed_files.txt` really is gone. A committed artefact is
+  the one file that can fall out of step with its source and stay that way.
+
+## [2.0.0-beta.22] - 2026-09-03
+
+### Fixed
+- The load test failed runs it should have passed. The 300 ms figure was written
+  as a k6 threshold, and k6 has no notion of a threshold that only reports: any
+  crossed threshold sets exit code 99, and `abortOnFail: false` only decides
+  whether the run stops early. A run at p95 = 507 ms — comfortably inside the
+  800 ms limit — was therefore reported as a failure.
+- The limit is now the only latency threshold. The target is a metric,
+  `elang_content_within_target`, giving the share of reads that met it, plus a
+  plain-language verdict in the summary that says which of the two numbers is a
+  gate and which is not. Verified against a live site: target missed, limit kept,
+  exit code 0.
+
+## [2.0.0-beta.21] - 2026-09-03
+
+### Added
+- A `smoke` scenario for the load test (25 learners), and it is the default. The
+  self-contained target is PHP's built-in development server on a shared
+  four-core runner: a measured 25-learner run sits at a p95 of 582 ms there, so
+  200 learners would cross the 800 ms gate because of the target rather than
+  because of the plugin. The workflow warns when the two are combined, and
+  `classroom` and `lecturehall` belong in `external` mode against a real
+  installation.
+
+## [2.0.0-beta.20] - 2026-09-03
+
+### Fixed
+- `get_version_content` still asked for `provider:youtube`. When the string ids
+  were flattened in beta.14 the fix reached the working tree but not the
+  delivery: the patch collected files by whether they *contained* a renamed
+  identifier, and this one assembles its id at run time, so it matched nothing
+  and was left out. Three PHPUnit tests failed on it in CI.
+
+### Added
+- `tests/lang_strings_test.php` guards the three properties that renaming broke
+  or nearly broke: the two language files declare the same identifiers, only
+  capability strings may contain a colon, and every identifier the code
+  assembles at run time has strings behind it. The last one was verified by
+  reintroducing the exact defect and watching the test name the file and the
+  prefix.
+
+### Changed
+- Deliveries are now the whole codebase rather than a patch of changed files.
+  A patch is only as good as the list of files it was built from, and that list
+  was assembled by searching for literals — which is precisely what a run-time
+  identifier is not.
+
+### Fixed
+- Documentation claimed an untested upgrade path from an earlier 2.0 beta. No
+  beta was ever published, so outside development machines there is no
+  intermediate state to upgrade from; everything else is a fresh install, which
+  takes its whole schema from `db/install.xml`. The only real upgrade path is
+  version 1 to 2.0, and `tests/upgrade_test.php` builds a real version 1
+  database to exercise it. Corrected in `docs/dev/ci-gates.md`,
+  `docs/dev/roadmap.md` and the session log.
+
+## [2.0.0-beta.19] - 2026-09-03
+
+### Changed
+- The load test has two agreed scenarios instead of a default virtual-user
+  count: `classroom` (200 learners) and `lecturehall` (2000 learners), both on a
+  50-cue exercise — the length of a real listening exercise rather than of a
+  stress fixture. Chosen from the workflow's dropdown; `custom` still frees the
+  numbers.
+- Two latency thresholds instead of one placeholder: p95 above **800 ms** fails
+  the run, and p95 above **300 ms** is reported without failing it. Every answer
+  in this exercise is a request, so 800 ms is where a learner starts wondering
+  whether their keypress registered; 300 ms is what it should feel like, and
+  seeing a drift from 280 ms to 700 ms while it is still a drift is the point of
+  reporting it separately.
+- The ramp scales with the load: above 500 virtual users it is 60 s rather than
+  15 s. Arriving at 2000 that fast measures the ramp, and a cold connection pool
+  dominates the p95.
+
+### Added
+- `docs/dev/load-testing.md`: the scenarios, both thresholds and the reasoning,
+  what the plan measures and what it deliberately does not.
+
+## [2.0.0-beta.18] - 2026-09-02
+
+### Added
+- Seven privacy tests closing the gaps the existing eleven left. Erasure was
+  tested for attempts and responses but never for the authoring trail, which is
+  where the plugin does something other than delete: it detaches the person and
+  keeps the content, because the versions belong to the course and deleting them
+  would erase other people's work. There are now tests that the stamp is cleared
+  while the cues survive, that the migration sign-off is cleared too, that
+  another author's trail is untouched, that a course or system context is
+  ignored rather than acted on, and that wiping one activity does not reach into
+  another.
+- A lifecycle test the privacy API itself does not cover: a course cleanup
+  deletes activities directly, without going through any provider method, so
+  `course_delete_module()` has to take the attempts and responses with it. It
+  does; now it is asserted.
+- A metadata completeness test derived from `db/install.xml` rather than from a
+  list written by hand: a table added later with a column naming a person would
+  otherwise be personal data the privacy API never mentions, and nobody would
+  notice until an export came back incomplete.
+
+## [2.0.0-beta.17] - 2026-09-02
+
+### Fixed
+- The selected cue in the editor list had no visible edge at all. Bootstrap's
+  `.list-group-flush > .list-group-item` sets `border-width: 0 0 1px` at the same
+  specificity as a two-class selector, and the compiled theme emitted it last, so
+  the marker never appeared. The selector now names the container as well. Found
+  by the new right-to-left test, which asserted the border before flipping it.
+
+### Changed
+- Direction-dependent styles are logical rather than physical:
+  `border-inline-start`, `margin-inline-start`, `inset-inline`. The timeline
+  handles stay physical on purpose — the timeline draws time, not text, so the
+  earlier edge of a cue is on the left in every locale, and flipping it would put
+  the "start" handle at the end of the sound it belongs to.
+
+### Added
+- Four Playwright tests: the exercise fits a 390px screen without sideways
+  scrolling, the medium and the transcript together fit a phone, an overlay
+  caption stays inside the picture, and the selected-row marker moves to the
+  other side when the document direction flips. The last needs no Arabic
+  language pack, only the direction one would set.
+- `docs/dev/v1-legacy-exit.md`: when the version 1 tables and `elang.options` may
+  be dropped, who decides, and when the migration code itself can go. Nothing is
+  automatic — decommissioning runs only from the command line, because a data
+  loss triggered by cron is not a migration.
+
+## [2.0.0-beta.16] - 2026-09-02
+
+### Added
+- `docs/dev/capabilities.md`: who may do what, where each check happens, and the
+  three places where a capability alone is not the whole answer — `attempt` is
+  held by every learner so ownership is checked too, `useregex` sits higher than
+  the rest of the authoring right because a bad expression is evaluated against
+  learner input, and the two transcript exports are gated by activity settings
+  on top of their capabilities.
+- `docs/dev/roadmap.md`: the deferred work, out of the code. Two features are
+  server-side complete but have no UI, three things are deliberately not done,
+  and three are gaps to close before a stable release.
+
+### Changed
+- Roadmap labels removed from three source comments. `gap_rule_generator` and
+  `special_characters` described implemented code as "the 2.1 feature", and a
+  schema test justified itself by a milestone number rather than by the property
+  it actually proves.
+
+### Notes
+- Report query performance was measured rather than assumed: at 20,000 attempts
+  in one activity the default listing takes 11 ms, sorting by name 43 ms, the
+  count 1.7 ms and the aggregate 4.1 ms, and the plan uses the index on
+  `elangid`. No index was added — there is no measured need for one.
+
+## [2.0.0-beta.15] - 2026-09-02
+
+### Fixed
+- Restoring a learner's answers walked the whole transcript once per gap. The
+  attempt state carries an entry for every gap, and each one was looked up with
+  `list.querySelector()`, so the cost grew with the square of the transcript. It
+  is one indexed pass now: on a 400-cue exercise the restore phase went from
+  791 ms to 419 ms, measured in the browser.
+- Cue pages are requested together rather than one after another, and each page's
+  markup is built in a document fragment and attached once instead of appending
+  every cue to the live list.
+
+### Added
+- The Playwright fixture's long transcript is 400 cues, the length of a lesson
+  recording, and it is published so the player actually runs against it.
+- A regression test asserts what is structural rather than timed: every cue
+  arrives, and it takes one request per page of fifty rather than one per cue.
+  No wall-clock assertion — a shared runner's clock is not a measurement.
+
+## [2.0.0-beta.14] - 2026-09-02
+
+### Changed
+- **Breaking for translations.** 356 language string identifiers lost their
+  colons: `player:ready` is now `player_ready`, `report:heading` is
+  `report_heading`, and so on throughout. Moodle and AMOS accept only
+  `[a-z0-9_]` in a string id, so the colon form could not be published to the
+  plugin directory or translated on lang.moodle.org. Any existing local language
+  customisation of these strings has to be redone against the new ids; the
+  German pack shipped with the plugin is already converted.
+- The ten capability strings keep their colons — `elang:manage` and its nine
+  siblings name the capabilities themselves and must match them exactly.
+- `strings['player_ready']` became `strings.player_ready` throughout the AMD
+  modules: with the colons gone the keys are valid identifiers, and ESLint's
+  `dot-notation` rule says so.
+
+### Notes
+- Three identifiers are built at runtime (`'provider_' . $key`,
+  `'report_' . $column`) and are invisible to a search for a literal string. They
+  were found by searching for a quoted prefix ending in a colon concatenated with
+  a variable, and the same search confirmed the two remaining hits are a lock
+  name and a test fixture, not string ids.
+
+## [2.0.0-beta.13] - 2026-09-02
+
+### Added
+- `tests/external/security_contract_test.php`: what every external function must
+  do, checked for all of them at once. It walks `db/services.php` rather than a
+  hand-written list, so a function added later without its guards fails here
+  instead of in a review. It asserts that every declared function names a real
+  external_api class with the three required methods and declares a capability,
+  that no attempt-scoped function accepts another learner's attempt, that no
+  authoring function accepts a learner, and that answering or hinting rejects a
+  gap from a different exercise.
+- `docs/dev/ci-gates.md`: which jobs block a release and which do not, and what a
+  green run therefore does and does not prove. Playwright, k6 and the Moodle
+  `main` jobs are all outside the blocking set, so their results have to be
+  produced deliberately before a stable release.
+
+### Notes
+- The audit of the fifteen external functions found no further finding: every
+  one already routes through a helper that checks context, capability and the
+  object it was handed. That is now enforced by a test rather than asserted in a
+  document.
+
+## [2.0.0-beta.12] - 2026-09-02
+
+### Security
+- Draft media could be served to any learner who guessed a version id. Two
+  file-serving callbacks existed: `elang_pluginfile`, which asks
+  `version_manager::user_can_access_version_file()` whether this person may have
+  this version, and `mod_elang_pluginfile`, which asked only for
+  `mod/elang:view`. `file_pluginfile()` tries `{component}_pluginfile` first and
+  only falls back to `{modname}_pluginfile`, so the weaker one was the one that
+  ran and the version check was unreachable. The weaker callback is gone and the
+  version-aware one carries the name Moodle actually calls. Its access rules,
+  and the tests covering them, are unchanged — they simply take effect now.
+- A test asserts that only one callback exists, so a second one cannot quietly
+  take precedence again.
+
+## [2.0.0-beta.11] - 2026-09-02
+
+### Fixed
+- With captions over the picture, the overlay stayed empty until playback
+  produced its first `timeupdate`: a learner opening the exercise saw a picture
+  and no sentence, and the transcript that would otherwise carry it is not on the
+  page in that mode. The player now resolves the active cue once at render time.
+- The cursor was placed in a gap that was not on screen. The active cue has by
+  then been moved into the caption overlay and the list it came from is hidden,
+  so the search has to cover the whole player rather than the list.
+
+### Added
+- Playwright covers the three subtitle positions, the audio fallback and the cue
+  list: 13 tests where there were 5. These are the two things unit tests and
+  Behat cannot settle — where something is drawn, and how forty cues behave on a
+  rendered page.
+- The fixture seeds an activity per subtitle position, an audio one, a forty-cue
+  transcript, and a learner. Only the student archetype holds
+  `mod/elang:attempt`, so the seeded teacher cannot start an attempt and the
+  player correctly refuses to load for them; anything about what a learner sees
+  has to be driven by a learner.
+- `requireEnv()` fails with the variable's name instead of letting a missing one
+  surface as a 404 three assertions later.
+
+## [2.0.0-beta.10] - 2026-09-01
+
+### Added
+- Maximum length, the reference link and per-variant regular-expression matching
+  are editable at last. All three are in the schema and in the web service, but
+  no control existed for them: the only way to set them was an import or a
+  database edit.
+- They sit in a collapsed "Advanced settings" section of the gap editor, because
+  most gaps never need a decision about them and placing them beside the solution
+  suggested otherwise.
+
+### Changed
+- Solution, matching algorithm and accepted variants share one row, and the
+  variants read as a short list of spellings rather than a column of full-width
+  fields each with its own remove link.
+
+### Fixed
+- The recurring "File is stale and needs to be rebuilt" reports came from the
+  browserslist database, not from a lost file. Rollup's output depends on the
+  installed `caniuse-lite` version; Moodle's package-lock pins one from 2022
+  while CI refreshes it before building, so identical sources produced different
+  artefacts. `tools/check_amd_builds.sh` now updates the database before it
+  builds, and the committed artefacts match what CI produces. Note that the
+  update reports "No target browser changes" and the output still differs, so
+  that message cannot be relied on.
+
+## [2.0.0-beta.9] - 2026-09-01
+
+### Changed
+- The attempt detail is a piece of work rather than a row dump. The counts a
+  teacher checks first — answered, of those accepted, exactly right, needed a
+  hint — lead, and the gaps are grouped under the cue they belong to, because
+  "which sentences did this person struggle with" is a question the flat table
+  could not answer without mentally regrouping every row. A cue that still has
+  something wrong or unanswered carries a left edge, so a long attempt can be
+  scanned rather than read.
+- The graded result is a check, a cross or a warning triangle carrying its
+  wording as an accessible name, matching the player.
+- `mod_elang\output\attempt_detail` and `templates/attempt_detail.mustache`;
+  the two label closures in `report.php` moved into the renderables that use
+  them.
+
+### Fixed
+- `amd/build/player.min.js` and its map in the repository did not match
+  `amd/src/player.js`. Rebuilding from the repository's own source produces
+  exactly the artefacts shipped here, so the source was right all along and the
+  build simply never arrived — the rebuilt files were copied into the throwaway
+  Moodle tree the check runs in, and the release was packaged from the working
+  tree, which still held the old ones.
+- `tools/check_amd_builds.sh` takes `--sync=<working tree>` and copies the
+  rebuilt artefacts there itself, so the copy that gets packaged cannot fall
+  behind the copy that was checked.
+
+### Added
+- Concurrency tests for the attempt state, which the review listed as an open
+  gate: a repeated finish must not move `timefinish`, a response or a hint that
+  loses the race to finish is refused and leaves neither a row nor a changed
+  score behind, repeated starts yield one attempt rather than two in-progress
+  ones the resume logic could not choose between, and deleting an attempt takes
+  its responses with it.
+
+### Fixed
+- The "finish anyway" question used `window.confirm()`, which ESLint's `no-alert`
+  rejects — and rightly: a native confirm is unthemed, cannot carry a translated
+  button label and returns focus nowhere in particular. It is now Moodle's own
+  `Notification.saveCancelPromise()`.
+- `tools/check_amd_builds.sh` runs Grunt with `--max-lint-warnings=0`, the way
+  moodle-plugin-ci does. Without it a plain `grunt` run reports lint warnings and
+  still exits 0, which is how two findings reached CI. The value has to be
+  attached with "=" — `--max-lint-warnings 0` makes Grunt read the 0 as a task
+  name.
+- The remaining nine transactions in `version_manager` and `attempt_manager` now
+  roll back too. Each one writes several rows that describe one thing between
+  them, and half of any of them is a state the plugin has no name for: a
+  published version with the previous one archived and nothing in its place, a
+  media description that disagrees with the files on disk, a draft branched
+  without the content it was branched from, a response stored without the
+  aggregates that describe it, a revealed hint whose penalty never reached the
+  score.
+
+## [2.0.0-beta.8] - 2026-09-01
+
+### Fixed
+- A rejected draft payload wiped the author's existing content.
+  `save_draft_content()` deleted the draft's whole content and only then
+  validated the new set, so a duplicate cue key or an unknown grading algorithm —
+  both things an editing session can produce — left the author with neither their
+  old work nor their new. Validation now happens before the delete.
+- No transaction in the plugin handled rollback. Moodle's delegated
+  transactions do not unwind on their own: starting one and letting an exception
+  escape leaves the completed statements in place. `transaction_trait` runs a
+  unit of work with a proper `rollback()`, and `save_draft_content()` uses it as
+  the backstop for a genuine database failure during the insert.
+
+### Added
+- Failure-injection tests for autosave: a rejected save must release the
+  in-flight flag, or the controller would treat every later attempt as "already
+  saving" and queue it forever — the author would see "error" and never leave it,
+  with no sign that further edits were going nowhere. Also that a failed save
+  leaves nothing queued, that an edit during a save produces exactly one more
+  save, and that cancel really stops a pending one.
+- Tests that a rejected payload and a stale draft revision each change nothing,
+  and that saving with the revision actually held still works — a guard that
+  blocks real work is no better than no guard.
+
+## [2.0.0-beta.7] - 2026-09-01
+
+### Added
+- `amd/src/playback.js`: the four decisions the player makes about playback —
+  which cue is playing, where to park after pausing, whether a boundary should
+  stop, and which gap comes next — extracted as pure functions with no imports.
+  Every playback bug reported against this plugin has lived in one of them, and
+  each was found in a browser because they were reachable only through a media
+  element and a cue list. 18 Jest tests now ask them directly, written from those
+  reports: a cue owns its start and not its end, pausing parks inside the cue
+  rather than on its edge, a fully answered cue never holds playback, and
+  advancing does not wrap around.
+
+### Fixed
+- The cue list's timestamps used Bootstrap's `.text-muted`, which at #6a737b
+  reaches 4.36:1 on the selected row's tinted background — under the 4.5:1 WCAG AA
+  threshold, and a shortfall this stylesheet introduced by tinting that row. They
+  now carry a colour that clears the threshold on both backgrounds.
+- `esbuild` moved from the `0.23.x` range to `^0.25`, out of GHSA-67mh-4wv8-2f99.
+  Build tooling only, not the plugin runtime, but `npm audit` now reports nothing.
+  The bundle still builds reproducibly.
+
+### Changed
+- CI: Node 22 is selected before Moodle's own npm install rather than after it,
+  so Moodle's Grunt runs on it too, and Moodle's dependencies are installed with
+  `npm ci` plus a browserslist refresh. Applied to both pipelines.
+
+## [2.0.0-beta.6] - 2026-09-01
+
+### Fixed
+- The caption vanished at the instant playback paused. Pausing at a cue boundary
+  parked playback exactly on the edge, where no cue is active, and the overlay
+  cleared — taking the sentence off the screen at the moment the learner was
+  asked to fill it in. Playback now lands just inside the cue it stopped at, and
+  an overlay keeps its caption until another cue replaces it.
+- Subtitles were lost in fullscreen. A fullscreened media element is drawn alone,
+  without the sibling overlay that carries the gaps; the request is now moved up
+  to the stage that holds both. Where a platform refuses that — notably iOS,
+  whose fullscreen is a system player that cannot contain HTML — the medium plays
+  without captions and the exercise continues unharmed on exit.
+- The medium and the transcript were not bounded, so on a normal screen the
+  learner scrolled between the picture and the sentence they were answering —
+  the coupling the "below the medium" mode exists to avoid. Both are now bounded
+  in viewport units.
+- A cue whose gaps were all filled in still held playback at its end, and Enter
+  still stopped on answered gaps.
+
+### Changed
+- Settings sits directly after the activity in the tab bar, then Media,
+  Subtitles & gaps, Attempts, Export.
+- An overlay caption always pauses at a cue boundary and the pause-mode setting
+  is hidden for it: the caption shows only the cue that is playing, so running on
+  would take the sentence being answered off the screen. There is nothing to
+  choose, so nothing is offered.
+- With captions over the picture, the transcript is no longer repeated below it.
+- The exercise starts with the cursor in the first unanswered gap when captions
+  are over the picture, which is also what makes playback stop at that cue.
+- Graded gaps show a check, a cross or a warning triangle instead of a word, and
+  "check answer" and "show hint" are quiet icon buttons. The wording is not lost:
+  it is the accessible name and the tooltip.
+- "Finish attempt" is preceded by how many gaps are answered, and finishing with
+  gaps still empty asks first. Finishing incomplete stays possible — an exercise
+  nobody can hand in unfinished is one people abandon instead.
+
 ### Fixed
 - Two lint findings the local `grunt amd` run does not cover: a comment in
   `amd/src/player.js` starting with a lowercase word, and a trailing blank line in
   `tests/behat/report.feature`. The full `grunt` task set — which adds
   `gherkinlint` and fails on warnings — is what CI runs, and is now what is run
-  locally. The minified build is unchanged, since rollup strips comments.
+  locally.
+- `amd/build/player.min.js.map` was left stale by that comment change. A source
+  map embeds the original source in `sourcesContent`, so a comment-only edit
+  leaves the .min.js byte-identical and still changes the map — which is what
+  made it easy to miss twice.
+
+### Added
+- `tools/check_amd_builds.sh`: runs the full Grunt task set and compares every
+  file under `amd/build/`, maps included, instead of the one whose change was
+  expected.
 
 ## [2.0.0-beta.5] - 2026-09-01
 
@@ -275,7 +1014,7 @@ action buttons above the player.
   existing activities keep handing out nothing. Learners hold
   `mod/elang:exporttranscript` by default, so the capability alone could not carry
   this decision.
-- `elang_can_export_worksheet()`, `elang_can_export_solution()` and
+- `elang_can_export:worksheet()`, `elang_can_export:solution()` and
   `elang_can_export_transcript()` in `lib.php`, the single place that decision is
   made. `transcript.php` calls them before it streams anything.
 - `edit.php` refuses to mount the editor while the draft has no medium and points

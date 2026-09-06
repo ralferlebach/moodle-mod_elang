@@ -323,10 +323,10 @@ final class navigation_test extends \advanced_testcase {
         $mapping = $method->invoke($view)[\navigation_node::TYPE_SETTING];
 
         $positions = [
-            'mod_elang_media' => 1,
-            'mod_elang_editcontent' => 2,
-            'mod_elang_reports' => 3,
-            'modedit' => 4,
+            'modedit' => 1,
+            'mod_elang_media' => 2,
+            'mod_elang_editcontent' => 3,
+            'mod_elang_reports' => 4,
             'mod_elang_exporttranscript' => 5,
         ];
         foreach ($positions as $key => $position) {

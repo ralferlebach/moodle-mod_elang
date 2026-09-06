@@ -17,9 +17,15 @@
 /**
  * External function declarations for mod_elang.
  *
- * All functions are exposed to core/ajax and to the official mobile service, so
- * the same functions serve both the web player and the Moodle App without
- * duplication.
+ * Every function is exposed to core/ajax, so the web player and the authoring
+ * editor reach them all.
+ *
+ * Only the learner-facing ones — starting, reading and answering an attempt —
+ * additionally carry MOODLE_OFFICIAL_MOBILE_SERVICE. The authoring functions do
+ * not: the editor is a React application built for a desktop browser with a
+ * pointer and a keyboard, and offering a way to publish a version from a
+ * context that cannot show the editor would be an endpoint with no interface
+ * behind it.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach

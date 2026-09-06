@@ -18,10 +18,23 @@
  * Transcript export for mod_elang.
  *
  * Streams the published version's transcript as a PDF, Word, ODF or text file,
- * or shows a small chooser when no format is given. The learner worksheet
- * (every gap blanked out) is gated on mod/elang:exporttranscript, which
- * learners hold too; the solution copy (full text) additionally requires
- * mod/elang:exportsolution, which learners do not hold.
+ * or shows a small chooser when no format is given. Only a published version is
+ * ever exported; a draft belongs to whoever is writing it.
+ *
+ * Two exports, two rules, and neither is a capability check alone:
+ *
+ * - The **worksheet** (every gap blanked out) needs mod/elang:exporttranscript,
+ *   which learners hold as well — but whether a given activity offers it to
+ *   them is the allowtranscriptdownload setting. elang_can_export_worksheet()
+ *   is where both meet.
+ * - The **solution** (full text) is available to staff through
+ *   mod/elang:exportsolution. Learners do not hold it; for them the
+ *   solutionavailability setting decides — never, after their own submission,
+ *   or always. elang_can_export_solution() is the only place that decides this.
+ *
+ * A capability alone would answer neither question: an activity that has not
+ * finished being taught should not hand out its solutions just because the
+ * person asking is enrolled.
  *
  * @package    mod_elang
  * @copyright  2026 Ralf Erlebach
@@ -48,13 +61,13 @@ require_capability('mod/elang:exporttranscript', $context);
 $canworksheet = elang_can_export_worksheet($elang, $context);
 $cansolution = elang_can_export_solution($elang, $context);
 if (!$canworksheet && !$cansolution) {
-    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
+    throw new moodle_exception('error_transcriptnotavailable', 'mod_elang');
 }
 if ($solution && !$cansolution) {
-    throw new moodle_exception('error:solutionnotavailable', 'mod_elang');
+    throw new moodle_exception('error_solutionnotavailable', 'mod_elang');
 }
 if (!$solution && !$canworksheet) {
-    throw new moodle_exception('error:transcriptnotavailable', 'mod_elang');
+    throw new moodle_exception('error_transcriptnotavailable', 'mod_elang');
 }
 
 $masked = !$solution;
@@ -65,7 +78,7 @@ $name = clean_filename(format_string($elang->name));
 
 if ($format === 'pdf' || $format === 'txt' || $format === 'docx' || $format === 'odt') {
     if ($version === null) {
-        throw new moodle_exception('error:nopublishedversion', 'mod_elang');
+        throw new moodle_exception('error_nopublishedversion', 'mod_elang');
     }
 
     $exporter = new \mod_elang\local\export\transcript_exporter();

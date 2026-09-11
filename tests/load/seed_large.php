@@ -110,6 +110,35 @@ for ($c = 1; $c <= $numcues; $c++) {
 $manager = new \mod_elang\local\domain\version_manager();
 $draft = $manager->get_or_create_draft($elangid, (int) $admin->id);
 $manager->save_draft_content((int) $draft->id, $cues);
+
+// A medium, because the load plan measures serving it as well. Without one the
+// media half of every learner session silently does nothing, and the plan would
+// report a clean run while testing half of what it claims to.
+//
+// Two megabytes of zeroes: large enough that a Range request is a real Range
+// request, small enough that a few thousand of them do not turn the measurement
+// into a bandwidth test. Nothing decodes it.
+$mediapath = sys_get_temp_dir() . '/elang-load-medium.mp4';
+if (!file_exists($mediapath)) {
+    file_put_contents($mediapath, str_repeat("\0", 2 * 1024 * 1024));
+}
+// The set_draft_media call takes a draft file area, the way the form hands it
+// a path — so the file goes into one first.
+$draftitemid = file_get_unused_draft_itemid();
+get_file_storage()->create_file_from_pathname([
+    'contextid' => \context_user::instance((int) $admin->id)->id,
+    'component' => 'user',
+    'filearea' => 'draft',
+    'itemid' => $draftitemid,
+    'filepath' => '/',
+    'filename' => 'lesson.mp4',
+], $mediapath);
+
+$manager->set_draft_media((int) $draft->id, [
+    'kind' => 'file',
+    'mediadraftitemid' => $draftitemid,
+]);
+
 $manager->publish((int) $draft->id, (int) $admin->id);
 $version = $manager->get_published($elangid);
 if ($version === null) {

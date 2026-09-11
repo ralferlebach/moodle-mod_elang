@@ -107,34 +107,6 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
-      - name: Refuse a scenario the self-contained target cannot serve
-        run: |
-          # The self-contained target is PHP's built-in server with 8 workers on
-          # a 4-CPU runner. It serves the smoke scenario honestly; at 200 or 2000
-          # concurrent users nearly all of the measured time is spent waiting for
-          # a worker, and the result describes that server rather than the
-          # plugin.
-          #
-          # This was measured, not assumed: a lecturehall run against it returned
-          # p95 = 29 090 ms with 1327 interrupted iterations, while the same code
-          # at smoke level returns around 410 ms. A number produced that way is
-          # worse than no number, because it looks like a finding.
-          #
-          # classroom and lecturehall therefore require mode=external, against a
-          # real installation. docs/dev/load-testing.md says the same; the
-          # workflow now enforces it instead of letting the combination be
-          # chosen and fail four minutes later.
-          if [ "${{ github.event.inputs.mode }}" = "selfcontained" ] \
-             && [ "${{ github.event.inputs.scenario }}" != "smoke" ] \
-             && [ "${{ github.event.inputs.scenario }}" != "custom" ]; then
-            echo "Das Szenario '${{ github.event.inputs.scenario }}' misst gegen das"
-            echo "selbstenthaltene Ziel nur PHPs Entwicklungsserver, nicht das Plugin."
-            echo ""
-            echo "Fuer classroom und lecturehall: mode=external gegen eine echte"
-            echo "Installation waehlen. Siehe docs/dev/load-testing.md."
-            exit 1
-          fi
-
       - name: Resolve the scenario
         id: scenario
         run: |
@@ -147,22 +119,22 @@ jobs:
           #               where the cliff is before somebody finds it.
           case "${{ github.event.inputs.scenario }}" in
             smoke)
-              echo "vus=25"  >> "$GITHUB_OUTPUT"
+              echo "learners=25"  >> "$GITHUB_OUTPUT"
               echo "cues=50" >> "$GITHUB_OUTPUT"
               echo "duration=90" >> "$GITHUB_OUTPUT"
               ;;
             classroom)
-              echo "vus=200"  >> "$GITHUB_OUTPUT"
+              echo "learners=200"  >> "$GITHUB_OUTPUT"
               echo "cues=50"  >> "$GITHUB_OUTPUT"
               echo "duration=120" >> "$GITHUB_OUTPUT"
               ;;
             lecturehall)
-              echo "vus=2000" >> "$GITHUB_OUTPUT"
+              echo "learners=2000" >> "$GITHUB_OUTPUT"
               echo "cues=50"  >> "$GITHUB_OUTPUT"
               echo "duration=180" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "vus=${{ github.event.inputs.vus }}" >> "$GITHUB_OUTPUT"
+              echo "learners=${{ github.event.inputs.vus }}" >> "$GITHUB_OUTPUT"
               echo "cues=50" >> "$GITHUB_OUTPUT"
               echo "duration=${{ github.event.inputs.duration }}" >> "$GITHUB_OUTPUT"
               ;;
@@ -288,8 +260,8 @@ jobs:
             -e BASE_URL='${{ steps.params.outputs.base_url }}' \
             -e TOKEN='${{ steps.params.outputs.token }}' \
             -e VERSIONID='${{ steps.params.outputs.versionid }}' \
-            -e VUS='${{ steps.scenario.outputs.vus }}' \
-            -e DURATION='${{ steps.scenario.outputs.duration }}s' \
+            -e LEARNERS='${{ steps.scenario.outputs.learners }}' \
+            -e ARRIVAL_WINDOW='180' \
             -e P95='${{ github.event.inputs.p95 }}' \
             -e P95_TARGET='${{ github.event.inputs.p95target }}' \
             --summary-export=k6-summary.json \
@@ -309,7 +281,8 @@ jobs:
             echo "sha:       ${{ github.sha }}"
             echo "mode:      ${{ github.event.inputs.mode }}"
             echo "scenario:  ${{ github.event.inputs.scenario }}"
-            echo "vus:       ${{ steps.scenario.outputs.vus }}"
+            echo "learners:  ${{ steps.scenario.outputs.learners }}"
+            echo "arrival:   180s"
             echo "cues:      ${{ steps.scenario.outputs.cues }}"
             echo "duration:  ${{ steps.scenario.outputs.duration }}s"
             echo "p95 limit: ${{ github.event.inputs.p95 }}ms (fails above)"

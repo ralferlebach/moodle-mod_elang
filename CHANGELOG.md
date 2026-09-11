@@ -19,6 +19,15 @@ Includes a full pass through the extended review checklist; the result is
 recorded in `docs/dev/code-review-rc1.md`.
 
 ### Added
+- **`release-artefact.yml`**, from the audit's P2-4: no immutable artefact
+  existed, and "the ZIP that was sent on Tuesday" is not something an
+  administrator can verify or a plugin directory can point at. The workflow
+  builds the ZIP from a tag, refuses to publish when the tag and
+  `$plugin->release` disagree, verifies that the committed React bundle still
+  matches its sources, checks that nothing listed in `db/removed_files.txt`
+  survived, rejects an archive containing build leftovers, and attaches the
+  archive with its SHA-256. It does **not** rebuild the artefacts — publishing a
+  freshly built one would ship something no test ever ran against.
 - **A registry contract for the external API**, from the Marketplace audit
   (issue #13). Every entry in `db/services.php` is now checked against Moodle's
   own `external_functions` table: the class resolves, the method exists, the
@@ -42,6 +51,11 @@ recorded in `docs/dev/code-review-rc1.md`.
 - The spelling has been made consistent anyway, because it cost an audit a P1
   finding and would cost the next reader the same time. The contract test the
   audit asked for is the part that was genuinely missing, and it is now there.
+- The audit's remaining points are mapped, with evidence, in
+  `docs/dev/code-review-rc1.md`. Two were already satisfied, two are now
+  implemented, and one — representative external load evidence — needs
+  infrastructure rather than code; what that infrastructure has to provide is
+  written down.
 
 ### Added
 - **Course reset.** `elang_reset_userdata()` and its two form functions did not

@@ -299,6 +299,29 @@ gemeinsamen SHA.
 
 ---
 
+# Nachtrag: MATURITY_STABLE-/Marketplace-Audit
+
+Zweiter, unabhängiger Durchgang (Issues #13–#18). Zuordnung und Stand:
+
+| Befund | Bewertung | Stand |
+|---|---|---|
+| **P1-1** `generate_rule_gaps` mit ungültigem Klassennamen | **Falschbefund** | Gegen eine laufende Site geprüft: Moodle registriert `mod_elang\external\generate_rule_gaps`, 37 Zeichen, zwei Backslashes, `class_exists() === true`. In einem einfach zitierten PHP-String ist `\\` **ein** Backslash, nicht zwei — beide Schreibweisen im File lösen identisch auf, und `main` ist byte-identisch mit diesem Baum. Schreibweise trotzdem vereinheitlicht. |
+| **P2-1** generischer Registry-Contract-Test | **berechtigt** | Umgesetzt. Prüft für alle 13 Funktionen gegen `external_functions`: Klasse, Methode, `external_api`, deklarierte Capability existiert in `db/access.php`, Typ, Mobile-Zuordnung, registrierter Name = deklarierter Name. Gegengeprüft mit falschem Klassennamen. |
+| **P2-2** Smoke von bewusstem Stress trennen | **berechtigt** | Umgesetzt. `classroom`/`lecturehall` sind im `selfcontained`-Modus abgelehnt; ein roter Lauf bedeutet wieder etwas. |
+| **P2-3** repräsentative externe Lastmessung | **berechtigt, nicht durch mich erbringbar** | Anforderungen an die Zielumgebung dokumentiert (`load-testing.md`): PHP-FPM, `pm.max_children`, DB-Verbindungsgrenze, produktive Caches, eigener Lastgenerator. |
+| **P2-4** unveränderliches Release-Artefakt | **berechtigt** | Umgesetzt: `release-artefact.yml` baut das ZIP aus einem Tag, gleicht Tag gegen `$plugin->release` ab, prüft Bundle-Reproduzierbarkeit und `removed_files.txt`, lehnt Build-Reste ab und hängt Archiv samt SHA-256 an das Release. |
+| **P2-5** expliziter Browser-A11y-Gate | **bereits vorhanden** | Axe prüft den React-Editor und die Lernendenansicht auf `serious`/`critical`, dazu Tastaturbedienung der Lücken, 200/400 % Reflow und RTL. Der Playwright-Job scheitert bei einem Verstoß. Nicht im Push-Gate, weil er eine geseedete Site braucht — bewusst und dokumentiert. |
+| **P2-6** Migrationslauf als dauerhaftes Gate | **berechtigt** | In `ci-gates.md` festgehalten: nicht nach der Stable-Freigabe abschalten. Job und Migrationscode verschwinden gemeinsam oder gar nicht. |
+
+## Was der Falschbefund gelehrt hat
+
+Er war nicht grundlos. Die Begründung dahinter — *„Unit-Test der Klasse ≠
+Runtime-Test der External Function"* — traf zu: nichts prüfte, ob ein
+registrierter Name tatsächlich auflöst. Ein Tippfehler in `db/services.php`
+wäre unbemerkt geblieben, weil alle Tests die Klassen direkt aufrufen.
+
+Die Diagnose war falsch, die Lücke war echt. Beides gehört gesagt.
+
 # Empfohlene Freigabeentscheidung
 
 **Freigabe als Release Candidate: ja.** Es ist kein P0 offen; die zwei Befunde

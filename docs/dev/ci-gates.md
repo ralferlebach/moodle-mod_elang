@@ -36,6 +36,7 @@ einem einzelnen Job bedeutet für sich genommen nichts.
 | `phpmd` | Meldet Stilhinweise, keine Fehler. |
 | **Playwright** (`playwright.yml`) | Braucht eine installierte, geseedete Site. Läuft manuell und montags 03:00, nicht bei jedem Push. |
 | **k6** (`load-k6.yml`) | Lastmessung, nur manuell. Ein Schwellwert im PR-Gate erzeugt auf geteilten Runnern Fehlalarme statt Erkenntnis. Szenarien und Schwellen: `docs/dev/load-testing.md`. |
+| **Release-Artefakt** (`release-artefact.yml`) | Baut das ZIP aus einem Tag, prüft Tag gegen `$plugin->release`, Bundle-Reproduzierbarkeit und entfernte Dateien, und hängt Archiv samt SHA-256 an das GitHub-Release. Läuft bei `v2.*`-Tags. |
 | **Migration 1.3.5 → 2.0** (`migration-v1.yml`) | Installiert das Plugin von 2018, füllt es, aktualisiert auf diesen Stand und prüft Aktivität, Medium, Cues, Lücken, Einstellungen und Nutzerdaten (32 Prüfungen). Manuell und montags 04:00. Vor einer Freigabe **verpflichtend**. |
 
 Zur Fehlerstrenge in diesem Lauf: Die **Version-1-Phase** (Installation und
@@ -103,6 +104,17 @@ vendor/bin/behat --config <behat.yml> --profile=chrome --tags=@mod_elang
 CI-Workflows tun dasselbe im **Moodle**-Baum, in dem Grunt läuft — nicht im
 Plugin-Verzeichnis. Ohne das weicht der Rollup-Build ab, und ein eingechecktes
 Artefakt gilt als veraltet, obwohl sich nichts daran geändert hat.
+
+### Der Migrationslauf bleibt ein Freigabe-Gate (P2-6)
+
+`migration-v1.yml` ist **nicht** nach der 2.0-Stable-Freigabe abzuschalten. Der
+Pfad 1.3.5 → 2.0 bleibt so lange real, wie irgendeine Site noch von V1 kommt —
+und das endet nicht mit einer Freigabe, sondern erst mit dem Ausstieg, den
+`docs/dev/v1-legacy-exit.md` an eine Bedingung knüpft. Wird der Job vorher
+entfernt, verschwindet der einzige Nachweis, dass der Migrationscode noch tut,
+was er soll, während der Code selbst stehen bleibt.
+
+Wenn der Migrationspfad entfällt, verschwinden Job **und** Code gemeinsam.
 
 Das ist zweimal passiert: in Inkrement 20 lokal, und danach auf `main`, weil
 `moodle-release.yml` den Schritt gar nicht hatte, während `moodle-ci.yml` ihn

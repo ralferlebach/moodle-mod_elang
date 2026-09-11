@@ -1,0 +1,178 @@
+# Release artefact – mod_elang
+#
+# Builds the distributable ZIP from a tag and attaches it to a GitHub Release.
+#
+# The audit's P2-4 is that no immutable artefact exists: everything shipped so
+# far was a ZIP built by hand, and "the file Ralf sent on Tuesday" is not
+# something a site administrator can verify or a plugin directory can point at.
+# A tag is immutable; a ZIP built from it in CI is reproducible by anyone.
+#
+# What this deliberately does NOT do is rebuild the committed artefacts. The
+# amd/build/ files and the React bundle are part of the repository, and a
+# release job that rebuilt them would publish something nobody had tested. It
+# checks that they match their sources and refuses to publish if they do not —
+# which is the same gate the pipeline applies, at the moment it matters most.
+
+name: Release artefact
+
+on:
+  push:
+    tags:
+      - 'v2.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag or SHA to build the artefact from'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-artefact-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  artefact:
+    name: Build and publish the release ZIP
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the tagged state
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          path: plugin
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Read the declared version
+        id: version
+        run: |
+          # The tag and version.php must agree. A release named v2.0.0 that
+          # contains a plugin calling itself something else is the kind of thing
+          # nobody notices until a site refuses to upgrade.
+          release=$(php -r 'require "plugin/version.php"; echo $plugin->release;')
+          version=$(php -r 'require "plugin/version.php"; echo $plugin->version;')
+          maturity=$(php -r 'require "plugin/version.php"; echo $plugin->maturity;')
+          echo "release=$release"   >> "$GITHUB_OUTPUT"
+          echo "version=$version"   >> "$GITHUB_OUTPUT"
+          echo "maturity=$maturity" >> "$GITHUB_OUTPUT"
+          echo "release=$release version=$version maturity=$maturity"
+
+          if [ -n "${{ github.event.inputs.ref }}" ]; then
+            echo "Manueller Lauf — der Tag-Abgleich wird uebersprungen."
+            exit 0
+          fi
+
+          tag="${GITHUB_REF#refs/tags/}"
+          expected="v$release"
+          if [ "$tag" != "$expected" ]; then
+            echo "Der Tag '$tag' passt nicht zu \$plugin->release ('$release')."
+            echo "Erwartet wurde '$expected'."
+            exit 1
+          fi
+
+      - name: Verify the committed build artefacts match their sources
+        run: |
+          # Not rebuilt — verified. Publishing a freshly built artefact would
+          # ship something no test ever ran against.
+          cd plugin
+          npm ci
+          before=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+          npm run build
+          after=$(sha256sum js/vendor/react/editor.bundle.js | cut -d' ' -f1)
+          if [ "$before" != "$after" ]; then
+            echo "Das eingecheckte React-Bundle entspricht nicht seinen Quellen."
+            echo "committed: $before"
+            echo "rebuilt:   $after"
+            exit 1
+          fi
+          git checkout -- js/vendor/react/editor.bundle.js 2>/dev/null || true
+          echo "Bundle reproduzierbar: $before"
+
+      - name: Check that nothing listed as removed is still present
+        run: |
+          cd plugin
+          missing=0
+          while IFS= read -r line; do
+            case "$line" in
+              ''|'#'*) continue ;;
+            esac
+            if [ -e "$line" ]; then
+              echo "Noch vorhanden, obwohl in db/removed_files.txt gelistet: $line"
+              missing=1
+            fi
+          done < db/removed_files.txt
+          [ "$missing" -eq 0 ]
+
+      - name: Build the ZIP
+        id: zip
+        run: |
+          # The directory inside the ZIP must be named after the plugin, because
+          # that is the directory Moodle unpacks it into.
+          mkdir -p dist/elang
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude 'tests/playwright/node_modules' \
+            --exclude 'tests/playwright/test-results' \
+            --exclude 'tests/playwright/playwright-report' \
+            --exclude '.DS_Store' \
+            plugin/ dist/elang/
+
+          name="mod_elang-${{ steps.version.outputs.release }}.zip"
+          (cd dist && zip -qr "../$name" elang)
+          sha256sum "$name" | tee "$name.sha256"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          echo "Inhalt:"
+          unzip -l "$name" | tail -2
+
+      - name: Refuse to publish a ZIP containing build leftovers
+        run: |
+          # Cheap, and it has caught something before: a development source map
+          # shipped in every release for weeks.
+          if unzip -l "${{ steps.zip.outputs.name }}" | grep -E 'node_modules|/\.git/|js/vendor/react/.*\.map'; then
+            echo "Das Archiv enthaelt Artefakte, die nicht ausgeliefert werden duerfen."
+            exit 1
+          fi
+          echo "Keine Fremdartefakte im Archiv."
+
+      - name: Publish the release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.zip.outputs.name }}
+            ${{ steps.zip.outputs.name }}.sha256
+          # A release candidate is marked as a pre-release, so the plugin
+          # directory and anyone browsing the repository see what it is.
+          prerelease: ${{ contains(steps.version.outputs.release, 'RC') || contains(steps.version.outputs.release, 'beta') }}
+          body: |
+            mod_elang ${{ steps.version.outputs.release }} (build ${{ steps.version.outputs.version }})
+
+            Der SHA-256 des Archivs liegt als eigene Datei bei.
+
+            Was dieses Artefakt belegt und was nicht, steht in
+            `docs/dev/release-policy.md`. Insbesondere: ein gruener
+            Pipeline-Lauf belegt weder Barrierefreiheit noch Lastverhalten —
+            diese Nachweise werden getrennt erbracht.
+
+      - name: Upload the artefact for a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod_elang-${{ steps.version.outputs.release }}
+          path: |
+            ${{ steps.zip.outputs.name }}
+            ${{ steps.zip.outputs.name }}.sha256

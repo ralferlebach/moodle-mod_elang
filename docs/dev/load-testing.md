@@ -73,6 +73,25 @@ als keine — sie wird geglaubt.
 Für `classroom` und `lecturehall` braucht es `mode=external` gegen eine echte
 Installation mit einem richtigen Webserver.
 
+## Was eine belastbare Hörsaal-Messung braucht (P2-3)
+
+Der `external`-Modus misst gegen eine Installation, die du stellst. Damit die
+Zahl etwas über das Plugin aussagt und nicht über die Umgebung, muss diese
+Umgebung die Last überhaupt annehmen können:
+
+| Bestandteil | Anforderung | Warum |
+|---|---|---|
+| Webserver | nginx oder Apache mit **PHP-FPM** | PHPs eingebauter Server hat feste Worker und keine Warteschlangenstrategie |
+| PHP-FPM | `pm.max_children` ≥ erwartete Gleichzeitigkeit | sonst misst man wieder die Warteschlange |
+| Datenbank | eigener Host oder eigener Container, `max_connections` passend | die Verbindungsgrenze wird vor der CPU erreicht |
+| Moodle-Caches | MUC produktiv konfiguriert, `cachejs` an | eine Site im Entwicklungsmodus misst ihr eigenes Neukompilieren |
+| Lastgenerator | **nicht** auf derselben Maschine | 2000 virtuelle Nutzende brauchen selbst CPU |
+
+Ohne diese fünf Punkte ist auch ein `external`-Lauf nur eine andere Art, die
+Testumgebung zu vermessen. Das Ergebnis gehört mit Umgebungsbeschreibung
+festgehalten, sonst ist es mit dem nächsten nicht vergleichbar — dafür gibt es
+`k6-run-context.txt` und `jmeter-run-context.txt`.
+
 ## Wogegen gemessen wird — und warum das die wichtigere Entscheidung ist
 
 Der Modus `selfcontained` baut sich eine Moodle-Installation auf dem

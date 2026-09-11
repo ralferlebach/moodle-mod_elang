@@ -73,7 +73,7 @@ concurrency:
 
 jobs:
   k6:
-    name: "k6 (${{ github.event.inputs.mode }} / ${{ github.event.inputs.vus }} VUs)"
+    name: "k6 (${{ github.event.inputs.mode }} / ${{ github.event.inputs.scenario }})"
     runs-on: ubuntu-24.04
 
     services:
@@ -106,6 +106,34 @@ jobs:
           extensions: pgsql, gd, intl, zip, soap, mbstring, curl, xml, exif
           ini-values: max_input_vars=5000
           coverage: none
+
+      - name: Refuse a scenario the self-contained target cannot serve
+        run: |
+          # The self-contained target is PHP's built-in server with 8 workers on
+          # a 4-CPU runner. It serves the smoke scenario honestly; at 200 or 2000
+          # concurrent users nearly all of the measured time is spent waiting for
+          # a worker, and the result describes that server rather than the
+          # plugin.
+          #
+          # This was measured, not assumed: a lecturehall run against it returned
+          # p95 = 29 090 ms with 1327 interrupted iterations, while the same code
+          # at smoke level returns around 410 ms. A number produced that way is
+          # worse than no number, because it looks like a finding.
+          #
+          # classroom and lecturehall therefore require mode=external, against a
+          # real installation. docs/dev/load-testing.md says the same; the
+          # workflow now enforces it instead of letting the combination be
+          # chosen and fail four minutes later.
+          if [ "${{ github.event.inputs.mode }}" = "selfcontained" ] \
+             && [ "${{ github.event.inputs.scenario }}" != "smoke" ] \
+             && [ "${{ github.event.inputs.scenario }}" != "custom" ]; then
+            echo "Das Szenario '${{ github.event.inputs.scenario }}' misst gegen das"
+            echo "selbstenthaltene Ziel nur PHPs Entwicklungsserver, nicht das Plugin."
+            echo ""
+            echo "Fuer classroom und lecturehall: mode=external gegen eine echte"
+            echo "Installation waehlen. Siehe docs/dev/load-testing.md."
+            exit 1
+          fi
 
       - name: Resolve the scenario
         id: scenario

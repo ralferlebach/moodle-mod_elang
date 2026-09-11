@@ -47,6 +47,32 @@ ist, die Klippe zu kennen, bevor jemand anders sie findet.
 Auszulösen über *Actions → Load test (k6) → Run workflow*; `custom` gibt VUs
 und Dauer frei.
 
+## Was das selbstenthaltene Ziel aushält — und was nicht
+
+Der `selfcontained`-Modus baut ein Moodle und bedient es mit **PHPs eingebautem
+Entwicklungsserver**, acht Worker auf einem Vier-CPU-Runner. Das reicht für
+`smoke` (25 Nutzende) und für nichts darüber.
+
+Gemessen, nicht angenommen:
+
+| Szenario gegen `selfcontained` | p95 | Aussage |
+|---|---|---|
+| `smoke`, 25 VUs | ~410 ms | brauchbar als Trendwert |
+| `lecturehall`, 2000 VUs | **29 090 ms**, 1327 abgebrochene Iterationen | misst die Warteschlange des Testservers |
+
+Bei 2000 gleichzeitigen Anfragen auf acht Worker warten rund 250 Anfragen je
+Worker. Die 29 Sekunden sind Wartezeit, kein Verarbeiten — über das Plugin sagt
+die Zahl nichts.
+
+**Beide Workflows lehnen `classroom` und `lecturehall` im
+`selfcontained`-Modus deshalb ab**, mit Hinweis auf `external`. Sie liefen
+vorher an und scheiterten nach vier Minuten mit einer Zahl, die wie ein Befund
+aussah. Eine Messung, die nur ihre eigene Umgebung beschreibt, ist schlechter
+als keine — sie wird geglaubt.
+
+Für `classroom` und `lecturehall` braucht es `mode=external` gegen eine echte
+Installation mit einem richtigen Webserver.
+
 ## Wogegen gemessen wird — und warum das die wichtigere Entscheidung ist
 
 Der Modus `selfcontained` baut sich eine Moodle-Installation auf dem

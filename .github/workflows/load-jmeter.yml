@@ -119,6 +119,20 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
+      - name: Refuse a scenario the self-contained target cannot serve
+        run: |
+          # Same limit as the k6 workflow: the self-contained target is PHP's
+          # built-in server and cannot represent 200 or 2000 concurrent users.
+          # See docs/dev/load-testing.md.
+          if [ "${{ github.event.inputs.mode }}" = "selfcontained" ] \
+             && [ "${{ github.event.inputs.scenario }}" != "smoke" ] \
+             && [ "${{ github.event.inputs.scenario }}" != "custom" ]; then
+            echo "Das Szenario '${{ github.event.inputs.scenario }}' misst gegen das"
+            echo "selbstenthaltene Ziel nur PHPs Entwicklungsserver, nicht das Plugin."
+            echo "Fuer classroom und lecturehall: mode=external waehlen."
+            exit 1
+          fi
+
       - name: Resolve the scenario
         id: scenario
         run: |

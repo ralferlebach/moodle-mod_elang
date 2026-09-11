@@ -37,6 +37,24 @@ use core_external\external_api;
  */
 final class security_contract_test extends \advanced_testcase {
     /**
+     * The capabilities this plugin defines.
+     *
+     * Read from db/access.php rather than listed here: a list would be one more
+     * thing to keep in step, and keeping things in step by hand is what this
+     * class exists to stop relying on.
+     *
+     * @return array The capability names
+     */
+    private static function declared_capabilities(): array {
+        global $CFG;
+
+        $capabilities = [];
+        require($CFG->dirroot . '/mod/elang/db/access.php');
+
+        return array_keys($capabilities);
+    }
+
+    /**
      * The declared services of this plugin.
      *
      * @return array Service name => definition
@@ -77,6 +95,23 @@ final class security_contract_test extends \advanced_testcase {
 
             $this->assertArrayHasKey('capabilities', $definition, "$name declares no capability");
             $this->assertNotEmpty($definition['capabilities'], "$name declares an empty capability");
+
+            // The capability has to be one this plugin actually defines. A
+            // renamed or mistyped one here is invisible: Moodle uses the field
+            // to tell a mobile client what it may attempt, so a wrong value
+            // produces no error anywhere — just a client that gives up on a
+            // function it was allowed to call, or offers one it was not.
+            foreach (explode(',', (string) $definition['capabilities']) as $capability) {
+                $capability = trim($capability);
+                if ($capability === '') {
+                    continue;
+                }
+                $this->assertContains(
+                    $capability,
+                    self::declared_capabilities(),
+                    "$name declares '$capability', which db/access.php does not define."
+                );
+            }
             $this->assertArrayHasKey('type', $definition, "$name declares no type");
             $this->assertContains($definition['type'], ['read', 'write'], "$name has an odd type");
         }
@@ -209,6 +244,87 @@ final class security_contract_test extends \advanced_testcase {
             $this->fail('request_hint accepted a gap from another exercise.');
         } catch (\moodle_exception $e) {
             $this->assertNotEmpty($e->getMessage());
+        }
+    }
+
+    /**
+     * Every declared function is reachable the way Moodle actually calls it.
+     *
+     * The existing completeness test asks whether the class exists. That is not
+     * the same question: Moodle dispatches through the external_functions table,
+     * which is filled from db/services.php at install time, and a classname that
+     * is merely *written* differently there — an extra escape, a stray
+     * namespace prefix, a rename that missed this file — produces a row that
+     * resolves to nothing. The plugin still passes every unit test, because
+     * tests call the class directly and never go through the table.
+     *
+     * An audit raised exactly this about generate_rule_gaps. It turned out to be
+     * a false alarm: the two escaping styles in that file look different and
+     * resolve identically. This test is the answer to the underlying question,
+     * which was fair even though the finding was not — nothing checked the
+     * registered name against reality.
+     *
+     * @return void
+     */
+    public function test_every_declared_function_is_registered_and_resolvable(): void {
+        global $DB;
+
+        $services = $this->services();
+
+        foreach ($services as $name => $definition) {
+            $registered = $DB->get_record('external_functions', ['name' => $name]);
+
+            $this->assertNotFalse(
+                $registered,
+                "$name is declared in db/services.php but not registered. "
+                    . 'Has the plugin been installed since it was added?'
+            );
+
+            $this->assertTrue(
+                class_exists($registered->classname),
+                "$name is registered as '{$registered->classname}', which does not resolve to a class."
+            );
+
+            $this->assertTrue(
+                method_exists($registered->classname, $registered->methodname),
+                "$name is registered with method '{$registered->methodname}', which that class does not have."
+            );
+
+            // The stored name is what the dispatcher uses, so a difference
+            // between it and the declaration means one of the two is stale.
+            $this->assertSame(
+                ltrim($definition['classname'], '\\'),
+                $registered->classname,
+                "$name is declared and registered under different class names."
+            );
+        }
+    }
+
+    /**
+     * Calling a function through Moodle's dispatcher reaches the plugin's code.
+     *
+     * Not a permission test — the call is expected to be refused, because the
+     * caller holds nothing. What matters is *how* it is refused: a missing or
+     * unresolvable class fails while Moodle is still looking the function up,
+     * with a different error and before any of the plugin's own checks run.
+     *
+     * @return void
+     */
+    public function test_the_dispatcher_reaches_the_plugin(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        foreach (array_keys($this->services()) as $name) {
+            try {
+                external_api::call_external_function($name, [], false);
+            } catch (\Throwable $e) {
+                // A parameter or permission failure means the function was
+                // found and entered. Anything about a missing class or method
+                // means it was not.
+                $message = $e->getMessage();
+                $this->assertStringNotContainsString('does not exist', $message, "$name: $message");
+                $this->assertStringNotContainsString('Class', $message, "$name: $message");
+            }
         }
     }
 }

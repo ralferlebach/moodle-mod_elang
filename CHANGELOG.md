@@ -19,6 +19,31 @@ Includes a full pass through the extended review checklist; the result is
 recorded in `docs/dev/code-review-rc1.md`.
 
 ### Added
+- **A registry contract for the external API**, from the Marketplace audit
+  (issue #13). Every entry in `db/services.php` is now checked against Moodle's
+  own `external_functions` table: the class resolves, the method exists, the
+  declared capability is one `db/access.php` defines, and the registered name
+  matches the declaration. Verified against a deliberately wrong class name,
+  which the gate rejects.
+- A Playwright test drives rule-based gap generation through the real path —
+  editor, `core/ajax`, the service registry, the external function. The existing
+  unit test calls the class directly and would pass even if the registration
+  were broken.
+
+### Notes on the audit's P1 finding
+- **It is a false positive, and the plugin is not affected.** The audit read
+  `'mod_elang\\external\\generate_rule_gaps'` in `db/services.php` as producing
+  doubled namespace separators. In a single-quoted PHP string `\\` is one
+  backslash, so both that spelling and the unescaped one used by the other
+  twelve entries resolve to the same class. Checked against a running site:
+  Moodle registers `mod_elang\external\generate_rule_gaps`, 37 characters with
+  two backslashes, identical in shape to `mod_elang\external\start_attempt`,
+  and `class_exists()` is true. `main` is byte-identical to this tree.
+- The spelling has been made consistent anyway, because it cost an audit a P1
+  finding and would cost the next reader the same time. The contract test the
+  audit asked for is the part that was genuinely missing, and it is now there.
+
+### Added
 - **Course reset.** `elang_reset_userdata()` and its two form functions did not
   exist, so a course reset left every attempt in place. A teacher reusing a
   course for the next cohort would have handed the new group an exercise already
@@ -49,6 +74,17 @@ recorded in `docs/dev/code-review-rc1.md`.
   URL that was called — instead of only how many. It also fails with a specific
   message when the called URL carries no parameters at all, because a broken plan
   and an outage are otherwise indistinguishable from the numbers.
+- The load-test workflows offered a combination that could not pass: `classroom`
+  and `lecturehall` against the self-contained target, which is PHP's built-in
+  server with eight workers on a four-CPU runner. A lecturehall run returned
+  p95 = 29 090 ms with 1327 interrupted iterations — queueing, not processing,
+  and a number about the test server rather than the plugin. Both workflows now
+  refuse the combination up front and point at `mode=external`. A measurement
+  that only describes its own environment is worse than none, because it gets
+  believed.
+- The k6 job title showed `github.event.inputs.vus` regardless of the scenario,
+  so a lecturehall run was labelled "200 VUs" while driving 2000. It shows the
+  scenario now.
 - `moodle-release.yml` never updated the browserslist database at all, so
   `moodle-plugin-ci grunt` on `main` built `amd/build/player.min.js` against the
   years-old caniuse-lite in Moodle's own lockfile. Rollup's output depends on

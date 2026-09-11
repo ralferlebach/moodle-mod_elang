@@ -51,3 +51,49 @@ test('timeline cue edges are keyboard-operable sliders', async ({page}) => {
         await expect(handle).toBeFocused();
     }
 });
+
+test('rule-based gaps go through the real web service', async({page}) => {
+    // The point of this test is the path, not the algorithm. The unit tests
+    // call generate_rule_gaps::execute() directly and pass even if
+    // db/services.php registers a class name that resolves to nothing — the
+    // editor would then fail in production while CI stayed green. This drives
+    // the editor, so the call goes Editor → core/ajax → the service registry →
+    // the external function, which is the part nothing else exercises.
+    // The file's beforeEach already logs in and opens the editor; logging in a
+    // second time in a context that has a session lands on Moodle's "you are
+    // already logged in" page instead of the login form.
+    test.setTimeout(120000);
+    await page.getByRole('button', {name: 'Save draft'}).waitFor();
+
+    const control = page.locator('[data-region="rulegaps"]');
+    await control.waitFor();
+
+    // Watch the network rather than only the result: a wrong class name fails
+    // inside Moodle's dispatcher and comes back as an exception with HTTP 200,
+    // which a DOM assertion alone would report as "no gaps appeared".
+    const callPromise = page.waitForResponse((response) =>
+        response.url().includes('service.php')
+        && (response.request().postData() || '').includes('generate_rule_gaps'));
+
+    await control.locator('select').selectOption('words');
+    await control.locator('input[type="text"]').first().fill('chat, chien');
+
+    // "Generate gaps" is what calls the service. The apply button carries
+    // data-action="applyrule" but only exists once a result has come back —
+    // which makes its appearance the clearest evidence that the call worked.
+    await control.getByRole('button', {name: /Generate gaps/i}).click();
+
+    const response = await callPromise;
+    expect(response.status()).toBe(200);
+
+    const payload = await response.text();
+    // Moodle returns errors with HTTP 200, so the body is what says whether the
+    // function was reached at all.
+    expect(payload).not.toContain('does not exist');
+    expect(payload).not.toContain('codingerror');
+    expect(payload).not.toContain('invalidrecord');
+
+    // The apply button appears only when the service returned gaps.
+    await expect(control.locator('[data-action="applyrule"]')).toBeVisible({timeout: 30000});
+});
+

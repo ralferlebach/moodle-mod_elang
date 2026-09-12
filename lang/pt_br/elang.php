@@ -1,0 +1,136 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Brazilian Portuguese strings for mod_elang — differences from pt only.
+ *
+ * Moodle resolves pt_br against pt, so anything absent here comes from the base
+ * pack. Only the strings that genuinely read differently in Brazil are
+ * overridden; copying all 422 would mean every later change to pt had to be
+ * repeated here, and the two would drift apart without anyone noticing.
+ *
+ * Unlike es/es_mx, where the differences are mostly spelling, several everyday
+ * computing words differ outright:
+ *
+ * - ficheiro → arquivo
+ * - utilizador → usuário
+ * - transferir → baixar (and Transferência → Download)
+ * - guardar → salvar
+ * - separador → aba
+ * - predefinição → padrão
+ * - sítio → site
+ * - disciplina → curso
+ * - aceite → aceita
+ * - respetivo → respectivo
+ *
+ * That is why this pack is larger than es_mx: 63 strings rather than 37. They
+ * were derived from pt by applying exactly those substitutions, so a string
+ * appears here only because one of them actually occurred in it.
+ *
+ * The product name is deliberately *not* overridden: "Ditado em vídeo" reads the
+ * same on both sides of the Atlantic.
+ *
+ * Not shipped: .gitattributes keeps every language pack except English out of
+ * the release archive. This file exists to be uploaded to AMOS, where the
+ * translator community owns it from then on — and where a Brazilian reviewer
+ * may well find further differences these rules do not catch.
+ *
+ * @package    mod_elang
+ * @copyright  2026 Ralf Erlebach
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+$string['allowedlanguages_desc'] = 'Os idiomas de conteúdo oferecidos ao criar ou editar um ditado em vídeo. Não selecione nenhum para oferecer a lista completa. Uma atividade mantém o idioma salvo mesmo que o remova daqui mais tarde.';
+$string['allowtranscriptdownload'] = 'Download da transcrição pelos participantes';
+$string['allowtranscriptdownload_help'] = 'Quando está ativo, os participantes podem baixar a ficha de trabalho da transcrição, com cada lacuna oculta, como PDF, Word, OpenDocument ou texto.
+
+Está inativo por padrão. O pessoal docente com permissão pode baixar a transcrição sempre, seja qual for esta definição.';
+$string['allowtranscriptdownload_label'] = 'Os participantes podem baixar a ficha de trabalho';
+$string['editor_answers'] = 'Variantes aceitas';
+$string['editor_autosaved'] = 'Todas as alterações foram salvas.';
+$string['editor_autosaveerror'] = 'Não foi possível salvar automaticamente — use Salvar para tentar de novo.';
+$string['editor_importfilehint'] = 'Escolha um arquivo WebVTT (.vtt) ou SubRip (.srt) com legendas.';
+$string['editor_importfromfile'] = 'Carregar um arquivo';
+$string['editor_importreaderror'] = 'Não foi possível ler o arquivo.';
+$string['editor_importtoolarge'] = 'Este arquivo ocupa {$a->size}; a importação aceita no máximo {$a->max}.';
+$string['editor_importwrongtype'] = 'Escolha um arquivo de legendas ({$a}).';
+$string['editor_linkurl_help'] = 'Mostrada junto à lacuna como site onde consultar a palavra. Deixe vazio para não oferecer nenhuma.';
+$string['editor_mediafile'] = 'Arquivo carregado';
+$string['editor_mediasaved'] = 'Média salvo.';
+$string['editor_nomedianotice'] = 'Acrescente primeiro o arquivo de vídeo ou áudio no aba Média. As legendas são sincronizadas com o média, por isso o editor precisa dele antes de poder trabalhar em segmentos e lacunas.';
+$string['editor_novideotrack'] = 'Este navegador não consegue descodificar a faixa de vídeo deste média (só o áudio é reproduzido); os participantes veriam uma imagem preta. Recodifique o arquivo como H.264/MP4 (por exemplo com ffmpeg ou HandBrake) e carregue-o de novo.';
+$string['editor_save'] = 'Salvar o rascunho';
+$string['editor_saved'] = 'Rascunho salvo.';
+$string['editor_saveerror'] = 'Não foi possível salvar o rascunho.';
+$string['editor_savemedia'] = 'Salvar o média';
+$string['editor_saving'] = 'A salvar…';
+$string['editor_unsaved'] = 'Alterações por salvar';
+$string['editor_uploadmedia'] = 'Carregar arquivos de média';
+$string['editor_variantmatching'] = 'Como são comparadas as variantes aceitas';
+$string['elang:useregex'] = 'Usar expressões regulares nas respostas aceitas';
+$string['error_importnocues'] = 'Não foi possível ler nenhuma legenda deste conteúdo. Um arquivo WebVTT ou SubRip tem uma linha de tempo como 00:00:01.000 --> 00:00:04.000 acima de cada legenda.';
+$string['error_importnotutf8'] = 'Este arquivo não é UTF-8 válido. Foi provavelmente salvo numa codificação antiga — abra-o num editor de texto e guarde-o de novo como UTF-8.';
+$string['error_importtoolarge'] = 'Este arquivo ocupa {$a->size}; a importação aceita no máximo {$a->max}. Um arquivo de legendas da gravação de uma aula é muito mais pequeno, por isso é pouco provável que seja um.';
+$string['error_importtoomanycues'] = 'Este arquivo contém {$a->count} legendas; a importação aceita no máximo {$a->max}.';
+$string['error_transcriptnotavailable'] = 'Não há nenhuma transcrição disponível para baixar nesta atividade.';
+$string['export_audienceaftersubmission'] = 'Os participantes podem baixá-la depois de concluírem uma tentativa';
+$string['export_audiencealways'] = 'Os participantes podem baixá-la a qualquer momento';
+$string['export_docx'] = 'Baixar como Word (DOCX)';
+$string['export_downloadpdf'] = 'Baixar o PDF';
+$string['export_odt'] = 'Baixar como OpenDocument (ODT)';
+$string['export_pdf'] = 'Baixar como PDF';
+$string['export_text'] = 'Baixar como texto';
+$string['media_cuenote'] = 'As legendas e lacunas existentes são mantidas quando muda de média. Os respectivos tempos não são ajustados, por isso verifique-os depois no editor.';
+$string['media_sourceurl_help'] = 'Cole o endereço de um vídeo em vez de enviar um arquivo — uma ligação do YouTube ou do Vimeo, ou o endereço direto de um arquivo de média.
+
+Um endereço introduzido aqui substitui um arquivo carregado. Deixe-o vazio para usar o carregamento acima.
+
+Um vídeo de fornecedor é reproduzido na moldura do próprio fornecedor, que não comunica o tempo de reprodução. Um exercício destes mostra sempre as legendas por baixo do média e nunca para no fim das legendas.
+
+**Para onde vão os dados.** Uma moldura do YouTube ou do Vimeo liga o navegador de cada participante a essa empresa, que recebe assim o seu endereço IP e os dados do seu dispositivo. Por padrão, o exercício pergunta antes de o fazer. Se a sua instituição tem um servidor de média próprio — Opencast, Panopto, Kaltura ou semelhante — cole antes o endereço direto do arquivo a partir daí: é tratado como um URL de média normal, mantém a posição das legendas e a definição de pausa que escolheu, e não há nenhum terceiro envolvido.';
+$string['migratev1_approvalheading'] = 'Migradas, a asalvar verificação';
+$string['migratev1_nonepending'] = 'Não há atividades da versão 1 a asalvar migração.';
+$string['migratev1_nonependingapproval'] = 'Não há atividades migradas a asalvar verificação.';
+$string['migratev1_notablespresent'] = 'Não foram encontradas tabelas antigas da versão 1 neste site. Não há nada a migrar.';
+$string['modulename_help'] = 'A atividade ditado em vídeo permite aos participantes preencher lacunas em legendas sincronizadas enquanto veem ou ouvem um vídeo.
+
+Os docentes importam um arquivo de legendas WebVTT ou SubRip, marcam palavras ou expressões como lacunas e definem com que rigor as respostas são comparadas. Os participantes percorrem a transcrição segmento a segmento, pedem pistas penalizadas e recebem retorno imediato.';
+$string['noinstances'] = 'Não há ditados em vídeo nesta curso.';
+$string['playbackproviderhint'] = 'Um vídeo do YouTube ou do Vimeo é reproduzido pelo fornecedor na sua própria moldura, que não comunica o tempo de reprodução. Um exercício destes mostra sempre as legendas por baixo do média e nunca para no fim das legendas, seja qual for a opção escolhida acima. Os arquivos carregados e os URL diretos respeitam ambas as definições.';
+$string['player_submitfailed'] = 'Não foi possível salvar a sua resposta. Tente de novo.';
+$string['privacy_metadata_elang'] = 'Para cada atividade, o registo de quem aprovou a migração unidirecional do respectivo conteúdo da 1.x.';
+$string['privacy_metadata_elang_attempt'] = 'Para cada tentativa num exercício, a atividade salva quem a fez, quando, até onde chegou e como foi pontuada.';
+$string['privacy_metadata_elang_attempt_attemptnumber'] = 'O número sequencial desta tentativa para o usuário e a atividade.';
+$string['privacy_metadata_elang_attempt_correctgaps'] = 'Quantas lacunas foram aceitas como corretas nesta tentativa.';
+$string['privacy_metadata_elang_attempt_userid'] = 'O identificador do usuário que fez a tentativa.';
+$string['privacy_metadata_elang_migrationapproveduserid'] = 'O usuário que aprovou a migração desta atividade a partir do mod_elang 1.x. É salvo para que a aprovação continue auditável.';
+$string['privacy_metadata_elang_response'] = 'Para cada lacuna que um participante responde dentro de uma tentativa, a atividade salva o texto da resposta e como foi avaliada.';
+$string['privacy_metadata_elang_response_accepted'] = 'Se a resposta foi aceita como correta para esta lacuna.';
+$string['privacy_metadata_elang_version'] = 'Para cada versão de conteúdo, a atividade salva que usuário a alterou pela última vez.';
+$string['privacy_metadata_elang_version_usermodified'] = 'O usuário que alterou esta versão de conteúdo pela última vez. É salvo para permitir verificar quem editou o conteúdo do exercício.';
+$string['privacy_provider_externallink'] = 'Quando um exercício assenta num vídeo do YouTube ou do Vimeo, abri-lo liga o navegador do participante a esse fornecedor. O plugin não envia nada por si, mas a ligação é provocada pela atividade. Se chega ou não a acontecer depende da definição do site sobre o consentimento ao fornecedor e do acordo do participante.';
+$string['solutionavailability_help'] = 'Quando os participantes podem baixar a transcrição completa com a solução de cada lacuna visível.
+
+* Nunca — só os docentes a podem baixar.
+* Depois de a tentativa estar concluída — um participante pode baixá-la assim que concluir uma tentativa nesta atividade.
+* A qualquer momento — um participante pode baixá-la mesmo antes de responder.
+
+O pessoal docente com permissão pode baixá-la sempre, seja qual for esta definição.';
+$string['validate_rangeoutside'] = 'O intervalo de caracteres de {$a} fica fora da respectiva transcrição.';
+$string['verify_missingattempt'] = 'Usuário {$a}: esperava-se uma tentativa migrada, não foi encontrada nenhuma.';
+$string['verify_responsecount'] = 'Usuário {$a->userid}: o número de respostas migradas é {$a->actual}, esperava-se {$a->expected}.';

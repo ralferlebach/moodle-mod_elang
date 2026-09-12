@@ -1,12 +1,22 @@
 # Die deutsche Aktivitätsbezeichnung auf einer laufenden Site ändern
 
+> **Hinweis zum Stand.** Die Aktivität heißt **„Video-Diktat"**, und das
+> englische Original heißt entsprechend `Video dictation`. Alle Sprachpakete
+> tragen dieselbe Bezeichnung, damit dieselbe Aktivität überall dasselbe heißt.
+>
+> Das Verfahren unten bleibt gültig und ist der Grund, warum dieses Dokument
+> steht: Eine Site, die das deutsche AMOS-Paket installiert hat, sieht
+> weiterhin die dort hinterlegte Bezeichnung — bei `mod_elang` meist noch
+> **„Hör-Garten"** aus Version 1.x. Solange die 2.0-Strings nicht in AMOS
+> stehen, braucht es für „Video-Diktat" die lokale Sprachanpassung.
+
 ## Das Problem
 
-`lang/de/elang.php` im Plugin sagt seit Version 2.0.0-beta.2:
+`lang/de/elang.php` im Plugin sagt:
 
 ```php
 $string['modulename'] = 'Video-Diktat';
-$string['modulenameplural'] = 'Video-Diktate';
+$string['modulenameplural'] = 'Video-Diktaten';
 $string['pluginname'] = 'Video-Diktat';
 ```
 

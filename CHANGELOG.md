@@ -13,6 +13,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Changed — product name and terminology review
+- **The activity is now called "Video dictation"** in English and the local
+  equivalent everywhere else: Video-Diktat, Dictée vidéo, Dictado en vídeo
+  (es_mx: en video), Videodiktamen, Βιντεοϋπαγόρευση, إملاء بالفيديو.
+  "Language exercise" described a much broader kind of activity than this one
+  is, so the same plugin was presenting itself differently in each language.
+- Two claims in the terminology review were checked against the code before
+  anything was rewritten, and both held:
+  - The time fields were labelled `(ms)` while `TimeField.tsx` formats and parses
+    `mm:ss.SSS` through `formatTime`/`parseTime`. Label and input format
+    contradicted each other; the suffix is gone in every pack.
+  - `language_help` described typing a BCP-47 code, but `mod_form.php` renders
+    `addElement('select', 'language', …)`. The help now describes choosing from
+    the list.
+- German author UI no longer mixes *Cue*, *Untertitel* and *Block*: the visible
+  strings say Untertitel, the data structure is an Untertitelblock, and `cue`
+  stays where it belongs — in identifiers, the database and WebVTT documentation.
+- The Jaro help text reused the internal algorithm name (`wordrecognized`,
+  "Wort erkannt") instead of the option label a person actually sees. Every pack
+  now quotes its own visible label verbatim.
+- Role wording no longer names roles a site may not have: "Teachers and tutors
+  only" became "Teaching staff with permission only", because a capability
+  decides this, not a fixed role. German report columns say Teilnehmer/in rather
+  than the bare Person.
+- Pseudo-plurals are gone — `cue(s)`, `Lücke(n)`, `κενό(ά)`, `lucka/luckor` —
+  replaced by count-neutral forms such as `Cues: {$a}`. They read as unfinished
+  in any language and are worse in those with richer inflection.
+- German: "Lösungstranskript" unified to **Musterlösung**, hint wording unified
+  to *Hinweis*, mixed quotation marks (`„…\"`) corrected, and the overlay
+  positions now say "Im Video" rather than the unidiomatic "Auf dem Medium".
+
 Release candidate. `$plugin->maturity` is `MATURITY_RC`.
 
 Includes a full pass through the extended review checklist; the result is

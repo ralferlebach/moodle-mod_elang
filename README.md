@@ -5,7 +5,7 @@ moodle-mod_elang
 
 [![Moodle Plugin CI](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml/badge.svg?branch=development)](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml)
 
-Video- and audio-based gap-fill language exercises with time-coded subtitles for Moodle.
+Video dictations for Moodle: gap-fill exercises on time-coded subtitles, with video or audio.
 
 Learners watch or listen to a medium while working through its transcript. Selected
 words or phrases are hidden; learners type them in, may request graded hints and

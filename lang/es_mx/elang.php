@@ -64,6 +64,9 @@ $string['editor_mediaproviderrefhint'] = 'Identificador o enlace del video en cu
 $string['editor_nomedianotice'] = 'Añada primero el archivo de video o audio en la pestaña Medios. Los subtítulos se sincronizan con el medio, así que el editor lo necesita antes de que pueda trabajar con segmentos y huecos.';
 $string['editor_novideotrack'] = 'Este navegador no puede descodificar la pista de video de este medio (solo suena el audio); los estudiantes verían una imagen en negro. Vuelva a codificar el archivo como H.264/MP4 (por ejemplo con ffmpeg o HandBrake) y súbalo de nuevo.';
 $string['editor_uploadmedia'] = 'Subir archivos de medios';
+$string['elang:addinstance'] = 'Añadir un nuevo dictado en video';
+$string['elang:attempt'] = 'Realizar un dictado en video';
+$string['elang:view'] = 'Ver un dictado en video';
 $string['error_importnocues'] = 'No se ha podido leer ningún subtítulo de este contenido. Un archivo WebVTT o SubRip tiene una línea de tiempo como 00:00:01.000 --> 00:00:04.000 encima de cada subtítulo.';
 $string['error_importnotutf8'] = 'Este archivo no es UTF-8 válido. Probablemente se guardó con una codificación antigua — ábralo en un editor de texto y vuelva a guardarlo como UTF-8.';
 $string['error_importtoolarge'] = 'Este archivo ocupa {$a->size}; la importación admite como máximo {$a->max}. Un archivo de subtítulos de la grabación de una clase es mucho menor, así que es poco probable que lo sea.';
@@ -78,14 +81,19 @@ Una dirección introducida aquí sustituye al archivo subido. Déjela vacía par
 Un video de proveedor se reproduce en el marco del propio proveedor, que no informa de su tiempo de reproducción. Un ejercicio así muestra siempre los subtítulos debajo del medio y nunca se detiene en los límites de los subtítulos.
 
 **Adónde van los datos.** Un marco de YouTube o Vimeo conecta el navegador de cada estudiante con esa empresa, que recibe entonces su dirección IP y los datos de su dispositivo. Por omisión, el ejercicio pregunta antes de hacerlo. Si su institución dispone de su propio servidor de medios — Opencast, Panopto, Kaltura o similar — pegue en su lugar la dirección directa del archivo desde allí: se trata como una dirección de medio normal, conserva la posición de los subtítulos y el ajuste de pausa que haya elegido, y no interviene ningún tercero.';
-$string['modulename_help'] = 'La actividad de ejercicio de idioma permite a los estudiantes rellenar huecos en subtítulos sincronizados mientras ven o escuchan un video.
+$string['modulename'] = 'Dictado en video';
+$string['modulename_help'] = 'La actividad de dictado con video permite a los estudiantes rellenar huecos en subtítulos sincronizados mientras ven o escuchan un video.
 
 Los profesores importan un archivo de subtítulos WebVTT o SubRip, marcan palabras o expresiones como huecos y configuran con qué rigor se comparan las respuestas. Los estudiantes recorren la transcripción segmento a segmento, piden pistas penalizadas y reciben una respuesta inmediata.';
+$string['modulenameplural'] = 'Dictados en video';
+$string['noinstances'] = 'No hay dictados en video en este curso.';
 $string['playbackproviderhint'] = 'Un video de YouTube o Vimeo lo reproduce el proveedor en su propio marco, que no informa de su tiempo de reproducción. Un ejercicio así muestra siempre los subtítulos debajo del medio y nunca se detiene en los límites de los subtítulos, sea cual sea la opción elegida arriba. Los archivos subidos y las direcciones de medio directas respetan ambos ajustes.';
 $string['player_consentaccept'] = 'Cargar el video desde {$a}';
 $string['player_consentdetail'] = 'Reproducirlo conecta su navegador con {$a}. {$a} recibe su dirección IP e información sobre su dispositivo, y puede leer las cookies que ya haya establecido. No se envía nada hasta que usted decida cargar el video.';
 $string['player_consentheading'] = 'Este video lo proporciona {$a}';
 $string['player_novideotrack'] = 'Su navegador no puede mostrar la pista de video de este medio; el audio se reproducirá igualmente. Informe a su profesor.';
+$string['pluginadministration'] = 'Administración del dictado en video';
+$string['pluginname'] = 'Dictado en video';
 $string['privacy_provider_externallink'] = 'Cuando un ejercicio se basa en un video de YouTube o Vimeo, abrirlo conecta el navegador del estudiante con ese proveedor. El plugin no envía nada por sí mismo, pero la conexión la provoca la actividad. Que ocurra o no depende del ajuste del sitio sobre el consentimiento al proveedor y de que el estudiante lo acepte.';
 $string['providerconsent_desc'] = 'Los ejercicios basados en un video de YouTube o Vimeo muestran un aviso en lugar del video y solo lo incrustan tras la aceptación del estudiante. Sin esto, el proveedor recibe la dirección IP y los datos del navegador del estudiante en cuanto se abre la página — antes de que nadie haga clic en reproducir. Desactívelo solo si su institución obtiene este consentimiento por otra vía.';
 $string['subtitleposition_help'] = 'Dónde se muestran los subtítulos interactivos.

@@ -52,8 +52,8 @@
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">${__P(loops,20)}</stringProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">${__P(threads,200)}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,60)}</stringProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,10)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,30)}</stringProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
         <stringProp name="ThreadGroup.duration"></stringProp>
         <stringProp name="ThreadGroup.delay"></stringProp>
@@ -92,6 +92,24 @@
             <boolProp name="Assertion.assume_success">false</boolProp>
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
+          <hashTree/>
+          <!-- Arrival rate, not concurrency.
+
+               JMeter has no equivalent of k6's constant-arrival-rate executor,
+               so the rate is set by a throughput timer and the threads only
+               provide enough parallelism to meet it. Before this the plan ran
+               200 threads in a loop with no pause, which is 200 requests
+               permanently in flight rather than 200 learners opening an
+               exercise over three minutes — the same mistake the k6 plan made,
+               and the reason a healthy server measured 29 seconds.
+
+               arrivals_per_minute = learners / (arrival window in minutes).
+               calcMode 2 = "all active threads in this thread group", so the
+               figure is the rate for the whole group rather than per thread. -->
+          <ConstantThroughputTimer guiclass="TestBeanGUI" testclass="ConstantThroughputTimer" testname="Ankunftsrate" enabled="true">
+            <intProp name="calcMode">2</intProp>
+            <stringProp name="throughput">${__P(arrivals_per_minute,67)}</stringProp>
+          </ConstantThroughputTimer>
           <hashTree/>
           <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion" testname="Under the latency limit" enabled="true">
             <stringProp name="DurationAssertion.duration">${__P(p95,800)}</stringProp>

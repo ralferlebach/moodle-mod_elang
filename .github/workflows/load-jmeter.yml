@@ -119,20 +119,6 @@ jobs:
           ini-values: max_input_vars=5000
           coverage: none
 
-      - name: Refuse a scenario the self-contained target cannot serve
-        run: |
-          # Same limit as the k6 workflow: the self-contained target is PHP's
-          # built-in server and cannot represent 200 or 2000 concurrent users.
-          # See docs/dev/load-testing.md.
-          if [ "${{ github.event.inputs.mode }}" = "selfcontained" ] \
-             && [ "${{ github.event.inputs.scenario }}" != "smoke" ] \
-             && [ "${{ github.event.inputs.scenario }}" != "custom" ]; then
-            echo "Das Szenario '${{ github.event.inputs.scenario }}' misst gegen das"
-            echo "selbstenthaltene Ziel nur PHPs Entwicklungsserver, nicht das Plugin."
-            echo "Fuer classroom und lecturehall: mode=external waehlen."
-            exit 1
-          fi
-
       - name: Resolve the scenario
         id: scenario
         run: |
@@ -141,32 +127,39 @@ jobs:
           # rather than a plateau duration, so the loop count stands in for the
           # duration — the total request volume is what has to match, not the
           # wall clock.
+          # Threads only provide parallelism; the arrival rate is what the
+          # scenario actually specifies, and a throughput timer in the plan
+          # enforces it. Ten threads are plenty: a session is one read plus one
+          # media request, so almost nothing runs at once.
+          #
+          # A bigger thread count is actively harmful here — 50 threads ramping
+          # over 10 s fire before the timer can pace them, and that opening
+          # burst alone produced a p95 of 4.5 s against a server whose median
+          # was 37 ms.
+          window=180
           case "${{ github.event.inputs.scenario }}" in
-            smoke)
-              echo "threads=25"  >> "$GITHUB_OUTPUT"
-              echo "cues=50"     >> "$GITHUB_OUTPUT"
-              echo "loops=20"    >> "$GITHUB_OUTPUT"
-              echo "rampup=10"   >> "$GITHUB_OUTPUT"
-              ;;
-            classroom)
-              echo "threads=200" >> "$GITHUB_OUTPUT"
-              echo "cues=50"     >> "$GITHUB_OUTPUT"
-              echo "loops=20"    >> "$GITHUB_OUTPUT"
-              echo "rampup=60"   >> "$GITHUB_OUTPUT"
-              ;;
-            lecturehall)
-              echo "threads=2000" >> "$GITHUB_OUTPUT"
-              echo "cues=50"      >> "$GITHUB_OUTPUT"
-              echo "loops=10"     >> "$GITHUB_OUTPUT"
-              echo "rampup=120"   >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "threads=${{ github.event.inputs.threads }}" >> "$GITHUB_OUTPUT"
-              echo "cues=50" >> "$GITHUB_OUTPUT"
-              echo "loops=${{ github.event.inputs.loops }}" >> "$GITHUB_OUTPUT"
-              echo "rampup=60" >> "$GITHUB_OUTPUT"
-              ;;
+            smoke)       learners=25 ;;
+            classroom)   learners=200 ;;
+            lecturehall) learners=2000 ;;
+            *)           learners="${{ github.event.inputs.threads }}" ;;
           esac
+
+          threads=10
+          # Rounded up, not down. Integer division loses learners silently —
+          # smoke would have run 20 sessions while reporting 25.
+          loops=$(( (learners + threads - 1) / threads ))
+          [ "$loops" -lt 1 ] && loops=1
+          echo "Sitzungen tatsaechlich: $(( threads * loops )) (angefordert: $learners)"
+          arrivals=$(( learners * 60 / window ))
+
+          {
+            echo "learners=$learners"
+            echo "threads=$threads"
+            echo "loops=$loops"
+            echo "rampup=30"
+            echo "arrivals=$arrivals"
+            echo "cues=50"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build, install and seed a self-contained site
         id: selfcontained
@@ -294,6 +287,7 @@ jobs:
             -Jthreads='${{ steps.scenario.outputs.threads }}' \
             -Jrampup='${{ steps.scenario.outputs.rampup }}' \
             -Jloops='${{ steps.scenario.outputs.loops }}' \
+            -Jarrivals_per_minute='${{ steps.scenario.outputs.arrivals }}' \
             -Jp95='${{ github.event.inputs.p95 }}' \
             -l jmeter-results.jtl -e -o jmeter-report
 
@@ -349,6 +343,8 @@ jobs:
             echo "sha:       ${{ github.sha }}"
             echo "mode:      ${{ github.event.inputs.mode }}"
             echo "scenario:  ${{ github.event.inputs.scenario }}"
+            echo "learners:  ${{ steps.scenario.outputs.learners }}"
+            echo "arrival:   180s"
             echo "threads:   ${{ steps.scenario.outputs.threads }}"
             echo "cues:      ${{ steps.scenario.outputs.cues }}"
             echo "loops:     ${{ steps.scenario.outputs.loops }}"

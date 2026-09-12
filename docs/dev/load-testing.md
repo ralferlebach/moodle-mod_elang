@@ -47,6 +47,54 @@ ist, die Klippe zu kennen, bevor jemand anders sie findet.
 Auszulösen über *Actions → Load test (k6) → Run workflow*; `custom` gibt VUs
 und Dauer frei.
 
+## Szenarien beschreiben Lernende, nicht gleichzeitige Anfragen
+
+Das ist die wichtigste Eigenschaft der Pläne, und sie war anfangs falsch.
+
+Beide Pläne liefen mit N virtuellen Nutzenden **ohne Denkzeit**. „200 Lernende"
+bedeutete damit 200 permanent laufende Anfragen — etwas, das kein Kurs je tut.
+Ein Hörsaal-Lauf ergab so p95 = 29 Sekunden und sah aus wie ein Befund über das
+Plugin; tatsächlich war es ein Befund über das Modell.
+
+Jetzt ist **eine Iteration eine Lernendensitzung**:
+
+| Annahme | Wert | Herkunft |
+|---|---|---|
+| Ankunftsfenster | 180 s | eine Klasse öffnet die Übung über die ersten Minuten einer Stunde |
+| Denkzeit Lücke zu Lücke | 3 s | Praxis |
+| Medienabrufe je Lernendem | 1,5 | einmal beim Öffnen, mit 50 % Wahrscheinlichkeit später erneut |
+
+Daraus ergeben sich die Raten:
+
+| Szenario | Lernende | Ankünfte/s |
+|---|---|---|
+| `smoke` | 25 | 0,14 |
+| `classroom` | 200 | 1,11 |
+| `lecturehall` | 2000 | 11,1 |
+
+k6 setzt das mit `constant-arrival-rate` um. JMeter kennt das nicht und nutzt
+einen Constant Throughput Timer; die Threads liefern dort nur die Parallelität.
+**Zehn Threads, nicht mehr:** 50 Threads feuern beim Hochlauf, bevor der Timer
+sie bremsen kann, und allein dieser Startburst erzeugte p95 = 4,5 s auf einem
+Server mit Median 37 ms.
+
+### Gemessen mit diesem Modell
+
+Gegen dasselbe selbstenthaltene Ziel, das mit dem alten Modell zusammenbrach:
+
+| Werkzeug | Szenario | p95 | Fehler |
+|---|---|---|---|
+| k6 | classroom | 45,6 ms | 0 % |
+| JMeter | classroom | 49 ms | 0 % |
+
+Dass beide Werkzeuge unabhängig auf ~47 ms kommen, ist genau der Zweck der
+Doppelmessung: eine Zahl allein hätte man für ein Artefakt des Werkzeugs halten
+können.
+
+Der Medienpfad wird mitgemessen — `mod_elang_pluginfile` mit Capability- und
+Versionsprüfung, angefordert per `Range` über die ersten 64 KB. Ganze Videos zu
+übertragen würde die Netzwerkanbindung des Runners messen, nicht das Plugin.
+
 ## Was das selbstenthaltene Ziel aushält — und was nicht
 
 Der `selfcontained`-Modus baut ein Moodle und bedient es mit **PHPs eingebautem
@@ -64,11 +112,15 @@ Bei 2000 gleichzeitigen Anfragen auf acht Worker warten rund 250 Anfragen je
 Worker. Die 29 Sekunden sind Wartezeit, kein Verarbeiten — über das Plugin sagt
 die Zahl nichts.
 
-**Beide Workflows lehnen `classroom` und `lecturehall` im
-`selfcontained`-Modus deshalb ab**, mit Hinweis auf `external`. Sie liefen
-vorher an und scheiterten nach vier Minuten mit einer Zahl, die wie ein Befund
-aussah. Eine Messung, die nur ihre eigene Umgebung beschreibt, ist schlechter
-als keine — sie wird geglaubt.
+Diese Zahlen stammen aus dem **alten** Modell mit permanent laufenden Anfragen.
+Mit Ankunftsraten trägt dasselbe Ziel `classroom` mühelos (p95 unter 50 ms bei
+beiden Werkzeugen), und die zeitweilige Sperre für `classroom`/`lecturehall` im
+`selfcontained`-Modus ist entfallen — sie war die richtige Antwort auf ein
+falsch gebautes Szenario, nicht auf eine zu schwache Umgebung.
+
+Für `lecturehall` gilt weiter Vorsicht: 11 Ankünfte je Sekunde sind auf vier
+vCPU plausibel, aber ungemessen. Ein belastbarer Hörsaal-Nachweis gehört in den
+`external`-Modus.
 
 Für `classroom` und `lecturehall` braucht es `mode=external` gegen eine echte
 Installation mit einem richtigen Webserver.

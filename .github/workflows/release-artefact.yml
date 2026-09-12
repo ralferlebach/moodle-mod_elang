@@ -120,15 +120,25 @@ jobs:
         run: |
           # The directory inside the ZIP must be named after the plugin, because
           # that is the directory Moodle unpacks it into.
-          mkdir -p dist/elang
-          rsync -a --delete \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude 'tests/playwright/node_modules' \
-            --exclude 'tests/playwright/test-results' \
-            --exclude 'tests/playwright/playwright-report' \
-            --exclude '.DS_Store' \
-            plugin/ dist/elang/
+          # git archive, not rsync: it honours .gitattributes export-ignore, so
+          # this archive and the one GitHub generates for a tag contain the same
+          # files. Two archives that differ is the problem the release policy
+          # exists to avoid, and an rsync exclude list is a second definition of
+          # the same thing waiting to drift from the first.
+          mkdir -p dist
+          git -C plugin archive --format=tar --prefix=elang/ HEAD | tar -x -C dist
+
+          # Build outputs are committed, so they are in the archive already.
+          # What is not in git cannot be in the archive, which is the point.
+          for junk in node_modules tests/playwright/node_modules; do
+            if [ -e "dist/elang/$junk" ]; then
+              echo "Unerwartet im Archiv: $junk"
+              exit 1
+            fi
+          done
+
+          echo "Sprachpakete im Archiv:"
+          ls dist/elang/lang
 
           name="mod_elang-${{ steps.version.outputs.release }}.zip"
           (cd dist && zip -qr "../$name" elang)
@@ -142,6 +152,16 @@ jobs:
         run: |
           # Cheap, and it has caught something before: a development source map
           # shipped in every release for weeks.
+          # Language packs other than English are excluded on purpose: AMOS is
+          # the authority for them once the plugin is in the directory, and a
+          # copy in the archive would diverge from it without anyone noticing.
+          # The pattern needs a name after lang/, or the lang/ directory entry
+          # itself matches and every correct archive is rejected.
+          if unzip -l "${{ steps.zip.outputs.name }}" | grep -P 'elang/lang/(?!en/)[a-z]'; then
+            echo "Das Archiv enthaelt Sprachpakete ausser Englisch."
+            exit 1
+          fi
+
           if unzip -l "${{ steps.zip.outputs.name }}" | grep -E 'node_modules|/\.git/|js/vendor/react/.*\.map'; then
             echo "Das Archiv enthaelt Artefakte, die nicht ausgeliefert werden duerfen."
             exit 1

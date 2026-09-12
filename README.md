@@ -244,8 +244,9 @@ permissive licence with a strong attribution obligation, and the original work i
 acknowledged here and in the release notes accordingly.
 
 The detailed provenance record — including the component-name handover and the
-log of any adopted passages (currently empty) — is kept in the repository under
-`docs/materials/`. This is not legal advice; institutions publishing the plugin
+log of any adopted passages (currently empty) — is kept **in the repository**
+under `docs/materials/`. It is not part of the installable package: a release
+archive contains the plugin, not its development history. This is not legal advice; institutions publishing the plugin
 should have a legally responsible body confirm the licensing and naming.
 
 

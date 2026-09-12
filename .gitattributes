@@ -13,11 +13,23 @@
 *.min.js binary
 *.min.css binary
 
-# Exclude developer artefacts from release archives.
+# What does not go into a release archive.
+#
+# This file is the source of truth for it. A release is the installable plugin,
+# not the repository: what a site needs to run mod_elang, and nothing that only
+# makes sense in a checkout.
+#
+# Language packs other than English are excluded for a different reason than the
+# rest. They are not developer material — they are simply not ours to ship once
+# the plugin is in the plugin directory, because AMOS becomes the authority for
+# them. They stay in the repository so they can be uploaded to AMOS and improved
+# there.
 .github/       export-ignore
 docs/          export-ignore
 tools/         export-ignore
 makefile       export-ignore
+lang/*         export-ignore
+lang/en/      -export-ignore
 .gitattributes export-ignore
 .gitignore     export-ignore
 .phpcsignore   export-ignore

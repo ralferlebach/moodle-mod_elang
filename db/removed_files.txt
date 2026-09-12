@@ -9,7 +9,9 @@
 #
 # Every path removed from the plugin belongs in this list. The "Stale files"
 # CI job fails the build while any of them is still present, and
-# tools/cleanup_stale.sh removes them from an existing installation.
+# tools/cleanup_stale.sh in the repository removes them from an existing
+# installation. That script is not part of a release archive — this list is, so
+# that the paths are known on the site even when the tool has to be fetched.
 #
 # One repository-root-relative path per line. Blank lines and lines starting
 # with # are ignored.

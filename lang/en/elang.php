@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Allowed content languages';
-$string['allowedlanguages_desc'] = 'The content languages offered when creating or editing an eLang activity. Select none to offer the full language list. An activity keeps its stored language even if you later remove it here.';
+$string['allowedlanguages_desc'] = 'The content languages offered when creating or editing a video dictation. Select none to offer the full language list. An activity keeps its stored language even if you later remove it here.';
 $string['allowtranscriptdownload'] = 'Transcript download for learners';
 $string['allowtranscriptdownload_help'] = 'When enabled, learners can download the transcript worksheet, with every gap blanked out, as a PDF, Word, OpenDocument or text file.
 
@@ -210,7 +210,7 @@ $string['error_noaccesstoattempt'] = 'You do not have access to this attempt.';
 $string['error_nomorehints'] = 'No further hints are available for this gap.';
 $string['error_nopublishedversion'] = 'This exercise has no published content yet.';
 $string['error_responsetoolong'] = 'Your response is too long. The maximum for this gap is {$a} characters.';
-$string['error_solutionnotavailable'] = 'The solution transcript is not available to you for this activity.';
+$string['error_solutionnotavailable'] = 'The full transcript with answers is not available to you in this activity.';
 $string['error_staleattemptstate'] = 'Your view of this attempt is out of date. Please reload the current state and try again.';
 $string['error_transcriptnotavailable'] = 'There is no transcript available for you to download in this activity.';
 $string['error_unknowngaprule'] = 'Unknown gap rule type \'{$a}\'.';
@@ -421,7 +421,7 @@ $string['report_user'] = 'Participant';
 $string['report_view'] = 'View';
 $string['reports'] = 'Reports';
 $string['resetattempts'] = 'Delete all learner attempts and answers';
-$string['solutionavailability'] = 'Solution transcript for learners';
+$string['solutionavailability'] = 'Full transcript with answers for learners';
 $string['solutionavailability_aftersubmission'] = 'After the attempt is finished';
 $string['solutionavailability_always'] = 'Any time';
 $string['solutionavailability_help'] = 'When learners may download the full transcript with every gap solution shown.

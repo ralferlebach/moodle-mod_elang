@@ -128,7 +128,7 @@ $string['editor_nocueselected'] = 'Wählen Sie einen Untertitel aus der Liste, u
 $string['editor_nocuesmatch'] = 'Kein Untertitel passt zu dieser Suche.';
 $string['editor_nogaps'] = 'Keine Lücken';
 $string['editor_nomedia'] = 'keins';
-$string['editor_nomedianotice'] = 'Legen Sie zuerst im Reiter „Medien“ die Video- oder Audiodatei an. Untertitel werden auf das Medium getaktet, der Editor braucht es also, bevor Sie an Untertiteln und Lücken arbeiten können.';
+$string['editor_nomedianotice'] = 'Legen Sie zuerst im Reiter „Medien“ die Video- oder Audiodatei an. Die Untertitel werden zeitlich auf das Medium abgestimmt, der Editor braucht es also, bevor Sie an Untertiteln und Lücken arbeiten können.';
 $string['editor_novideotrack'] = 'Dieser Browser kann die Videospur dieses Mediums nicht dekodieren (nur der Ton läuft); Lernende sähen ein schwarzes Bild. Bitte die Datei als H.264/MP4 neu kodieren (z. B. mit ffmpeg oder HandBrake) und erneut hochladen.';
 $string['editor_onboardinggaps'] = 'Markieren Sie ein Wort in einem Untertitel und machen Sie eine Lücke daraus.';
 $string['editor_onboardingimport'] = 'Importieren Sie WebVTT- oder SubRip-Untertitel, oder legen Sie Untertitel von Hand an.';
@@ -251,7 +251,7 @@ $string['language_none'] = 'Generisch (nicht angegeben)';
 $string['media_cuenote'] = 'Vorhandene Untertitel und Lücken bleiben beim Wechsel des Mediums erhalten. Ihre Zeiten werden nicht angepasst — prüfen Sie sie danach im Editor.';
 $string['media_current'] = 'Aktuell eingestelltes Medium';
 $string['media_heading'] = 'Medien';
-$string['media_intro'] = 'Wählen Sie das Video oder Audio, auf dem diese Übung aufbaut. Untertitel werden dagegen getimt, deshalb steht dies am Anfang.';
+$string['media_intro'] = 'Wählen Sie das Video oder Audio, auf dem diese Übung aufbaut. Die Untertitel werden zeitlich damit synchronisiert, deshalb steht dies am Anfang.';
 $string['media_none'] = 'Für diese Übung ist noch kein Medium eingestellt.';
 $string['media_othersource'] = 'Andere Quelle';
 $string['media_providerhint'] = 'Erkannte Anbieter: {$a}. Jede andere Adresse wird als direkte Medien-URL verwendet.';
@@ -265,7 +265,7 @@ Ein Anbietervideo wird im Rahmen des Anbieters abgespielt, der seine Wiedergabez
 **Wohin die Daten gehen.** Ein YouTube- oder Vimeo-Rahmen verbindet den Browser jeder lernenden Person mit diesem Unternehmen, das dabei IP-Adresse und Geräteangaben erhält. Standardmäßig fragt die Übung vorher nach. Wenn Ihre Einrichtung einen eigenen Medienserver betreibt — Opencast, Panopto, Kaltura oder ähnlich —, fügen Sie stattdessen die direkte Adresse der Datei von dort ein: sie gilt als gewöhnliche Medien-URL, behält die von Ihnen gewählte Untertitelposition und Pauseneinstellung, und es ist kein Dritter beteiligt.';
 $string['migratev1_approvalheading'] = 'Migriert, wartet auf Prüfung';
 $string['migratev1_approvebutton'] = 'Diese Migration freigeben';
-$string['migratev1_approved'] = 'Video-Diktat {$a} wurde als abgenommen markiert.';
+$string['migratev1_approved'] = 'Video-Diktat {$a} wurde freigegeben.';
 $string['migratev1_colactivity'] = 'Aktivität';
 $string['migratev1_colalgorithm'] = 'Bewertungsalgorithmus';
 $string['migratev1_colcues'] = 'Untertitel';
@@ -295,7 +295,7 @@ $string['migratev1_verifyfailed'] = 'Diese Aktivität konnte nicht verifiziert w
 $string['modulename'] = 'Video-Diktat';
 $string['modulename_help'] = 'Die Aktivität Video-Diktat lässt Lernende Lücken in zeitcodierten Untertiteln ausfüllen, während sie ein Video ansehen oder anhören.
 
-Lehrende importieren eine WebVTT- oder SubRip-Datei, markieren Wörter oder Wendungen als Lücken und legen fest, wie streng Antworten verglichen werden. Lernende arbeiten das Transkript Segment für Segment durch, können abgestufte Hilfen anfordern und erhalten unmittelbare Rückmeldung.';
+Lehrende importieren eine WebVTT- oder SubRip-Datei, markieren Wörter oder Wendungen als Lücken und legen fest, wie streng Antworten verglichen werden. Lernende arbeiten das Transkript Segment für Segment durch, können abgestufte Hinweise anfordern und erhalten unmittelbare Rückmeldung.';
 $string['modulenameplural'] = 'Video-Diktate';
 $string['nav_exportshort'] = 'Export';
 $string['nav_media'] = 'Medien';
@@ -353,7 +353,7 @@ $string['privacy_metadata_elang_response_accepted'] = 'Ob die Antwort für diese
 $string['privacy_metadata_elang_response_hintlevel'] = 'Die höchste Hinweisstufe, die der lernenden Person für diese Lücke gezeigt wurde.';
 $string['privacy_metadata_elang_response_responsetext'] = 'Der von der lernenden Person für diese Lücke eingegebene Text.';
 $string['privacy_metadata_elang_response_resultstate'] = 'Die vom Evaluator ermittelte Einstufung dieser Antwort (exakt, Wort erkannt, falsch oder leer).';
-$string['privacy_metadata_elang_response_score'] = 'Die von dieser Antwort beigetragenen Punkte, nach Abzug etwaiger Hilfestrafen.';
+$string['privacy_metadata_elang_response_score'] = 'Die von dieser Antwort beigetragenen Punkte, nach Abzügen für verwendete Hinweise.';
 $string['privacy_metadata_elang_response_timecreated'] = 'Der Zeitpunkt, zu dem diese Antwort erstmals abgegeben wurde.';
 $string['privacy_metadata_elang_response_timemodified'] = 'Der Zeitpunkt der letzten Aktualisierung dieser Antwort.';
 $string['privacy_metadata_elang_response_tries'] = 'Wie oft die lernende Person eine Antwort auf diese Lücke abgegeben hat.';
@@ -439,7 +439,7 @@ $string['subtitleposition_below'] = 'Unter dem Medium';
 $string['subtitleposition_help'] = 'Wo die interaktiven Untertitel angezeigt werden.
 
 * Unter dem Medium — das gesamte Transkript steht unter dem Medium in einem eigenen Scrollbereich und folgt der Wiedergabe.
-* Auf dem Medium, unten / oben — nur der gerade laufende Untertitel wird über dem Medium angezeigt.
+* Im Video — unten / oben — nur der gerade laufende Untertitel wird über dem Medium angezeigt.
 
 Ein reines Audiomedium hat kein Bild, auf dem etwas liegen könnte, und verwendet deshalb immer die Darstellung unter dem Medium. Die Einstellung bleibt erhalten und greift wieder, sobald die Aktivität ein Video verwendet.';
 $string['subtitleposition_overlaybottom'] = 'Im Video — unten';
@@ -457,19 +457,19 @@ $string['validate_nogaps'] = 'Die Version enthält keine zu beantwortenden Lück
 $string['validate_nonpositivelength'] = 'Die Zeichenlänge von {$a} muss positiv sein.';
 $string['validate_rangeoutside'] = 'Der Zeichenbereich von {$a} liegt außerhalb des Transkripts.';
 $string['validate_rangeoverlap'] = 'Der Zeichenbereich von {$a} überlappt eine andere Lücke.';
-$string['validate_unknownalgorithm'] = 'Der Bewertungsalgorithmus „{$a->algorithm}" für {$a->where} ist unbekannt.';
+$string['validate_unknownalgorithm'] = 'Der Bewertungsalgorithmus „{$a->algorithm}“ für {$a->where} ist unbekannt.';
 $string['validate_where'] = 'Lücke {$a->gapkey} in Block {$a->cuekey}';
-$string['verify_algorithmmismatch'] = 'Lücke {$a->gapkey}: Bewertungsalgorithmus ist „{$a->actual}", erwartet „{$a->expected}".';
+$string['verify_algorithmmismatch'] = 'Lücke {$a->gapkey}: Bewertungsalgorithmus ist „{$a->actual}“, erwartet „{$a->expected}“.';
 $string['verify_attemptcount'] = 'Die Anzahl migrierter Versuche ist {$a->actual}, erwartet {$a->expected} verschiedene 1.x-Lernende.';
 $string['verify_jarothreshold'] = 'Der Schwellenwert für den Antwortvergleich ist {$a->actual}, erwartet {$a->expected}.';
 $string['verify_missingattempt'] = 'Nutzer/in {$a}: ein migrierter Versuch wurde erwartet, aber keiner gefunden.';
 $string['verify_missingcue'] = 'Block {$a}: der migrierte Untertitelblock fehlt.';
 $string['verify_missinggap'] = 'Lücke {$a}: die migrierte Lücke fehlt.';
-$string['verify_missinghint'] = 'Lücke {$a}: Version 1 erlaubte hier Hilfe, es wurde aber kein Hinweis migriert.';
+$string['verify_missinghint'] = 'Lücke {$a}: Version 1 erlaubte hier einen Hinweis, es wurde aber keiner migriert.';
 $string['verify_orphancue'] = 'Block {$a}: kein zugehöriger Block aus Version 1 gefunden.';
 $string['verify_orphangap'] = 'Lücke {$a}: keine zugehörige Lücke aus Version 1 gefunden.';
 $string['verify_rangemismatch'] = 'Lücke {$a}: der Zeichenbereich stimmt nicht mit der Quelle aus Version 1 überein.';
 $string['verify_responsecount'] = 'Nutzer/in {$a->userid}: die Anzahl migrierter Antworten ist {$a->actual}, erwartet {$a->expected}.';
-$string['verify_solutionmismatch'] = 'Lücke {$a->gapkey}: die Lösung ist „{$a->actual}", erwartet „{$a->expected}".';
+$string['verify_solutionmismatch'] = 'Lücke {$a->gapkey}: die Lösung ist „{$a->actual}“, erwartet „{$a->expected}“.';
 $string['verify_transcriptmismatch'] = 'Block {$a}: das Transkript stimmt nicht mit der Quelle aus Version 1 überein.';
-$string['verify_unexpectedhint'] = 'Lücke {$a}: Version 1 erlaubte hier keine Hilfe, es wurde aber ein Hinweis migriert.';
+$string['verify_unexpectedhint'] = 'Lücke {$a}: Version 1 erlaubte hier keinen Hinweis, es wurde aber einer migriert.';

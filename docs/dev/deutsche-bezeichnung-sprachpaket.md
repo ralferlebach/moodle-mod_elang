@@ -16,7 +16,7 @@
 
 ```php
 $string['modulename'] = 'Video-Diktat';
-$string['modulenameplural'] = 'Video-Diktaten';
+$string['modulenameplural'] = 'Video-Diktate';
 $string['pluginname'] = 'Video-Diktat';
 ```
 

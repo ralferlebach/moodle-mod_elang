@@ -37,7 +37,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Langues de contenu autorisées';
-$string['allowedlanguages_desc'] = 'Les langues de contenu proposées lors de la création ou de la modification d\'une activité eLang. N\'en sélectionnez aucune pour proposer la liste complète. Une activité conserve la langue enregistrée même si vous la retirez ensuite d\'ici.';
+$string['allowedlanguages_desc'] = 'Les langues de contenu proposées lors de la création ou de la modification d\'une dictée vidéo. N\'en sélectionnez aucune pour proposer la liste complète. Une activité conserve la langue enregistrée même si vous la retirez ensuite d\'ici.';
 $string['allowtranscriptdownload'] = 'Téléchargement de la transcription par les participants';
 $string['allowtranscriptdownload_help'] = 'Lorsque ce réglage est activé, les participants peuvent télécharger la fiche de travail de la transcription, avec chaque blanc masqué, au format PDF, Word, OpenDocument ou texte.
 

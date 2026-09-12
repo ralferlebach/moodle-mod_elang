@@ -42,7 +42,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Idiomas de contenido permitidos';
-$string['allowedlanguages_desc'] = 'Los idiomas de contenido que se ofrecen al crear o editar una actividad eLang. No seleccione ninguno para ofrecer la lista completa. Una actividad conserva el idioma almacenado aunque después lo quite de aquí.';
+$string['allowedlanguages_desc'] = 'Los idiomas de contenido que se ofrecen al crear o editar un dictado en vídeo. No seleccione ninguno para ofrecer la lista completa. Una actividad conserva el idioma almacenado aunque después lo quite de aquí.';
 $string['allowtranscriptdownload'] = 'Descarga de la transcripción por los estudiantes';
 $string['allowtranscriptdownload_help'] = 'Cuando está activado, los estudiantes pueden descargar la hoja de trabajo de la transcripción, con cada hueco oculto, como PDF, Word, OpenDocument o texto.
 

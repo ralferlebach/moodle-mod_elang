@@ -38,7 +38,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['allowedlanguages'] = 'Tillåtna innehållsspråk';
-$string['allowedlanguages_desc'] = 'De innehållsspråk som erbjuds när en eLang-aktivitet skapas eller redigeras. Välj inget för att erbjuda hela språklistan. En aktivitet behåller sitt sparade språk även om du senare tar bort det här.';
+$string['allowedlanguages_desc'] = 'De innehållsspråk som erbjuds när en videodiktamen skapas eller redigeras. Välj inget för att erbjuda hela språklistan. En aktivitet behåller sitt sparade språk även om du senare tar bort det här.';
 $string['allowtranscriptdownload'] = 'Nedladdning av transkription för deltagare';
 $string['allowtranscriptdownload_help'] = 'När detta är påslaget kan deltagare ladda ned transkriptionens arbetsblad, med varje lucka dold, som PDF, Word, OpenDocument eller text.
 

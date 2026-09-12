@@ -13,6 +13,31 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Fixed — second terminology review
+- **`pt_br` carried three corrupted words.** The differential pack was generated
+  by plain substring replacement, and the rule `guardar → salvar` fired inside
+  `aguardar`, producing the non-word `asalvar` in three migration strings. The
+  pack is now generated with **word-boundary** substitutions, and a check traces
+  every word of the result back to either the pt source or a deliberate
+  replacement — the check that would have caught this. It also picked up the
+  Brazilian media term: `média` → `mídia`, which is feminine, so the agreement
+  changes with it ("Mídia salva", "Salvar a mídia"). 84 strings now, up from 63.
+- **Arabic conflated subtitles with translation.** Both were `ترجمة`, while the
+  plugin has a hint type that genuinely means translation. Media subtitles are
+  now `الترجمة المصاحبة` throughout; only `editor_hinttype_translation` keeps the
+  bare word, which is what it is for.
+- German: the remaining `Hilfe`/`Hinweis` drift, three strings that opened with
+  `„` and closed with `"`, an overlay help text still saying "Auf dem Medium"
+  after the labels had moved to "Im Video", two anglicisms about timing, and the
+  migration workflow mixing *Prüfung*, *freigeben* and *abgenommen* — now one
+  vocabulary.
+- `allowedlanguages_desc` still said "eLang activity" in en, fr, es, sv, el and
+  ar. Every pack now names the product; `es_mx` gained the matching override.
+- English used "Full transcript with answers" for the export but "Solution
+  transcript" elsewhere. One user-facing term now; `solution` stays internal.
+- `docs/dev/deutsche-bezeichnung-sprachpaket.md` contradicted itself: the code
+  example said `Video-Diktaten`, the table beside it `Video-Diktate`.
+
 ### Changed — product name and terminology review
 - **The activity is now called "Video dictation"** in English and the local
   equivalent everywhere else: Video-Diktat, Dictée vidéo, Dictado en vídeo

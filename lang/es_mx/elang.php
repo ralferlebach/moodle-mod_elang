@@ -46,6 +46,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['allowedlanguages_desc'] = 'Los idiomas de contenido que se ofrecen al crear o editar un dictado en video. No seleccione ninguno para ofrecer la lista completa. Una actividad conserva el idioma almacenado aunque después lo quite de aquí.';
 $string['cuepausemode_help'] = 'Si el medio se detiene al final de un subtítulo.
 
 * Automático — la reproducción continúa y solo se detiene al final de un subtítulo mientras se está trabajando en él, es decir, tras hacer clic en él o en uno de sus huecos, o al situar en uno de ellos el foco del teclado.

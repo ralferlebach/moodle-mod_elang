@@ -200,6 +200,18 @@ There may be several weeks after a new major release of Moodle has been publishe
 Translating this plugin
 -----------------------
 
+**If the activity shows a different name than you expect.** Moodle resolves a
+plugin's strings against the installed language pack first, so a site that has
+the German pack from lang.moodle.org installed can still show an older name —
+for mod_elang usually "Hör-Garten" from version 1.x — even though this release
+ships "Video-Diktat". That is the language pack winning, not a bug in the
+plugin. Update the language pack, or override the name through Language
+customisation; `docs/dev/deutsche-bezeichnung-sprachpaket.md` walks through
+both.
+
+Translators: the binding terminology for English and German, and the principles
+that apply to every other language, are in `docs/dev/terminology.md`.
+
 This Moodle plugin is provided with English and German language packs only. Translations into other languages must be managed through AMOS (https://lang.moodle.org), where they will become part of Moodle's official language pack.
 
 As the plugin creator, we continue to maintain the German translation. For all other languages, we kindly ask you to contribute your translations directly in AMOS. These contributions will be reviewed by Moodle's official language pack maintainers before being included in the official repository.

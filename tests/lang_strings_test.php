@@ -76,34 +76,43 @@ final class lang_strings_test extends \basic_testcase {
     }
 
     /**
+     * Language packs that deliberately carry only what differs from a parent.
+     *
+     * Named rather than guessed. An earlier version of this test split the
+     * packs by counting strings — under four hundred meant regional — which
+     * worked only by accident of the current contents. An incomplete full pack
+     * with four hundred and one strings would have been waved through as
+     * complete, and that is precisely the case the test exists to catch.
+     *
+     * Anything not named here is required to be complete, so forgetting to
+     * register a new regional pack makes the suite fail loudly rather than
+     * quietly lower the bar.
+     */
+    private const REGIONAL_PACKS = ['es_mx', 'pt_br'];
+
+    /**
      * The language packs present, split into full packs and regional overrides.
      *
-     * A regional pack such as es_mx or pt_br deliberately carries only the
-     * strings that differ from its parent, so it cannot be held to the same
-     * completeness rule. The split is by size rather than by a hand-kept list,
-     * so a pack added later is covered without anyone remembering to register
-     * it — which is how the first eighteen packs escaped this test.
-     *
-     * @return array [full, partial] — each a list of language directory names
+     * @return array [full, regional] — each a list of language directory names
      */
     private function packs(): array {
         global $CFG;
 
         $full = [];
-        $partial = [];
+        $regional = [];
         foreach (glob($CFG->dirroot . '/mod/elang/lang/*', GLOB_ONLYDIR) as $dir) {
             $lang = basename($dir);
             if (!is_readable($dir . '/elang.php')) {
                 continue;
             }
-            if (count($this->declared($lang)) < 400) {
-                $partial[] = $lang;
+            if (in_array($lang, self::REGIONAL_PACKS, true)) {
+                $regional[] = $lang;
             } else {
                 $full[] = $lang;
             }
         }
 
-        return [$full, $partial];
+        return [$full, $regional];
     }
 
     /**
@@ -118,7 +127,7 @@ final class lang_strings_test extends \basic_testcase {
      * @return array
      */
     private function placeholders(string $text): array {
-        preg_match_all('~\{\$a(->[a-z0-9_]+)?\}|%[a-z]+%~i', $text, $matches);
+        preg_match_all('~\\{\\$a(->[a-z0-9_]+)?\\}|%[a-z]+%~i', $text, $matches);
         $found = array_unique($matches[0]);
         sort($found);
 
@@ -126,23 +135,28 @@ final class lang_strings_test extends \basic_testcase {
     }
 
     /**
-     * The string values of one language file, keyed by identifier.
+     * The strings of one language file, as PHP itself sees them.
+     *
+     * Executed in an isolated scope rather than scraped with a regular
+     * expression. A pattern only matches the shape it was written for, so a
+     * string defined in any other valid way would have been silently skipped by
+     * the placeholder check — present according to one method, absent according
+     * to the other, and reported by neither.
      *
      * @param string $lang
-     * @return array
+     * @return array Identifier => translated text
      */
     private function values(string $lang): array {
         global $CFG;
 
-        $source = file_get_contents($CFG->dirroot . '/mod/elang/lang/' . $lang . '/elang.php');
-        preg_match_all('~^\$string\[\'([^\']+)\'\] = \'(.*?)\';$~ms', $source, $matches, PREG_SET_ORDER);
+        $load = static function (string $path): array {
+            $string = [];
+            require($path);
 
-        $values = [];
-        foreach ($matches as $match) {
-            $values[$match[1]] = str_replace(["\\'", '\\\\'], ["'", '\\'], $match[2]);
-        }
+            return $string;
+        };
 
-        return $values;
+        return $load($CFG->dirroot . '/mod/elang/lang/' . $lang . '/elang.php');
     }
 
     /**
@@ -193,6 +207,58 @@ final class lang_strings_test extends \basic_testcase {
                 [],
                 array_values(array_diff($declared, $en)),
                 "Declared in '$lang' but not in English."
+            );
+        }
+    }
+
+    /**
+     * No language file declares the same identifier twice.
+     *
+     * PHP keeps the last assignment and says nothing, so a duplicate is a
+     * translation that exists in the file, is read by every reviewer, and is
+     * never shown to anyone.
+     *
+     * @return void
+     */
+    public function test_no_language_file_declares_a_string_twice(): void {
+        [$full, $regional] = $this->packs();
+
+        foreach (array_merge($full, $regional) as $lang) {
+            $declared = $this->declared($lang);
+            $counts = array_count_values($declared);
+            $duplicates = array_keys(array_filter($counts, static fn($n) => $n > 1));
+
+            $this->assertSame(
+                [],
+                $duplicates,
+                "Declared more than once in '$lang': " . implode(', ', $duplicates)
+            );
+        }
+    }
+
+    /**
+     * What PHP loads from a language file is what the file appears to declare.
+     *
+     * The two readings are independent: one executes the file, the other scans
+     * its text. If they disagree, a string is being defined in a way one of
+     * them cannot see — and the checks built on the weaker reading would pass
+     * by skipping it rather than by finding it correct.
+     *
+     * @return void
+     */
+    public function test_every_declared_string_is_actually_loaded(): void {
+        [$full, $regional] = $this->packs();
+
+        foreach (array_merge($full, $regional) as $lang) {
+            $declared = $this->declared($lang);
+            $loaded = array_keys($this->values($lang));
+            sort($declared);
+            sort($loaded);
+
+            $this->assertSame(
+                $declared,
+                $loaded,
+                "The strings PHP loads from '$lang' differ from the ones the file appears to declare."
             );
         }
     }

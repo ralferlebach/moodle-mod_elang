@@ -13,6 +13,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Changed — language pack test hardening
+Three criticisms of the test added in the previous round, all of them fair:
+
+- **Full packs were told apart from regional ones by counting strings** — under
+  four hundred meant regional. That worked by accident of the current contents.
+  A new pack started at three hundred strings would have been classed regional
+  and never checked for completeness. Regional packs are now named
+  (`es_mx`, `pt_br`) and everything else must be complete, so forgetting to
+  register one fails loudly instead of quietly lowering the bar.
+- **Duplicate identifiers went unnoticed.** PHP keeps the last assignment and
+  says nothing, so a duplicate is a translation that sits in the file, is read
+  by every reviewer, and is shown to nobody.
+- **`values()` scraped the file with a regular expression.** A string written in
+  any other valid form was present according to `declared()` and absent
+  according to `values()`, so its placeholder check silently did not run. The
+  language files are now executed in an isolated scope, and a new test asserts
+  that both readings see the same identifiers.
+
+Each verified by breaking it deliberately: a three-hundred-string pack, a
+duplicated id, and a string switched to double quotes. All three fail the suite
+with a message naming the language.
+
+### Documentation
+- `docs/dev/terminology.md` — the binding terms for English and German, why
+  `cue` stays in identifiers while the interface says *subtitle*, and the
+  principles that apply to other languages: one word per concept, no mechanical
+  derivation between related languages, count-neutral phrasing, capabilities
+  rather than role names.
+- README now explains that an installed language pack outranks the strings
+  bundled here, which is why a site can still show "Hör-Garten".
+
 ### Changed — fourth terminology review
 - **English now says "subtitle" where a person can see it.** The interface used
   *cue* and *subtitle* for the same time-coded block; *cue* is the correct WebVTT

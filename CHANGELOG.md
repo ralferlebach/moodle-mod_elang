@@ -13,6 +13,46 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Changed — fourth terminology review
+- **English now says "subtitle" where a person can see it.** The interface used
+  *cue* and *subtitle* for the same time-coded block; *cue* is the correct WebVTT
+  term but the wrong word for a teacher's authoring screen, and *subtitle* was
+  already dominant. 23 visible strings renamed. `cue` stays in the ten
+  `error_*`/`validate_*`/`verify_*`/`import_*` strings where it names the data
+  object, in every identifier, and in the database. German had already been
+  corrected this way two rounds earlier, so English was the one lagging.
+- **`elang` was leaking into six language packs as a visible activity name.**
+  The review found it in French; a scan across every pack found it in en, es,
+  ar, el and sv as well — including the English source it was translated from.
+  All six now name the activity.
+- German: *Legacy*/*decommission* replaced with Alttabellen/Altdaten aus
+  Version 1 and *entfernen*; *Rahmen* for an embedded provider iframe replaced
+  with "eingebetteter Player des Anbieters", which is what a viewer actually
+  sees; *abschalten* → *deaktivieren* for a configurable setting; and the two
+  privacy descriptions now use the same result vocabulary as the report screen
+  (*exakt, erkannt, falsch, leer*) rather than *zeichengenau* and *Wort erkannt*.
+- Spanish: the help text said *dictado con vídeo* while the activity is called
+  *Dictado en vídeo*.
+
+### Changed — language pack contract tests
+`tests/lang_strings_test.php` compared German against English and nothing else,
+which is how eighteen further packs escaped it. It now splits the packs by size
+rather than by a hand-kept list — so a pack added later is covered without
+anyone remembering to register it — and checks three things:
+
+- every full pack declares exactly the identifiers English does;
+- a regional override pack (es_mx, pt_br) declares nothing English lacks,
+  without being held to completeness, which is the point of those packs;
+- every translated string carries the same placeholders as its English source.
+
+The last one matters most: a translation that drops `{$a->total}` shows a
+learner the literal text, and one that invents a placeholder shows nothing.
+Both are invisible until someone opens that screen in that language. Verified
+by breaking each case deliberately — a removed string, a dropped placeholder, a
+typo'd identifier in a regional pack — and confirming the suite fails with a
+message that names the language and the string. Assertions rose from 1583 to
+12308.
+
 ### Fixed — second terminology review
 - **`pt_br` carried three corrupted words.** The differential pack was generated
   by plain substring replacement, and the rule `guardar → salvar` fired inside

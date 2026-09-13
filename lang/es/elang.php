@@ -282,7 +282,7 @@ Un vídeo de proveedor se reproduce en el marco del propio proveedor, que no inf
 **Adónde van los datos.** Un marco de YouTube o Vimeo conecta el navegador de cada estudiante con esa empresa, que recibe entonces su dirección IP y los datos de su dispositivo. Por omisión, el ejercicio pregunta antes de hacerlo. Si su institución dispone de su propio servidor de medios — Opencast, Panopto, Kaltura o similar — pegue en su lugar la dirección directa del fichero desde allí: se trata como una dirección de medio normal, conserva la posición de los subtítulos y el ajuste de pausa que haya elegido, y no interviene ningún tercero.';
 $string['migratev1_approvalheading'] = 'Migradas, pendientes de revisión';
 $string['migratev1_approvebutton'] = 'Aprobar esta migración';
-$string['migratev1_approved'] = 'La actividad elang {$a} se ha marcado como aprobada.';
+$string['migratev1_approved'] = 'El dictado en vídeo {$a} se ha marcado como aprobado.';
 $string['migratev1_colactivity'] = 'Actividad';
 $string['migratev1_colalgorithm'] = 'Algoritmo de evaluación';
 $string['migratev1_colcues'] = 'Segmentos';
@@ -310,7 +310,7 @@ $string['migratev1_verifiedclean'] = 'Verificado: los datos migrados coinciden c
 $string['migratev1_verifieddiscrepancies'] = 'La verificación ha encontrado discrepancias respecto al origen de la versión 1: {$a}';
 $string['migratev1_verifyfailed'] = 'No se ha podido verificar esta actividad: {$a}';
 $string['modulename'] = 'Dictado en vídeo';
-$string['modulename_help'] = 'La actividad de dictado con vídeo permite a los estudiantes rellenar huecos en subtítulos sincronizados mientras ven o escuchan un vídeo.
+$string['modulename_help'] = 'La actividad de dictado en vídeo permite a los estudiantes rellenar huecos en subtítulos sincronizados mientras ven o escuchan un vídeo.
 
 Los profesores importan un fichero de subtítulos WebVTT o SubRip, marcan palabras o expresiones como huecos y configuran con qué rigor se comparan las respuestas. Los estudiantes recorren la transcripción segmento a segmento, piden pistas penalizadas y reciben una respuesta inmediata.';
 $string['modulenameplural'] = 'Dictados en vídeo';

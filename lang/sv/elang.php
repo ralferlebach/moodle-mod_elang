@@ -278,7 +278,7 @@ En leverantörsvideo spelas i leverantörens egen ram, som inte rapporterar sin 
 **Vart uppgifterna går.** En YouTube- eller Vimeo-ram ansluter varje deltagares webbläsare till det företaget, som då får deltagarens IP-adress och enhetsuppgifter. Som standard frågar övningen innan den gör det. Om din institution driver en egen mediaserver — Opencast, Panopto, Kaltura eller liknande — klistra då in filens direkta adress därifrån i stället: den behandlas som en vanlig medieadress, behåller undertextpositionen och pausinställningen du valt, och ingen tredje part är inblandad.';
 $string['migratev1_approvalheading'] = 'Migrerade, väntar på granskning';
 $string['migratev1_approvebutton'] = 'Godkänn den här migreringen';
-$string['migratev1_approved'] = 'elang {$a} har markerats som godkänd.';
+$string['migratev1_approved'] = 'Videodiktamen {$a} har markerats som godkänd.';
 $string['migratev1_colactivity'] = 'Aktivitet';
 $string['migratev1_colalgorithm'] = 'Bedömningsalgoritm';
 $string['migratev1_colcues'] = 'Segment';

@@ -278,7 +278,7 @@ $string['media_sourceurl_help'] = 'الصق عنوان فيديو بدل رفع 
 **إلى أين تذهب البيانات.** يربط إطار ‏YouTube أو ‏Vimeo متصفح كل متعلم بتلك الشركة، فتتلقى عنوان ‏IP الخاص به وبيانات جهازه. يسأل التمرين افتراضياً قبل ذلك. وإن كانت مؤسستك تشغّل خادم وسائط خاصاً بها — ‏Opencast أو ‏Panopto أو ‏Kaltura أو ما شابه — فالصق بدلاً من ذلك العنوان المباشر للملف من هناك: يُعامَل كرابط وسائط عادي، ويحافظ على موضع الترجمة المصاحبة وإعداد التوقف اللذين اخترتهما، ولا يشارك فيه أي طرف ثالث.';
 $string['migratev1_approvalheading'] = 'تمت الهجرة، بانتظار المراجعة';
 $string['migratev1_approvebutton'] = 'اعتماد هذه الهجرة';
-$string['migratev1_approved'] = 'تم تعليم elang ‏{$a} كمعتمَد.';
+$string['migratev1_approved'] = 'تم وسم الإملاء بالفيديو {$a} كمعتمَد.';
 $string['migratev1_colactivity'] = 'النشاط';
 $string['migratev1_colalgorithm'] = 'خوارزمية التقييم';
 $string['migratev1_colcues'] = 'المقاطع';

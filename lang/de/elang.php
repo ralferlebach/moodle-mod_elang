@@ -260,9 +260,9 @@ $string['media_sourceurl_help'] = 'Fügen Sie die Adresse eines Videos ein, stat
 
 Eine hier eingetragene Adresse ersetzt eine hochgeladene Datei. Lassen Sie das Feld leer, um den Upload oben zu verwenden.
 
-Ein Anbietervideo wird im Rahmen des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an.
+Ein Anbietervideo wird im eingebetteten Player des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an.
 
-**Wohin die Daten gehen.** Ein YouTube- oder Vimeo-Rahmen verbindet den Browser jeder lernenden Person mit diesem Unternehmen, das dabei IP-Adresse und Geräteangaben erhält. Standardmäßig fragt die Übung vorher nach. Wenn Ihre Einrichtung einen eigenen Medienserver betreibt — Opencast, Panopto, Kaltura oder ähnlich —, fügen Sie stattdessen die direkte Adresse der Datei von dort ein: sie gilt als gewöhnliche Medien-URL, behält die von Ihnen gewählte Untertitelposition und Pauseneinstellung, und es ist kein Dritter beteiligt.';
+**Wohin die Daten gehen.** Ein eingebetteter YouTube- oder Vimeo-Player verbindet den Browser jeder lernenden Person mit diesem Unternehmen, das dabei IP-Adresse und Geräteangaben erhält. Standardmäßig fragt die Übung vorher nach. Wenn Ihre Einrichtung einen eigenen Medienserver betreibt — Opencast, Panopto, Kaltura oder ähnlich —, fügen Sie stattdessen die direkte Adresse der Datei von dort ein: sie gilt als gewöhnliche Medien-URL, behält die von Ihnen gewählte Untertitelposition und Pauseneinstellung, und es ist kein Dritter beteiligt.';
 $string['migratev1_approvalheading'] = 'Migriert, wartet auf Prüfung';
 $string['migratev1_approvebutton'] = 'Diese Migration freigeben';
 $string['migratev1_approved'] = 'Video-Diktat {$a} wurde freigegeben.';
@@ -272,20 +272,20 @@ $string['migratev1_colcues'] = 'Untertitel';
 $string['migratev1_colgaps'] = 'Lücken';
 $string['migratev1_colissues'] = 'Befunde';
 $string['migratev1_collearners'] = 'Lernende';
-$string['migratev1_confirmdecommission'] = 'Dies entfernt UNUMKEHRBAR die Version-1-Legacy-Tabellen und elang.options. Es gibt kein Zurück. Fortfahren?';
+$string['migratev1_confirmdecommission'] = 'Dies entfernt UNUMKEHRBAR die Alttabellen aus Version 1 und elang.options. Es gibt kein Zurück. Fortfahren?';
 $string['migratev1_confirmmigrate'] = 'Dies reiht einen Hintergrund-Task ein, der für jede oben aufgeführte Aktivität neue Version-2-Daten schreibt. Die Version-1-Tabellen und elang.options bleiben unangetastet. Fortfahren?';
-$string['migratev1_decommissionblocked'] = 'Der Abbau ist weiterhin blockiert; siehe die Liste unten.';
-$string['migratev1_decommissionblockedintro'] = 'Der Abbau ist noch blockiert, bis:';
-$string['migratev1_decommissionbutton'] = 'Version-1-Legacy-Daten entfernen';
-$string['migratev1_decommissioned'] = 'Die Version-1-Legacy-Daten wurden entfernt.';
-$string['migratev1_decommissionheading'] = 'Version-1-Daten abbauen';
-$string['migratev1_decommissionready'] = 'Jede Version-1-Aktivität wurde migriert und freigegeben. Die Version-1-Legacy-Tabellen und elang.options können jetzt entfernt werden. Das ist unumkehrbar.';
+$string['migratev1_decommissionblocked'] = 'Das Entfernen ist weiterhin blockiert; siehe die Liste unten.';
+$string['migratev1_decommissionblockedintro'] = 'Das Entfernen ist noch blockiert, bis:';
+$string['migratev1_decommissionbutton'] = 'Altdaten aus Version 1 entfernen';
+$string['migratev1_decommissioned'] = 'Altdaten aus Version 1 wurden entfernt.';
+$string['migratev1_decommissionheading'] = 'Altdaten aus Version 1 entfernen';
+$string['migratev1_decommissionready'] = 'Jede Version-1-Aktivität wurde migriert und freigegeben. Die Alttabellen aus Version 1 und elang.options können jetzt entfernt werden. Das ist unumkehrbar.';
 $string['migratev1_heading'] = 'Version-1-Aktivitäten migrieren';
 $string['migratev1_migratebutton'] = 'Diese Aktivitäten migrieren';
 $string['migratev1_noissues'] = 'Keine';
 $string['migratev1_nonepending'] = 'Es warten keine Version-1-Aktivitäten auf Migration.';
 $string['migratev1_nonependingapproval'] = 'Es warten keine migrierten Aktivitäten auf Prüfung.';
-$string['migratev1_notablespresent'] = 'Auf dieser Seite wurden keine Version-1-Legacy-Tabellen gefunden. Es gibt nichts zu migrieren.';
+$string['migratev1_notablespresent'] = 'Auf dieser Seite wurden keine Alttabellen aus Version 1 gefunden. Es gibt nichts zu migrieren.';
 $string['migratev1_parseerrorcount'] = 'Nicht lesbare Untertitel: {$a}';
 $string['migratev1_pendingheading'] = 'Noch nicht migriert';
 $string['migratev1_queued'] = 'Der Migrations-Task wurde eingereiht. Er läuft beim nächsten Cron-Durchlauf oder sofort über admin/cli/adhoc_task.php --execute.';
@@ -305,7 +305,7 @@ $string['noinstances'] = 'In diesem Kurs gibt es keine Video-Diktate.';
 $string['overview_attempts'] = 'Versuche';
 $string['playbackheading'] = 'Wiedergabe und Untertitel';
 $string['playbackoverlayhint'] = 'Eine Einblendung auf dem Bild zeigt nur den gerade laufenden Untertitel. Die Wiedergabe hält deshalb immer am Ende eines Untertitels an, in dem noch Lücken offen sind — hier gibt es nichts zu wählen.';
-$string['playbackproviderhint'] = 'Ein YouTube- oder Vimeo-Video wird vom Anbieter in einem eigenen Rahmen abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an, unabhängig von der Auswahl oben. Hochgeladene Dateien und direkte Medien-URLs berücksichtigen beide Einstellungen.';
+$string['playbackproviderhint'] = 'Ein YouTube- oder Vimeo-Video wird vom Anbieter im eingebetteten Player des Anbieters abgespielt, der seine Wiedergabezeit nicht meldet. Eine solche Übung zeigt die Untertitel immer unter dem Medium und hält nie an Untertitelgrenzen an, unabhängig von der Auswahl oben. Hochgeladene Dateien und direkte Medien-URLs berücksichtigen beide Einstellungen.';
 $string['player_check'] = 'Antwort prüfen';
 $string['player_consentaccept'] = 'Video von {$a} laden';
 $string['player_consentdetail'] = 'Beim Abspielen verbindet sich Ihr Browser mit {$a}. {$a} erhält dabei Ihre IP-Adresse und Angaben zu Ihrem Gerät und kann bereits gesetzte Cookies auslesen. Vorher wird nichts übertragen.';
@@ -337,7 +337,7 @@ $string['privacy_metadata_elang_attempt'] = 'Für jeden Versuch an einer Übung 
 $string['privacy_metadata_elang_attempt_answeredgaps'] = 'Wie viele Lücken die lernende Person in diesem Versuch beantwortet hat.';
 $string['privacy_metadata_elang_attempt_attemptnumber'] = 'Die laufende Nummer dieses Versuchs für die Person und die Aktivität.';
 $string['privacy_metadata_elang_attempt_correctgaps'] = 'Wie viele Lücken in diesem Versuch als richtig akzeptiert wurden.';
-$string['privacy_metadata_elang_attempt_exactgaps'] = 'Wie viele Lücken in diesem Versuch zeichengenau beantwortet wurden.';
+$string['privacy_metadata_elang_attempt_exactgaps'] = 'Wie viele Lücken in diesem Versuch exakt beantwortet wurden.';
 $string['privacy_metadata_elang_attempt_hintedgaps'] = 'Für wie viele Lücken die lernende Person in diesem Versuch einen Hinweis angefordert hat.';
 $string['privacy_metadata_elang_attempt_score'] = 'Die in diesem Versuch erreichte Punktzahl.';
 $string['privacy_metadata_elang_attempt_state'] = 'Ob der Versuch läuft, abgeschlossen oder abgebrochen ist.';
@@ -352,7 +352,7 @@ $string['privacy_metadata_elang_response'] = 'Für jede Lücke, die eine lernend
 $string['privacy_metadata_elang_response_accepted'] = 'Ob die Antwort für diese Lücke als richtig akzeptiert wurde.';
 $string['privacy_metadata_elang_response_hintlevel'] = 'Die höchste Hinweisstufe, die der lernenden Person für diese Lücke gezeigt wurde.';
 $string['privacy_metadata_elang_response_responsetext'] = 'Der von der lernenden Person für diese Lücke eingegebene Text.';
-$string['privacy_metadata_elang_response_resultstate'] = 'Die vom Evaluator ermittelte Einstufung dieser Antwort (exakt, Wort erkannt, falsch oder leer).';
+$string['privacy_metadata_elang_response_resultstate'] = 'Die vom Evaluator ermittelte Einstufung dieser Antwort (exakt, erkannt, falsch oder leer).';
 $string['privacy_metadata_elang_response_score'] = 'Die von dieser Antwort beigetragenen Punkte, nach Abzügen für verwendete Hinweise.';
 $string['privacy_metadata_elang_response_timecreated'] = 'Der Zeitpunkt, zu dem diese Antwort erstmals abgegeben wurde.';
 $string['privacy_metadata_elang_response_timemodified'] = 'Der Zeitpunkt der letzten Aktualisierung dieser Antwort.';
@@ -365,7 +365,7 @@ $string['privacy_provider_useragent'] = 'Die Browser- und Geräteangaben, die de
 $string['provider_vimeo'] = 'Vimeo';
 $string['provider_youtube'] = 'YouTube';
 $string['providerconsent'] = 'Vor dem Einbetten von YouTube oder Vimeo fragen';
-$string['providerconsent_desc'] = 'Übungen mit einem YouTube- oder Vimeo-Video zeigen zunächst einen Hinweis statt des Videos und betten es erst nach Zustimmung der lernenden Person ein. Ohne diese Einstellung erhält der Anbieter IP-Adresse und Browserdaten bereits beim Öffnen der Seite — bevor jemand auf Abspielen drückt. Nur abschalten, wenn Ihre Einrichtung diese Einwilligung an anderer Stelle einholt.';
+$string['providerconsent_desc'] = 'Übungen, die auf einem YouTube- oder Vimeo-Video beruhen, zeigen statt des Videos einen Hinweis und binden es erst nach Zustimmung der lernenden Person ein. Ohne das erhält der Anbieter IP-Adresse und Browserdaten der lernenden Person, sobald die Seite geöffnet wird — bevor jemand auf Wiedergabe drückt. Nur deaktivieren, wenn Ihre Einrichtung diese Einwilligung an anderer Stelle einholt.';
 $string['report_actions'] = 'Aktionen';
 $string['report_answered'] = 'Beantwortet';
 $string['report_attemptnumber'] = 'Versuch';

@@ -277,7 +277,7 @@ Une vidéo de fournisseur est lue dans son propre cadre, qui ne communique pas s
 **Où vont les données.** Un cadre YouTube ou Vimeo connecte le navigateur de chaque participant à cette entreprise, qui reçoit alors son adresse IP et les informations de son appareil. Par défaut, l\'exercice demande son accord au préalable. Si votre établissement dispose de son propre serveur de médias — Opencast, Panopto, Kaltura ou équivalent — collez plutôt l\'adresse directe du fichier depuis celui-ci : elle est traitée comme une simple adresse média, conserve la position des sous-titres et le réglage de pause que vous avez choisis, et aucun tiers n\'est impliqué.';
 $string['migratev1_approvalheading'] = 'Migrés, en attente de vérification';
 $string['migratev1_approvebutton'] = 'Approuver cette migration';
-$string['migratev1_approved'] = 'L\'activité elang {$a} a été marquée comme approuvée.';
+$string['migratev1_approved'] = 'La dictée vidéo {$a} a été marquée comme approuvée.';
 $string['migratev1_colactivity'] = 'Activité';
 $string['migratev1_colalgorithm'] = 'Algorithme d\'évaluation';
 $string['migratev1_colcues'] = 'Séquences';

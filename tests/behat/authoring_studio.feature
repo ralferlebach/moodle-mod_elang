@@ -24,7 +24,7 @@ Feature: The Subtitle Studio authoring editor
   Scenario: A fresh exercise shows the onboarding guidance
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     When I select "Subtitles & gaps" from secondary navigation
-    Then I should see "Exercise content editor"
+    Then I should see "Edit subtitles and gaps"
     And I should see "Start your exercise"
 
   Scenario: The editor offers the authoring toolbar
@@ -32,13 +32,13 @@ Feature: The Subtitle Studio authoring editor
     When I select "Subtitles & gaps" from secondary navigation
     Then I should see "Save draft"
     And I should see "Publish"
-    And I should see "Add cue"
+    And I should see "Add subtitle"
     And I should not see "The editor could not be loaded"
 
-  Scenario: Adding a cue creates a cue row and autosaves it
+  Scenario: Adding a subtitle creates a row and autosaves it
     Given I am on the "Test elang" "elang activity" page logged in as teacher1
     And I select "Subtitles & gaps" from secondary navigation
-    When I press "Add cue"
+    When I press "Add subtitle"
     Then I should see "Transcript"
     And I should see "All changes saved"
 

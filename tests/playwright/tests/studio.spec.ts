@@ -33,10 +33,10 @@ test.beforeEach(async ({page}) => {
 });
 
 test('the editor mounts and shows the authoring toolbar', async ({page}) => {
-    await expect(page.getByText('Exercise content editor')).toBeVisible();
+    await expect(page.getByText('Edit subtitles and gaps')).toBeVisible();
     await expect(page.getByRole('button', {name: 'Save draft'})).toBeVisible();
     await expect(page.getByRole('button', {name: 'Publish'})).toBeVisible();
-    await expect(page.getByRole('button', {name: 'Add cue'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Add subtitle'})).toBeVisible();
 });
 
 test('timeline cue edges are keyboard-operable sliders', async ({page}) => {

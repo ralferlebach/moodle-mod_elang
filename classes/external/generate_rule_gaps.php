@@ -23,10 +23,6 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use mod_elang\local\authoring\gap_rule_generator;
 
-defined('MOODLE_INTERNAL') || die();
-
-require_once($CFG->dirroot . '/mod/elang/classes/external/authoring_helper.php');
-
 /**
  * Generate gap definitions from a rule for the authoring editor.
  *

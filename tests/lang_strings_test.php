@@ -291,6 +291,132 @@ final class lang_strings_test extends \basic_testcase {
     }
 
     /**
+     * Fixture data and core labels the browser tests legitimately assert on.
+     *
+     * A browser test types names and answers into the site and then checks they
+     * came back, and it presses buttons Moodle itself provides. Neither comes
+     * from this plugin's language file. They are listed rather than pattern-
+     * matched away, so the list stays short and visible instead of quietly
+     * growing into a hole in the check.
+     */
+    private const NOT_PLUGIN_STRINGS = [
+        // Fixture data created by the tests themselves.
+        'Listening exercise 1',
+        'dort',
+        // Moodle core.
+        'Save changes',
+        'Course 1',
+        'Save and display',
+        'Save and return to course',
+        'Add an activity or resource',
+        'Continue',
+        'Log in',
+        'Dashboard',
+    ];
+
+    /**
+     * Every visible label the browser tests assert on still exists in English.
+     *
+     * The end-to-end tests match on what a person reads, which is the right
+     * thing for them to do and makes them break whenever a label is reworded.
+     * Renaming cue to subtitle across the interface broke three Behat scenarios
+     * and one Playwright test; Behat surfaced after two minutes locally,
+     * Playwright after four minutes in CI. This finds the same drift in
+     * milliseconds, before either runs.
+     *
+     * A literal counts as present if any English string contains it, because
+     * getByText and Behat's "I should see" both match substrings. Strings with
+     * a %count%-style token are compared with the token treated as a wildcard,
+     * since what reaches the page has a number in its place.
+     *
+     * @return void
+     */
+    public function test_browser_test_labels_exist_in_english(): void {
+        global $CFG;
+
+        $values = array_values($this->values('en'));
+        $this->assertNotEmpty($values);
+
+        // Compare word by word rather than as raw text. A label on the page has
+        // had its placeholders filled in and may be quoted without its final
+        // full stop, so neither string contains the other literally.
+        $words = static function (string $text): array {
+            $text = preg_replace('~\{\$a(->[a-z0-9_]+)?\}|%[a-z]+%~i', ' * ', $text);
+            $text = preg_replace('~[^\p{L}\p{N}*]+~u', ' ', $text);
+
+            return array_values(array_filter(explode(' ', trim($text)), 'strlen'));
+        };
+
+        $english = array_map(static fn($text) => $words((string)$text), $values);
+
+        // True when the literal's words appear in order, as a run, inside the
+        // English string — with * standing for whatever filled a placeholder.
+        $contains = static function (array $haystack, array $needle): bool {
+            if ($needle === [] || count($needle) > count($haystack)) {
+                return false;
+            }
+            $limit = count($haystack) - count($needle);
+            for ($offset = 0; $offset <= $limit; $offset++) {
+                foreach ($needle as $index => $word) {
+                    $against = $haystack[$offset + $index];
+                    if ($against !== '*' && strcasecmp($against, $word) !== 0) {
+                        continue 2;
+                    }
+                }
+                return true;
+            }
+
+            return false;
+        };
+
+        $sources = array_merge(
+            glob($CFG->dirroot . '/mod/elang/tests/playwright/tests/*.spec.ts') ?: [],
+            glob($CFG->dirroot . '/mod/elang/tests/behat/*.feature') ?: []
+        );
+        $this->assertNotEmpty($sources, 'No browser tests found to check.');
+
+        $patterns = [
+            '~getBy(?:Text|Label)\(\s*\'([^\']+)\'~',
+            '~name:\s*\'([^\']+)\'~',
+            '~I (?:should see|press|click on|follow) "([^"]+)"~',
+        ];
+
+        $missing = [];
+        foreach ($sources as $file) {
+            $source = file_get_contents($file);
+            foreach ($patterns as $pattern) {
+                preg_match_all($pattern, $source, $matches);
+                foreach ($matches[1] as $literal) {
+                    if (in_array($literal, self::NOT_PLUGIN_STRINGS, true)) {
+                        continue;
+                    }
+                    // A CSS selector is a locator and a URL is data a test
+                    // types in; neither is a label anyone reads off the page.
+                    if (preg_match('~^[.#\[]~', $literal) || strpos($literal, '://') !== false) {
+                        continue;
+                    }
+                    $needle = $words($literal);
+                    foreach ($english as $haystack) {
+                        if ($contains($haystack, $needle)) {
+                            continue 2;
+                        }
+                    }
+                    $entry = basename($file) . ': "' . $literal . '"';
+                    if (!in_array($entry, $missing, true)) {
+                        $missing[] = $entry;
+                    }
+                }
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $missing,
+            "Browser tests assert on text no English string contains:\n" . implode("\n", $missing)
+        );
+    }
+
+    /**
      * Only capability strings may contain a colon.
      *
      * Moodle and AMOS accept [a-z0-9_] in a string id. A colon anywhere else

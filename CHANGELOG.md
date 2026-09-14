@@ -13,6 +13,36 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Fixed — label drift after the cue/subtitle rename
+The Playwright run failed on `studio.spec.ts`, expecting "Exercise content
+editor" — the old text of `editor_heading`. Same cause as the three Behat
+scenarios fixed in the previous round, found four minutes into a CI job rather
+than before it started.
+
+A new check in `tests/lang_strings_test.php` compares every label the browser
+tests assert on against the English strings, in milliseconds. It matches word by
+word, because a label on the page has had its placeholders filled in and is
+often quoted without its final full stop — so neither string contains the other
+literally. Fixture data, CSS selectors, URLs and core buttons are listed
+explicitly rather than pattern-matched away, so the list stays visible instead
+of growing into a hole. Verified by reintroducing the exact CI failure in both
+the Playwright spec and a Behat feature.
+
+### Changed — generate_rule_gaps no longer loads what the autoloader provides
+`require_once` for `authoring_helper.php` and a `MOODLE_INTERNAL` guard, both
+redundant in a `classes/` file: the trait is namespaced `mod_elang\external` and
+resolves by itself. Confirmed against a running site — the class loads, the
+trait is applied, its method is callable.
+
+### Not changed — MOODLE_INTERNAL guard in lib.php
+Reported as missing, and it is; but moodle-cs rejects it here. The sniff answers
+"Unexpected MOODLE_INTERNAL check. No side effects or multiple artifacts
+detected." — this file declares a constant and functions and does nothing at
+file scope, so the guard protects nothing. Core's `mod/quiz/lib.php` does carry
+one, and also has `require_once` calls at file scope, which is what makes it
+necessary there. Adding the guard to match core turned the build red; the reason
+is now a comment in `lib.php` so the next reader does not try again.
+
 ### Changed — language pack test hardening
 Three criticisms of the test added in the previous round, all of them fair:
 

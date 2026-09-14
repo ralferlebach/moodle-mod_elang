@@ -29,6 +29,12 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+// No MOODLE_INTERNAL guard here on purpose. moodle-cs flags one in this file as
+// unexpected: the file declares a constant and functions and has no file-scope
+// side effects, so there is nothing for the guard to protect. Core's
+// mod/quiz/lib.php does carry the guard, but it also has require_once calls at
+// file scope, which is what makes it necessary there and not here.
+
 /**
  * How many learners a whole-activity grade rebuild processes per batch, so the
  * work stays bounded in memory on activities with very many learners.

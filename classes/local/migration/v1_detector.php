@@ -182,7 +182,7 @@ final class v1_detector {
 
         foreach ($elangids as $elangid) {
             $elang = $elangs[$elangid] ?? null;
-            if (!$elang || $elang->options === null) {
+            if (!$elang || ($elang->options ?? null) === null) {
                 // No options blob to read: either a race with something
                 // deleting the row between the two queries, or (should not
                 // happen given v1_tables_present() and pending_activity_ids()
@@ -191,7 +191,7 @@ final class v1_detector {
                 continue;
             }
 
-            $options = json_decode((string) $elang->options, true) ?? [];
+            $options = json_decode((string) ($elang->options ?? ''), true) ?? [];
             [$gradingalgorithm, $jarothreshold] = v1_options_mapper::map_grading_algorithm($options);
 
             $cuerecords = $cuesbyactivity[$elangid] ?? [];

@@ -123,6 +123,18 @@ final class v1_legacy_schema {
             }
             $dbman->create_table($table);
         }
+
+        // The elang.options column belongs to the same legacy world as the tables
+        // above: a 1.x site has it, a fresh 2.0 install does not, and the
+        // upgrade adds it only for sites coming from 1.x. db/install.xml
+        // therefore no longer declares it, so a simulated 1.x site has to
+        // create it here — exactly as the upgrade step does — or there is
+        // nowhere for version 1's options blob to live.
+        $elang = new \xmldb_table('elang');
+        $options = new \xmldb_field('options', XMLDB_TYPE_TEXT, null, null, null, null, null, 'jarothreshold');
+        if (!$dbman->field_exists($elang, $options)) {
+            $dbman->add_field($elang, $options);
+        }
     }
 
     /**

@@ -13,6 +13,38 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [2.0.0-RC1] - 2026-09-06
 
+### Fixed — a completed version 1 migration left the schema broken
+`db/install.xml` declared `elang.options`; decommissioning dropped it. Moodle's
+own `admin/cli/check_database_schema.php` then answered:
+
+    elang
+     * column 'options' is missing
+
+Permanently, on every site that finished the migration — decommissioning is the
+intended end state, not a phase. Confirmed by simulating it against a running
+site rather than by reading the code.
+
+The column exists only to carry version 1's options blob across the upgrade, so
+it is now created by the upgrade step that needs it and declared nowhere else.
+A fresh install never has it; a migrated site has it until decommissioning
+takes it away; both end at the same schema, which is the invariant issue #18
+asks for. The same check now answers "Database structure is ok."
+
+Two consequences followed rather than being anticipated:
+
+- `v1_detector` read `$elang->options` directly. It reads it as `?? null` now,
+  so it no longer depends on a column a fresh install does not have.
+- The version 1 simulator creates the column itself, as the upgrade does — a
+  simulated 1.x site is exactly the world where it exists. Forty-one migration
+  tests failed until it did, which is the fixture describing 1.x correctly
+  rather than a regression.
+
+`tests/schema_convergence_test.php` states the invariant so the next schema
+change cannot quietly undo it: nothing decommissioning drops may be declared in
+`install.xml`, the installed schema must match what Moodle expects, and the
+upgrade must still create the column the migration reads. Verified by
+reintroducing both halves of the fault.
+
 ### Fixed — label drift after the cue/subtitle rename
 The Playwright run failed on `studio.spec.ts`, expecting "Exercise content
 editor" — the old text of `editor_heading`. Same cause as the three Behat

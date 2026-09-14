@@ -14,10 +14,23 @@
 #   external                — point at a Moodle you already run and seeded
 #                             (enter base_url, token and versionid).
 #
-# This is a trend instrument, not a gate. It is deliberately not wired into the
-# blocking pipeline: a hosted runner's throughput varies enough that a
-# threshold in a pull request would produce false alarms rather than signal.
-# k6's own thresholds still fail the run, so a genuine collapse is loud.
+# Not wired into the blocking pipeline: a hosted runner's throughput varies
+# enough that a threshold in a pull request would produce false alarms rather
+# than signal.
+#
+# Within the run, a scenario carries a role, and the role decides what a red
+# result means:
+#
+#   smoke                    gate       — latency counts. This is the load the
+#                                         plugin claims to handle.
+#   classroom, lecturehall,  diagnostic — latency is reported, not gated. These
+#   custom                                runs exist to find the cliff, so
+#                                         reaching it is the answer.
+#
+# Errors and Moodle exceptions fail the run in both roles. Neither is ever
+# "expected under this much load": a dropped connection or an exception body is
+# a defect or an infrastructure limit, and labelling the run diagnostic does not
+# make it acceptable. See docs/dev/load-testing.md for the full table.
 #
 # Artefacts are uploaded on success as well as on failure — a load result is
 # only meaningful when compared with earlier ones, so the green runs are
@@ -117,26 +130,39 @@ jobs:
           #   lecturehall 2000 learners: the largest lecture hall in Germany,
           #               overfull. Not a plausible Tuesday; the point is to know
           #               where the cliff is before somebody finds it.
+          #
+          # Each scenario also carries its ROLE, because what a red run means
+          # depends on what the run was for:
+          #
+          #   gate        smoke. A load the plugin claims to handle, so a
+          #               latency breach is evidence against the release.
+          #   diagnostic  classroom, lecturehall and any custom run. Built to
+          #               find the cliff; getting slow there is the answer, not
+          #               a fault. Errors and Moodle exceptions still fail.
           case "${{ github.event.inputs.scenario }}" in
             smoke)
               echo "learners=25"  >> "$GITHUB_OUTPUT"
               echo "cues=50" >> "$GITHUB_OUTPUT"
               echo "duration=90" >> "$GITHUB_OUTPUT"
+              echo "role=gate" >> "$GITHUB_OUTPUT"
               ;;
             classroom)
               echo "learners=200"  >> "$GITHUB_OUTPUT"
               echo "cues=50"  >> "$GITHUB_OUTPUT"
               echo "duration=120" >> "$GITHUB_OUTPUT"
+              echo "role=diagnostic" >> "$GITHUB_OUTPUT"
               ;;
             lecturehall)
               echo "learners=2000" >> "$GITHUB_OUTPUT"
               echo "cues=50"  >> "$GITHUB_OUTPUT"
               echo "duration=180" >> "$GITHUB_OUTPUT"
+              echo "role=diagnostic" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "learners=${{ github.event.inputs.vus }}" >> "$GITHUB_OUTPUT"
               echo "cues=50" >> "$GITHUB_OUTPUT"
               echo "duration=${{ github.event.inputs.duration }}" >> "$GITHUB_OUTPUT"
+              echo "role=diagnostic" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -264,6 +290,7 @@ jobs:
             -e ARRIVAL_WINDOW='180' \
             -e P95='${{ github.event.inputs.p95 }}' \
             -e P95_TARGET='${{ github.event.inputs.p95target }}' \
+            -e ROLE='${{ steps.scenario.outputs.role }}' \
             --summary-export=k6-summary.json \
             plugin/tests/load/elang-read-endpoints.k6.js
 
@@ -281,6 +308,7 @@ jobs:
             echo "sha:       ${{ github.sha }}"
             echo "mode:      ${{ github.event.inputs.mode }}"
             echo "scenario:  ${{ github.event.inputs.scenario }}"
+            echo "role:      ${{ steps.scenario.outputs.role }}"
             echo "learners:  ${{ steps.scenario.outputs.learners }}"
             echo "arrival:   180s"
             echo "cues:      ${{ steps.scenario.outputs.cues }}"

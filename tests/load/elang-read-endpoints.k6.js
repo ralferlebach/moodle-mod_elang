@@ -42,7 +42,15 @@ const VERSIONID = __ENV.VERSIONID;
 
 // A dedicated error rate and latency trend for the content read, so thresholds
 // judge this endpoint specifically rather than every request k6 makes.
+//
+// Transport failures and Moodle exceptions are counted apart. They look the
+// same in an aggregate error rate and mean opposite things: a connection the
+// server dropped under load says something about capacity, while an HTTP 200
+// carrying an "exception" field says the plugin answered wrongly no matter how
+// many people were asking. Only the second is a defect.
 const contentErrors = new Rate('elang_content_errors');
+const httpErrors = new Rate('elang_http_errors');
+const exceptionResponses = new Rate('elang_exception_responses');
 const contentLatency = new Trend('elang_content_latency', true);
 
 // The share of reads that met the target. A **metric**, deliberately not a
@@ -81,6 +89,37 @@ const MEDIA_REPLAY_PROBABILITY = Number(__ENV.MEDIA_REPLAY || 0.5);
 /** How many learners the scenario represents. */
 const LEARNERS = Number(__ENV.LEARNERS || __ENV.VUS || 25);
 
+// What a red run means depends on what the run was for, so the thresholds do.
+//
+//   gate        a modest, repeatable load. Everything is a threshold, latency
+//               included: this is the shape a release claims to handle, so a
+//               breach is evidence against the release.
+//   diagnostic  a deliberately oversized run, used to find where the cliff is.
+//               Getting slow is the answer, not a failure — so latency is a
+//               reported metric here and nothing else.
+//
+// Correctness gates in both roles. A dropped connection or a Moodle exception
+// is never "expected under this much load"; it is either a defect or an
+// infrastructure limit worth stopping for, and neither should be waved through
+// because the run was labelled diagnostic.
+const ROLE = (__ENV.ROLE || 'gate').toLowerCase();
+
+const THRESHOLDS = {
+    elang_http_errors: ['rate<0.01'],
+    elang_exception_responses: ['rate==0'],
+    http_req_failed: ['rate<0.01'],
+};
+
+if (ROLE !== 'diagnostic') {
+    // p95 < 800 ms: above this a learner typing an answer waits long enough to
+    // wonder whether the key registered, and every answer here is a request.
+    // The 300 ms the exercise should feel like stays a reported trend
+    // (elang_content_within_target), because a run at 400 ms is worth knowing
+    // about and is not a failure.
+    THRESHOLDS.elang_content_latency = ['p(95)<' + Number(__ENV.P95 || 800)];
+    THRESHOLDS.elang_content_errors = ['rate<0.01'];
+}
+
 export const options = {
     scenarios: {
         read_content: {
@@ -102,23 +141,7 @@ export const options = {
             maxVUs: Math.max(50, LEARNERS),
         },
     },
-    thresholds: {
-        // Exactly one latency threshold, because a threshold is a gate and a
-        // gate has one answer.
-        //
-        //   p95 < 800 ms  fails the run. Above this a learner typing an answer
-        //                 waits long enough to wonder whether the key
-        //                 registered, and every answer in this exercise is a
-        //                 request.
-        //
-        // The 300 ms the exercise *should* feel like is reported as
-        // elang_content_within_target — the share of reads that met it — and
-        // as a line in the summary. It is a trend to watch, not a gate: a run
-        // at 400 ms is worth knowing about and is not a failure.
-        elang_content_errors: ['rate<0.01'],
-        elang_content_latency: ['p(95)<' + Number(__ENV.P95 || 800)],
-        http_req_failed: ['rate<0.01'],
-    },
+    thresholds: THRESHOLDS,
 };
 
 export function setup() {
@@ -152,16 +175,24 @@ export default function (data) {
 
     // A Moodle web-service error still returns HTTP 200 with an "exception"
     // field, so a valid content read is 200 *and* carries a cues array.
-    let ok = res.status === 200;
+    const transportok = res.status === 200;
+    let exception = false;
+    let ok = transportok;
     let body = null;
     if (ok) {
         try {
             body = JSON.parse(res.body);
-            ok = !body.exception && Array.isArray(body.cues);
+            exception = !!body.exception;
+            ok = !exception && Array.isArray(body.cues);
         } catch (e) {
+            // Unparseable body: the server answered with something that is not
+            // the documented response. Counted as a transport failure, since no
+            // Moodle exception was reported either.
             ok = false;
         }
     }
+    httpErrors.add(!transportok);
+    exceptionResponses.add(exception);
     contentErrors.add(!ok);
     check(res, {'content read ok': () => ok});
 

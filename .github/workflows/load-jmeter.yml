@@ -138,11 +138,27 @@ jobs:
           # was 37 ms.
           window=180
           case "${{ github.event.inputs.scenario }}" in
-            smoke)       learners=25 ;;
-            classroom)   learners=200 ;;
-            lecturehall) learners=2000 ;;
-            *)           learners="${{ github.event.inputs.threads }}" ;;
+            smoke)       learners=25   role=gate ;;
+            classroom)   learners=200  role=diagnostic ;;
+            lecturehall) learners=2000 role=diagnostic ;;
+            *)           learners="${{ github.event.inputs.threads }}" role=diagnostic ;;
           esac
+          echo "role=$role" >> "$GITHUB_OUTPUT"
+
+          # A DurationAssertion marks a slow sample as failed, which is right
+          # for a gate and wrong for a cliff test: there, being slow is the
+          # measurement. Diagnostic runs therefore move the limit out of reach
+          # rather than removing the assertion, so the plan stays one file.
+          #
+          # An hour rather than 0. JMeter probably treats 0 as "no limit", but
+          # that was not verifiable here, and a request that takes an hour has
+          # already failed on the socket timeout — so this needs no assumption
+          # about how JMeter reads the value.
+          if [ "$role" = "gate" ]; then
+            echo "latencyassertion=${{ github.event.inputs.p95 }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "latencyassertion=3600000" >> "$GITHUB_OUTPUT"
+          fi
 
           threads=10
           # Rounded up, not down. Integer division loses learners silently —
@@ -289,6 +305,7 @@ jobs:
             -Jloops='${{ steps.scenario.outputs.loops }}' \
             -Jarrivals_per_minute='${{ steps.scenario.outputs.arrivals }}' \
             -Jp95='${{ github.event.inputs.p95 }}' \
+            -Jlatency_assertion='${{ steps.scenario.outputs.latencyassertion }}' \
             -l jmeter-results.jtl -e -o jmeter-report
 
           # JMeter exits 0 even when assertions failed, so the samples decide.
@@ -349,7 +366,12 @@ jobs:
             echo "cues:      ${{ steps.scenario.outputs.cues }}"
             echo "loops:     ${{ steps.scenario.outputs.loops }}"
             echo "rampup:    ${{ steps.scenario.outputs.rampup }}s"
-            echo "limit:     ${{ github.event.inputs.p95 }}ms per request (assertion)"
+            echo "role:      ${{ steps.scenario.outputs.role }}"
+            if [ "${{ steps.scenario.outputs.role }}" = "gate" ]; then
+              echo "limit:     ${{ github.event.inputs.p95 }}ms per request (assertion)"
+            else
+              echo "limit:     none (diagnostic run; latency is reported, not asserted)"
+            fi
             echo "jmeter:    ${JMETER_VERSION}"
             echo "runner:    $(nproc) CPUs, $(free -m | awk '/^Mem:/{print $2}') MB RAM"
             echo "status:    ${{ job.status }}"

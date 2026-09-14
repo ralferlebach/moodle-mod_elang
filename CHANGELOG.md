@@ -9,9 +9,102 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ---
 
+## [2.0.0] - 2026-09-14
+
+### Release engineering — the tagged commit must have passed
+A tag can be moved onto anything, including a commit whose run went red or is
+still going, and nothing downstream would have noticed: the ZIP would be built
+from it and published all the same. The build job now asks GitHub for the check
+runs on the tagged commit and refuses to continue unless every one of them
+finished, and finished green.
+
+Two details decide whether such a gate is worth having:
+
+- Only *conclusions* count. A run still in progress is not "not failed" — it is
+  unknown, and unknown is not a release. `in_progress` blocks.
+- The gate excludes its own job. A check run waiting for itself never finishes.
+
+`neutral` and `skipped` pass, since a skipped job is a decision the pipeline
+made rather than a result it failed to reach.
+
+The GitHub API is not reachable from the environment this was written in, so the
+evaluation was tested against the response shapes instead: all green, one
+failure, one still running, one cancelled, and none at all. The last two are the
+ones a naive check gets wrong, and both block.
+
+### Release engineering — the ZIP is now tested before it is published
+The release workflow built an archive and published it in one job. Everything it
+checked was a property of the archive's *contents*; nothing checked that the
+archive *installs*. A ZIP can pass every content guard and still be unusable.
+
+It now runs in three jobs, and publishing happens last:
+
+1. **Build and validate** — `git archive` from the tagged commit, reproducibility
+   of the committed bundles, `removed_files.txt`, no leftovers, and two new
+   guards: every file a site needs at runtime must be present (React bundle,
+   `thirdpartylibs.xml`, `readme_moodle.txt`, `LICENSE`, `db/removed_files.txt`,
+   `lang/en`), and a tag without RC or beta in its name must carry
+   `MATURITY_STABLE` — otherwise a site is offered a full release that the
+   plugin itself calls a candidate.
+2. **Install the actual ZIP** — a clean Moodle 4.5 and PostgreSQL, the checksum
+   verified before the archive is trusted, unpacked into `mod/` the way an
+   administrator would, installed, upgraded, schema checked, and an activity
+   created. Nothing in this job comes from a checkout of the plugin.
+3. **Publish** — only if both passed.
+
+The release notes now carry what the issue asks for: commit SHA, Moodle and PHP
+support, maturity, checksum, upgrade notes for 1.x, and an explicit statement of
+what a green pipeline does *not* prove.
+
+Verified by walking the path locally against the real
+`moodle-mod_elang-2.0.0-2026091400.zip`: checksum confirmed, all required files
+present, the maturity guard passing on the real file and blocking a doctored
+one, a fresh Moodle installed from the archive rather than from the working
+tree — `mod_elang 2.0.0 (build 2026091400), Reifegrad 200`, `Database structure
+is ok.` — and an activity created through `elang_add_instance`.
+
+
+First stable release of the 2.x line. `$plugin->version = 2026091400`,
+`MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
+
+What changed since 2.0.0-RC1 is listed below; the release itself is the same
+code, declared stable.
+
 ## [Unreleased]
 
 ## [2.0.0-RC1] - 2026-09-06
+
+### Changed — a red load run now means one thing
+`lecturehall` is built to find where the cliff is, and crossing the latency
+threshold is its answer. It failed the run anyway, with the same red as a
+genuine regression — so red meant "the plugin got slower" on some days and "we
+asked for too much on purpose" on others.
+
+Each scenario now carries a role. `smoke` is a **gate**: a modest, repeatable
+load the plugin claims to handle, where a latency breach is evidence against the
+release. `classroom`, `lecturehall` and any custom run are **diagnostic**:
+latency is measured and reported, not gated.
+
+Errors and Moodle exceptions still fail in both roles. Neither is ever "expected
+under this much load" — a dropped connection or an exception body is a defect or
+an infrastructure limit, and the diagnostic label does not make it acceptable.
+The default role is `gate`, so a forgotten setting falls on the strict side.
+
+- The two failure kinds are counted apart. `elang_http_errors` and
+  `elang_exception_responses` look identical in an aggregate rate and mean
+  opposite things: one is capacity, the other is the plugin answering wrongly no
+  matter who asked. The exception rate is gated at `rate==0` — a single one is a
+  finding, not a proportion.
+- JMeter needed its own handling. Its `DurationAssertion` marks a slow sample as
+  *failed*, which put latency straight into the error rate the gate reads.
+  Diagnostic runs move the limit out of reach rather than removing the
+  assertion, so the plan stays one file.
+- `docs/dev/load-testing.md` carries the table: scenario, role, target, learner
+  count, dataset, runtime, threshold, blocking.
+
+Verified with k6 itself rather than by reasoning about the script —
+`k6 inspect -e ROLE=…` reports the latency threshold present under `gate`,
+absent under `diagnostic`, and present when the role is unset.
 
 ### Fixed — a completed version 1 migration left the schema broken
 `db/install.xml` declared `elang.options`; decommissioning dropped it. Moodle's

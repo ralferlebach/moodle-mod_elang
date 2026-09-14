@@ -27,6 +27,9 @@ on:
 
 permissions:
   contents: write
+  # Reading the check runs of the tagged commit: the gate below refuses to
+  # publish a commit whose pipeline never finished green.
+  checks: read
 
 concurrency:
   group: release-artefact-${{ github.ref }}
@@ -34,8 +37,17 @@ concurrency:
 
 jobs:
   artefact:
-    name: Build and publish the release ZIP
+    name: Build and validate the release ZIP
     runs-on: ubuntu-24.04
+
+    # Passed on rather than recomputed. The publish job must describe the
+    # artefact this job built, not read version.php again from a checkout that
+    # could in principle differ.
+    outputs:
+      name: ${{ steps.zip.outputs.name }}
+      release: ${{ steps.version.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+      maturity: ${{ steps.version.outputs.maturity }}
 
     steps:
       - name: Check out the tagged state
@@ -43,6 +55,53 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           path: plugin
+
+      - name: Refuse to publish a commit the pipeline never passed
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The invariant this whole workflow exists for: the commit that was
+          # tested is the commit that was tagged. A tag can be moved onto
+          # anything, including a commit whose run is still going or went red,
+          # and nothing downstream would notice — the ZIP would be built from it
+          # and published all the same.
+          #
+          # Only conclusions are read, so a run still in progress is not treated
+          # as a pass. This job is itself a check run on the same commit, so it
+          # is excluded: waiting for itself would never finish.
+          sha="${{ github.sha }}"
+          echo "Getaggter Commit: $sha"
+
+          runs=$(gh api --paginate \
+            "repos/${{ github.repository }}/commits/$sha/check-runs" \
+            --jq '.check_runs[] | select(.name != "${{ github.job }}") | [.name, .status, (.conclusion // "pending")] | @tsv')
+
+          if [ -z "$runs" ]; then
+            echo "Fuer diesen Commit gibt es keine Check-Runs. Entweder ist die"
+            echo "Pipeline nie gelaufen, oder der Tag zeigt auf einen Commit, der"
+            echo "nie durch CI gegangen ist. Beides ist ein Grund, nicht zu"
+            echo "veroeffentlichen."
+            exit 1
+          fi
+
+          echo "$runs" | while IFS=$'\t' read -r name status conclusion; do
+            printf '  %-40s %-12s %s\n' "$name" "$status" "$conclusion"
+          done
+
+          bad=$(echo "$runs" | awk -F'\t' '
+            $2 != "completed" { print; next }
+            $3 != "success" && $3 != "neutral" && $3 != "skipped" { print }
+          ')
+
+          if [ -n "$bad" ]; then
+            echo
+            echo "Nicht abgeschlossene oder fehlgeschlagene Laeufe auf diesem Commit:"
+            echo "$bad"
+            exit 1
+          fi
+
+          echo "Alle Check-Runs auf $sha sind abgeschlossen und gruen."
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -140,7 +199,11 @@ jobs:
           echo "Sprachpakete im Archiv:"
           ls dist/elang/lang
 
-          name="mod_elang-${{ steps.version.outputs.release }}.zip"
+          # Release and version number both, because they answer different
+          # questions: the release is what a human calls it, the version number
+          # is what Moodle compares when deciding whether to upgrade. Two builds
+          # of "2.0.0" that differ are otherwise indistinguishable by filename.
+          name="moodle-mod_elang-${{ steps.version.outputs.release }}-${{ steps.version.outputs.version }}.zip"
           (cd dist && zip -qr "../$name" elang)
           sha256sum "$name" | tee "$name.sha256"
           echo "name=$name" >> "$GITHUB_OUTPUT"
@@ -168,31 +231,234 @@ jobs:
           fi
           echo "Keine Fremdartefakte im Archiv."
 
+      - name: Refuse to publish without the files a site needs at runtime
+        run: |
+          # The leftover guard says what must not be there. This says what must.
+          # A ZIP can be free of junk and still be unusable: the React bundle is
+          # the editor, thirdpartylibs.xml is what the plugin directory reads to
+          # know what is vendored, and removed_files.txt is how a site upgrading
+          # from 1.x learns which files to delete.
+          missing=""
+          for path in \
+            elang/version.php \
+            elang/LICENSE \
+            elang/thirdpartylibs.xml \
+            elang/db/removed_files.txt \
+            elang/js/vendor/react/editor.bundle.js \
+            elang/js/vendor/react/readme_moodle.txt \
+            elang/lang/en/elang.php
+          do
+            if ! unzip -l "${{ steps.zip.outputs.name }}" | grep -qF " $path"; then
+              missing="$missing $path"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "Im Archiv fehlen Dateien, die zur Laufzeit gebraucht werden:$missing"
+            exit 1
+          fi
+          echo "Alle Pflichtdateien im Archiv vorhanden."
+
+      - name: Refuse to publish a stable tag that is not declared stable
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          # A tag without RC or beta in its name is published as a full release,
+          # so version.php has to agree. The two drifting apart is how a site
+          # ends up being offered a release the plugin itself calls a candidate.
+          release="${{ steps.version.outputs.release }}"
+          maturity="${{ steps.version.outputs.maturity }}"
+
+          case "$release" in
+            *RC*|*beta*|*alpha*)
+              echo "Vorabversion ($release) — MATURITY_STABLE wird nicht verlangt."
+              exit 0
+              ;;
+          esac
+
+          # MATURITY_STABLE is 200 in Moodle; the numeric value is what
+          # version.php yields once the constant is resolved.
+          if [ "$maturity" != "200" ]; then
+            echo "Release '$release' traegt kein RC- oder beta-Kennzeichen, wird also als"
+            echo "regulaeres Release veroeffentlicht — aber version.php meldet maturity"
+            echo "$maturity statt MATURITY_STABLE (200)."
+            exit 1
+          fi
+          echo "Release $release ist als MATURITY_STABLE deklariert."
+
+      - name: Keep the artefact for the install check
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: |
+            ${{ steps.zip.outputs.name }}
+            ${{ steps.zip.outputs.name }}.sha256
+          retention-days: 7
+
+
+  install:
+    name: Install the actual ZIP into a clean Moodle
+    needs: artefact
+    runs-on: ubuntu-24.04
+
+    # The point of this job is that nothing here comes from a checkout of the
+    # plugin. A release is the ZIP, and the only way to know the ZIP installs is
+    # to install the ZIP.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: moodle
+          POSTGRES_PASSWORD: moodle
+          POSTGRES_DB: moodle
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pgsql, zip, gd, intl, xmlrpc, soap
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Check out Moodle
+        uses: actions/checkout@v4
+        with:
+          repository: moodle/moodle
+          ref: MOODLE_405_STABLE
+          path: moodle
+
+      - name: Download the release ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip
+          path: artefact
+
+      - name: Confirm the checksum before trusting the archive
+        run: |
+          cd artefact
+          name=$(ls ./*.zip)
+          sha256sum -c "$name.sha256"
+
+      - name: Unpack the ZIP into Moodle, as a site administrator would
+        run: |
+          cd artefact
+          unzip -q ./*.zip -d ../moodle/mod
+          test -f ../moodle/mod/elang/version.php
+          echo "Entpackt nach mod/elang — Wurzelordner stimmt."
+
+      - name: Install a fresh site with the plugin from the ZIP
+        run: |
+          mkdir -p moodledata
+          php moodle/admin/cli/install.php \
+            --non-interactive --agree-license \
+            --wwwroot=http://127.0.0.1:8000 \
+            --dataroot="$PWD/moodledata" \
+            --dbtype=pgsql --dbhost=127.0.0.1 --dbname=moodle \
+            --dbuser=moodle --dbpass=moodle \
+            --fullname="Release check" --shortname=rc \
+            --adminpass=Sup3rS3cret! --adminemail=admin@example.invalid
+
+      - name: Ask Moodle whether the plugin is installed and its schema is sound
+        run: |
+          php moodle/admin/cli/upgrade.php --non-interactive
+          php moodle/admin/cli/check_database_schema.php
+
+          php -r '
+            define("CLI_SCRIPT", true);
+            require "moodle/config.php";
+            $installed = $DB->get_field("config_plugins", "value",
+                ["plugin" => "mod_elang", "name" => "version"]);
+            if (!$installed) {
+                fwrite(STDERR, "mod_elang ist nicht installiert.\n");
+                exit(1);
+            }
+            $declared = null;
+            $plugin = new stdClass();
+            require "moodle/mod/elang/version.php";
+            if ((string) $installed !== (string) $plugin->version) {
+                fwrite(STDERR, "Installierte Version $installed weicht von version.php "
+                    . $plugin->version . " ab.\n");
+                exit(1);
+            }
+            printf("mod_elang %s (build %d) installiert, Reifegrad %d.\n",
+                $plugin->release, $plugin->version, $plugin->maturity);
+          '
+
+      - name: Create an activity from the installed plugin
+        run: |
+          # Installing is not the same as working. A site that accepts the ZIP
+          # and then cannot create the activity has still failed the release.
+          php -r '
+            define("CLI_SCRIPT", true);
+            require "moodle/config.php";
+            require_once($CFG->dirroot . "/lib/testing/generator/lib.php");
+            $course = (object) [
+                "fullname" => "Release smoke", "shortname" => "smoke",
+                "category" => 1, "summary" => "", "summaryformat" => FORMAT_HTML,
+            ];
+            $course = create_course($course);
+            $module = $DB->get_record("modules", ["name" => "elang"], "*", MUST_EXIST);
+            $instance = (object) [
+                "course" => $course->id, "name" => "Smoke", "intro" => "",
+                "introformat" => FORMAT_HTML, "language" => "",
+            ];
+            $instance->id = elang_add_instance($instance, null);
+            if (!$DB->record_exists("elang", ["id" => $instance->id])) {
+                fwrite(STDERR, "Aktivitaet konnte nicht angelegt werden.\n");
+                exit(1);
+            }
+            echo "Aktivitaet angelegt und in der Datenbank gefunden.\n";
+          '
+
+  publish:
+    name: Publish the release
+    needs: [artefact, install]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download the release ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip
+
       - name: Publish the release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ steps.zip.outputs.name }}
-            ${{ steps.zip.outputs.name }}.sha256
+            ${{ needs.artefact.outputs.name }}
+            ${{ needs.artefact.outputs.name }}.sha256
           # A release candidate is marked as a pre-release, so the plugin
           # directory and anyone browsing the repository see what it is.
-          prerelease: ${{ contains(steps.version.outputs.release, 'RC') || contains(steps.version.outputs.release, 'beta') }}
+          prerelease: ${{ contains(needs.artefact.outputs.release, 'RC') || contains(needs.artefact.outputs.release, 'beta') }}
           body: |
-            mod_elang ${{ steps.version.outputs.release }} (build ${{ steps.version.outputs.version }})
+            **mod_elang ${{ needs.artefact.outputs.release }}** — build `${{ needs.artefact.outputs.version }}`
 
-            Der SHA-256 des Archivs liegt als eigene Datei bei.
+            | | |
+            |---|---|
+            | Commit | `${{ github.sha }}` |
+            | Moodle | 4.5 LTS bis 5.2 |
+            | PHP | 8.1 bis 8.4 |
+            | Reifegrad | `${{ needs.artefact.outputs.maturity }}` (200 = MATURITY_STABLE) |
+            | Pruefsumme | SHA-256, als eigene Datei beigelegt |
 
-            Was dieses Artefakt belegt und was nicht, steht in
-            `docs/dev/release-policy.md`. Insbesondere: ein gruener
-            Pipeline-Lauf belegt weder Barrierefreiheit noch Lastverhalten —
-            diese Nachweise werden getrennt erbracht.
+            Dieses Archiv wurde aus dem getaggten Commit erzeugt und in eine
+            frische Moodle-Installation entpackt und installiert, bevor es hier
+            erschien. Die Pruefsumme gehoert zu genau dieser Datei.
 
-      - name: Upload the artefact for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: mod_elang-${{ steps.version.outputs.release }}
-          path: |
-            ${{ steps.zip.outputs.name }}
-            ${{ steps.zip.outputs.name }}.sha256
+            **Aufstieg von 1.x:** die Migration laeuft einmalig und in eine
+            Richtung. `db/removed_files.txt` liegt bei und nennt die Dateien,
+            die eine Site aus der alten Installation entfernen muss;
+            `docs/dev/v1-legacy-exit.md` beschreibt, wann die Altdaten abgebaut
+            werden duerfen und wer das entscheidet.
+
+            **Was dieses Artefakt nicht belegt:** ein gruener Pipeline-Lauf sagt
+            nichts ueber Barrierefreiheit und nichts ueber Lastverhalten unter
+            Produktionsbedingungen. Diese Nachweise werden getrennt erbracht —
+            siehe `docs/dev/accessibility.md` und `docs/dev/load-testing.md`.
+

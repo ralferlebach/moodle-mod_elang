@@ -28,6 +28,55 @@ ist keines von beiden im Recht — die Abweichung **ist** der Befund.
 Der Preis ist eine JVM, die sonst nichts in diesem Repository braucht. Deshalb
 läuft JMeter ausschließlich manuell und nie im Push-Gate.
 
+## Was ein roter Lauf bedeutet
+
+Ein absichtlich überdimensionierter Lauf und eine Regressionsmessung dürfen
+nicht dasselbe Signal erzeugen. Bis RC1 taten sie es: `lecturehall` überschritt
+erwartungsgemäß die Latenzschwelle, der Lauf wurde rot, und Rot hieß damit
+manchmal „das Plugin ist zu langsam geworden" und manchmal „wir haben absichtlich
+zu viel Last erzeugt".
+
+Jedes Szenario trägt deshalb eine **Rolle**, und die Rolle entscheidet, welche
+Schwellen greifen.
+
+| Szenario | Rolle | Ziel | Lernende | Datensatz | Dauer | Latenzschwelle | Blockierend |
+|---|---|---|---|---|---|---|---|
+| `smoke` | **gate** | selbstenthalten oder extern | 25 | 50 Untertitel | 90 s | p95 < 800 ms | **ja** |
+| `classroom` | diagnostic | nur extern sinnvoll | 200 | 50 Untertitel | 120 s | wird berichtet | nein |
+| `lecturehall` | diagnostic | nur extern sinnvoll | 2000 | 50 Untertitel | 180 s | wird berichtet | nein |
+| frei gewählt | diagnostic | wie gewählt | Eingabe | 50 Untertitel | Eingabe | wird berichtet | nein |
+
+**Fehler und Moodle-Exceptions blockieren in beiden Rollen.** Eine abgerissene
+Verbindung oder eine Antwort mit `exception`-Feld ist nie „bei dieser Last zu
+erwarten" — sie ist entweder ein Defekt oder eine Infrastrukturgrenze, und das
+Etikett „diagnostic" macht sie nicht hinnehmbar. Nur die *Latenz* wird in
+diagnostischen Läufen berichtet statt bewertet.
+
+Die Voreinstellung ist `gate`. Ein vergessenes `ROLE` fällt damit auf die
+strenge Seite.
+
+### HTTP-Fehler und Exceptions werden getrennt gezählt
+
+In einer gemeinsamen Fehlerquote sehen sie gleich aus und bedeuten Gegenteiliges:
+
+| Metrik | Was sie zählt | Aussage |
+|---|---|---|
+| `elang_http_errors` | Antwort kam nicht mit HTTP 200 an | Kapazität oder Netz |
+| `elang_exception_responses` | HTTP 200 mit `exception`-Feld | das Plugin hat falsch geantwortet |
+| `elang_content_errors` | beides zusammen, plus unlesbare Antworten | Gesamtbild |
+
+`elang_exception_responses` hat die Schwelle `rate==0`: eine einzige solche
+Antwort ist ein Befund, keine Quote.
+
+### Warum JMeter eine eigene Behandlung braucht
+
+JMeters `DurationAssertion` markiert ein zu langsames Sample als
+**fehlgeschlagen**. Damit landete die Latenz direkt in der Fehlerquote, die das
+Gate liest — dieselbe Vermengung, nur an anderer Stelle. Diagnostische Läufe
+setzen die Grenze deshalb auf eine Stunde, statt die Assertion zu entfernen: der
+Plan bleibt eine Datei, und eine Anfrage, die eine Stunde braucht, ist längst am
+Socket-Timeout gescheitert.
+
 ## Die beiden Szenarien
 
 | Szenario | Gleichzeitige Lernende | Cues | Plateau | Was es abbildet |

@@ -30,6 +30,37 @@ use mod_elang\local\grading\script_handler_manager;
  */
 final class attempt_report_test extends \advanced_testcase {
     /**
+     * An activity with a published version and one attempt by each learner.
+     *
+     * Three tests need exactly this arrangement before they can ask the report
+     * anything, and each had its own copy. The copies were identical, which is
+     * how the duplication detector found them — but the reason to fold them
+     * together is that a change to how an attempt starts should not have to be
+     * made in three places and remembered in none.
+     *
+     * @param \stdClass $course
+     * @param \stdClass $first A learner who attempts the activity
+     * @param \stdClass $second Another learner who attempts it
+     * @return array [the activity, a report over it]
+     */
+    private function activity_attempted_by(
+        \stdClass $course,
+        \stdClass $first,
+        \stdClass $second
+    ): array {
+        /** @var \mod_elang_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
+        $elang = $generator->create_instance(['course' => $course->id]);
+        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
+
+        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
+        $manager->start_attempt((int) $elang->id, (int) $first->id, (int) $version->id);
+        $manager->start_attempt((int) $elang->id, (int) $second->id, (int) $version->id);
+
+        return [$elang, new attempt_report()];
+    }
+
+    /**
      * A finished attempt appears in the activity listing and its detail pairs
      * every gap with the learner's response in order.
      *
@@ -108,16 +139,7 @@ final class attempt_report_test extends \advanced_testcase {
         $group = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
         $this->getDataGenerator()->create_group_member(['groupid' => $group->id, 'userid' => $insider->id]);
 
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id]);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-
-        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
-        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
-        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
-
-        $report = new attempt_report();
+        [$elang, $report] = $this->activity_attempted_by($course, $insider, $outsider);
         $this->assertCount(2, $report->list_for_activity((int) $elang->id));
 
         $grouponly = $report->list_for_activity((int) $elang->id, (int) $group->id);
@@ -564,16 +586,7 @@ final class attempt_report_test extends \advanced_testcase {
         $this->getDataGenerator()->create_group_member(['groupid' => $mine->id, 'userid' => $insider->id]);
         $this->getDataGenerator()->create_group_member(['groupid' => $theirs->id, 'userid' => $outsider->id]);
 
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id]);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-
-        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
-        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
-        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
-
-        $report = new attempt_report();
+        [$elang, $report] = $this->activity_attempted_by($course, $insider, $outsider);
 
         // Scoped to one group: only that group's learner is offered.
         $scoped = $report->filter_users((int) $elang->id, (int) $mine->id);
@@ -609,16 +622,7 @@ final class attempt_report_test extends \advanced_testcase {
         $mine = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
         $this->getDataGenerator()->create_group_member(['groupid' => $mine->id, 'userid' => $insider->id]);
 
-        /** @var \mod_elang_generator $generator */
-        $generator = $this->getDataGenerator()->get_plugin_generator('mod_elang');
-        $elang = $generator->create_instance(['course' => $course->id]);
-        $version = $generator->create_version(['elangid' => $elang->id, 'status' => 'published']);
-
-        $manager = new attempt_manager(new answer_evaluator(new script_handler_manager([])));
-        $manager->start_attempt((int) $elang->id, (int) $insider->id, (int) $version->id);
-        $manager->start_attempt((int) $elang->id, (int) $outsider->id, (int) $version->id);
-
-        $report = new attempt_report();
+        [$elang, $report] = $this->activity_attempted_by($course, $insider, $outsider);
         $filters = ['userid' => (int) $outsider->id];
 
         $this->assertCount(0, $report->list_for_activity((int) $elang->id, (int) $mine->id, 0, 0, $filters));

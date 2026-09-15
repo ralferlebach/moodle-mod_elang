@@ -341,3 +341,75 @@ test.describe('zoom', () => {
         });
     }
 });
+
+test.describe('fullscreen in overlay mode', () => {
+    test.beforeEach(async({page}) => {
+        await loginAs(page, requireEnv('ELANG_STUDENT'), requireEnv('ELANG_STUDENT_PASS'));
+    });
+
+    for (const [name, cmid] of [
+        ['bottom', 'ELANG_CMID_OVERLAYBOTTOM'],
+        ['top', 'ELANG_CMID_OVERLAYTOP'],
+    ] as const) {
+        test(`the ${name} overlay goes fullscreen as a whole and stays there`, async({page}) => {
+            await openExercise(page, requireEnv(cmid));
+
+            const stage = page.locator('.mod_elang-media-stage');
+            const button = stage.locator('[data-action="stagefullscreen"]');
+            await expect(button).toBeVisible();
+
+            // The stage, not the medium. Fullscreen on the video alone would
+            // leave the caption — and with it every gap — outside the screen.
+            await button.click();
+            await expect
+                .poll(() => page.evaluate(() =>
+                    document.fullscreenElement?.classList.contains('mod_elang-media-stage') ?? false))
+                .toBe(true);
+
+            // The invariant this test exists for: showing a different subtitle
+            // must not disturb fullscreen. The earlier implementation left
+            // fullscreen on its own, which is what the learner noticed.
+            await page.evaluate(() => {
+                const media = document.querySelector('video');
+                if (media) {
+                    media.currentTime = media.currentTime + 3;
+                }
+            });
+            await page.waitForTimeout(1500);
+            await expect
+                .poll(() => page.evaluate(() =>
+                    document.fullscreenElement?.classList.contains('mod_elang-media-stage') ?? false))
+                .toBe(true);
+
+            // Still an exercise, not just a picture.
+            const gap = stage.locator('.mod_elang-caption-overlay input').first();
+            await gap.click();
+            await gap.fill('test');
+            await expect(gap).toHaveValue('test');
+            await expect
+                .poll(() => page.evaluate(() => document.fullscreenElement !== null))
+                .toBe(true);
+
+            // Leaving through the same control, which is the part this plugin
+            // owns. Escape is handled by the browser itself, above the page —
+            // no key handler here binds it, and pressing it in a headless
+            // browser does nothing, so asserting on it would test the harness
+            // rather than the plugin.
+            await button.click();
+            await expect
+                .poll(() => page.evaluate(() => document.fullscreenElement === null))
+                .toBe(true);
+            await expect(button).toHaveAttribute('aria-pressed', 'false');
+        });
+    }
+
+    test('below the medium there is no stage and no stage control', async({page}) => {
+        // The control belongs to the wrapper that carries the caption. Without
+        // an overlay there is nothing for it to wrap, and the medium keeps its
+        // own fullscreen button.
+        await openExercise(page, requireEnv('ELANG_CMID_BELOW'));
+
+        await expect(page.locator('.mod_elang-media-stage')).toHaveCount(0);
+        await expect(page.locator('[data-action="stagefullscreen"]')).toHaveCount(0);
+    });
+});

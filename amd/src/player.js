@@ -55,6 +55,129 @@ const SELECTORS = {
 };
 
 /**
+ * Room kept below the player so it never sits flush against the window edge.
+ *
+ * Small on purpose: this is breathing space, not an allowance for page
+ * furniture. Anything real below the player — a footer, a docked block — is
+ * measured rather than guessed at.
+ */
+const BOTTOM_RESERVE = 16;
+
+/**
+ * The least the transcript may be squeezed to before the picture gives way.
+ *
+ * Below this the region stops being a place to read and becomes a slot: two
+ * lines and a scrollbar. At that point the medium is the thing that should
+ * shrink, because the transcript is where the answering happens.
+ */
+const TRANSCRIPT_FLOOR = 140;
+
+/**
+ * Publish how much vertical room the player actually has.
+ *
+ * Viewport units cannot see the page they sit in. `45vh + 35vh` looks like it
+ * leaves a fifth of the screen spare, but above the player there is a Moodle
+ * header, a secondary navigation, the activity name, the intro, and whatever a
+ * theme adds — so on a 768-pixel laptop the medium and the sentence being
+ * answered end up on separate screens, which is the one thing the
+ * below-the-medium layout exists to prevent. On a tall screen the same numbers
+ * leave a band of empty page.
+ *
+ * So the space is measured instead of assumed: from where the player begins to
+ * the bottom of the window. Nothing here knows what a header is or how tall
+ * Boost makes it — only where this element ended up, which stays true under any
+ * theme.
+ *
+ * The result is published as custom properties and the stylesheet decides what
+ * to do with them, keeping the viewport-unit rules as the fallback for the
+ * moment before the first measurement and for anything that cannot run this.
+ *
+ * @param {Element} player The player root
+ * @param {Boolean} overlaymode Whether the caption sits over the picture
+ * @returns {void}
+ */
+const publishAvailableHeight = (player, overlaymode) => {
+    const rect = player.getBoundingClientRect();
+    const available = Math.max(0, window.innerHeight - rect.top - BOTTOM_RESERVE);
+    if (available === 0) {
+        // Scrolled out of sight, or not laid out yet. Leaving the previous
+        // value alone is better than publishing a zero the stylesheet would
+        // faithfully apply.
+        return;
+    }
+
+    player.style.setProperty('--mod-elang-available-height', available + 'px');
+
+    // What else inside the player needs room: the status line, the controls,
+    // the score. Measured rather than reserved, because a theme may wrap them
+    // onto two lines and an exercise without hints has fewer buttons.
+    let chrome = 0;
+    [SELECTORS.STATUS, SELECTORS.CONTROLS, SELECTORS.SCORE].forEach((selector) => {
+        const element = player.querySelector(selector);
+        if (element && element.offsetParent !== null) {
+            chrome += element.getBoundingClientRect().height;
+        }
+    });
+
+    if (overlaymode) {
+        // The caption is inside the picture, so everything left over is the
+        // stage's.
+        player.style.setProperty('--mod-elang-media-height',
+            Math.max(0, available - chrome) + 'px');
+        return;
+    }
+
+    // Below the medium the two share what is left. The transcript is served
+    // first down to its floor, and only then does the picture take the rest —
+    // the reverse of the old rule, where the medium claimed 45vh whatever that
+    // cost the region underneath it.
+    const forboth = Math.max(0, available - chrome);
+    const transcript = Math.min(Math.max(TRANSCRIPT_FLOOR, forboth * 0.4), forboth);
+    player.style.setProperty('--mod-elang-transcript-height', transcript + 'px');
+    player.style.setProperty('--mod-elang-media-height', Math.max(0, forboth - transcript) + 'px');
+};
+
+/**
+ * Keep the published heights true as the page changes around the player.
+ *
+ * @param {Element} player The player root
+ * @param {Boolean} overlaymode Whether the caption sits over the picture
+ * @returns {void}
+ */
+const watchAvailableHeight = (player, overlaymode) => {
+    let pending = null;
+    const recompute = () => {
+        if (pending !== null) {
+            window.cancelAnimationFrame(pending);
+        }
+        pending = window.requestAnimationFrame(() => {
+            pending = null;
+            publishAvailableHeight(player, overlaymode);
+        });
+    };
+
+    recompute();
+    window.addEventListener('resize', recompute);
+    window.addEventListener('orientationchange', recompute);
+
+    // Anything above the player changing height moves the player down without
+    // any event of its own: a drawer opening, a notification appearing, a font
+    // finishing loading. Observing the body catches those without this code
+    // having to know what they are.
+    if (typeof ResizeObserver === 'function') {
+        const observer = new ResizeObserver(recompute);
+        observer.observe(document.body);
+        if (player.parentElement) {
+            observer.observe(player.parentElement);
+        }
+    }
+
+    // Fullscreen hands the stage the whole screen; on the way out the page
+    // geometry is whatever it was, and the measurement has to be taken again.
+    document.addEventListener('fullscreenchange', recompute);
+};
+
+/**
  * How long automatic scrolling stays out of the way after a learner scrolls.
  *
  * Long enough that reading back a few lines is not snatched away at the next
@@ -310,45 +433,64 @@ const watchVideoDecoding = (element, region) => {
 };
 
 /**
- * Keep interactive captions visible in fullscreen.
+ * Give the stage its own fullscreen control.
  *
- * The native fullscreen button belongs to the media element, and a fullscreened
- * media element is drawn alone: its siblings — including the caption overlay
- * with the gaps in it — are simply not there. Fullscreening the stage instead
- * takes the overlay along, and the browser draws the same controls.
+ * In overlay mode the caption is a sibling of the medium inside a wrapper, so
+ * only the wrapper can go fullscreen with the exercise inside it. The medium's
+ * own fullscreen button would take just the picture and leave the gaps behind.
  *
- * Rather than hiding the native control and offering a replacement, this
- * listens for the medium entering fullscreen and moves the request up to the
- * stage. The swap happens inside the user gesture that started it, which is
- * what browsers require. Where it is refused — notably iOS, whose fullscreen is
- * a system player that cannot contain HTML — the medium simply plays
- * fullscreen without captions and the exercise continues unharmed on exit.
+ * An earlier version let the native button fire and then redirected: exit the
+ * medium's fullscreen, then request it for the stage. That chain crosses an
+ * await, and a fullscreen request is only granted while a user gesture is still
+ * active — so the second request was sometimes refused and the learner watched
+ * fullscreen open and immediately close again. This asks for the stage directly,
+ * inside the click, with nothing in between.
+ *
+ * Where the API is missing the control is not offered at all, and the medium
+ * keeps its own button. Where the overlay cannot be shown fullscreen anyway —
+ * notably iOS, whose fullscreen is a system player that cannot contain HTML —
+ * that same native button remains the way out, and the exercise continues
+ * unharmed on exit.
  *
  * @param {Element} stage The positioned wrapper holding medium and overlay
  * @param {Element} element The media element
+ * @param {Object} strings Resolved labels: fullscreen and exitfullscreen
  * @returns {void}
  */
-const attachFullscreenRedirect = (stage, element) => {
+const attachStageFullscreen = (stage, element, strings) => {
     if (typeof stage.requestFullscreen !== 'function') {
         return;
     }
 
-    let redirecting = false;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-secondary btn-sm mod_elang-stage-fullscreen';
+    button.dataset.action = 'stagefullscreen';
+    button.setAttribute('aria-pressed', 'false');
+    button.textContent = strings.fullscreen;
+    stage.appendChild(button);
 
-    document.addEventListener('fullscreenchange', () => {
-        if (redirecting || document.fullscreenElement !== element) {
+    // The medium's own control would take the picture without the exercise.
+    // Chromium honours this; elsewhere the native button stays, which is why
+    // the stage control is the one that is labelled and documented.
+    element.setAttribute('controlsList', 'nofullscreen');
+
+    const active = () => document.fullscreenElement === stage;
+
+    button.addEventListener('click', () => {
+        // No await before the request: this has to run inside the gesture.
+        if (active()) {
+            Promise.resolve(document.exitFullscreen()).catch((error) => Log.debug(error));
             return;
         }
+        Promise.resolve(stage.requestFullscreen()).catch((error) => Log.debug(error));
+    });
 
-        redirecting = true;
-        Promise.resolve(document.exitFullscreen())
-            .then(() => stage.requestFullscreen())
-            .catch((error) => Log.debug(error))
-            .then(() => {
-                redirecting = false;
-                return null;
-            })
-            .catch(() => null);
+    document.addEventListener('fullscreenchange', () => {
+        const on = active();
+        stage.classList.toggle('mod_elang-stage-fullscreen-active', on);
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        button.textContent = on ? strings.exitfullscreen : strings.fullscreen;
     });
 };
 
@@ -358,9 +500,10 @@ const attachFullscreenRedirect = (stage, element) => {
  * @param {Element} region The media region element
  * @param {Object} media The media descriptor from get_attempt_exercise
  * @param {String} position The effective subtitle position: below, overlaytop or overlaybottom
+ * @param {Object} strings Resolved labels for the stage fullscreen control
  * @returns {Element|null} The media element created, or null if none
  */
-const renderMedia = (region, media, position) => {
+const renderMedia = (region, media, position, strings) => {
     region.textContent = '';
     let element = null;
     if (media.kind === 'provider') {
@@ -389,7 +532,7 @@ const renderMedia = (region, media, position) => {
         stage.appendChild(overlay);
 
         region.appendChild(stage);
-        attachFullscreenRedirect(stage, element);
+        attachStageFullscreen(stage, element, strings);
     } else {
         region.appendChild(element);
     }
@@ -1203,6 +1346,7 @@ const loadStrings = async() => {
         'player_statecorrect', 'player_stateaccepted', 'player_stateincorrect',
         'player_statehinted', 'player_submitfailed', 'player_scorelabel', 'player_ready',
         'player_novideotrack', 'player_outdatedattempt',
+        'player_fullscreen', 'player_exitfullscreen',
     ];
     const values = await getStrings(keys.map((key) => ({key, component: 'mod_elang'})));
     keys.forEach((key, index) => {
@@ -1281,8 +1425,14 @@ const bootstrap = async(cmid, player) => {
     const overlaymode = position === 'overlaytop' || position === 'overlaybottom';
 
     const mediaregion = player.querySelector(SELECTORS.MEDIA);
-    const mediaEl = renderMedia(mediaregion, exercise.media, position);
+    const mediaEl = renderMedia(mediaregion, exercise.media, position, {
+        fullscreen: strings.player_fullscreen,
+        exitfullscreen: strings.player_exitfullscreen,
+    });
     player.classList.add('mod_elang-position-' + position);
+
+    // Measured once the player is in the page, then kept true as it changes.
+    watchAvailableHeight(player, overlaymode);
 
     if (exercise.outdated) {
         // The exercise was republished after this attempt was touched; the

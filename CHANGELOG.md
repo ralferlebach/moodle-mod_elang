@@ -9,7 +9,97 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ---
 
-## [2.0.0] - 2026-09-14
+## [Unreleased]
+
+### Fixed — the fullscreen test asserted on the browser, not the plugin
+`Escape` leaves fullscreen through the browser's own chrome, above the page.
+Nothing here binds it, and pressing it in a headless browser does nothing — so
+the test timed out waiting for an exit it could not cause. It now leaves through
+the same control it entered with, which is the part this plugin owns, and checks
+that `aria-pressed` returns to false.
+
+Entering, surviving a cue change and typing into a gap all passed from the
+start; only the exit step was wrong. Found by running the suite rather than by
+reading it.
+
+
+## [2.0.0] - 2026-09-15
+
+First stable release of the 2.x line. `$plugin->version = 2026091501`,
+`MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
+
+What changed since 2.0.0-RC1 is listed below; the release itself is the same
+code, declared stable.
+
+### Changed — the player measures the room it has instead of guessing (#23)
+Heights were bounded in viewport units: 45vh for the medium, 35vh for the
+transcript. Those numbers cannot see the page they sit in. Above the player
+there is a Moodle header, a secondary navigation, the activity name, the intro,
+and whatever a theme adds — so on a 1366×768 laptop the medium and the sentence
+being answered ended up on separate screens, which is the one thing the
+below-the-medium layout exists to prevent. On a tall screen the same numbers
+left a band of empty page.
+
+The player now measures from where it actually begins to the bottom of the
+window and publishes `--mod-elang-media-height` and
+`--mod-elang-transcript-height`. Nothing in it knows what a header is or how
+tall Boost makes one; it only knows where this element ended up, which stays
+true under any theme — the issue asks for exactly that, and a hard-coded header
+height would have been the easy wrong answer.
+
+Below the medium the two no longer compete on fixed shares. The transcript is
+served first down to a floor of 140 px and the picture takes what is left,
+reversing the old rule where the medium claimed 45vh whatever that cost the
+region underneath it. In overlay mode the caption is inside the picture, so the
+stage gets everything that is not status line, controls or score — each of those
+measured, since a theme may wrap them onto two lines.
+
+Recomputed on resize, orientation change, leaving fullscreen, and through a
+`ResizeObserver` on the body: a drawer opening or a font finishing loading moves
+the player down without an event of its own.
+
+The viewport-unit rules stay as the CSS fallback, so a browser that ignores
+custom properties — or the instant before the first measurement — sees exactly
+the layout it saw before.
+
+### Fixed — fullscreen dropped straight back out in overlay mode (#22)
+The native fullscreen button was allowed to fire and then redirected: leave the
+medium's fullscreen, then ask for it again on the stage that carries the caption.
+That chain crosses an await, and a browser grants a fullscreen request only
+while a user gesture is still active — so the second request was sometimes
+refused and a learner watched fullscreen open and close again.
+
+The stage now has its own control, and `stage.requestFullscreen()` runs inside
+the click with nothing in between. The medium's own button is suppressed where
+the browser honours `controlsList` — it would take the picture and leave every
+gap behind. Where the Fullscreen API is missing the control is not offered and
+the medium keeps its own; where the overlay cannot be shown fullscreen at all,
+notably iOS, that native button remains the way out.
+
+Fullscreen survives cue changes because it belongs to the wrapper, not to
+anything that gets re-rendered — which is the invariant the issue states.
+
+Playwright covers both overlay positions: enter, advance past a cue boundary,
+type into a gap, leave with Escape, with `document.fullscreenElement` checked at
+each step; plus that `below` has neither stage nor control.
+
+### Release engineering — a 1.3.5 site is now upgraded with the actual ZIP
+The migration workflow replaced the plugin with `cp -a plugin moodle/mod/elang`
+— from a checkout. The release therefore proved that *the source tree* migrates
+a 1.x site, never that the published archive does.
+
+`migration-v1.yml` is now callable and takes an artefact name; given one, it
+verifies the checksum and unpacks the ZIP over the old plugin the way an
+administrator would. The release workflow calls it, so publishing waits on a
+real 1.3.5 upgrade performed with the file about to be published. One definition
+of a correct migration, two sources for the plugin under test.
+
+Walked through locally against `moodle-mod_elang-2.0.0-2026091400.zip`: a 1.x
+world built with the legacy fixture, the database rolled back to a 1.x version,
+the upgrade run from the ZIP-installed code (`2015050100 → 2026091400`), then
+decommissioning — after which `check_database_schema.php` answers "Database
+structure is ok." The transitional "column 'options' is not expected" appears in
+between, exactly as the schema convergence work predicted.
 
 ### Release engineering — the tagged commit must have passed
 A tag can be moved onto anything, including a commit whose run went red or is
@@ -63,14 +153,6 @@ one, a fresh Moodle installed from the archive rather than from the working
 tree — `mod_elang 2.0.0 (build 2026091400), Reifegrad 200`, `Database structure
 is ok.` — and an activity created through `elang_add_instance`.
 
-
-First stable release of the 2.x line. `$plugin->version = 2026091400`,
-`MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
-
-What changed since 2.0.0-RC1 is listed below; the release itself is the same
-code, declared stable.
-
-## [Unreleased]
 
 ## [2.0.0-RC1] - 2026-09-06
 
@@ -2890,7 +2972,6 @@ correct.
   the MariaDB/MySQL jobs were red. The restore re-adds the field exactly as
   `db/install.xml` declares it (nullable text, after `jarothreshold`) and is a
   harmless no-op on PostgreSQL.
-
 
 
 Phase 2, seventh and final content increment: custom completion. With this,

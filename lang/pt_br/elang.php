@@ -141,6 +141,8 @@ Os docentes importam um arquivo de legendas WebVTT ou SubRip, marcam palavras ou
 $string['nav_media'] = 'Mídia';
 $string['noinstances'] = 'Não há ditados em vídeo neste curso.';
 $string['playbackproviderhint'] = 'Um vídeo do YouTube ou do Vimeo é reproduzido pelo fornecedor na sua própria moldura, que não comunica o tempo de reprodução. Um exercício destes mostra sempre as legendas por baixo da mídia e nunca para no fim das legendas, seja qual for a opção escolhida acima. Os arquivos carregados e os URL diretos respeitam ambas as definições.';
+$string['player_exitfullscreen'] = 'Sair da tela inteira';
+$string['player_fullscreen'] = 'Tela inteira';
 $string['player_novideotrack'] = 'O seu navegador não consegue mostrar a faixa de vídeo desta mídia; o áudio será reproduzido mesmo assim. Informe o seu docente.';
 $string['player_submitfailed'] = 'Não foi possível salvar a sua resposta. Tente de novo.';
 $string['privacy_metadata_elang'] = 'Para cada atividade, o registo de quem aprovou a migração unidirecional do respectivo conteúdo da 1.x.';

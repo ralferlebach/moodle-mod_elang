@@ -38,6 +38,21 @@ on:
     # Mondays, 04:00 UTC — after the Playwright run, so a broken week is visible
     # in one place.
     - cron: '0 4 * * 1'
+  workflow_call:
+    # Called by the release workflow, which needs the same migration proved
+    # against the ZIP it is about to publish rather than against a checkout.
+    # One definition of what a correct migration is, two sources for the plugin
+    # under test: a second copy of this would drift from the first.
+    inputs:
+      moodle:
+        type: string
+        default: MOODLE_405_STABLE
+        required: false
+      artefact:
+        description: 'Name of an uploaded artefact holding the release ZIP; empty means use the checkout'
+        type: string
+        default: ''
+        required: false
 
 permissions:
   contents: read
@@ -48,7 +63,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: "1.3.5 → 2.0 (${{ github.event.inputs.moodle || 'MOODLE_405_STABLE' }})"
+    name: "1.3.5 → 2.0 (${{ inputs.moodle || 'MOODLE_405_STABLE' }})"
     runs-on: ubuntu-24.04
 
     services:
@@ -65,7 +80,7 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=5
 
     env:
-      MOODLE_BRANCH: ${{ github.event.inputs.moodle || 'MOODLE_405_STABLE' }}
+      MOODLE_BRANCH: ${{ inputs.moodle || 'MOODLE_405_STABLE' }}
       MOODLE_WWWROOT: http://127.0.0.1:8000
       V1_BRANCH: Version-1.3.5-(installable)
 
@@ -172,6 +187,13 @@ jobs:
             printf("v1 responses: %d\n", $GLOBALS["DB"]->count_records("elang_users", ["id_elang" => $id]));
           ' | tee v1-state.txt
 
+      - name: Download the release ZIP, when one was handed in
+        if: ${{ inputs.artefact != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artefact }}
+          path: artefact
+
       - name: Replace the plugin with this branch and upgrade
         run: |
           # From here on every line of PHP that runs is either Moodle's or ours,
@@ -181,7 +203,18 @@ jobs:
           php moodle/admin/cli/cfg.php --name=debugdisplay --set=1
 
           rm -rf moodle/mod/elang
-          cp -a plugin moodle/mod/elang
+          if [ -n "${{ inputs.artefact }}" ]; then
+            # The release path. A site administrator upgrades by unpacking the
+            # published archive over the old plugin, so that is what happens
+            # here — the checkout is not consulted.
+            cd artefact && sha256sum -c ./*.zip.sha256 && cd ..
+            unzip -q artefact/*.zip -d moodle/mod
+            test -f moodle/mod/elang/version.php
+            echo "Plugin aus dem Release-ZIP entpackt."
+          else
+            cp -a plugin moodle/mod/elang
+            echo "Plugin aus dem Checkout kopiert."
+          fi
 
           echo "New plugin version:"
           php -r 'require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'

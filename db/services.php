@@ -98,6 +98,15 @@ $functions = [
         'capabilities' => 'mod/elang:attempt',
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'mod_elang_save_draft_cues' => [
+        'classname' => 'mod_elang\\external\\save_draft_cues',
+        'methodname' => 'execute',
+        'description' => 'Save some of a draft version\'s cues and leave the rest untouched.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/elang:manage',
+    ],
+
     'mod_elang_save_draft_version' => [
         'classname' => 'mod_elang\external\save_draft_version',
         'methodname' => 'execute',

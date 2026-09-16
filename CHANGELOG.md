@@ -11,6 +11,40 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added — the partial save endpoint and local cue checks (#26, second part)
+`mod_elang_save_draft_cues` sits in front of the partial save added in the
+previous build. It enforces everything the wholesale endpoint does — the manage
+capability, the draft-only rule, the revision check — including the separate
+capability a regular expression in an accepted answer needs. A partial save that
+skipped that check would have been a way around it, so there is a test that
+says so.
+
+`js/src/studio/cue-validation.ts` decides what the editor can tell on its own:
+a start before the recording, an end at or before its start, a cue running past
+a known duration. Deliberately narrow — duplicate keys and overlapping gap
+ranges are decidable too, but not from one cue in isolation, and the server
+already refuses them. A second opinion here could disagree with the first.
+
+`partitionCues` splits the draft into what may be sent and what must be held
+back, keyed by cue key, and the distinction it maintains is the one the whole
+design rests on: a held-back cue is absent from the payload, and absent means
+*leave alone*, never *delete*.
+
+`repairCue` proposes a correction and applies nothing. A reversed cue ends where
+the next one begins — a number already in the draft rather than one invented —
+or at the playback position when there is no next cue, and it returns null when
+neither candidate would produce a forward cue. A start before the recording has
+no defensible correction at all and is reported as unrepairable, because the
+author may have meant any time and the editor must not pick one.
+
+Fifteen unit tests for the logic, six for the endpoint.
+
+**Still to build for #26**: the editor has to use all of this — marking the cue
+in CueList, Timeline and Inspector without relying on colour, the repair button,
+the three-state autosave status, and the publish gate. Those need new language
+strings in all 26 packs.
+
+
 ### Added — partial draft saves (#26, first part)
 `version_manager::save_draft_cues()` writes some of a draft's cues and leaves
 the rest alone. The wholesale save cannot express what the editor needs when one
@@ -165,7 +199,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091506`,
+First stable release of the 2.x line. `$plugin->version = 2026091507`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

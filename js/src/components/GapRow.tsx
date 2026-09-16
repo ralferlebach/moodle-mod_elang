@@ -113,7 +113,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                 />
                                 <button
                                     type="button"
-                                    className="btn btn-link btn-sm text-danger p-0 ml-1"
+                                    className="btn btn-outline-danger btn-sm ml-1 ms-1"
                                     aria-label={t('editor_removevariant')}
                                     title={t('editor_removevariant')}
                                     data-action="removevariant"
@@ -129,7 +129,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                     </div>
                     <button
                         type="button"
-                        className="btn btn-link btn-sm p-0"
+                        className="btn btn-outline-primary btn-sm"
                         data-action="addvariant"
                         onClick={() => onChange({
                             ...gap,
@@ -176,7 +176,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                         />
                         <button
                             type="button"
-                            className="btn btn-link btn-sm text-danger p-0"
+                            className="btn btn-outline-danger btn-sm"
                             data-action="removehint"
                             onClick={() => onChange({...gap, hints: resequenced(gap.hints.filter((_, i) => i !== index))})}
                         >
@@ -187,7 +187,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
             </div>
             <button
                 type="button"
-                className="btn btn-link btn-sm p-0"
+                className="btn btn-outline-primary btn-sm"
                 data-action="addhint"
                 onClick={() => onChange({
                     ...gap,
@@ -260,7 +260,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                 )}
             </details>
 
-            <button type="button" className="btn btn-link text-danger p-0 d-block" onClick={onDelete}>
+            <button type="button" className="btn btn-outline-danger btn-sm" onClick={onDelete}>
                 {t('editor_deletegap')}
             </button>
         </div>

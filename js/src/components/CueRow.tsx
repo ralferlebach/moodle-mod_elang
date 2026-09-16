@@ -151,7 +151,7 @@ export function CueRow(
                             onChange={(ms) => onChange({...cue, starttime: ms})}
                         />
                     </label>
-                    <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('starttime')}>
+                    <button type="button" className="btn btn-outline-secondary btn-sm mr-2 me-2" onClick={() => capture('starttime')}>
                         {t('editor_capturestart')}
                     </button>
                     <label className="mr-2">
@@ -163,7 +163,7 @@ export function CueRow(
                             onChange={(ms) => onChange({...cue, endtime: ms})}
                         />
                     </label>
-                    <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('endtime')}>
+                    <button type="button" className="btn btn-outline-secondary btn-sm mr-2 me-2" onClick={() => capture('endtime')}>
                         {t('editor_captureend')}
                     </button>
                 </div>
@@ -183,7 +183,7 @@ export function CueRow(
                     <div className="mod_elang-editor-preview mt-1">
                         <button
                             type="button"
-                            className="btn btn-link btn-sm p-0"
+                            className="btn btn-outline-secondary btn-sm"
                             aria-expanded={showpreview}
                             onClick={() => setShowpreview((value) => !value)}
                         >
@@ -214,7 +214,7 @@ export function CueRow(
                         ))}
                 </div>
 
-                <button type="button" className="btn btn-link p-0 d-block" onClick={addGapFromSelection}>
+                <button type="button" className="btn btn-outline-primary btn-sm" onClick={addGapFromSelection}>
                     {t('editor_addgap')}
                 </button>
 
@@ -226,7 +226,7 @@ export function CueRow(
                     onStatus={onStatus}
                 />
 
-                <button type="button" className="btn btn-link text-danger p-0" onClick={onDelete}>
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={onDelete}>
                     {t('editor_deletecue')}
                 </button>
             </div>

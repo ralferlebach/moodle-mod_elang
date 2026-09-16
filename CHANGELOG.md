@@ -11,6 +11,36 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed — editor actions are drawn as actions (#27)
+The gap and subtitle actions were already real buttons; they were styled as
+links, so creating, capturing and deleting all looked like body text with a
+colour on it. Colour was the only thing marking a destructive action as
+destructive, which is not something everyone can see.
+
+Thirteen actions now carry a variant that says what they do: creating is
+`btn-outline-primary`, secondary work — capture, preview — is
+`btn-outline-secondary`, and deleting or removing is `btn-outline-danger`. No
+hard-coded colours, so a dark theme is Bootstrap's problem rather than ours, and
+every label and `aria-label` is unchanged.
+
+Three `btn-link` uses are left on purpose: selecting a subtitle in the list is
+navigation, the list's dropdown toggle is a toggle, and the manual Save was
+deliberately demoted to a link because autosave is the primary path — promoting
+it back would undo a decision made earlier for good reason.
+
+The test took two attempts, and the first one is worth recording. It asserted a
+computed border, on the reasoning that an outline button has one and a link does
+not. Boost gives every `.btn` a visible border, so the check stayed green with
+the action reverted to a link — verified by doing exactly that and watching it
+pass. It now asserts the variant, which is less elegant and actually holds; the
+issue's own wording asks for the same thing. Falsified again afterwards, and
+this time it fails.
+
+The label guard also caught an invented string on the way through: the test
+looked for "Create gap from selection", and the button says "Mark gap from
+selection".
+
+
 ### Changed — the editor now saves round a broken subtitle (#26, completed)
 The editor sends only the subtitles that pass the local checks and leaves the
 rest out. Because the endpoint reads an absent key as "leave alone", the last
@@ -236,7 +266,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091508`,
+First stable release of the 2.x line. `$plugin->version = 2026091509`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

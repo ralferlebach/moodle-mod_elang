@@ -96,3 +96,54 @@ test('rule-based gaps go through the real web service', async({page}) => {
     await expect(control.locator('[data-action="applyrule"]')).toBeVisible({timeout: 30000});
 });
 
+test('gap actions look like actions, not like links', async({page}) => {
+    // Issue #27: these were already real buttons, so a role check would have
+    // passed while they still looked like body text with a colour on it. What
+    // is asserted is the thing that was actually wrong — that nothing
+    // distinguished a destructive action from a sentence.
+    //
+    // A border is the cheap, theme-independent signal that Bootstrap's outline
+    // buttons have and its link buttons do not. Reading it from the computed
+    // style also survives a dark theme, which a colour assertion would not.
+    const select = page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first();
+    await select.click();
+
+    const deletecue = page.getByRole('button', {name: 'Delete subtitle'});
+    await expect(deletecue).toBeVisible();
+
+    // The variant, not the computed border. A border was the first thing tried
+    // and it does not discriminate: Boost gives every .btn a visible border, so
+    // the check stayed green with the action styled as a link — verified by
+    // reverting it and watching the test pass. Asserting the variant is less
+    // elegant and actually holds, which is the trade the issue's own wording
+    // points at: no main gap action may use btn-link alone.
+    const variant = async(locator: import('@playwright/test').Locator): Promise<string> =>
+        locator.evaluate((element) => element.className);
+
+    const deleteclasses = await variant(deletecue);
+    expect(deleteclasses, 'the destructive action is a danger button').toContain('btn-outline-danger');
+    expect(deleteclasses, 'and not a link').not.toContain('btn-link');
+
+    const addgap = page.getByRole('button', {name: 'Mark gap from selection'});
+    if (await addgap.count() > 0) {
+        const addclasses = await variant(addgap.first());
+        expect(addclasses, 'creating is a primary action').toContain('btn-outline-primary');
+        expect(addclasses, 'and not a link').not.toContain('btn-link');
+    }
+
+    // Reachable and operable from the keyboard, which is the half of the issue
+    // a visual change can quietly break.
+    await deletecue.focus();
+    await expect(deletecue).toBeFocused();
+
+    // Every action in the inspector carries a name a screen reader can read —
+    // an icon-only button with no label would satisfy the visual requirement
+    // and fail the person using it.
+    const nameless = await page.locator('.mod_elang-editor-cue button').evaluateAll(
+        (buttons) => buttons.filter((button) => {
+            const label = (button.getAttribute('aria-label') || button.textContent || '').trim();
+            return label === '';
+        }).length
+    );
+    expect(nameless, 'no action in the inspector is without an accessible name').toBe(0);
+});

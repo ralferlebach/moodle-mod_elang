@@ -433,6 +433,64 @@ const watchVideoDecoding = (element, region) => {
 };
 
 /**
+ * Make the stage the same shape as the picture inside it.
+ *
+ * The wrapper had no ratio of its own, so its box was whatever the layout gave
+ * it while the picture sat inside that box letterboxed by object-fit. The
+ * caption is positioned against the wrapper, so a portrait clip in a wide box
+ * put the subtitle over the black band beside the picture, and wrapped its
+ * lines at the box width rather than the picture width — wider lines than the
+ * image they belong to.
+ *
+ * Once the wrapper carries videoWidth/videoHeight there is no band: box and
+ * picture are the same rectangle, so "over the video" and "over the wrapper"
+ * stop being different places.
+ *
+ * The ratio is only knowable after loadedmetadata, and not at all for a
+ * provider iframe, which reports nothing about what it is playing. Those keep
+ * the 16/9 assumption they had — wrong for a portrait clip on YouTube, but
+ * guessing from the URL would be worse than a stated fallback.
+ *
+ * @param {Element} stage The positioned wrapper
+ * @param {HTMLMediaElement} element The media element
+ * @returns {void}
+ */
+const matchStageToMedium = (stage, element) => {
+    if (typeof element.videoWidth !== 'number') {
+        // Audio: no picture, nothing to match. Audio never reaches an overlay
+        // anyway — it falls back to the display below the medium — but this
+        // does not depend on that staying true.
+        return;
+    }
+
+    const apply = () => {
+        const width = element.videoWidth;
+        const height = element.videoHeight;
+        if (!width || !height) {
+            // Metadata arrived without dimensions: an audio-only file served
+            // as video, or a codec the browser could not read. The fallback in
+            // the stylesheet stands.
+            return;
+        }
+
+        stage.style.aspectRatio = width + ' / ' + height;
+
+        // The stylesheet needs the ratio as a number as well, to work out how
+        // wide the stage may be before its height runs past what the player
+        // measured. aspect-ratio alone cannot do that: it would honour the
+        // width it was given and grow past the height budget.
+        stage.style.setProperty('--mod-elang-media-ratio', String(width / height));
+    };
+
+    if (element.readyState >= 1) {
+        // Metadata already there — a cached medium can be ready before this
+        // runs, and then the event never comes.
+        apply();
+    }
+    element.addEventListener('loadedmetadata', apply);
+};
+
+/**
  * Give the stage its own fullscreen control.
  *
  * In overlay mode the caption is a sibling of the medium inside a wrapper, so
@@ -532,6 +590,7 @@ const renderMedia = (region, media, position, strings) => {
         stage.appendChild(overlay);
 
         region.appendChild(stage);
+        matchStageToMedium(stage, element);
         attachStageFullscreen(stage, element, strings);
     } else {
         region.appendChild(element);

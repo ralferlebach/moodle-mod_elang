@@ -12,6 +12,7 @@
 *.eot  binary
 *.min.js binary
 *.min.css binary
+*.mp4  binary
 
 # What does not go into a release archive.
 #
@@ -33,3 +34,10 @@ lang/en/      -export-ignore
 .gitattributes export-ignore
 .gitignore     export-ignore
 .phpcsignore   export-ignore
+
+# Test media. Four short clips in four aspect ratios, generated once so the
+# canvas tests have something with real dimensions to measure — a video element
+# pointed at a URL that does not resolve never reports a size, so the layout it
+# is supposed to prove cannot happen. They belong to the checkout, not to a
+# site: about 58 KB that no installation would ever read.
+tests/fixtures/media/ export-ignore

@@ -300,9 +300,14 @@ final class lang_strings_test extends \basic_testcase {
      * growing into a hole in the check.
      */
     private const NOT_PLUGIN_STRINGS = [
-        // Fixture data created by the tests themselves.
+        // Fixture data created by the tests themselves. The last three were
+        // hidden until the wildcard bug above was fixed: a run of placeholders
+        // matched them, so they looked like plugin text and were never listed.
         'Listening exercise 1',
         'dort',
+        'court',
+        'Student One',
+        'dQw4w9WgXcQ',
         // Moodle core.
         'Save changes',
         'Course 1',
@@ -357,13 +362,28 @@ final class lang_strings_test extends \basic_testcase {
             }
             $limit = count($haystack) - count($needle);
             for ($offset = 0; $offset <= $limit; $offset++) {
+                $literal = false;
                 foreach ($needle as $index => $word) {
                     $against = $haystack[$offset + $index];
-                    if ($against !== '*' && strcasecmp($against, $word) !== 0) {
+                    if ($against === '*') {
+                        // A placeholder stands for whatever filled it, so it
+                        // matches any single word.
+                        continue;
+                    }
+                    if (strcasecmp($against, $word) !== 0) {
                         continue 2;
                     }
+                    $literal = true;
                 }
-                return true;
+
+                // At least one real word has to have lined up. Without this a
+                // run of placeholders matches anything of the same length:
+                // "Cue {$a} ({$a})" reduces to [Cue, *, *], and the tail [*, *]
+                // then "contained" the stale label "Add cue" — so the check
+                // that exists to catch renamed labels waved one through.
+                if ($literal) {
+                    return true;
+                }
             }
 
             return false;
@@ -377,7 +397,7 @@ final class lang_strings_test extends \basic_testcase {
 
         $patterns = [
             '~getBy(?:Text|Label)\(\s*\'([^\']+)\'~',
-            '~name:\s*\'([^\']+)\'~',
+            '~getByRole\([^)]*name:\s*\'([^\']+)\'~',
             '~I (?:should see|press|click on|follow) "([^"]+)"~',
         ];
 

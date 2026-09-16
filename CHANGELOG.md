@@ -11,6 +11,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — the canvas is the picture now, not a box around it (#24)
+The stage had no ratio of its own. Its box was whatever the layout gave it while
+the video sat inside letterboxed by `object-fit`, and the caption is positioned
+against the stage — so a portrait clip in a wide box put the subtitle over the
+black band beside the picture and wrapped its lines at the box width rather than
+the picture width. Wider lines than the image they belong to.
+
+The stage now takes `videoWidth / videoHeight` at `loadedmetadata`, so box and
+picture are the same rectangle and "over the video" stops being a different
+place from "over the wrapper". Provider iframes keep 16/9: they report nothing
+about what they are playing, and guessing from a URL would be worse than a
+stated fallback.
+
+Fitting it needs more than `aspect-ratio`. Given a width, that computes a height
+and will run past the height the player measured; clamping afterwards with
+`max-height` keeps the width and breaks the very ratio the rule exists to
+preserve. The width is therefore derived from the height budget —
+`min(100%, budget × ratio)` — which fits both directions and keeps the shape.
+Fullscreen scales the same shape up rather than stretching it.
+
+Four generated clips — 16:9, 4:3, 9:16, 21:9, about 14 KB each — are served from
+the site for the tests, because a video pointed at a URL that does not resolve
+reports no dimensions and the whole mechanism starts at `loadedmetadata`. They
+are `export-ignore`d: the checkout needs them, an installation never reads them.
+
+Worth recording for next time: the first run failed on all four ratios with the
+stage still at 16:9, and the code was right. Moodle was serving the previous
+CSS and JS from its cache. `purge_caches.php` before a browser run, or the test
+measures the last build rather than this one.
+
+
 ### Added — the responsive matrix for #23
 Six screen sizes against all three subtitle positions, plus two tests for the
 halves of the issue that a "does it fit" check would miss: a short screen giving
@@ -62,7 +93,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091502`,
+First stable release of the 2.x line. `$plugin->version = 2026091503`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

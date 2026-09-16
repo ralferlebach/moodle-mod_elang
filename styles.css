@@ -300,6 +300,8 @@
  * everything the player was able to measure for it. Without this the wrapper
  * stays as tall as its contents and a wide screen shows a band of empty page
  * below a small video. */
+/* The height follows from the ratio and the width above, so it is not set
+ * again here — only bounded, in case a ratio has not arrived yet. */
 .mod_elang-media-stage {
     max-height: var(--mod-elang-media-height, 45vh);
 }
@@ -346,7 +348,28 @@
 .mod_elang-media-stage {
     position: relative;
     display: block;
+
+    /* The stage is the picture, not a box the picture sits in. The ratio is
+     * written onto the element by the player once the medium reports its own
+     * dimensions; 16/9 is what stands until then and for provider embeds,
+     * which report nothing about what they are playing. */
+    aspect-ratio: 16 / 9;
+
+    /* Fit inside both the width available and the height the player measured.
+     * aspect-ratio alone cannot do this: given a width it computes a height and
+     * will happily run past the budget, and clamping that height afterwards
+     * with max-height would keep the width and break the ratio the rule exists
+     * to preserve. Deriving the width from the height budget instead keeps the
+     * shape and fits both directions.
+     *
+     * --mod-elang-media-ratio is the same ratio as a bare number, because
+     * calc() cannot multiply by "16 / 9". */
+    width: min(100%, calc(var(--mod-elang-media-height, 45vh) * var(--mod-elang-media-ratio, 1.7778)));
     max-width: 100%;
+
+    /* Centred, because a portrait or 4:3 clip no longer fills the column and
+     * left-aligned would look like a mistake. */
+    margin-inline: auto;
 }
 
 .mod_elang-media-stage video,
@@ -354,6 +377,7 @@
 .mod_elang-media-stage iframe {
     display: block;
     width: 100%;
+    height: 100%;
 }
 
 .mod_elang-caption-overlay {
@@ -578,12 +602,15 @@
  * use it. Without this the video keeps its layout width and sits in a black
  * field with the caption stranded below the picture.
  */
+/* Fullscreen keeps the shape rather than stretching to the screen: the same
+ * ratio, scaled up until one edge meets the screen. Width and height are both
+ * released to auto so the aspect-ratio rule decides, bounded by the viewport in
+ * both directions. */
 .mod_elang-media-stage.mod_elang-stage-fullscreen-active {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: min(100vw, calc(100vh * var(--mod-elang-media-ratio, 1.7778)));
+    max-width: 100vw;
+    max-height: 100vh;
+    margin: auto;
     background: #000;
 }
 

@@ -128,6 +128,19 @@ $variants = [
     'audio' => ['position' => 'overlaytop', 'mime' => 'audio/mpeg', 'url' => 'https://example.org/pw.mp3'],
 ];
 
+// Four real clips, in four shapes, served from this site. The variants above
+// point at URLs that do not resolve, which is fine for everything that only
+// needs a player to render — but a video element that never loads reports no
+// dimensions, so the canvas can never take the shape of its picture, and the
+// one thing these fixtures exist to show could not happen.
+foreach (['16x9', '4x3', '9x16', '21x9'] as $ratio) {
+    $variants['ratio' . $ratio] = [
+        'position' => 'overlaybottom',
+        'mime' => 'video/mp4',
+        'url' => $CFG->wwwroot . '/mod/elang/tests/fixtures/media/ratio-' . $ratio . '.mp4',
+    ];
+}
+
 $variantcmids = [];
 foreach ($variants as $key => $variant) {
     $info = create_module((object) [
@@ -282,6 +295,10 @@ echo "export ELANG_CMID_BELOW='" . $variantcmids['below'] . "'\n";
 echo "export ELANG_CMID_OVERLAYBOTTOM='" . $variantcmids['overlaybottom'] . "'\n";
 echo "export ELANG_CMID_OVERLAYTOP='" . $variantcmids['overlaytop'] . "'\n";
 echo "export ELANG_CMID_AUDIO='" . $variantcmids['audio'] . "'\n";
+foreach (['16x9', '4x3', '9x16', '21x9'] as $ratio) {
+    echo "export ELANG_CMID_RATIO_" . strtoupper(str_replace('x', 'X', $ratio))
+        . "='" . $variantcmids['ratio' . $ratio] . "'\n";
+}
 echo "export ELANG_CMID_LONG='" . $longinfo->coursemodule . "'\n";
 echo "export ELANG_STUDENT='" . $studentname . "'\n";
 echo "export ELANG_STUDENT_PASS='" . $studentpassword . "'\n";

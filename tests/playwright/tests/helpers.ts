@@ -47,7 +47,15 @@ export function requireEnv(name: string): string {
 }
 
 /** The seeded course-module id under test. */
-export const CMID = process.env.ELANG_CMID || '';
+/**
+ * The seeded activity every spec works against.
+ *
+ * Resolved through requireEnv rather than defaulted to an empty string. The
+ * empty default let a whole spec file skip itself when the seed had not run,
+ * and a skipped accessibility suite reports green — which is the same colour as
+ * one that actually checked something.
+ */
+export const CMID = requireEnv('ELANG_CMID');
 /** The seeded editing-teacher login. */
 export const USER = process.env.ELANG_USER || 'admin';
 export const PASS = process.env.ELANG_PASS || '';

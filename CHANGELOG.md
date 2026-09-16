@@ -11,6 +11,43 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added — the responsive matrix for #23
+Six screen sizes against all three subtitle positions, plus two tests for the
+halves of the issue that a "does it fit" check would miss: a short screen giving
+the picture up before the transcript, and a tall screen being used rather than
+left empty.
+
+What is asserted is the promise, not the numbers behind it: the medium and the
+first gap are visible together, without scrolling. A test reading the computed
+pixel heights would pass while the layout was wrong, because those are the
+implementation.
+
+The sizes are chosen for what each one breaks — 1366×768 is the case from the
+issue, 1024×600 the smallest height still in classroom use, 1280×1440 the tall
+screen that used to be left half empty, 390×844 a phone where the priority has
+to show.
+
+Writing it found two mistakes of my own rather than in the plugin: the gap
+selector was wrong, so nineteen tests reported "no gap rendered" instead of a
+layout fault; and the transcript floor was asserted against the *rendered*
+height, which `max-height` does not enforce — a short transcript is correctly a
+short box. It now checks the allowance the player publishes, which is what the
+floor is about.
+
+### Changed — no test runs on a timer
+Playwright and the 1.3.5 migration ran weekly by cron. A scheduled run reports
+on a commit nobody is looking at, so its result arrives detached from the change
+that caused it and gets read as weather rather than as a finding. Both now run
+on push, on pull request, and on request.
+
+### Fixed — a skipped accessibility suite reported green
+`a11y.spec.ts` and `studio.spec.ts` began with `test.skip(!CMID, …)`, and `CMID`
+defaulted to an empty string. Without the seed the whole file skipped itself and
+the run was green — the same colour as one that checked something. `CMID` is
+resolved through `requireEnv` now, so a missing seed fails loudly. No
+conditional skips remain in any spec.
+
+
 ### Fixed — the fullscreen test asserted on the browser, not the plugin
 `Escape` leaves fullscreen through the browser's own chrome, above the page.
 Nothing here binds it, and pressing it in a headless browser does nothing — so
@@ -25,7 +62,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091501`,
+First stable release of the 2.x line. `$plugin->version = 2026091502`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

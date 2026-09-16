@@ -27,7 +27,6 @@ import {expect, test} from '@playwright/test';
 import {CMID, login} from './helpers';
 
 test.beforeEach(async ({page}) => {
-    test.skip(!CMID, 'ELANG_CMID is not set — run through "make playwright" to seed it.');
     await login(page);
     await page.goto(`/mod/elang/edit.php?id=${CMID}`);
 });

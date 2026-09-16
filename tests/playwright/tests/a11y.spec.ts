@@ -29,7 +29,6 @@ import AxeBuilder from '@axe-core/playwright';
 import {CMID, expectNoSeriousA11yViolations, login} from './helpers';
 
 test.beforeEach(async ({page}) => {
-    test.skip(!CMID, 'ELANG_CMID is not set — run through "make playwright" to seed it.');
     await login(page);
 });
 

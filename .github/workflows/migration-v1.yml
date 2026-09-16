@@ -34,10 +34,10 @@ on:
         options: [MOODLE_405_STABLE, MOODLE_500_STABLE, MOODLE_501_STABLE, MOODLE_502_STABLE]
         default: MOODLE_405_STABLE
         required: true
-  schedule:
-    # Mondays, 04:00 UTC — after the Playwright run, so a broken week is visible
-    # in one place.
-    - cron: '0 4 * * 1'
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
   workflow_call:
     # Called by the release workflow, which needs the same migration proved
     # against the ZIP it is about to publish rather than against a checkout.

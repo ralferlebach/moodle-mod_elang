@@ -24,10 +24,15 @@
 name: Playwright
 
 on:
+  # Runs when the code changes or when somebody asks — never on a timer. A
+  # scheduled run reports on a commit nobody is looking at, so its result
+  # arrives detached from the change that caused it and tends to be read as
+  # weather rather than as a finding.
   workflow_dispatch:
-  schedule:
-    # Mondays, 03:00 UTC.
-    - cron: '0 3 * * 1'
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
 
 concurrency:
   group: playwright-${{ github.ref }}

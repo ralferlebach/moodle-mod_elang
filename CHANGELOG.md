@@ -11,6 +11,43 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed — the editor now saves round a broken subtitle (#26, completed)
+The editor sends only the subtitles that pass the local checks and leaves the
+rest out. Because the endpoint reads an absent key as "leave alone", the last
+state the server accepted for a contradictory subtitle stays there while the
+author keeps seeing their newer, unsendable version in the browser, marked as
+unsaved. A deletion is tracked separately and reported, since absence no longer
+means removal.
+
+The status line has three answers instead of two. "Everything is saved" and
+"the server could not be reached" were the only things it could say, so a
+subtitle the author had just made contradictory was reported as a save failure —
+which teaches people to distrust an autosave that is working correctly.
+
+The selected subtitle shows what is wrong in words, with an icon and a live
+region rather than colour alone, and a **Correct the end time** button when the
+problem has one unambiguous answer. Nothing repairs itself: a timing conflict
+can be read several ways, so the editor proposes and the author decides.
+
+Publish selects the first broken subtitle and says why instead of failing at the
+server. The server still validates in full; this only avoids sending the author
+to a failure they could already be shown.
+
+Two consequences found by running it rather than by reasoning about it:
+
+- A new subtitle started and ended at zero — shown for no time at all. The local
+  checks correctly called that broken, so every freshly added row announced
+  itself as an error before anything was typed. A new subtitle now starts where
+  the medium is paused and lasts two seconds, which is also what an author means
+  when they add one while watching.
+- The editor's own mount test still stubbed the wholesale endpoint and recorded
+  no saves.
+
+Seven new strings, translated in all 26 packs. The first pass put English into
+twenty-two of them to satisfy the contract test, which is precisely the silent
+quality loss that test exists to prevent; they are properly translated.
+
+
 ### Added — the partial save endpoint and local cue checks (#26, second part)
 `mod_elang_save_draft_cues` sits in front of the partial save added in the
 previous build. It enforces everything the wholesale endpoint does — the manage
@@ -199,7 +236,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091507`,
+First stable release of the 2.x line. `$plugin->version = 2026091508`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

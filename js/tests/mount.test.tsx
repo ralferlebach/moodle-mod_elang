@@ -60,7 +60,10 @@ function memoryTransport(): {transport: ServiceTransport; saved: Record<string, 
                 }],
             };
         }
-        if (method === 'mod_elang_save_draft_version') {
+        // The editor saves through the partial endpoint now: it sends only the
+        // cues that pass the local checks, so that leaving one out cannot be
+        // read by the server as a deletion.
+        if (method === 'mod_elang_save_draft_cues') {
             saved.push(args);
             return {versionid: 7, revision: 2};
         }

@@ -29,6 +29,7 @@ import {ApiClient} from '../api/service';
 import {Cue, FORMAT_PLAIN, ImportResult, Media, Translator} from '../types';
 import {newKey} from '../keys';
 import {AutosaveController, AutosaveState, createAutosave} from '../studio/autosave';
+import {CueProblem, partitionCues, repairCue} from '../studio/cue-validation';
 import {videoTrackUndecodable} from '../studio/mediacheck';
 import {CueRow} from './CueRow';
 import {CueList} from './CueList';
@@ -78,6 +79,14 @@ export function EditorApp({api, t}: Props): JSX.Element {
     const [focusedcuekey, setFocusedcuekey] = useState('');
     const [currentms, setCurrentms] = useState(0);
     const [durationms, setDurationms] = useState(0);
+
+    // Mirrored for the save closure, which the autosave controller captured
+    // once and which would otherwise keep reading the duration as it was when
+    // the editor mounted — zero, before the medium reported anything.
+    const durationRef = useRef(0);
+    useEffect(() => {
+        durationRef.current = durationms;
+    }, [durationms]);
     const [savestate, setSavestate] = useState<AutosaveState>('idle');
     const [importopen, setImportopen] = useState(false);
     const [selectedcuekey, setSelectedcuekey] = useState('');
@@ -120,11 +129,45 @@ export function EditorApp({api, t}: Props): JSX.Element {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Cues whose latest edit could not be sent, keyed by cue key. Held in a ref
+    // as well as in state: the save runs from the autosave controller, which
+    // captured its closure once, so it has to read the current value rather
+    // than the one that existed when it was created.
+    const [problems, setProblems] = useState<Map<string, CueProblem[]>>(new Map());
+    const problemsRef = useRef<Map<string, CueProblem[]>>(new Map());
+
+    // Cue keys the author deleted since the last successful save. The partial
+    // endpoint treats an absent key as "leave alone", so a deletion has to be
+    // reported explicitly or it would never reach the server.
+    const removedRef = useRef<Set<string>>(new Set());
+
     // Persist the latest cue list; reads cuesRef so the autosave controller
     // always saves current content rather than the cues captured when it was
     // created.
+    //
+    // Only the cues that pass the local checks are sent. The rest are left out,
+    // which the partial endpoint reads as "do not touch these" — so the last
+    // state the server accepted for a broken cue stays there while the author
+    // sees their newer, unsendable version in the browser, marked as unsaved.
     const save = async(): Promise<void> => {
-        revisionRef.current = await api.saveDraft(revisionRef.current, cuesRef.current);
+        const {saveable, problems: found} = partitionCues(
+            cuesRef.current,
+            durationRef.current > 0 ? durationRef.current : null
+        );
+
+        problemsRef.current = found;
+        setProblems(found);
+
+        const removed = Array.from(removedRef.current);
+        if (saveable.length === 0 && removed.length === 0) {
+            // Nothing sendable. Not an error and not a save: returning without
+            // a request keeps the autosave controller out of its error state,
+            // which is for a server that could not be reached.
+            return;
+        }
+
+        revisionRef.current = await api.saveDraftCues(revisionRef.current, saveable, removed);
+        removedRef.current = new Set();
     };
 
     // One debounced autosave controller for the mount's lifetime.
@@ -179,6 +222,19 @@ export function EditorApp({api, t}: Props): JSX.Element {
     };
 
     const handlePublish = async(): Promise<void> => {
+        // The server validates on publish regardless; this is about not sending
+        // the author to a failure they can already be shown. Rather than
+        // disabling the button silently, the first broken cue is selected so
+        // they land on the thing that needs fixing.
+        if (problemsRef.current.size > 0) {
+            const first = cuesRef.current.find((cue) => problemsRef.current.has(cue.cuekey));
+            if (first) {
+                setSelectedcuekey(first.cuekey);
+            }
+            setStatus(t('editor_publishblocked'));
+            return;
+        }
+
         try {
             await (autosaveRef.current ? autosaveRef.current.flush() : save());
             await api.publish();
@@ -189,12 +245,22 @@ export function EditorApp({api, t}: Props): JSX.Element {
         }
     };
 
+    /** How long a newly added subtitle lasts until the author gives it a time. */
+    const NEW_CUE_MS = 2000;
+
     const insertCueAt = (index: number): void => {
+        // A new subtitle starts where the medium is paused and lasts two
+        // seconds. It used to start and end at zero, which is a subtitle shown
+        // for no time at all — the local checks now call that what it is, so
+        // every freshly added row would have announced itself as broken before
+        // the author had typed anything. Starting at the playhead is also what
+        // an author means when they add a subtitle while watching.
+        const start = capturems() ?? 0;
         const fresh: Cue = {
             cuekey: newKey('c'),
             sortorder: index + 1,
-            starttime: 0,
-            endtime: 0,
+            starttime: start,
+            endtime: start + NEW_CUE_MS,
             transcript: '',
             transcriptformat: FORMAT_PLAIN,
             gaps: [],
@@ -208,7 +274,45 @@ export function EditorApp({api, t}: Props): JSX.Element {
     };
 
     const deleteCueAt = (index: number): void => {
-        setCues((current) => current.filter((_, i) => i !== index));
+        setCues((current) => {
+            const going = current[index];
+            if (going) {
+                removedRef.current.add(going.cuekey);
+            }
+            return current.filter((_, i) => i !== index);
+        });
+    };
+
+    /**
+     * Apply the proposed correction to a cue, at the author's request.
+     *
+     * Nothing repairs itself. A timing conflict has more than one reasonable
+     * reading — move the end, move the start, delete the cue — so the editor
+     * offers and the author decides. The corrected cue then autosaves like any
+     * other edit.
+     *
+     * @param cuekey The cue to repair.
+     */
+    const repairCueByKey = (cuekey: string): void => {
+        setCues((current) => {
+            const index = current.findIndex((cue) => cue.cuekey === cuekey);
+            if (index < 0) {
+                return current;
+            }
+            const next = current[index + 1] ?? null;
+            const repaired = repairCue(
+                current[index],
+                next ? next.starttime : null,
+                capturems(),
+                durationRef.current || null
+            );
+            if (repaired === null) {
+                return current;
+            }
+            const updated = current.slice();
+            updated[index] = repaired;
+            return updated;
+        });
     };
 
     // Appending at the end is the same operation as inserting at the end, so
@@ -300,7 +404,16 @@ export function EditorApp({api, t}: Props): JSX.Element {
         saved: 'editor_autosaved',
         error: 'editor_autosaveerror',
     };
-    const savestatekey = savestatekeys[savestate];
+
+    // Three outcomes, not two. "Everything is saved" and "the server could not
+    // be reached" were the only things the status could say, so a cue the
+    // author had just made contradictory had to be reported as one or the
+    // other — and reporting it as a save failure taught them to distrust an
+    // autosave that was working correctly.
+    const hasproblems = problems.size > 0;
+    const savestatekey = hasproblems && (savestate === 'saved' || savestate === 'idle')
+        ? 'editor_savedwithproblems'
+        : savestatekeys[savestate];
 
     // Derived, never stored: keeping a copy of the selected cue in state would
     // be a second source of truth that could drift from the list EditorApp owns.
@@ -419,6 +532,8 @@ export function EditorApp({api, t}: Props): JSX.Element {
                             onDelete={() => deleteCueAt(selectedcue.index)}
                             onStatus={setStatus}
                             onGenerateGaps={(transcript, rule) => api.generateRuleGaps(transcript, rule)}
+                            problems={problems.get(selectedcue.cue.cuekey)}
+                            onRepair={() => repairCueByKey(selectedcue.cue.cuekey)}
                         />
                     )}
                 </div>

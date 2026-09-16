@@ -32,6 +32,9 @@ import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
 import {TimeField} from './TimeField';
 import {RuleGapControl} from './RuleGapControl';
+import type {CueProblem} from '../studio/cue-validation';
+
+
 
 interface Props {
     cue: Cue;
@@ -43,6 +46,10 @@ interface Props {
     onDelete: () => void;
     onStatus: (text: string) => void;
     onGenerateGaps: (transcript: string, rule: GapRule) => Promise<RuleGapSpan[]>;
+    /** Problems that stopped this cue's latest edit from being saved. */
+    problems?: CueProblem[];
+    /** Apply the proposed correction, when there is one. */
+    onRepair?: () => void;
 }
 
 /**
@@ -51,7 +58,9 @@ interface Props {
  * @param props The component props.
  * @returns The cue row element.
  */
-export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus, onGenerateGaps}: Props): JSX.Element {
+export function CueRow(
+    {cue, t, focused, capturems, onChange, onDelete, onStatus, onGenerateGaps, problems, onRepair}: Props
+): JSX.Element {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showpreview, setShowpreview] = useState(false);
 
@@ -107,6 +116,31 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
     return (
         <div className={'mod_elang-editor-cue card mb-2' + (focused ? ' focused' : '')} data-cuekey={cue.cuekey}>
             <div className="card-body">
+                {problems && problems.length > 0 && (
+                    /* Not colour alone: an icon, the reason in words, and a
+                       live region so it is announced rather than merely drawn.
+                       The author needs to know both what is wrong and that this
+                       cue is the one thing not reaching the server. */
+                    <div
+                        className="alert alert-warning py-2 px-3 mb-2 mod_elang-cue-problem"
+                        data-region="cueproblem"
+                        role="alert"
+                    >
+                        <span aria-hidden="true">{'\u26A0 '}</span>
+                        <strong>{t('editor_cuenotsaved')}</strong>{' '}
+                        {problems.map((problem) => t('editor_problem_' + problem.code)).join(' ')}
+                        {onRepair && problems.every((problem) => problem.repairable) && (
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-secondary ml-2 ms-2"
+                                data-action="repaircue"
+                                onClick={onRepair}
+                            >
+                                {t('editor_repaircue')}
+                            </button>
+                        )}
+                    </div>
+                )}
                 <div className="mb-2">
                     <label className="mr-2">
                         {t('editor_starttime')}{' '}

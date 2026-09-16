@@ -34,6 +34,8 @@ interface Props {
     t: Translator;
     onChange: (gap: Gap) => void;
     onDelete: () => void;
+    /** Highlighted because the author just clicked its mark in the text. */
+    selected?: boolean;
 }
 
 /**
@@ -42,7 +44,7 @@ interface Props {
  * @param props The component props.
  * @returns The gap row element.
  */
-export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
+export function GapRow({gap, t, onChange, onDelete, selected}: Props): JSX.Element {
     const replaceAnswer = (index: number, answer: Answer): void => {
         const answers = gap.answers.slice();
         answers[index] = answer;
@@ -58,7 +60,10 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
     const resequenced = (hints: Hint[]): Hint[] => hints.map((hint, index) => ({...hint, level: index + 1}));
 
     return (
-        <div className="mod_elang-editor-gap border rounded p-2 mt-2">
+        <div
+            className={"mod_elang-editor-gap border rounded p-2 mt-2" + (selected ? " selected" : "")}
+            data-gaprow={gap.gapkey}
+        >
             {/* The character offsets are how a gap is stored and graded, and they
                 are maintained by selecting text and by resyncGaps(); nobody
                 types them. Showing them made an internal coordinate look like a

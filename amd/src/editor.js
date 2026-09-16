@@ -76,6 +76,18 @@ const STRING_KEYS = [
     'editor_save', 'editor_saved', 'editor_saveerror',
     'editor_savemedia', 'editor_saving', 'editor_selecttext', 'editor_solution', 'editor_starttime',
     'editor_transcript', 'editor_unsaved', 'editor_uploadmedia', 'editor_waveform',
+
+    // Local cue problems and their repair (#26). A string missing from this
+    // list is not a missing translation — the editor renders the key itself, so
+    // the author reads "editor_cuenotsaved" on the screen.
+    'editor_cuenotsaved', 'editor_repaircue', 'editor_savedwithproblems',
+    'editor_publishblocked', 'editor_problem_endbeforestart',
+    'editor_problem_negativestart', 'editor_problem_afterduration',
+
+    // Gaps marked in the sentence (#28).
+    'editor_gapmode_exact', 'editor_gapmode_wordrecognized',
+    'editor_gaphasalternatives', 'editor_gaphashints',
+    'editor_gapunplaceable_outofrange', 'editor_gapunplaceable_overlap',
 ];
 
 /**

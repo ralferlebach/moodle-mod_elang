@@ -147,3 +147,29 @@ test('gap actions look like actions, not like links', async({page}) => {
     );
     expect(nameless, 'no action in the inspector is without an accessible name').toBe(0);
 });
+
+test('gaps are marked in the text and lead to their row', async({page}) => {
+    // Issue #28: the gaps were edited in forms below the sentence, so the
+    // author had to hold the mapping between "gap 2" and a word in their head.
+    const select = page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first();
+    await select.click();
+
+    const marks = page.locator('[data-region="inlinegap"]');
+    await expect(marks.first()).toBeVisible();
+
+    // The mark carries the matching mode in its accessible name. Black and grey
+    // are not information for everyone, and this is the distinction the author
+    // is being asked to read.
+    const label = await marks.first().getAttribute('aria-label');
+    expect(label, 'the mark names its matching mode').toMatch(/exact match|close answers accepted/);
+
+    // The link between mark and row is the gap key, not a position: a gap keeps
+    // its key when the transcript is edited and the ranges move.
+    const gapkey = await marks.first().getAttribute('data-gapkey');
+    expect(gapkey, 'the mark is addressed by key').toBeTruthy();
+
+    await marks.first().click();
+    const row = page.locator(`[data-gaprow="${gapkey}"]`);
+    await expect(row).toBeVisible();
+    await expect(row).toHaveClass(/selected/);
+});

@@ -11,6 +11,47 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added — gaps are marked where their words are (#28)
+The gaps of a subtitle were edited in forms below the sentence, so an author had
+to hold the mapping between a row and a word in their head. The sentence now
+appears again below the textarea with each gap marked in place: inverted for
+exact matching, grey for close answers, with a small sign for accepted variants
+and another for hints. Clicking a mark opens that gap's row, scrolls it into
+view and outlines both ends of the jump.
+
+The link is the `gapkey`, never the array position: a gap keeps its key when the
+transcript is edited and `resyncGaps()` moves the ranges, while its index does
+not survive an insertion above it.
+
+The textarea stays the place text is typed. A contenteditable would have to
+reconcile a caret with codepoint offsets on every keystroke, and getting that
+wrong moves a gap onto the wrong word without anyone noticing.
+
+Two things are deliberate:
+
+- **Positions are counted in codepoints, not UTF-16 units.** Slicing by string
+  index puts the mark one character off and splits an emoji in half — a failure
+  invisible in any Latin-only test, so there is one with an emoji in it.
+- **A gap that cannot be placed is shown as broken, not omitted.** An overlap or
+  a range past the end of the text becomes a marked warning that still opens its
+  row. A gap silently missing from the view looks deleted, and the author has no
+  reason to go looking for it.
+
+Nine unit tests for the segmentation, where the awkward cases live, and a
+browser test for the click path and the accessible name.
+
+### Fixed — six strings the editor would have shown as raw keys
+`amd/src/editor.js` carries the list of strings the React editor loads, and
+nothing had added the ones introduced for #26. An author would have read
+`editor_cuenotsaved` on the screen. The suites were all green, because no test
+had exercised those paths yet — the browser test written for #28 caught it,
+reporting `editor_gapmode_exact` where a sentence belonged.
+
+Worth stating plainly: a string missing from that list is not a missing
+translation. It is the key itself, rendered to the person using the editor, in
+every language.
+
+
 ### Changed — editor actions are drawn as actions (#27)
 The gap and subtitle actions were already real buttons; they were styled as
 links, so creating, capturing and deleting all looked like body text with a
@@ -266,7 +307,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091509`,
+First stable release of the 2.x line. `$plugin->version = 2026091510`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

@@ -32,6 +32,7 @@ import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
 import {TimeField} from './TimeField';
 import {RuleGapControl} from './RuleGapControl';
+import {InlineGaps} from './InlineGaps';
 import type {CueProblem} from '../studio/cue-validation';
 
 
@@ -63,6 +64,13 @@ export function CueRow(
 ): JSX.Element {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showpreview, setShowpreview] = useState(false);
+
+    // Which gap the author last reached for, so the inline view can show it and
+    // the matching row can pull itself into sight. Held by key rather than by
+    // index: a gap keeps its key when the transcript is edited and resyncGaps
+    // moves the ranges, while its position in the array does not survive an
+    // insertion above it.
+    const [selectedgapkey, setSelectedgapkey] = useState('');
 
     const replaceGap = (index: number, gap: Gap): void => {
         const gaps = cue.gaps.slice();
@@ -179,6 +187,25 @@ export function CueRow(
                     />
                 </label>
 
+                <InlineGaps
+                    transcript={cue.transcript}
+                    gaps={cue.gaps}
+                    t={t}
+                    selectedgapkey={selectedgapkey}
+                    onSelectGap={(gapkey) => {
+                        setSelectedgapkey(gapkey);
+                        // Scrolled to rather than only marked: in a cue with
+                        // several gaps the matching row is often below the fold,
+                        // and a selection the author cannot see is not a
+                        // selection.
+                        window.requestAnimationFrame(() => {
+                            const row = document.querySelector('[data-gaprow="' + gapkey + '"]');
+                            row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+                            (row?.querySelector('input, select, textarea') as HTMLElement | null)?.focus();
+                        });
+                    }}
+                />
+
                 {cue.gaps.length > 0 && (
                     <div className="mod_elang-editor-preview mt-1">
                         <button
@@ -208,6 +235,7 @@ export function CueRow(
                                 key={gap.gapkey}
                                 gap={gap}
                                 t={t}
+                                selected={gap.gapkey === selectedgapkey}
                                 onChange={(updated) => replaceGap(index, updated)}
                                 onDelete={() => onChange({...cue, gaps: cue.gaps.filter((_, i) => i !== index)})}
                             />

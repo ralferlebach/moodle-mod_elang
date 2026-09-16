@@ -636,3 +636,63 @@
     max-height: 100%;
     max-width: 100%;
 }
+
+/*
+ * Gaps marked where their words are (#28).
+ *
+ * The mark is a button so it is reachable by keyboard and has a name, but it
+ * has to read as a word in a sentence rather than as a control: no padding to
+ * speak of, the surrounding line height, and a baseline that matches the text
+ * around it. A Bootstrap button class would have broken the line.
+ */
+.mod_elang-inline-gaps-text {
+    line-height: 2;
+}
+
+.mod_elang-inline-gap {
+    border: 0;
+    border-radius: 0.2rem;
+    padding: 0.05em 0.25em;
+    font: inherit;
+    cursor: pointer;
+}
+
+/*
+ * Exact matching is inverted, close matching is grey. The difference is also in
+ * every mark's accessible name and title — "black" and "grey" carry no meaning
+ * for someone who cannot compare them, and this is the distinction the author
+ * is being asked to read.
+ */
+.mod_elang-inline-gap.exact {
+    background: #000;
+    color: #fff;
+}
+
+.mod_elang-inline-gap.recognized {
+    background: #d5d5d5;
+    color: #111;
+}
+
+/* Marked as current, in a way that survives a dark theme: an outline rather
+ * than a lighter shade of the background. */
+.mod_elang-inline-gap.selected {
+    outline: 2px solid;
+    outline-offset: 1px;
+}
+
+.mod_elang-inline-gap:focus-visible {
+    outline: 3px solid;
+    outline-offset: 2px;
+}
+
+.mod_elang-inline-gap-icon {
+    margin-inline-start: 0.2em;
+    font-size: 0.8em;
+}
+
+/* The row the author just jumped to. Paired with the outline above so the two
+ * ends of the jump look like the same selection. */
+.mod_elang-editor-gap.selected {
+    outline: 2px solid;
+    outline-offset: 1px;
+}

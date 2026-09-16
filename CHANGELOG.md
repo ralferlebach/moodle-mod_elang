@@ -11,6 +11,31 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Added — partial draft saves (#26, first part)
+`version_manager::save_draft_cues()` writes some of a draft's cues and leaves
+the rest alone. The wholesale save cannot express what the editor needs when one
+cue is contradictory and its neighbours are fine: dropping the bad cue from a
+wholesale payload does not protect it, it deletes it, because absence means
+removal there. So absence now means nothing at all, and removal is said out
+loud — only keys in `$removedcuekeys` are deleted.
+
+Everything the wholesale save guards is guarded here: the activity lock, the
+transaction, the draft-only rule, and one revision bump for the whole call so
+two editors still collide cleanly. A key that is both written and removed in one
+call is refused rather than resolved — a caller contradicting itself is a bug,
+and guessing which half was meant would hide it.
+
+Five tests, and the one that matters is that an omitted cue keeps its stored
+text and its gaps. Verified by making the method delete wholesale again, which
+fails it.
+
+**Still to build for #26**: client-side cue validation, the external API in front
+of this, marking the broken cue in CueList, Timeline and Inspector without
+relying on colour, the repair action, the three-state autosave status, and the
+publish gate. This part is the foundation they all need — the issue says so
+itself — and it is worth having landed and tested on its own.
+
+
 ### Fixed — CI dropped four seeded variables without saying so
 The Playwright workflow turns seed.php's `export KEY='value'` lines into
 `$GITHUB_ENV` entries with a sed pattern that allowed only `[A-Z_]` in a name.
@@ -140,7 +165,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091505`,
+First stable release of the 2.x line. `$plugin->version = 2026091506`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

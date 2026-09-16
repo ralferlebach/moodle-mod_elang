@@ -61,6 +61,9 @@
 .mod_elang-player .mod_elang-gapstate {
     font-size: 0.85em;
     white-space: normal;
+    /* The overlay centres its lines; the status word beside a gap is not a
+     * line of its own and keeps reading from the start of its own box. */
+    text-align: start;
 }
 
 /* State is shown by border style (not colour alone) plus the status text, so
@@ -394,6 +397,21 @@
     overflow-wrap: break-word;
     word-break: normal;
     hyphens: auto;
+
+    /* Centred, the way a caption is. Left-aligned it read as a paragraph that
+     * happened to be over the video rather than as its subtitle, and on a wide
+     * picture a short line ended up far from where the eye was.
+     *
+     * text-align is the logical property here: `center` means the same thing in
+     * either writing direction, which `left` would not. Nothing in this block
+     * uses a physical side, so an Arabic or Hebrew caption centres without a
+     * separate rule.
+     *
+     * The gaps ride along because they are inline-flex inside the text flow —
+     * they are part of the sentence, not boxes placed beside it — so centring
+     * the line centres the sentence with its inputs, status marks and actions
+     * in place. */
+    text-align: center;
 }
 
 .mod_elang-caption-overlaybottom {

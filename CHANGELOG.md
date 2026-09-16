@@ -11,6 +11,37 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed — overlay subtitles are centred (#25)
+The overlay declared no alignment, so it inherited the document's and sat flush
+left. It read as a paragraph that happened to be over the video rather than as
+its subtitle, and on a wide picture a short line ended up far from where the eye
+was.
+
+`text-align: center` on the caption, which is direction-neutral — `center` means
+the same thing in Arabic as in German, where `left` would not — so right-to-left
+needs no second rule. The gaps ride along because they are inline-flex inside
+the sentence rather than boxes placed beside it. The status label next to a gap
+keeps reading from its own start: it belongs to the input, not to the line. The
+transcript below the medium is untouched; it is a reading column, not a caption.
+
+Getting the test to mean something took five attempts, each for a reason worth
+recording:
+
+- Measuring the whole caption as one block passed with the rule removed — a
+  line that fills its box looks the same centred or flush left. The test now
+  requires the line to be clearly shorter than its box before it judges.
+- Grouping rectangles by their top edge split one visual line in two, because a
+  gap input is taller than the words around it. Grouped by vertical centre now.
+- The status labels beside the gaps were being measured as caption lines and
+  demanded to be centred, which they should not be.
+- A Range includes the space a line broke on while the browser ignores it when
+  centring, so a correct line measures about a space-width off. One space of
+  slack, stated as such.
+
+Verified by removing `text-align: center` and confirming the suite fails —
+left inset 12 px against right 354.7 px, which no tolerance would swallow.
+
+
 ### Fixed — the canvas is the picture now, not a box around it (#24)
 The stage had no ratio of its own. Its box was whatever the layout gave it while
 the video sat inside letterboxed by `object-fit`, and the caption is positioned
@@ -93,7 +124,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091503`,
+First stable release of the 2.x line. `$plugin->version = 2026091504`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

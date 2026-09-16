@@ -122,14 +122,30 @@ jobs:
       # sourced locally. $GITHUB_ENV expects bare KEY=value, so the "export "
       # prefix and the quotes are stripped — otherwise every variable is lost
       # and the suite fails on the first required one.
+      #
+      # The name pattern allows digits after the first character. It did not,
+      # and ELANG_CMID_RATIO_16X9 and its three siblings were silently dropped:
+      # every other variable came through, so the step looked like it had
+      # worked and the failure surfaced four minutes later inside the browser.
+      # The count is compared against the file afterwards, so a variable lost
+      # to a pattern says so here instead of there.
       - name: Seed the exercise fixture
         run: |
           cd moodle
           php mod/elang/tests/playwright/seed.php > /tmp/elang-seed.env
           echo "Seeded variables:"
-          sed -n "s/^export \([A-Z_][A-Z_]*\)=.*/  \1/p" /tmp/elang-seed.env
-          sed -n "s/^export \([A-Z_][A-Z_]*\)='\(.*\)'$/\1=\2/p" \
-            /tmp/elang-seed.env >> "$GITHUB_ENV"
+          sed -n "s/^export \([A-Z_][A-Z0-9_]*\)=.*/  \1/p" /tmp/elang-seed.env
+
+          printed=$(grep -c "^export " /tmp/elang-seed.env)
+          taken=$(sed -n "s/^export \([A-Z_][A-Z0-9_]*\)='\(.*\)'$/\1=\2/p" \
+            /tmp/elang-seed.env | tee -a "$GITHUB_ENV" | wc -l)
+
+          if [ "$printed" != "$taken" ]; then
+            echo "Der Seed hat $printed Variablen gedruckt, uebernommen wurden $taken."
+            echo "Eine davon passt nicht auf das Muster oben."
+            exit 1
+          fi
+          echo "Alle $taken Variablen uebernommen."
 
       - name: Install Playwright and browsers
         run: |

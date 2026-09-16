@@ -11,6 +11,22 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — CI dropped four seeded variables without saying so
+The Playwright workflow turns seed.php's `export KEY='value'` lines into
+`$GITHUB_ENV` entries with a sed pattern that allowed only `[A-Z_]` in a name.
+`ELANG_CMID_RATIO_16X9` and its three siblings have digits in them, so they were
+filtered out — while the twelve older variables came through. The step looked
+like it had worked and the failure surfaced four minutes later, inside the
+browser, as five canvas tests reporting a missing variable.
+
+The pattern now allows digits, and the step compares how many variables the seed
+printed against how many it took. A variable lost to a pattern is reported where
+it is lost rather than where it is missed. Confirmed against the real seed
+output: twelve of sixteen under the old pattern, sixteen of sixteen under the
+new one, and the count check refusing a file the old pattern would have
+silently thinned.
+
+
 ### Changed — overlay subtitles are centred (#25)
 The overlay declared no alignment, so it inherited the document's and sat flush
 left. It read as a paragraph that happened to be over the video rather than as
@@ -124,7 +140,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091504`,
+First stable release of the 2.x line. `$plugin->version = 2026091505`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   playwright:
-    name: "Playwright (MOODLE_405_STABLE / PHP 8.3 / Chromium)"
+    name: "Playwright (MOODLE_405_STABLE / PHP 8.3 / Chromium + Firefox)"
     runs-on: ubuntu-24.04
 
     services:
@@ -165,7 +165,39 @@ jobs:
             exit 1
           fi
           npm ci
-          npx playwright install --with-deps chromium
+
+          # Every browser the config declares, not a hand-written list. The
+          # list said "chromium" while playwright.config.ts had grown a firefox
+          # project, so all sixty-six Firefox tests failed with "Executable
+          # doesn't exist" — sixty-six red results for one missing install, in
+          # which a real failure would have been invisible.
+          npx playwright install --with-deps
+
+      # A guard rather than a comment asking someone to remember. The install
+      # above covers whatever the config declares; this says so out loud, and
+      # fails here — in one line — rather than as a wall of identical browser
+      # errors further down.
+      # A guard rather than a note asking someone to remember. The install
+      # above already covers whatever the config declares; this says so out
+      # loud and fails here, in one line, instead of as sixty-six identical
+      # browser errors further down.
+      - name: Check that every declared browser is installed
+        run: |
+          cd moodle/mod/elang/tests/playwright
+          missing=""
+          for browser in $(grep -oP "name: '\K[a-z]+" playwright.config.ts); do
+            path=$(npx playwright install --dry-run "$browser" 2>/dev/null \
+              | grep -oP 'Install location:\s+\K\S+' | head -1)
+            if [ -z "$path" ] || [ ! -d "$path" ]; then
+              missing="$missing $browser"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "In playwright.config.ts deklariert, aber nicht installiert:$missing"
+            exit 1
+          fi
+          echo "Alle deklarierten Browser sind vorhanden."
 
       - name: Run Playwright tests
         run: |

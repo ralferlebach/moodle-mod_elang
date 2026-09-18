@@ -11,6 +11,24 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — CI never installed the browser it was asked to test with
+Adding Firefox to `playwright.config.ts` was half the change. The workflow
+installed browsers from a hand-written list that still said `chromium`, so all
+sixty-six Firefox tests failed with "Executable doesn't exist" — sixty-six red
+results for one missing install, and a wall in which a real failure would have
+been invisible.
+
+The install now takes whatever the config declares rather than a list somebody
+has to keep in step. A guard in front of the run checks the same thing and fails
+in one line, naming the browser, instead of as sixty-six identical errors
+further down. Verified by declaring a browser that is not installed and watching
+it report `fehlend: webkit`.
+
+The job was also still called "Chromium" while running two engines. A label that
+lies about what ran is worse than no label, since it is what someone reads when
+deciding whether a red run matters.
+
+
 ### Fixed — publishing could step over a problem made a moment earlier (#26)
 `problemsRef` is filled by the save, and the save is debounced. An author who
 broke a subtitle and reached for Publish in the same second arrived before the
@@ -390,7 +408,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091512`,
+First stable release of the 2.x line. `$plugin->version = 2026091513`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

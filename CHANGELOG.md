@@ -11,6 +11,89 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — publishing could step over a problem made a moment earlier (#26)
+`problemsRef` is filled by the save, and the save is debounced. An author who
+broke a subtitle and reached for Publish in the same second arrived before the
+checks had run, so the guard saw an empty set and let them through. The flush
+then ran the checks and correctly refused to send the broken subtitle — and
+publishing continued anyway, on a draft the server still held in its last good
+state. The activity would have gone live without the author's most recent edit,
+with nothing on screen saying so.
+
+The check now runs again after the flush, when the checks have actually seen
+what was typed. The first check is kept because it answers faster in the
+ordinary case: no request at all when the problem is already known.
+
+### Added — a problem subtitle is marked in all three views (#26)
+The inspector answers "what is wrong with this one", the list answers "which of
+mine need attention", and the timeline answers "where in the recording". Only
+the inspector was being told. All three now share one `problemkeys` set derived
+from the problem map rather than tracked separately — two sources for the same
+question is how one of them goes stale.
+
+The timeline marks with a sign inside the segment and a dashed edge, not another
+outline: "active" and the playhead already use edges and shading there, and none
+of those is readable without sight. The list carries a sign and the word.
+
+### Fixed — a repair button that did nothing
+"Repairable" describes the kind of problem, not whether a correction can be
+derived here. A reversed cue needs somewhere to put its end — the next
+subtitle's start, or the playback position — and an exercise with a single
+subtitle and the medium at zero has neither. The button was shown anyway and did
+nothing when pressed.
+
+Found by writing the test the other way round: the repair refused, and the
+refusal was right. The button now appears only when a proposal actually exists,
+with one test for its absence and one for the case where the repair works and
+clears the mark in all three views.
+
+### Changed — Firefox joins the browser matrix (#22)
+The fullscreen work is about a browser granting or refusing a request, and the
+two engines decide differently: Chromium is lenient about what still counts as a
+user gesture, Firefox is not. A rule that holds in one of them is not a rule.
+Firefox carries the whole suite rather than only the fullscreen tests — a second
+engine is worth having wherever it is cheap, and splitting the matrix by test
+would need a list somebody has to maintain.
+
+Chromium: 66 of 66. Firefox: 65 of 66, with one long-standing flake described
+below.
+
+### Known — one browser test passes alone and fails in the suite
+`player.spec.ts › subtitle positions › an overlay puts the cursor in the first
+gap` fails in a full run and passes when run on its own or as its own block,
+after a fresh seed. It behaved this way in Chromium before any of this round's
+changes and now does so in Firefox.
+
+Two explanations fit and neither is proven: an earlier test consuming the
+attempt state of the shared activity, or the autofocus exceeding its ten-second
+wait under the load of a long run. It is recorded here rather than quietly
+retried, because a suite that learns to expect one red test stops being a gate.
+
+
+### Documentation — load test results of 15.09.2026 recorded
+Two JMeter runs against the self-contained target: `classroom` at 1.2 requests
+per second and `lecturehall` at 11.1, both hitting the rate the model
+prescribes — the lecture-hall run to the decimal. 2200 responses, all HTTP 200,
+no errors and no Moodle exception. p95 of 36 and 37 ms against a gate of 800.
+
+The lecture-hall run has a visibly longer tail — p99 150 ms against 39, peak
+413 ms — and the obvious reading of that is queueing. It is wrong, which is why
+the run is broken down into twenty-second windows in the document: the median
+stays flat at 26–29 ms for three minutes and drifts *down* towards the end, and
+the outliers are scattered rather than accumulating. A filling queue raises the
+median and makes every later window worse. This does neither.
+
+That breakdown is the point worth keeping: the same p99 means "the server is
+saturating" or "the machine sneezed", and only the shape over time tells them
+apart.
+
+What the runs do not show is stated with them — they hit `php -S` on
+127.0.0.1:8000 and exercised `get_version_content` alone, so they say nothing
+about PHP-FPM with production caches, nothing about the write path and nothing
+about media serving. What they do show is narrow and still useful: the read path
+has not regressed, and lecture-hall volume produces no errors.
+
+
 ### Added — gaps are marked where their words are (#28)
 The gaps of a subtitle were edited in forms below the sentence, so an author had
 to hold the mapping between a row and a word in their head. The sentence now
@@ -307,7 +390,7 @@ reading it.
 
 ## [2.0.0] - 2026-09-15
 
-First stable release of the 2.x line. `$plugin->version = 2026091510`,
+First stable release of the 2.x line. `$plugin->version = 2026091512`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

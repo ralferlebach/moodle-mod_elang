@@ -221,22 +221,49 @@ export function EditorApp({api, t}: Props): JSX.Element {
         }
     };
 
+    /**
+     * Select the first subtitle with an open problem and say why publishing stopped.
+     *
+     * @returns Always true, so a caller can read it as "publishing was blocked".
+     */
+    const blockPublish = (): boolean => {
+        const first = cuesRef.current.find((cue) => problemsRef.current.has(cue.cuekey));
+        if (first) {
+            setSelectedcuekey(first.cuekey);
+        }
+        setStatus(t('editor_publishblocked'));
+
+        return true;
+    };
+
     const handlePublish = async(): Promise<void> => {
-        // The server validates on publish regardless; this is about not sending
-        // the author to a failure they can already be shown. Rather than
-        // disabling the button silently, the first broken cue is selected so
-        // they land on the thing that needs fixing.
+        // Checked twice, and the second check is the one that matters.
+        //
+        // problemsRef is filled by the save, and the save is debounced. An
+        // author who breaks a subtitle and reaches for Publish in the same
+        // second arrives here before the debounce has run, so the first check
+        // sees an empty set and waves them through. The flush then runs the
+        // checks, correctly refuses to send the broken subtitle — and publishing
+        // would have continued anyway, on a draft the server still holds in its
+        // last good state. The activity would go live missing the author's most
+        // recent edit, with nothing on screen saying so.
+        //
+        // The first check is kept because it gives the faster answer in the
+        // ordinary case: no request at all when the problem is already known.
         if (problemsRef.current.size > 0) {
-            const first = cuesRef.current.find((cue) => problemsRef.current.has(cue.cuekey));
-            if (first) {
-                setSelectedcuekey(first.cuekey);
-            }
-            setStatus(t('editor_publishblocked'));
+            blockPublish();
             return;
         }
 
         try {
             await (autosaveRef.current ? autosaveRef.current.flush() : save());
+
+            // Now the checks have actually run against what the author typed.
+            if (problemsRef.current.size > 0) {
+                blockPublish();
+                return;
+            }
+
             await api.publish();
             setStatus(t('editor_published'));
             window.setTimeout(() => window.location.reload(), 1200);
@@ -281,6 +308,27 @@ export function EditorApp({api, t}: Props): JSX.Element {
             }
             return current.filter((_, i) => i !== index);
         });
+    };
+
+    /**
+     * The correction that would be applied to a cue, or null when there is none.
+     *
+     * @param cuekey The cue to examine.
+     * @returns The corrected cue, or null.
+     */
+    const repairProposal = (cuekey: string): Cue | null => {
+        const index = cuesRef.current.findIndex((cue) => cue.cuekey === cuekey);
+        if (index < 0) {
+            return null;
+        }
+        const next = cuesRef.current[index + 1] ?? null;
+
+        return repairCue(
+            cuesRef.current[index],
+            next ? next.starttime : null,
+            capturems(),
+            durationRef.current || null
+        );
     };
 
     /**
@@ -411,6 +459,11 @@ export function EditorApp({api, t}: Props): JSX.Element {
     // other — and reporting it as a save failure taught them to distrust an
     // autosave that was working correctly.
     const hasproblems = problems.size > 0;
+
+    // The same set for the list and the timeline. Derived from the map rather
+    // than tracked separately: two sources for "which subtitles are unsaved"
+    // is how one of them ends up stale.
+    const problemkeys = new Set(problems.keys());
     const savestatekey = hasproblems && (savestate === 'saved' || savestate === 'idle')
         ? 'editor_savedwithproblems'
         : savestatekeys[savestate];
@@ -487,6 +540,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
                     t={t}
                     onSeek={seekToCue}
                     onEdit={editCueTiming}
+                    problemkeys={problemkeys}
                 />
             </div>
 
@@ -514,6 +568,7 @@ export function EditorApp({api, t}: Props): JSX.Element {
                         onAdd={handleAddCue}
                         onInsertAt={insertCueAt}
                         onDelete={deleteCueAt}
+                        problemkeys={problemkeys}
                     />
                 </div>
 
@@ -533,7 +588,19 @@ export function EditorApp({api, t}: Props): JSX.Element {
                             onStatus={setStatus}
                             onGenerateGaps={(transcript, rule) => api.generateRuleGaps(transcript, rule)}
                             problems={problems.get(selectedcue.cue.cuekey)}
-                            onRepair={() => repairCueByKey(selectedcue.cue.cuekey)}
+                            onRepair={
+                                // Offered only when a correction can actually be
+                                // derived. "Repairable" says the kind of problem
+                                // has a single answer in principle; whether one
+                                // exists here depends on there being a next
+                                // subtitle or a playback position to take it
+                                // from. Showing the button regardless gave the
+                                // author something that looked like a fix and
+                                // did nothing when they pressed it.
+                                repairProposal(selectedcue.cue.cuekey) !== null
+                                    ? () => repairCueByKey(selectedcue.cue.cuekey)
+                                    : undefined
+                            }
                         />
                     )}
                 </div>

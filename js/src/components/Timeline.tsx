@@ -41,6 +41,8 @@ interface Props {
     t: Translator;
     onSeek: (cue: Cue) => void;
     onEdit: (cuekey: string, starttime: number, endtime: number) => void;
+    /** Cue keys whose latest edit could not be saved. */
+    problemkeys?: Set<string>;
 }
 
 /** Which edge of a cue a handle controls. */
@@ -56,7 +58,7 @@ const COARSE_MULTIPLIER = 10;
  * @param props The component props.
  * @returns The timeline element.
  */
-export function Timeline({cues, durationms, currentms, mediasrc, t, onSeek, onEdit}: Props): JSX.Element {
+export function Timeline({cues, durationms, currentms, mediasrc, t, onSeek, onEdit, problemkeys}: Props): JSX.Element {
     const stripRef = useRef<HTMLDivElement>(null);
 
     let maxend = 0;
@@ -148,8 +150,10 @@ export function Timeline({cues, durationms, currentms, mediasrc, t, onSeek, onEd
             {cues.map((cue) => (
                 <div
                     key={cue.cuekey}
-                    className={'mod_elang-editor-timeline-cue' + (currentms >= cue.starttime && currentms < cue.endtime
-                        ? ' active' : '')}
+                    className={'mod_elang-editor-timeline-cue'
+                        + (currentms >= cue.starttime && currentms < cue.endtime ? ' active' : '')
+                        + (problemkeys?.has(cue.cuekey) ? ' unsaved' : '')}
+                    data-region={problemkeys?.has(cue.cuekey) ? 'timelineunsaved' : undefined}
                     style={{
                         left: msToPercent(cue.starttime, total) + '%',
                         width: msToPercent(Math.max(cue.endtime - cue.starttime, 0), total) + '%',
@@ -168,6 +172,21 @@ export function Timeline({cues, durationms, currentms, mediasrc, t, onSeek, onEd
                             }
                         }}
                     >
+                        {problemkeys?.has(cue.cuekey) && (
+                            /* A sign inside the segment, not only a border.
+                               "Active", "focused" and the playhead already use
+                               edges and shading here, so another edge would be
+                               one distinction too many to read at a glance —
+                               and none of them is readable without sight. The
+                               title carries the same thing in words. */
+                            <span
+                                className="mod_elang-editor-timeline-warn"
+                                title={t('editor_cuenotsaved')}
+                            >
+                                <span aria-hidden="true">{'\u26A0'}</span>
+                                <span className="sr-only visually-hidden">{t('editor_cuenotsaved')}</span>
+                            </span>
+                        )}
                         {cue.transcript.slice(0, 20)}
                     </span>
                     {handle(cue, 'end')}

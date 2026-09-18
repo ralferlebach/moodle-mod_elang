@@ -50,5 +50,15 @@ export default defineConfig({
     },
     projects: [
         {name: 'chromium', use: {...devices['Desktop Chrome']}},
+
+        // Firefox, because the fullscreen work in #22 is about a browser
+        // granting or refusing a request, and the two engines decide that
+        // differently: Chromium is lenient about what still counts as a user
+        // gesture, Firefox is not. A rule that holds in one of them is not a
+        // rule. It carries the whole suite rather than only the fullscreen
+        // tests — a second engine is worth having wherever it is cheap, and
+        // splitting the matrix by test would need a list somebody has to
+        // maintain.
+        {name: 'firefox', use: {...devices['Desktop Firefox']}},
     ],
 });

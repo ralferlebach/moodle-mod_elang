@@ -140,6 +140,58 @@ Dass beide Werkzeuge unabhängig auf ~47 ms kommen, ist genau der Zweck der
 Doppelmessung: eine Zahl allein hätte man für ein Artefakt des Werkzeugs halten
 können.
 
+#### Wiederholung am 15.09.2026, JMeter, selbstenthaltenes Ziel
+
+| Szenario | Samples | Dauer | erreichte Rate | Ziel laut Modell | p50 | p95 | p99 | max | Fehler |
+|---|---|---|---|---|---|---|---|---|---|
+| `classroom` | 200 | 173 s | 1,2/s | 1,11/s | 32 ms | 36 ms | 39 ms | 101 ms | 0 |
+| `lecturehall` | 2000 | 180 s | 11,1/s | 11,1/s | 28 ms | 37 ms | 150 ms | 413 ms | 0 |
+
+Beide Läufe treffen die Rate, die das Modell vorschreibt — der Hörsaal-Lauf auf
+die Nachkommastelle. Das ist die erste Zahl, die man prüfen sollte: Ein Lauf,
+der seine Zielrate nicht erreicht, misst den Lastgenerator und nicht den Server,
+und seine Latenzwerte sehen dann fälschlich gut aus.
+
+Alle 2200 Antworten kamen mit HTTP 200; kein einziger Fehler und keine
+Moodle-Exception. Die Latenz liegt weit unter der Gate-Schwelle von 800 ms.
+
+Der Hörsaal-Lauf zeigt bei gleichem Median (28 ms) ein deutlich längeres Ende:
+p99 = 150 ms gegen 39 ms, Maximum 413 ms. Die naheliegende Lesart wäre, dass der
+Server zu stauen beginnt — sie ist falsch. Nach Zwanzig-Sekunden-Fenstern
+aufgeschlüsselt:
+
+| Fenster | Median | p95 | max |
+|---|---|---|---|
+| 0–20 s | 28 ms | 66 ms | 413 ms |
+| 20–40 s | 28 ms | 38 ms | 105 ms |
+| 40–60 s | 28 ms | 61 ms | 258 ms |
+| 60–80 s | 28 ms | 36 ms | 169 ms |
+| 80–100 s | 29 ms | 59 ms | 226 ms |
+| 100–120 s | 28 ms | 34 ms | 43 ms |
+| 120–140 s | 28 ms | 43 ms | 198 ms |
+| 140–160 s | 27 ms | 32 ms | 40 ms |
+| 160–180 s | 26 ms | 30 ms | 104 ms |
+
+Der Median bleibt über drei Minuten flach und sinkt gegen Ende sogar leicht. Die
+Ausreißer liegen verstreut, etwa einer je vierzig Sekunden, und wachsen nicht an.
+Das ist das Gegenteil eines Staus: Eine Warteschlange, die sich füllt, hebt den
+Median und verschlechtert jedes folgende Fenster. Hier bleibt die Grundlast
+unverändert, und die Spitzen sehen nach dem aus, was auf einem geteilten Runner
+zu erwarten ist — Garbage Collection, Scheduler, Opcache-Aufwärmen im ersten
+Fenster.
+
+Diese Aufschlüsselung ist der Grund, warum p99 allein kein Befund ist. Dieselbe
+Zahl bedeutet „der Server sättigt" oder „die Maschine hat geniest", und nur der
+Verlauf unterscheidet das.
+
+**Was diese Läufe nicht belegen.** Sie richteten sich gegen
+`http://127.0.0.1:8000`, also gegen `php -S` im selbstenthaltenen Modus, und
+gemessen wurde ausschließlich `get_version_content`. Über das Verhalten unter
+PHP-FPM mit produktiven Caches sagen sie nichts, und über den Schreibpfad
+(`submit_response`) und den Medienpfad in diesem Durchgang ebenfalls nichts. Was
+sie belegen, ist eng und trotzdem nützlich: Der Lesepfad des Plugins hat sich
+nicht verschlechtert, und bei Hörsaalgröße entstehen keine Fehler.
+
 Der Medienpfad wird mitgemessen — `mod_elang_pluginfile` mit Capability- und
 Versionsprüfung, angefordert per `Range` über die ersten 64 KB. Ganze Videos zu
 übertragen würde die Netzwerkanbindung des Runners messen, nicht das Plugin.

@@ -696,3 +696,25 @@
     outline: 2px solid;
     outline-offset: 1px;
 }
+
+/*
+ * A subtitle whose latest edit did not reach the server (#26).
+ *
+ * The timeline already uses edges and shading for "active" and for the playhead,
+ * so this is a sign inside the segment rather than another border: one more
+ * outline would be one distinction too many to read at a glance, and none of
+ * them is readable without sight. The sign is paired with a title and an
+ * off-screen label so the same thing is available in words.
+ */
+.mod_elang-editor-timeline-warn {
+    margin-inline-end: 0.25em;
+    font-weight: bold;
+}
+
+.mod_elang-editor-timeline-cue.unsaved {
+    /* A dashed edge in addition to the sign, because two channels are better
+     * than one and a dash is distinguishable from the solid edge "active" uses
+     * without relying on colour. */
+    border-style: dashed;
+    border-width: 2px;
+}

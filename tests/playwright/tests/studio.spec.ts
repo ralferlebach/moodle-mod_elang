@@ -24,7 +24,7 @@
  */
 
 import {expect, test} from '@playwright/test';
-import {CMID, login} from './helpers';
+import {CMID, login, requireEnv} from './helpers';
 
 test.beforeEach(async ({page}) => {
     await login(page);
@@ -172,4 +172,95 @@ test('gaps are marked in the text and lead to their row', async({page}) => {
     const row = page.locator(`[data-gaprow="${gapkey}"]`);
     await expect(row).toBeVisible();
     await expect(row).toHaveClass(/selected/);
+});
+
+test('a broken subtitle is marked in the inspector, the list and the timeline', async({page}) => {
+    // Issue #26 asks for the mark in all three, and the reason is that they are
+    // three different questions: the inspector answers "what is wrong with this
+    // one", the list answers "which of my subtitles need attention", and the
+    // timeline answers "where in the recording". A mark in only one of them
+    // leaves the other two quietly wrong.
+    const select = page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first();
+    await select.click();
+
+    const end = page.getByRole('textbox', {name: 'End'});
+    await end.fill('00:00.000');
+    await end.blur();
+
+    await expect(page.locator('[data-region="cueproblem"]')).toBeVisible();
+    await expect(page.locator('[data-region="cuenotsaved"]').first()).toBeVisible();
+    await expect(page.locator('[data-region="timelineunsaved"]').first()).toBeVisible();
+
+    // Not colour alone, in any of the three.
+    await expect(page.locator('[data-region="cuenotsaved"]').first()).toContainText('Not saved');
+});
+
+test('publishing is refused for a problem made a moment earlier', async({page}) => {
+    // The race the issue names. problemsRef is filled by the save, and the save
+    // is debounced — so an author who breaks a subtitle and reaches for Publish
+    // in the same second arrives before the checks have run. Publishing would
+    // then go ahead on a draft the server still holds in its last good state,
+    // and the activity would go live missing the edit, with nothing saying so.
+    let published = false;
+    await page.route('**/webservice/**', async(route) => {
+        if ((route.request().postData() || '').includes('publish_version')) {
+            published = true;
+        }
+        await route.continue();
+    });
+
+    const select = page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first();
+    await select.click();
+
+    const end = page.getByRole('textbox', {name: 'End'});
+    await end.fill('00:00.000');
+
+    // No pause: straight to Publish, inside the debounce window.
+    await page.getByRole('button', {name: 'Publish'}).click();
+
+    await expect(page.locator('[data-region="status"]'))
+        .toContainText('Some cues cannot be saved yet', {timeout: 10000});
+    expect(published, 'no publish request was sent').toBe(false);
+});
+
+test('the repair is offered only when one can actually be derived', async({page}) => {
+    // A correction needs somewhere to put the end: the next subtitle's start, or
+    // where the medium is paused. This exercise has a single subtitle and the
+    // medium at zero, so neither exists — and the honest answer is not to offer
+    // a button that does nothing when pressed.
+    //
+    // Found by writing the test the other way round and watching the repair
+    // refuse: the refusal was right, the button should not have been there.
+    const select = page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first();
+    await select.click();
+
+    const end = page.getByRole('textbox', {name: 'End'});
+    await end.fill('00:00.000');
+    await end.blur();
+
+    await expect(page.locator('[data-region="cueproblem"]')).toBeVisible();
+    await expect(page.locator('[data-action="repaircue"]')).toHaveCount(0);
+});
+
+test('a repair that is available clears the mark in all three places', async({page}) => {
+    // The long exercise, because the repair needs a next subtitle that starts
+    // later than this one does. Adding a subtitle to the short exercise does
+    // not help: a new one starts where the medium is paused, which with an
+    // unplayable fixture is zero — the same place the first one starts.
+    await page.goto(`/mod/elang/edit.php?id=${requireEnv('ELANG_CMID_LONG')}`);
+    await page.locator('[data-region="cuelist"] .mod_elang-cuelist-select').first().click();
+
+    const end = page.getByRole('textbox', {name: 'End'});
+    await end.fill('00:00.000');
+    await end.blur();
+    await expect(page.locator('[data-region="cueproblem"]')).toBeVisible();
+
+    const repair = page.locator('[data-action="repaircue"]');
+    await expect(repair).toBeVisible();
+    await repair.click();
+
+    // Gone from all three, not just from the one the button sits in.
+    await expect(page.locator('[data-region="cueproblem"]')).toHaveCount(0);
+    await expect(page.locator('[data-region="cuenotsaved"]')).toHaveCount(0);
+    await expect(page.locator('[data-region="timelineunsaved"]')).toHaveCount(0);
 });

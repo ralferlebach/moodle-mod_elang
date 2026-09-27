@@ -4,6 +4,7 @@ moodle-mod_elang
 <img src="pix/logo.svg" alt="eLang logo" width="72" align="right">
 
 [![Moodle Plugin CI](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml/badge.svg?branch=development)](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml)
+[![MDL Shield](https://img.shields.io/endpoint?url=https%3A%2F%2Fmdlshield.com%2Fapi%2Fbadge%2Fmod_elang)](https://mdlshield.com/plugins/mod_elang)
 
 Video dictations for Moodle: gap-fill exercises on time-coded subtitles, with video or audio.
 

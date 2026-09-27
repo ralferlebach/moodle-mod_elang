@@ -11,20 +11,22 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
-### Fixed — a dispatched run could not check out what it was given
-`actions/checkout` was cloning at depth 1, which resolves tags and branches but
-not commits: given `ffa82ff` it looked for a *ref* by that name, failed three
-times and reported "The process '/usr/bin/git' failed with exit code 1" — which
-says nothing about what was wrong.
+### Fixed — a dispatched run now takes any ref you would naturally type
+`actions/checkout` resolves its `ref` by asking the *server*, and a server
+cannot expand an abbreviation — it has no way to know which of its objects
+`c97118b` means. At depth 1 it also has no commits to search. So a short hash
+produced "The process '/usr/bin/git' failed with exit code 1", three times, with
+no hint of the cause.
 
-Two changes. The clone now fetches the full history, which a SHA needs to be
-resolvable at all and which the version-date guard needs as well, since it reads
-the tagged commit's own date. And the dispatched ref is checked before the
-checkout runs: an abbreviated hash is refused with the reason, because
-`actions/checkout` accepts a tag, a branch or a full forty-character SHA, and an
-abbreviated one looks like a ref name to it.
+The first attempt at this refused short hashes with an explanation, which was
+the wrong call: it made a person look up a forty-character string that a
+computer could have expanded. The repository is now cloned whole and `git
+rev-parse` resolves whatever was asked for locally, which is exactly the job git
+does well. One path takes a tag, a branch, a short hash and a full one alike;
+`^{commit}` makes an annotated tag yield the commit rather than the tag object.
 
-Checked against a short hash, a tag, a branch and a full SHA.
+An unresolvable ref still stops the run, now with the available tags listed.
+Verified against all four shapes plus a nonexistent one.
 
 
 ### Changed — the version number has to carry the release date

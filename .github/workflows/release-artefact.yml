@@ -50,32 +50,46 @@ jobs:
       maturity: ${{ steps.version.outputs.maturity }}
 
     steps:
-      # Checked before the checkout, because the checkout's own failure is
-      # useless: a short SHA produces "The process '/usr/bin/git' failed with
-      # exit code 1", three times over, with no hint of what was wrong. The
-      # action can resolve a tag, a branch or a full 40-character SHA — not an
-      # abbreviated one, which looks like a ref name to it.
-      - name: Check the ref that was handed in
-        if: ${{ github.event.inputs.ref != '' }}
-        run: |
-          ref="${{ github.event.inputs.ref }}"
-          if [[ "$ref" =~ ^[0-9a-f]{7,39}$ ]]; then
-            echo "'$ref' sieht aus wie ein abgekuerzter Commit-Hash."
-            echo "actions/checkout kann den nicht aufloesen — geben Sie den"
-            echo "vollstaendigen 40-stelligen Hash an, oder den Tagnamen."
-            exit 1
-          fi
-          echo "Ref '$ref' wird verwendet."
-
-      - name: Check out the tagged state
+      # Cloned whole, then moved to whatever was asked for.
+      #
+      # actions/checkout resolves its `ref` by asking the *server* for it, and a
+      # server cannot expand an abbreviation: it has no way to know which of its
+      # objects "c97118b" means. Git expands short hashes locally, by searching
+      # the object store — so once the history is here, `git rev-parse` does it
+      # without help.
+      #
+      # An earlier version of this workflow refused short hashes with an
+      # explanation. That was the wrong call: it made a person do work a
+      # computer was better at. One path now takes a tag, a branch, a short hash
+      # and a full one alike.
+      - name: Check out the repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
           path: plugin
-          # The whole history, not just the tip. A SHA is only resolvable when
-          # the object is present, and the version-date guard below reads the
-          # commit's own date — neither works in a depth-1 clone.
+          # The whole history: a hash is only resolvable when its object is
+          # present, and the version-date guard reads the commit's own date.
           fetch-depth: 0
+
+      - name: Move to the ref this release is built from
+        run: |
+          cd plugin
+          ref="${{ github.event.inputs.ref || github.ref }}"
+          echo "Angefordert: $ref"
+
+          # git resolves all four shapes; ^{commit} makes an annotated tag yield
+          # the commit it points at rather than the tag object.
+          if ! resolved=$(git rev-parse --verify --quiet "${ref}^{commit}"); then
+            echo "'$ref' laesst sich in diesem Repository nicht aufloesen."
+            echo "Erwartet wird ein Tagname, ein Branchname oder ein Commit-Hash"
+            echo "(abgekuerzt genuegt). Vorhandene Tags:"
+            git tag --list | tail -10
+            exit 1
+          fi
+
+          git checkout --detach "$resolved"
+          echo "Gebaut wird aus $resolved"
+          echo "resolved=$resolved" >> "$GITHUB_OUTPUT"
+        id: ref
 
       - name: Refuse to publish a commit the pipeline never passed
         if: ${{ startsWith(github.ref, 'refs/tags/') }}

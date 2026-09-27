@@ -164,18 +164,53 @@ jobs:
           # The tag and version.php must agree. A release named v2.0.0 that
           # contains a plugin calling itself something else is the kind of thing
           # nobody notices until a site refuses to upgrade.
-          release=$(php -r 'require "plugin/version.php"; echo $plugin->release;')
-          version=$(php -r 'require "plugin/version.php"; echo $plugin->version;')
-          maturity=$(php -r 'require "plugin/version.php"; echo $plugin->maturity;')
+          # version.php opens with defined(MOODLE_INTERNAL) || die() and uses
+          # Moodle constants, so reading it outside Moodle needs both supplied
+          # first. Without them the file dies on its first line, silently and
+          # with exit 0 — every value came back empty and the tag check then
+          # compared against "v", which is how this surfaced.
+          read_version() {
+            php -r '
+              define("MOODLE_INTERNAL", true);
+              define("MATURITY_ALPHA", 50);
+              define("MATURITY_BETA", 100);
+              define("MATURITY_RC", 150);
+              define("MATURITY_STABLE", 200);
+              $plugin = new stdClass();
+              require "plugin/version.php";
+              echo $plugin->{$argv[1]};
+            ' -- "$1"
+          }
+
+          release=$(read_version release)
+          version=$(read_version version)
+          maturity=$(read_version maturity)
+
+          # Empty means the file could not be read, not that the value is empty.
+          # Left unchecked it turns into a comparison against "v" and a message
+          # about the wrong thing.
+          if [ -z "$release" ] || [ -z "$version" ] || [ -z "$maturity" ]; then
+            echo "version.php liess sich nicht auslesen:"
+            echo "  release='$release' version='$version' maturity='$maturity'"
+            exit 1
+          fi
+
           echo "release=$release"   >> "$GITHUB_OUTPUT"
           echo "version=$version"   >> "$GITHUB_OUTPUT"
           echo "maturity=$maturity" >> "$GITHUB_OUTPUT"
           echo "release=$release version=$version maturity=$maturity"
 
-          if [ -n "${{ github.event.inputs.ref }}" ]; then
-            echo "Manueller Lauf — der Tag-Abgleich wird uebersprungen."
-            exit 0
-          fi
+          # Only a tag push has a tag to compare. A dispatched run builds from a
+          # branch or a commit, and the field naming a different ref is optional
+          # now — so its emptiness says nothing about how the run was started.
+          # Asking github.ref does.
+          case "$GITHUB_REF" in
+            refs/tags/*) ;;
+            *)
+              echo "Kein Tag-Lauf ($GITHUB_REF) — der Tag-Abgleich entfaellt."
+              exit 0
+              ;;
+          esac
 
           tag="${GITHUB_REF#refs/tags/}"
           expected="v$release"
@@ -392,6 +427,37 @@ jobs:
             ${{ steps.zip.outputs.name }}.sha256
           retention-days: 7
 
+      # Written to the run's summary page, because a green run that leaves you
+      # hunting for the file it produced has not finished the job. The artefact
+      # sits at the bottom of the run page under "Artifacts", which is not
+      # somewhere anyone thinks to look unless told.
+      - name: Say where the archive is
+        run: |
+          name="${{ steps.zip.outputs.name }}"
+          sum=$(cut -d' ' -f1 < "$name.sha256")
+
+          {
+            echo "## Release-Artefakt"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Datei | \`$name\` |"
+            echo "| SHA-256 | \`$sum\` |"
+            echo "| Version | ${{ steps.version.outputs.version }} |"
+            echo "| Release | ${{ steps.version.outputs.release }} |"
+            echo
+            if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+              echo "Dies ist ein Tag-Lauf: nach den Pruefjobs erscheint das Archiv"
+              echo "zusaetzlich am GitHub-Release zu \`${GITHUB_REF#refs/tags/}\`."
+            else
+              echo "**Zum Herunterladen:** unten auf dieser Seite unter **Artifacts**,"
+              echo "Eintrag \`release-zip\` — er enthaelt das ZIP und die Pruefsumme."
+              echo
+              echo "Ein GitHub-Release entsteht nur bei einem Tag-Lauf. Dieser Lauf"
+              echo "baut und prueft das Artefakt, veroeffentlicht es aber nicht."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
 
   install:
     name: Install the actual ZIP into a clean Moodle
@@ -541,6 +607,10 @@ jobs:
     name: Publish the release
     needs: [artefact, install, upgrade]
     runs-on: ubuntu-24.04
+    # Only a tag produces a release. Without this the job still ran on a manual
+    # build, downloaded the archive and stopped — which looks like something
+    # went wrong and leaves the impression that no file was produced.
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
 
     steps:
       - name: Download the release ZIP

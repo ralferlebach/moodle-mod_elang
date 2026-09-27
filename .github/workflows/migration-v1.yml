@@ -140,7 +140,7 @@ jobs:
             --adminpass="Migr@tion-1" --adminemail=ci@example.invalid
 
           echo "Installed plugin version:"
-          php -r 'require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
+          php -r 'define("MOODLE_INTERNAL", true); define("MATURITY_ALPHA", 50); define("MATURITY_BETA", 100); define("MATURITY_RC", 150); define("MATURITY_STABLE", 200); $plugin = new stdClass(); require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
 
       - name: Confirm the legacy tables really exist
         run: |
@@ -217,7 +217,7 @@ jobs:
           fi
 
           echo "New plugin version:"
-          php -r 'require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
+          php -r 'define("MOODLE_INTERNAL", true); define("MATURITY_ALPHA", 50); define("MATURITY_BETA", 100); define("MATURITY_RC", 150); define("MATURITY_STABLE", 200); $plugin = new stdClass(); require "moodle/mod/elang/version.php"; echo $plugin->version, " / ", $plugin->release, "\n";'
 
           # This is the step a site administrator performs. Everything the
           # upgrade prints is kept: a migration that succeeds with warnings is

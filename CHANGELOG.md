@@ -11,6 +11,51 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed — the run now says where the archive is
+The workflow built, checked and uploaded the ZIP correctly and then told nobody
+where it had gone. It sits at the bottom of the run page under "Artifacts",
+which is not somewhere anyone thinks to look, and the entry is called
+`release-zip` rather than the filename. A green run that leaves you hunting for
+the file it produced has not finished the job.
+
+The run summary now names the file and its checksum, and says in one sentence
+where to click. On a tag run it says the archive will also appear on the
+release.
+
+### Changed — no empty publish job on a manual build
+Publishing only happens for a tag, so on a dispatched run the job downloaded the
+archive and stopped. Nothing was wrong, but a job that ends without producing
+anything reads as a failure — and it was the last thing on the page, which is
+the worst place to put something misleading. It is skipped outright now.
+
+### Fixed — the release workflow could not read its own version.php
+`version.php` opens with `defined('MOODLE_INTERNAL') || die();` and uses Moodle
+constants, so reading it with a bare `php -r` outside Moodle dies on the first
+line — silently, and with exit 0. Every value came back empty, and the tag check
+then compared the ref against `v`:
+
+    release= version= maturity=
+    Der Tag 'refs/heads/main' passt nicht zu $plugin->release ('').
+    Erwartet wurde 'v'.
+
+The reader now supplies `MOODLE_INTERNAL` and the `MATURITY_*` constants, and
+refuses to continue on an empty result. An empty value means the file could not
+be read, not that the value is empty, and letting that through is what turned a
+missing constant into a message about tags.
+
+Two more of the same pattern in `migration-v1.yml` printed nothing where they
+were meant to document which build was being installed. Both fixed.
+
+### Fixed — a dispatched run tripped the tag check
+The tag comparison was skipped when the optional ref field was filled in. That
+worked only while the field was mandatory; once it could be left empty — which
+is the point of making it optional — a dispatch from `main` fell through to the
+tag check and failed on a branch name. The condition now asks `github.ref`
+whether this is a tag push, which is the actual question.
+
+Verified against all three cases: a dispatch from `main` skips the check, a
+matching tag passes, and `v1.9.9` against release 2.0.0 exits 1.
+
 ### Fixed — the release smoke test died silently on a wrong include
 The step that creates an activity from the freshly installed ZIP required
 `lib/testing/generator/lib.php`, which defines neither `create_course()` nor

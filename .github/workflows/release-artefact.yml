@@ -36,6 +36,9 @@ on:
 
 permissions:
   contents: write
+  # Deleting the internal copy the check jobs passed between them, so the run
+  # page ends with the release files and nothing else.
+  actions: write
   # Reading the check runs of the tagged commit: the gate below refuses to
   # publish a commit whose pipeline never finished green.
   checks: read
@@ -54,6 +57,7 @@ jobs:
     # could in principle differ.
     outputs:
       name: ${{ steps.zip.outputs.name }}
+      internid: ${{ steps.intern.outputs.artifact-id }}
       release: ${{ steps.version.outputs.release }}
       version: ${{ steps.version.outputs.version }}
       maturity: ${{ steps.version.outputs.maturity }}
@@ -418,10 +422,14 @@ jobs:
           fi
           echo "Release $release ist als MATURITY_STABLE deklariert."
 
+      # An internal copy, passed to the install and upgrade jobs and deleted
+      # again once they are done. The files people download are uploaded
+      # separately at the end, under their own names.
       - name: Keep the artefact for the install check
+        id: intern
         uses: actions/upload-artifact@v4
         with:
-          name: release-zip
+          name: intern-pruefpaket
           path: |
             ${{ steps.zip.outputs.name }}
             ${{ steps.zip.outputs.name }}.sha256
@@ -451,7 +459,9 @@ jobs:
               echo "zusaetzlich am GitHub-Release zu \`${GITHUB_REF#refs/tags/}\`."
             else
               echo "**Zum Herunterladen:** unten auf dieser Seite unter **Artifacts**,"
-              echo "Eintrag \`release-zip\` — er enthaelt das ZIP und die Pruefsumme."
+              echo "sobald alle Pruefjobs gruen sind: \`$name\` ist das Plugin-Paket"
+              echo "selbst, direkt installierbar, ohne weitere Huelle; daneben liegt"
+              echo "\`$name.sha256\` mit der Pruefsumme."
               echo
               echo "Ein GitHub-Release entsteht nur bei einem Tag-Lauf. Dieser Lauf"
               echo "baut und prueft das Artefakt, veroeffentlicht es aber nicht."
@@ -499,7 +509,7 @@ jobs:
       - name: Download the release ZIP
         uses: actions/download-artifact@v4
         with:
-          name: release-zip
+          name: intern-pruefpaket
           path: artefact
 
       - name: Confirm the checksum before trusting the archive
@@ -601,22 +611,52 @@ jobs:
     # one here would give two answers to what a correct migration is.
     uses: ./.github/workflows/migration-v1.yml
     with:
-      artefact: release-zip
+      artefact: intern-pruefpaket
 
   publish:
     name: Publish the release
     needs: [artefact, install, upgrade]
     runs-on: ubuntu-24.04
-    # Only a tag produces a release. Without this the job still ran on a manual
-    # build, downloaded the archive and stopped — which looks like something
-    # went wrong and leaves the impression that no file was produced.
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
 
     steps:
       - name: Download the release ZIP
         uses: actions/download-artifact@v4
         with:
-          name: release-zip
+          name: intern-pruefpaket
+
+      # The two files people come for, each uploaded as itself. GitHub wraps
+      # every artefact in a ZIP of its own by default, so the plugin package
+      # used to arrive inside a second archive named "release-zip" — a ZIP to
+      # unpack before reaching the ZIP to install. archive: false skips that:
+      # the download is the package, under its real name. It needs v7; the
+      # input does not exist in v4 to v6.
+      - name: Offer the plugin package
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ needs.artefact.outputs.name }}
+          archive: false
+          retention-days: 30
+
+      - name: Offer its checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ needs.artefact.outputs.name }}.sha256
+          archive: false
+          retention-days: 30
+
+      # The internal copy has done its job — the install and upgrade checks
+      # ran against it. Left in place it would sit on the run page beside the
+      # real files under a name that means nothing to anyone downloading.
+      - name: Remove the internal copy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id="${{ needs.artefact.outputs.internid }}"
+          if [ -n "$id" ]; then
+            gh api --method DELETE \
+              "repos/${{ github.repository }}/actions/artifacts/$id"
+            echo "Internes Pruefpaket entfernt."
+          fi
 
       - name: Publish the release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}

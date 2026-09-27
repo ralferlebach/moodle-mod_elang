@@ -11,6 +11,59 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — the downloadable artefact was a ZIP inside a ZIP
+The plugin directory rejected an upload with "Zip archive should contain one
+directory". The package was right; what was uploaded was not. GitHub wraps every
+workflow artefact in an archive of its own, so the entry at the bottom of the run
+page was a ZIP holding the plugin ZIP and its checksum side by side — two files
+at the root and no folder, which is exactly what the directory refuses. The
+plugin package inside had `elang/` as its single root, as it always had.
+
+It was a trap, and this workflow set it: the page said the entry *contained*
+the ZIP, which invites uploading the entry.
+
+The files people download are now uploaded as themselves with
+`actions/upload-artifact@v7` and `archive: false`. The download is the plugin
+package under its real name, directly installable, with the checksum beside it
+as a second entry. `archive` exists only from v7 — v4 to v6 do not have it,
+checked against each version's `action.yml` rather than trusted from a
+documentation example that showed it on v4.
+
+The copy the install and upgrade checks passed between them is now called
+`intern-pruefpaket` and deleted once they have run, and the migration logs are
+uploaded only when the migration fails. A green run therefore ends with the
+package and its checksum, and nothing else. Publishing runs on every build now;
+only creating a GitHub release still needs a tag.
+
+### Changed — the run page ends with the release files and nothing else
+Three things sat at the bottom of a green run and only one of them was wanted:
+
+- **The plugin package arrived inside a second ZIP.** GitHub wraps every
+  artefact in an archive of its own, so the download was a ZIP named
+  `release-zip` that had to be unpacked to reach the ZIP to install. The
+  publish job now uploads the package and its checksum each as itself
+  (`archive: false`), under their real names. That input exists only from
+  `actions/upload-artifact@v7` — the documentation found first showed it on v4,
+  which would have failed, so the action's own `action.yml` was checked at each
+  tag before relying on it.
+- **`migration-v1-N`** was the log of the 1.3.5 upgrade test, uploaded on every
+  run. Worth having when a migration fails, noise when it succeeds. It is
+  uploaded on failure only.
+- **The internal copy** the check jobs pass between them is now called
+  `intern-pruefpaket` and deleted once publishing is done.
+
+Publishing runs on every build now, not only on a tag. It always offers the two
+files; only the GitHub release itself still needs a tag, because a release
+without one does not exist.
+
+
+### Changed — the artefact is named after the file it holds
+The Artifacts entry was called `release-zip`, which says nothing about which
+build it is. It now carries the archive's own name, so the list distinguishes
+one run from another and the entry matches what the summary names. Both
+downloaders and the migration call take the name from the build job rather than
+repeating a constant.
+
 ### Changed — the run now says where the archive is
 The workflow built, checked and uploaded the ZIP correctly and then told nobody
 where it had gone. It sits at the bottom of the run page under "Artifacts",

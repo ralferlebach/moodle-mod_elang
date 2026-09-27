@@ -265,8 +265,12 @@ jobs:
           php moodle/admin/tool/phpunit/cli/init.php > /dev/null 2>&1 || true
           echo "Upgrade-Pfad und Datenmigration sind geprueft."
 
+      # Only when something went wrong. These are the upgrade and migration
+      # logs of the 1.3.5 test site — worth having when a migration fails and
+      # nothing but noise when it succeeds, where they sat at the bottom of the
+      # run page next to the one file anyone came for.
       - name: Upload the logs
-        if: ${{ always() }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: migration-v1-${{ github.run_number }}

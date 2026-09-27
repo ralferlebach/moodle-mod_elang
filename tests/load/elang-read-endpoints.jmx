@@ -52,50 +52,33 @@
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">${__P(loops,20)}</stringProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">${__P(threads,200)}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,60)}</stringProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,10)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,30)}</stringProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
         <stringProp name="ThreadGroup.duration"></stringProp>
         <stringProp name="ThreadGroup.delay"></stringProp>
       </ThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="get_version_content" enabled="true">
+          <!-- No argument collection here, deliberately.
+
+               JMeter does not append configured arguments when the path field
+               holds an absolute URL, and the path here has to be absolute
+               because the target is passed in as one property (base_url), the
+               same way the k6 plan takes it. The result was a request without
+               any query string at all: Moodle answered 200 with an
+               "invalidtoken" XML document, every sample failed its assertion,
+               and the run looked like a total outage rather than a broken plan.
+
+               So the query lives in the path. The values are a hex token, a
+               numeric id and a URL, none of which need encoding. -->
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
-            <collectionProp name="Arguments.arguments">
-              <elementProp name="wstoken" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.name">wstoken</stringProp>
-                <stringProp name="Argument.value">${token}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-              </elementProp>
-              <elementProp name="wsfunction" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.name">wsfunction</stringProp>
-                <stringProp name="Argument.value">mod_elang_get_version_content</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-              </elementProp>
-              <elementProp name="moodlewsrestformat" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.name">moodlewsrestformat</stringProp>
-                <stringProp name="Argument.value">json</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-              </elementProp>
-              <elementProp name="versionid" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.name">versionid</stringProp>
-                <stringProp name="Argument.value">${versionid}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-              </elementProp>
-            </collectionProp>
+            <collectionProp name="Arguments.arguments"/>
           </elementProp>
           <stringProp name="HTTPSampler.domain"></stringProp>
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.path">${base_url}/webservice/rest/server.php</stringProp>
+          <stringProp name="HTTPSampler.path">${base_url}/webservice/rest/server.php?wstoken=${token}&amp;wsfunction=mod_elang_get_version_content&amp;moodlewsrestformat=json&amp;versionid=${versionid}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -110,8 +93,26 @@
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
+          <!-- Arrival rate, not concurrency.
+
+               JMeter has no equivalent of k6's constant-arrival-rate executor,
+               so the rate is set by a throughput timer and the threads only
+               provide enough parallelism to meet it. Before this the plan ran
+               200 threads in a loop with no pause, which is 200 requests
+               permanently in flight rather than 200 learners opening an
+               exercise over three minutes — the same mistake the k6 plan made,
+               and the reason a healthy server measured 29 seconds.
+
+               arrivals_per_minute = learners / (arrival window in minutes).
+               calcMode 2 = "all active threads in this thread group", so the
+               figure is the rate for the whole group rather than per thread. -->
+          <ConstantThroughputTimer guiclass="TestBeanGUI" testclass="ConstantThroughputTimer" testname="Ankunftsrate" enabled="true">
+            <intProp name="calcMode">2</intProp>
+            <stringProp name="throughput">${__P(arrivals_per_minute,67)}</stringProp>
+          </ConstantThroughputTimer>
+          <hashTree/>
           <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion" testname="Under the latency limit" enabled="true">
-            <stringProp name="DurationAssertion.duration">${__P(p95,800)}</stringProp>
+            <stringProp name="DurationAssertion.duration">${__P(latency_assertion,800)}</stringProp>
           </DurationAssertion>
           <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response contains cues" enabled="true">

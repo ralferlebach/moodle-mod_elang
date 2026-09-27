@@ -28,6 +28,55 @@ ist keines von beiden im Recht — die Abweichung **ist** der Befund.
 Der Preis ist eine JVM, die sonst nichts in diesem Repository braucht. Deshalb
 läuft JMeter ausschließlich manuell und nie im Push-Gate.
 
+## Was ein roter Lauf bedeutet
+
+Ein absichtlich überdimensionierter Lauf und eine Regressionsmessung dürfen
+nicht dasselbe Signal erzeugen. Bis RC1 taten sie es: `lecturehall` überschritt
+erwartungsgemäß die Latenzschwelle, der Lauf wurde rot, und Rot hieß damit
+manchmal „das Plugin ist zu langsam geworden" und manchmal „wir haben absichtlich
+zu viel Last erzeugt".
+
+Jedes Szenario trägt deshalb eine **Rolle**, und die Rolle entscheidet, welche
+Schwellen greifen.
+
+| Szenario | Rolle | Ziel | Lernende | Datensatz | Dauer | Latenzschwelle | Blockierend |
+|---|---|---|---|---|---|---|---|
+| `smoke` | **gate** | selbstenthalten oder extern | 25 | 50 Untertitel | 90 s | p95 < 800 ms | **ja** |
+| `classroom` | diagnostic | nur extern sinnvoll | 200 | 50 Untertitel | 120 s | wird berichtet | nein |
+| `lecturehall` | diagnostic | nur extern sinnvoll | 2000 | 50 Untertitel | 180 s | wird berichtet | nein |
+| frei gewählt | diagnostic | wie gewählt | Eingabe | 50 Untertitel | Eingabe | wird berichtet | nein |
+
+**Fehler und Moodle-Exceptions blockieren in beiden Rollen.** Eine abgerissene
+Verbindung oder eine Antwort mit `exception`-Feld ist nie „bei dieser Last zu
+erwarten" — sie ist entweder ein Defekt oder eine Infrastrukturgrenze, und das
+Etikett „diagnostic" macht sie nicht hinnehmbar. Nur die *Latenz* wird in
+diagnostischen Läufen berichtet statt bewertet.
+
+Die Voreinstellung ist `gate`. Ein vergessenes `ROLE` fällt damit auf die
+strenge Seite.
+
+### HTTP-Fehler und Exceptions werden getrennt gezählt
+
+In einer gemeinsamen Fehlerquote sehen sie gleich aus und bedeuten Gegenteiliges:
+
+| Metrik | Was sie zählt | Aussage |
+|---|---|---|
+| `elang_http_errors` | Antwort kam nicht mit HTTP 200 an | Kapazität oder Netz |
+| `elang_exception_responses` | HTTP 200 mit `exception`-Feld | das Plugin hat falsch geantwortet |
+| `elang_content_errors` | beides zusammen, plus unlesbare Antworten | Gesamtbild |
+
+`elang_exception_responses` hat die Schwelle `rate==0`: eine einzige solche
+Antwort ist ein Befund, keine Quote.
+
+### Warum JMeter eine eigene Behandlung braucht
+
+JMeters `DurationAssertion` markiert ein zu langsames Sample als
+**fehlgeschlagen**. Damit landete die Latenz direkt in der Fehlerquote, die das
+Gate liest — dieselbe Vermengung, nur an anderer Stelle. Diagnostische Läufe
+setzen die Grenze deshalb auf eine Stunde, statt die Assertion zu entfernen: der
+Plan bleibt eine Datei, und eine Anfrage, die eine Stunde braucht, ist längst am
+Socket-Timeout gescheitert.
+
 ## Die beiden Szenarien
 
 | Szenario | Gleichzeitige Lernende | Cues | Plateau | Was es abbildet |
@@ -46,6 +95,155 @@ ist, die Klippe zu kennen, bevor jemand anders sie findet.
 
 Auszulösen über *Actions → Load test (k6) → Run workflow*; `custom` gibt VUs
 und Dauer frei.
+
+## Szenarien beschreiben Lernende, nicht gleichzeitige Anfragen
+
+Das ist die wichtigste Eigenschaft der Pläne, und sie war anfangs falsch.
+
+Beide Pläne liefen mit N virtuellen Nutzenden **ohne Denkzeit**. „200 Lernende"
+bedeutete damit 200 permanent laufende Anfragen — etwas, das kein Kurs je tut.
+Ein Hörsaal-Lauf ergab so p95 = 29 Sekunden und sah aus wie ein Befund über das
+Plugin; tatsächlich war es ein Befund über das Modell.
+
+Jetzt ist **eine Iteration eine Lernendensitzung**:
+
+| Annahme | Wert | Herkunft |
+|---|---|---|
+| Ankunftsfenster | 180 s | eine Klasse öffnet die Übung über die ersten Minuten einer Stunde |
+| Denkzeit Lücke zu Lücke | 3 s | Praxis |
+| Medienabrufe je Lernendem | 1,5 | einmal beim Öffnen, mit 50 % Wahrscheinlichkeit später erneut |
+
+Daraus ergeben sich die Raten:
+
+| Szenario | Lernende | Ankünfte/s |
+|---|---|---|
+| `smoke` | 25 | 0,14 |
+| `classroom` | 200 | 1,11 |
+| `lecturehall` | 2000 | 11,1 |
+
+k6 setzt das mit `constant-arrival-rate` um. JMeter kennt das nicht und nutzt
+einen Constant Throughput Timer; die Threads liefern dort nur die Parallelität.
+**Zehn Threads, nicht mehr:** 50 Threads feuern beim Hochlauf, bevor der Timer
+sie bremsen kann, und allein dieser Startburst erzeugte p95 = 4,5 s auf einem
+Server mit Median 37 ms.
+
+### Gemessen mit diesem Modell
+
+Gegen dasselbe selbstenthaltene Ziel, das mit dem alten Modell zusammenbrach:
+
+| Werkzeug | Szenario | p95 | Fehler |
+|---|---|---|---|
+| k6 | classroom | 45,6 ms | 0 % |
+| JMeter | classroom | 49 ms | 0 % |
+
+Dass beide Werkzeuge unabhängig auf ~47 ms kommen, ist genau der Zweck der
+Doppelmessung: eine Zahl allein hätte man für ein Artefakt des Werkzeugs halten
+können.
+
+#### Wiederholung am 15.09.2026, JMeter, selbstenthaltenes Ziel
+
+| Szenario | Samples | Dauer | erreichte Rate | Ziel laut Modell | p50 | p95 | p99 | max | Fehler |
+|---|---|---|---|---|---|---|---|---|---|
+| `classroom` | 200 | 173 s | 1,2/s | 1,11/s | 32 ms | 36 ms | 39 ms | 101 ms | 0 |
+| `lecturehall` | 2000 | 180 s | 11,1/s | 11,1/s | 28 ms | 37 ms | 150 ms | 413 ms | 0 |
+
+Beide Läufe treffen die Rate, die das Modell vorschreibt — der Hörsaal-Lauf auf
+die Nachkommastelle. Das ist die erste Zahl, die man prüfen sollte: Ein Lauf,
+der seine Zielrate nicht erreicht, misst den Lastgenerator und nicht den Server,
+und seine Latenzwerte sehen dann fälschlich gut aus.
+
+Alle 2200 Antworten kamen mit HTTP 200; kein einziger Fehler und keine
+Moodle-Exception. Die Latenz liegt weit unter der Gate-Schwelle von 800 ms.
+
+Der Hörsaal-Lauf zeigt bei gleichem Median (28 ms) ein deutlich längeres Ende:
+p99 = 150 ms gegen 39 ms, Maximum 413 ms. Die naheliegende Lesart wäre, dass der
+Server zu stauen beginnt — sie ist falsch. Nach Zwanzig-Sekunden-Fenstern
+aufgeschlüsselt:
+
+| Fenster | Median | p95 | max |
+|---|---|---|---|
+| 0–20 s | 28 ms | 66 ms | 413 ms |
+| 20–40 s | 28 ms | 38 ms | 105 ms |
+| 40–60 s | 28 ms | 61 ms | 258 ms |
+| 60–80 s | 28 ms | 36 ms | 169 ms |
+| 80–100 s | 29 ms | 59 ms | 226 ms |
+| 100–120 s | 28 ms | 34 ms | 43 ms |
+| 120–140 s | 28 ms | 43 ms | 198 ms |
+| 140–160 s | 27 ms | 32 ms | 40 ms |
+| 160–180 s | 26 ms | 30 ms | 104 ms |
+
+Der Median bleibt über drei Minuten flach und sinkt gegen Ende sogar leicht. Die
+Ausreißer liegen verstreut, etwa einer je vierzig Sekunden, und wachsen nicht an.
+Das ist das Gegenteil eines Staus: Eine Warteschlange, die sich füllt, hebt den
+Median und verschlechtert jedes folgende Fenster. Hier bleibt die Grundlast
+unverändert, und die Spitzen sehen nach dem aus, was auf einem geteilten Runner
+zu erwarten ist — Garbage Collection, Scheduler, Opcache-Aufwärmen im ersten
+Fenster.
+
+Diese Aufschlüsselung ist der Grund, warum p99 allein kein Befund ist. Dieselbe
+Zahl bedeutet „der Server sättigt" oder „die Maschine hat geniest", und nur der
+Verlauf unterscheidet das.
+
+**Was diese Läufe nicht belegen.** Sie richteten sich gegen
+`http://127.0.0.1:8000`, also gegen `php -S` im selbstenthaltenen Modus, und
+gemessen wurde ausschließlich `get_version_content`. Über das Verhalten unter
+PHP-FPM mit produktiven Caches sagen sie nichts, und über den Schreibpfad
+(`submit_response`) und den Medienpfad in diesem Durchgang ebenfalls nichts. Was
+sie belegen, ist eng und trotzdem nützlich: Der Lesepfad des Plugins hat sich
+nicht verschlechtert, und bei Hörsaalgröße entstehen keine Fehler.
+
+Der Medienpfad wird mitgemessen — `mod_elang_pluginfile` mit Capability- und
+Versionsprüfung, angefordert per `Range` über die ersten 64 KB. Ganze Videos zu
+übertragen würde die Netzwerkanbindung des Runners messen, nicht das Plugin.
+
+## Was das selbstenthaltene Ziel aushält — und was nicht
+
+Der `selfcontained`-Modus baut ein Moodle und bedient es mit **PHPs eingebautem
+Entwicklungsserver**, acht Worker auf einem Vier-CPU-Runner. Das reicht für
+`smoke` (25 Nutzende) und für nichts darüber.
+
+Gemessen, nicht angenommen:
+
+| Szenario gegen `selfcontained` | p95 | Aussage |
+|---|---|---|
+| `smoke`, 25 VUs | ~410 ms | brauchbar als Trendwert |
+| `lecturehall`, 2000 VUs | **29 090 ms**, 1327 abgebrochene Iterationen | misst die Warteschlange des Testservers |
+
+Bei 2000 gleichzeitigen Anfragen auf acht Worker warten rund 250 Anfragen je
+Worker. Die 29 Sekunden sind Wartezeit, kein Verarbeiten — über das Plugin sagt
+die Zahl nichts.
+
+Diese Zahlen stammen aus dem **alten** Modell mit permanent laufenden Anfragen.
+Mit Ankunftsraten trägt dasselbe Ziel `classroom` mühelos (p95 unter 50 ms bei
+beiden Werkzeugen), und die zeitweilige Sperre für `classroom`/`lecturehall` im
+`selfcontained`-Modus ist entfallen — sie war die richtige Antwort auf ein
+falsch gebautes Szenario, nicht auf eine zu schwache Umgebung.
+
+Für `lecturehall` gilt weiter Vorsicht: 11 Ankünfte je Sekunde sind auf vier
+vCPU plausibel, aber ungemessen. Ein belastbarer Hörsaal-Nachweis gehört in den
+`external`-Modus.
+
+Für `classroom` und `lecturehall` braucht es `mode=external` gegen eine echte
+Installation mit einem richtigen Webserver.
+
+## Was eine belastbare Hörsaal-Messung braucht (P2-3)
+
+Der `external`-Modus misst gegen eine Installation, die du stellst. Damit die
+Zahl etwas über das Plugin aussagt und nicht über die Umgebung, muss diese
+Umgebung die Last überhaupt annehmen können:
+
+| Bestandteil | Anforderung | Warum |
+|---|---|---|
+| Webserver | nginx oder Apache mit **PHP-FPM** | PHPs eingebauter Server hat feste Worker und keine Warteschlangenstrategie |
+| PHP-FPM | `pm.max_children` ≥ erwartete Gleichzeitigkeit | sonst misst man wieder die Warteschlange |
+| Datenbank | eigener Host oder eigener Container, `max_connections` passend | die Verbindungsgrenze wird vor der CPU erreicht |
+| Moodle-Caches | MUC produktiv konfiguriert, `cachejs` an | eine Site im Entwicklungsmodus misst ihr eigenes Neukompilieren |
+| Lastgenerator | **nicht** auf derselben Maschine | 2000 virtuelle Nutzende brauchen selbst CPU |
+
+Ohne diese fünf Punkte ist auch ein `external`-Lauf nur eine andere Art, die
+Testumgebung zu vermessen. Das Ergebnis gehört mit Umgebungsbeschreibung
+festgehalten, sonst ist es mit dem nächsten nicht vergleichbar — dafür gibt es
+`k6-run-context.txt` und `jmeter-run-context.txt`.
 
 ## Wogegen gemessen wird — und warum das die wichtigere Entscheidung ist
 

@@ -1,51 +1,50 @@
 # Was ein Release enthält
 
-Entscheidung zu RR-13: **Variante A — vollständiges Entwickler- und
-Quellartefakt.** Es gibt genau ein Auslieferungsformat, und es ist der komplette
-Repository-Inhalt.
+**`.gitattributes` ist die maßgebliche Quelle dafür.** Dieses Dokument erklärt
+sie; wo beide auseinandergehen, gilt die Datei.
 
-## Warum nicht das schlanke Produktions-ZIP
+Ein Release ist das **installierbare Plugin**, nicht das Repository: was eine
+Site braucht, um mod_elang zu betreiben, und nichts, was nur in einem Checkout
+Sinn ergibt.
 
-Variante B hätte `docs/`, `tests/`, `makefile` und `tools/` aus dem
-Auslieferungspaket genommen. Das klingt sauber und wäre hier falsch:
+## Was nicht mitgeliefert wird
 
-**Moodle installiert ein Plugin, indem es ein ZIP entpackt.** Was nicht im ZIP
-ist, existiert auf der Zielsite nicht — auch nicht `tools/cleanup_stale.sh`, das
-genau dort gebraucht wird, wo eine Installation von einem älteren Stand kommt.
-Ein Aufräumwerkzeug, das nur im Repository liegt, hilft niemandem, der ein ZIP
-eingespielt hat.
+| Ausgeschlossen | Grund |
+|---|---|
+| `docs/` | Entwicklungsdokumentation; gehört ins Repository, nicht auf jede Site |
+| `tools/` | Werkzeuge für Entwicklung und CI |
+| `makefile` | dasselbe |
+| `.github/` | Pipelines |
+| `lang/` außer `lang/en/` | Übersetzungen sind Sache von AMOS, sobald das Plugin im Verzeichnis ist — eine Kopie im Archiv liefe unbemerkt auseinander |
+| `.gitattributes`, `.gitignore`, `.phpcsignore` | bedeutungslos außerhalb eines Checkouts |
 
-**Die Tests sind Teil des Vertrags.** `moodle-plugin-ci` erwartet sie im
-Plugin, die Prüfung durch das Moodle-Plugin-Verzeichnis führt sie aus, und eine
-Administration, die wissen will, ob das Plugin auf ihrer Moodle-Version läuft,
-kann `vendor/bin/phpunit -c mod/elang` aufrufen. Ohne Tests ist das nicht
-möglich.
-
-**Zwei Formate wären zwei Wahrheiten.** Sobald ein „Produktions-ZIP" und ein
-„Quell-ZIP" nebeneinander existieren, ist die nächste Frage bei jedem Fehler,
-welches von beiden die Person eingespielt hat. Diese Sitzung hat mehrfach
-gezeigt, wie teuer eine Datei ist, die in einer Variante steckt und in der
-anderen nicht.
-
-Was ein Release **nicht** enthält, ist alles, was ohnehin erzeugt wird:
-`node_modules/`, `.git/`, `tests/playwright/test-results/`,
-`tests/playwright/playwright-report/`. Und keine Sourcemap des React-Bundles —
-siehe RR-02.
+`tests/` bleibt drin: `moodle-plugin-ci` erwartet die Tests im Plugin, die
+Prüfung durch das Plugin-Verzeichnis führt sie aus, und eine Administration kann
+`vendor/bin/phpunit -c mod/elang` aufrufen, um zu sehen, ob das Plugin auf ihrer
+Moodle-Version läuft.
 
 ## Was daraus folgt
 
-| Zusage | Wo sie eingehalten wird |
-|---|---|
-| `make`-Kommandos in der Dokumentation sind ausführbar | `makefile` liegt im ZIP |
-| `tools/cleanup_stale.sh` ist aufrufbar | `tools/` liegt im ZIP |
-| `db/removed_files.txt` verweist auf einen realen Pfad | derselbe Grund |
-| Tests sind lokal ausführbar | `tests/` liegt im ZIP |
-| Doku-Verweise zeigen auf mitgelieferte Dateien | `docs/` liegt im ZIP |
+Die Dokumentation darf **keine** Pfade versprechen, die im ausgelieferten
+Zustand fehlen. Konkret:
 
-Die README darf deshalb `make`-Kommandos und Dateipfade nennen: sie sind
-vorhanden. Das war die eigentliche Sorge hinter RR-13 — nicht die Größe des
-Pakets, sondern die Frage, ob die Dokumentation etwas verspricht, das im
-ausgelieferten Zustand fehlt.
+- `make`-Kommandos sind Entwicklungskommandos und stehen nur in `docs/`, das
+  ohnehin nicht ausgeliefert wird — sie richten sich an Leute mit einem
+  Checkout.
+- `tools/cleanup_stale.sh` liegt **nicht** auf der Zielsite. Wer eine
+  Installation von einem älteren Stand aufräumen muss, holt es aus dem
+  Repository. `db/removed_files.txt` liegt bei, damit die Liste der zu
+  entfernenden Pfade auf der Site verfügbar ist, auch wenn das Werkzeug selbst
+  es nicht ist.
+- README und die Strings sind die einzige Dokumentation, die mitgeht. Was dort
+  steht, muss ohne `docs/` verständlich sein.
+
+## Ein Format, nicht zwei
+
+Erzeugt wird das Archiv mit `git archive`, nicht mit einer eigenen
+Ausschlussliste. Damit enthält unser ZIP genau dasselbe wie das Archiv, das
+GitHub für einen Tag erzeugt — zwei Archive mit unterschiedlichem Inhalt wären
+die Sorte Unterschied, die bei jedem Fehlerbericht zuerst geklärt werden müsste.
 
 ## Wie ein Release entsteht
 

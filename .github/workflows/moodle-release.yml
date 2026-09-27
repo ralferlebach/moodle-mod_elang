@@ -156,6 +156,29 @@ jobs:
           DB:            ${{ matrix.db.type }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
 
+      # caniuse-lite decides what Rollup emits, so an outdated copy produces
+      # different bytes from identical sources — and the stale-file check then
+      # reports a build artefact as out of date although nothing in the source
+      # changed. This is the exact failure that turned up on main: this workflow
+      # ran moodle-plugin-ci grunt with the database Moodle ships in its own
+      # lockfile, which is years old, while the committed artefacts had been
+      # built against a current one.
+      #
+      # It has to run in the tree moodle-plugin-ci created, not in the plugin
+      # checkout: Grunt uses Moodle's node_modules, not the plugin's.
+      - name: Update the browserslist database
+        run: |
+          # moodle-plugin-ci installs Moodle here; moodle-ci.yml updates the
+          # same directory and its stale-file check has been passing, which is
+          # what makes this the right path rather than a guess.
+          #
+          # A missing directory is a failure, not a skip: silently not updating
+          # produces exactly the confusing "artefact is stale although nothing
+          # changed" result this step exists to prevent.
+          test -d "$GITHUB_WORKSPACE/moodle"
+          npx --yes update-browserslist-db@latest
+        working-directory: ${{ github.workspace }}/moodle
+
       # Every check runs even when an earlier one failed, and every one keeps
       # its full output in ci-logs/. Without both, the first failure hides the
       # state of all the others and a release run reports one problem per
@@ -379,6 +402,14 @@ jobs:
         env:
           DB: pgsql
           MOODLE_BRANCH: main
+
+      # Same reason as in the blocking job above: Rollup's output depends on the
+      # caniuse-lite version, so an outdated one makes the stale-file check
+      # report artefacts as out of date although nothing changed.
+      - name: Update the browserslist database
+        continue-on-error: true
+        run: npx --yes update-browserslist-db@latest
+        working-directory: ${{ github.workspace }}/moodle
 
       - name: PHP Lint
         continue-on-error: true

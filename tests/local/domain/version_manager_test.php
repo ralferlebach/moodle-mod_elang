@@ -784,6 +784,191 @@ final class version_manager_test extends \advanced_testcase {
     }
 
     /**
+     * One shaped cue, for building a draft out of several.
+     *
+     * @param string $key The cue key
+     * @param int $sortorder Position in the draft
+     * @param string $transcript The cue text
+     * @param int $starttime Milliseconds
+     * @param int $endtime Milliseconds
+     * @return array One cue with one gap
+     */
+    private function cue(
+        string $key,
+        int $sortorder,
+        string $transcript,
+        int $starttime = 0,
+        int $endtime = 2000
+    ): array {
+        return [
+            'cuekey' => $key,
+            'sortorder' => $sortorder,
+            'starttime' => $starttime,
+            'endtime' => $endtime,
+            'transcript' => $transcript,
+            'transcriptformat' => FORMAT_PLAIN,
+            'gaps' => [[
+                'gapkey' => $key . '-g1',
+                'sortorder' => 1,
+                'charstart' => 0,
+                'charlength' => 3,
+                'solution' => substr($transcript, 0, 3),
+                'gradingalgorithm' => 'exact',
+                'maxlength' => 0,
+                'linkurl' => '',
+                'answers' => [],
+                'hints' => [],
+            ]],
+        ];
+    }
+
+    /**
+     * A cue left out of a partial save keeps what the server already held.
+     *
+     * This is the invariant the whole partial save exists for. The wholesale
+     * save reads an absent cue as a deletion, so an editor that simply dropped
+     * a contradictory cue from its payload would destroy the last good version
+     * of it — the opposite of protecting it.
+     *
+     * @return void
+     */
+    public function test_an_omitted_cue_is_left_alone(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, [
+            $this->cue('a', 1, 'Le chat dort'),
+            $this->cue('b', 2, 'Le chien court'),
+            $this->cue('c', 3, 'La souris mange'),
+        ]);
+
+        $before = $DB->get_record('elang_version', ['id' => $draft->id]);
+
+        // B is the cue the author has broken; it is simply not mentioned.
+        $this->manager->save_draft_cues($draft->id, [
+            $this->cue('a', 1, 'Le chat rêve'),
+            $this->cue('c', 3, 'La souris dort'),
+        ], [], (int) $before->revision);
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $draft->id], 'sortorder ASC', 'cuekey, transcript');
+        $this->assertSame(['a', 'b', 'c'], array_keys($cues), 'All three cues still exist.');
+        $this->assertSame('Le chat rêve', $cues['a']->transcript, 'The edited cue was saved.');
+        $this->assertSame('Le chien court', $cues['b']->transcript, 'The untouched cue kept its stored text.');
+        $this->assertSame('La souris dort', $cues['c']->transcript, 'The other edited cue was saved.');
+
+        $after = $DB->get_record('elang_version', ['id' => $draft->id]);
+        $this->assertSame((int) $before->revision + 1, (int) $after->revision, 'One revision for the call.');
+    }
+
+    /**
+     * A cue named for removal is deleted, with everything beneath it.
+     *
+     * @return void
+     */
+    public function test_a_named_cue_is_removed_with_its_children(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, [
+            $this->cue('a', 1, 'Le chat dort'),
+            $this->cue('b', 2, 'Le chien court'),
+        ]);
+
+        $gapsbefore = $DB->count_records_sql(
+            'SELECT COUNT(g.id) FROM {elang_gap} g JOIN {elang_cue} c ON c.id = g.cueid WHERE c.versionid = ?',
+            [$draft->id]
+        );
+        $this->assertSame(2, $gapsbefore);
+
+        $this->manager->save_draft_cues($draft->id, [], ['b']);
+
+        $this->assertSame(['a'], array_values($DB->get_fieldset_select(
+            'elang_cue',
+            'cuekey',
+            'versionid = ?',
+            [$draft->id]
+        )));
+        $this->assertSame(1, $DB->count_records_sql(
+            'SELECT COUNT(g.id) FROM {elang_gap} g JOIN {elang_cue} c ON c.id = g.cueid WHERE c.versionid = ?',
+            [$draft->id]
+        ), 'The removed cue took its gap with it.');
+    }
+
+    /**
+     * Saving and removing the same cue key in one call is refused.
+     *
+     * @return void
+     */
+    public function test_a_key_cannot_be_saved_and_removed_at_once(): void {
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, [$this->cue('a', 1, 'Le chat dort')]);
+
+        $this->expectException(\coding_exception::class);
+        $this->manager->save_draft_cues($draft->id, [$this->cue('a', 1, 'Le chat rêve')], ['a']);
+    }
+
+    /**
+     * A partial save on a stale revision is refused, and changes nothing.
+     *
+     * Two editors on one draft is the case the revision check exists for, and
+     * a partial save must not be the loophole: writing only some cues is still
+     * writing.
+     *
+     * @return void
+     */
+    public function test_a_partial_save_on_a_stale_revision_is_refused(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, [$this->cue('a', 1, 'Le chat dort')]);
+        $stale = (int) $DB->get_field('elang_version', 'revision', ['id' => $draft->id]);
+
+        // Someone else saves first.
+        $this->manager->save_draft_cues($draft->id, [$this->cue('a', 1, 'Le chat rêve')], [], $stale);
+
+        try {
+            $this->manager->save_draft_cues($draft->id, [$this->cue('a', 1, 'Le chat chasse')], [], $stale);
+            $this->fail('A stale revision should have been refused.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_draftrevisionmismatch', $e->errorcode);
+        }
+
+        $this->assertSame(
+            'Le chat rêve',
+            $DB->get_field('elang_cue', 'transcript', ['versionid' => $draft->id, 'cuekey' => 'a']),
+            'The first writer keeps the field.'
+        );
+    }
+
+    /**
+     * A rejected partial payload leaves every cue as it was.
+     *
+     * @return void
+     */
+    public function test_a_rejected_partial_payload_changes_nothing(): void {
+        global $DB;
+
+        $draft = $this->manager->get_or_create_draft($this->elang->id, 2);
+        $this->manager->save_draft_content($draft->id, [
+            $this->cue('a', 1, 'Le chat dort'),
+            $this->cue('b', 2, 'Le chien court'),
+        ]);
+
+        $duplicate = [$this->cue('a', 1, 'Le chat rêve'), $this->cue('a', 2, 'Le chat chasse')];
+        try {
+            $this->manager->save_draft_cues($draft->id, $duplicate);
+            $this->fail('Duplicate cue keys should have been refused.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->errorcode);
+        }
+
+        $cues = $DB->get_records('elang_cue', ['versionid' => $draft->id], 'sortorder ASC', 'cuekey, transcript');
+        $this->assertSame(['a', 'b'], array_keys($cues));
+        $this->assertSame('Le chat dort', $cues['a']->transcript, 'Nothing was written.');
+        $this->assertSame('Le chien court', $cues['b']->transcript);
+    }
+
+    /**
      * The cue payload shape save_draft_content() expects.
      *
      * @param string $transcript The cue text

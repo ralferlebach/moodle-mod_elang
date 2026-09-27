@@ -32,6 +32,10 @@ import {utf16ToCodepoint} from '../studio/text';
 import {GapRow} from './GapRow';
 import {TimeField} from './TimeField';
 import {RuleGapControl} from './RuleGapControl';
+import {InlineGaps} from './InlineGaps';
+import type {CueProblem} from '../studio/cue-validation';
+
+
 
 interface Props {
     cue: Cue;
@@ -43,6 +47,10 @@ interface Props {
     onDelete: () => void;
     onStatus: (text: string) => void;
     onGenerateGaps: (transcript: string, rule: GapRule) => Promise<RuleGapSpan[]>;
+    /** Problems that stopped this cue's latest edit from being saved. */
+    problems?: CueProblem[];
+    /** Apply the proposed correction, when there is one. */
+    onRepair?: () => void;
 }
 
 /**
@@ -51,9 +59,18 @@ interface Props {
  * @param props The component props.
  * @returns The cue row element.
  */
-export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus, onGenerateGaps}: Props): JSX.Element {
+export function CueRow(
+    {cue, t, focused, capturems, onChange, onDelete, onStatus, onGenerateGaps, problems, onRepair}: Props
+): JSX.Element {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showpreview, setShowpreview] = useState(false);
+
+    // Which gap the author last reached for, so the inline view can show it and
+    // the matching row can pull itself into sight. Held by key rather than by
+    // index: a gap keeps its key when the transcript is edited and resyncGaps
+    // moves the ranges, while its position in the array does not survive an
+    // insertion above it.
+    const [selectedgapkey, setSelectedgapkey] = useState('');
 
     const replaceGap = (index: number, gap: Gap): void => {
         const gaps = cue.gaps.slice();
@@ -107,6 +124,31 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
     return (
         <div className={'mod_elang-editor-cue card mb-2' + (focused ? ' focused' : '')} data-cuekey={cue.cuekey}>
             <div className="card-body">
+                {problems && problems.length > 0 && (
+                    /* Not colour alone: an icon, the reason in words, and a
+                       live region so it is announced rather than merely drawn.
+                       The author needs to know both what is wrong and that this
+                       cue is the one thing not reaching the server. */
+                    <div
+                        className="alert alert-warning py-2 px-3 mb-2 mod_elang-cue-problem"
+                        data-region="cueproblem"
+                        role="alert"
+                    >
+                        <span aria-hidden="true">{'\u26A0 '}</span>
+                        <strong>{t('editor_cuenotsaved')}</strong>{' '}
+                        {problems.map((problem) => t('editor_problem_' + problem.code)).join(' ')}
+                        {onRepair && problems.every((problem) => problem.repairable) && (
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-secondary ml-2 ms-2"
+                                data-action="repaircue"
+                                onClick={onRepair}
+                            >
+                                {t('editor_repaircue')}
+                            </button>
+                        )}
+                    </div>
+                )}
                 <div className="mb-2">
                     <label className="mr-2">
                         {t('editor_starttime')}{' '}
@@ -117,7 +159,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                             onChange={(ms) => onChange({...cue, starttime: ms})}
                         />
                     </label>
-                    <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('starttime')}>
+                    <button type="button" className="btn btn-outline-secondary btn-sm mr-2 me-2" onClick={() => capture('starttime')}>
                         {t('editor_capturestart')}
                     </button>
                     <label className="mr-2">
@@ -129,7 +171,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                             onChange={(ms) => onChange({...cue, endtime: ms})}
                         />
                     </label>
-                    <button type="button" className="btn btn-link btn-sm p-0 mr-3" onClick={() => capture('endtime')}>
+                    <button type="button" className="btn btn-outline-secondary btn-sm mr-2 me-2" onClick={() => capture('endtime')}>
                         {t('editor_captureend')}
                     </button>
                 </div>
@@ -145,11 +187,30 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                     />
                 </label>
 
+                <InlineGaps
+                    transcript={cue.transcript}
+                    gaps={cue.gaps}
+                    t={t}
+                    selectedgapkey={selectedgapkey}
+                    onSelectGap={(gapkey) => {
+                        setSelectedgapkey(gapkey);
+                        // Scrolled to rather than only marked: in a cue with
+                        // several gaps the matching row is often below the fold,
+                        // and a selection the author cannot see is not a
+                        // selection.
+                        window.requestAnimationFrame(() => {
+                            const row = document.querySelector('[data-gaprow="' + gapkey + '"]');
+                            row?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+                            (row?.querySelector('input, select, textarea') as HTMLElement | null)?.focus();
+                        });
+                    }}
+                />
+
                 {cue.gaps.length > 0 && (
                     <div className="mod_elang-editor-preview mt-1">
                         <button
                             type="button"
-                            className="btn btn-link btn-sm p-0"
+                            className="btn btn-outline-secondary btn-sm"
                             aria-expanded={showpreview}
                             onClick={() => setShowpreview((value) => !value)}
                         >
@@ -174,13 +235,14 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                                 key={gap.gapkey}
                                 gap={gap}
                                 t={t}
+                                selected={gap.gapkey === selectedgapkey}
                                 onChange={(updated) => replaceGap(index, updated)}
                                 onDelete={() => onChange({...cue, gaps: cue.gaps.filter((_, i) => i !== index)})}
                             />
                         ))}
                 </div>
 
-                <button type="button" className="btn btn-link p-0 d-block" onClick={addGapFromSelection}>
+                <button type="button" className="btn btn-outline-primary btn-sm" onClick={addGapFromSelection}>
                     {t('editor_addgap')}
                 </button>
 
@@ -192,7 +254,7 @@ export function CueRow({cue, t, focused, capturems, onChange, onDelete, onStatus
                     onStatus={onStatus}
                 />
 
-                <button type="button" className="btn btn-link text-danger p-0" onClick={onDelete}>
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={onDelete}>
                     {t('editor_deletecue')}
                 </button>
             </div>

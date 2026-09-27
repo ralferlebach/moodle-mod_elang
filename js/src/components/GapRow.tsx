@@ -34,6 +34,8 @@ interface Props {
     t: Translator;
     onChange: (gap: Gap) => void;
     onDelete: () => void;
+    /** Highlighted because the author just clicked its mark in the text. */
+    selected?: boolean;
 }
 
 /**
@@ -42,7 +44,7 @@ interface Props {
  * @param props The component props.
  * @returns The gap row element.
  */
-export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
+export function GapRow({gap, t, onChange, onDelete, selected}: Props): JSX.Element {
     const replaceAnswer = (index: number, answer: Answer): void => {
         const answers = gap.answers.slice();
         answers[index] = answer;
@@ -58,7 +60,10 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
     const resequenced = (hints: Hint[]): Hint[] => hints.map((hint, index) => ({...hint, level: index + 1}));
 
     return (
-        <div className="mod_elang-editor-gap border rounded p-2 mt-2">
+        <div
+            className={"mod_elang-editor-gap border rounded p-2 mt-2" + (selected ? " selected" : "")}
+            data-gaprow={gap.gapkey}
+        >
             {/* The character offsets are how a gap is stored and graded, and they
                 are maintained by selecting text and by resyncGaps(); nobody
                 types them. Showing them made an internal coordinate look like a
@@ -113,7 +118,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                                 />
                                 <button
                                     type="button"
-                                    className="btn btn-link btn-sm text-danger p-0 ml-1"
+                                    className="btn btn-outline-danger btn-sm ml-1 ms-1"
                                     aria-label={t('editor_removevariant')}
                                     title={t('editor_removevariant')}
                                     data-action="removevariant"
@@ -129,7 +134,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                     </div>
                     <button
                         type="button"
-                        className="btn btn-link btn-sm p-0"
+                        className="btn btn-outline-primary btn-sm"
                         data-action="addvariant"
                         onClick={() => onChange({
                             ...gap,
@@ -176,7 +181,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                         />
                         <button
                             type="button"
-                            className="btn btn-link btn-sm text-danger p-0"
+                            className="btn btn-outline-danger btn-sm"
                             data-action="removehint"
                             onClick={() => onChange({...gap, hints: resequenced(gap.hints.filter((_, i) => i !== index))})}
                         >
@@ -187,7 +192,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
             </div>
             <button
                 type="button"
-                className="btn btn-link btn-sm p-0"
+                className="btn btn-outline-primary btn-sm"
                 data-action="addhint"
                 onClick={() => onChange({
                     ...gap,
@@ -260,7 +265,7 @@ export function GapRow({gap, t, onChange, onDelete}: Props): JSX.Element {
                 )}
             </details>
 
-            <button type="button" className="btn btn-link text-danger p-0 d-block" onClick={onDelete}>
+            <button type="button" className="btn btn-outline-danger btn-sm" onClick={onDelete}>
                 {t('editor_deletegap')}
             </button>
         </div>

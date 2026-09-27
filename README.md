@@ -4,8 +4,9 @@ moodle-mod_elang
 <img src="pix/logo.svg" alt="eLang logo" width="72" align="right">
 
 [![Moodle Plugin CI](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml/badge.svg?branch=development)](https://github.com/ralferlebach/moodle-mod_elang/actions/workflows/moodle-ci.yml)
+[![MDL Shield](https://img.shields.io/endpoint?url=https%3A%2F%2Fmdlshield.com%2Fapi%2Fbadge%2Fmod_elang)](https://mdlshield.com/plugins/mod_elang)
 
-Video- and audio-based gap-fill language exercises with time-coded subtitles for Moodle.
+Video dictations for Moodle: gap-fill exercises on time-coded subtitles, with video or audio.
 
 Learners watch or listen to a medium while working through its transcript. Selected
 words or phrases are hidden; learners type them in, may request graded hints and
@@ -200,6 +201,18 @@ There may be several weeks after a new major release of Moodle has been publishe
 Translating this plugin
 -----------------------
 
+**If the activity shows a different name than you expect.** Moodle resolves a
+plugin's strings against the installed language pack first, so a site that has
+the German pack from lang.moodle.org installed can still show an older name —
+for mod_elang usually "Hör-Garten" from version 1.x — even though this release
+ships "Video-Diktat". That is the language pack winning, not a bug in the
+plugin. Update the language pack, or override the name through Language
+customisation; `docs/dev/deutsche-bezeichnung-sprachpaket.md` walks through
+both.
+
+Translators: the binding terminology for English and German, and the principles
+that apply to every other language, are in `docs/dev/terminology.md`.
+
 This Moodle plugin is provided with English and German language packs only. Translations into other languages must be managed through AMOS (https://lang.moodle.org), where they will become part of Moodle's official language pack.
 
 As the plugin creator, we continue to maintain the German translation. For all other languages, we kindly ask you to contribute your translations directly in AMOS. These contributions will be reviewed by Moodle's official language pack maintainers before being included in the official repository.
@@ -244,8 +257,9 @@ permissive licence with a strong attribution obligation, and the original work i
 acknowledged here and in the release notes accordingly.
 
 The detailed provenance record — including the component-name handover and the
-log of any adopted passages (currently empty) — is kept in the repository under
-`docs/materials/`. This is not legal advice; institutions publishing the plugin
+log of any adopted passages (currently empty) — is kept **in the repository**
+under `docs/materials/`. It is not part of the installable package: a release
+archive contains the plugin, not its development history. This is not legal advice; institutions publishing the plugin
 should have a legally responsible body confirm the licensing and naming.
 
 

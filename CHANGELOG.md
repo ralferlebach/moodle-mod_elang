@@ -11,6 +11,1063 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — the downloadable artefact was a ZIP inside a ZIP
+The plugin directory rejected an upload with "Zip archive should contain one
+directory". The package was right; what was uploaded was not. GitHub wraps every
+workflow artefact in an archive of its own, so the entry at the bottom of the run
+page was a ZIP holding the plugin ZIP and its checksum side by side — two files
+at the root and no folder, which is exactly what the directory refuses. The
+plugin package inside had `elang/` as its single root, as it always had.
+
+It was a trap, and this workflow set it: the page said the entry *contained*
+the ZIP, which invites uploading the entry.
+
+The files people download are now uploaded as themselves with
+`actions/upload-artifact@v7` and `archive: false`. The download is the plugin
+package under its real name, directly installable, with the checksum beside it
+as a second entry. `archive` exists only from v7 — v4 to v6 do not have it,
+checked against each version's `action.yml` rather than trusted from a
+documentation example that showed it on v4.
+
+The copy the install and upgrade checks passed between them is now called
+`intern-pruefpaket` and deleted once they have run, and the migration logs are
+uploaded only when the migration fails. A green run therefore ends with the
+package and its checksum, and nothing else. Publishing runs on every build now;
+only creating a GitHub release still needs a tag.
+
+### Changed — the run page ends with the release files and nothing else
+Three things sat at the bottom of a green run and only one of them was wanted:
+
+- **The plugin package arrived inside a second ZIP.** GitHub wraps every
+  artefact in an archive of its own, so the download was a ZIP named
+  `release-zip` that had to be unpacked to reach the ZIP to install. The
+  publish job now uploads the package and its checksum each as itself
+  (`archive: false`), under their real names. That input exists only from
+  `actions/upload-artifact@v7` — the documentation found first showed it on v4,
+  which would have failed, so the action's own `action.yml` was checked at each
+  tag before relying on it.
+- **`migration-v1-N`** was the log of the 1.3.5 upgrade test, uploaded on every
+  run. Worth having when a migration fails, noise when it succeeds. It is
+  uploaded on failure only.
+- **The internal copy** the check jobs pass between them is now called
+  `intern-pruefpaket` and deleted once publishing is done.
+
+Publishing runs on every build now, not only on a tag. It always offers the two
+files; only the GitHub release itself still needs a tag, because a release
+without one does not exist.
+
+
+### Changed — the artefact is named after the file it holds
+The Artifacts entry was called `release-zip`, which says nothing about which
+build it is. It now carries the archive's own name, so the list distinguishes
+one run from another and the entry matches what the summary names. Both
+downloaders and the migration call take the name from the build job rather than
+repeating a constant.
+
+### Changed — the run now says where the archive is
+The workflow built, checked and uploaded the ZIP correctly and then told nobody
+where it had gone. It sits at the bottom of the run page under "Artifacts",
+which is not somewhere anyone thinks to look, and the entry is called
+`release-zip` rather than the filename. A green run that leaves you hunting for
+the file it produced has not finished the job.
+
+The run summary now names the file and its checksum, and says in one sentence
+where to click. On a tag run it says the archive will also appear on the
+release.
+
+### Changed — no empty publish job on a manual build
+Publishing only happens for a tag, so on a dispatched run the job downloaded the
+archive and stopped. Nothing was wrong, but a job that ends without producing
+anything reads as a failure — and it was the last thing on the page, which is
+the worst place to put something misleading. It is skipped outright now.
+
+### Fixed — the release workflow could not read its own version.php
+`version.php` opens with `defined('MOODLE_INTERNAL') || die();` and uses Moodle
+constants, so reading it with a bare `php -r` outside Moodle dies on the first
+line — silently, and with exit 0. Every value came back empty, and the tag check
+then compared the ref against `v`:
+
+    release= version= maturity=
+    Der Tag 'refs/heads/main' passt nicht zu $plugin->release ('').
+    Erwartet wurde 'v'.
+
+The reader now supplies `MOODLE_INTERNAL` and the `MATURITY_*` constants, and
+refuses to continue on an empty result. An empty value means the file could not
+be read, not that the value is empty, and letting that through is what turned a
+missing constant into a message about tags.
+
+Two more of the same pattern in `migration-v1.yml` printed nothing where they
+were meant to document which build was being installed. Both fixed.
+
+### Fixed — a dispatched run tripped the tag check
+The tag comparison was skipped when the optional ref field was filled in. That
+worked only while the field was mandatory; once it could be left empty — which
+is the point of making it optional — a dispatch from `main` fell through to the
+tag check and failed on a branch name. The condition now asks `github.ref`
+whether this is a tag push, which is the actual question.
+
+Verified against all three cases: a dispatch from `main` skips the check, a
+matching tag passes, and `v1.9.9` against release 2.0.0 exits 1.
+
+### Fixed — the release smoke test died silently on a wrong include
+The step that creates an activity from the freshly installed ZIP required
+`lib/testing/generator/lib.php`, which defines neither `create_course()` nor
+`elang_add_instance()`. It failed with exit 255 and **printed nothing at all** —
+a fatal the log could not show, which is the least useful shape a CI failure can
+take. It now requires `course/lib.php` and the module's own `lib.php`, and runs
+with `display_errors` on so the next fatal says what it was.
+
+Two things found while fixing it, both mine:
+
+- A comment added to that block contained an apostrophe. The block lives inside
+  `php -r '...'`, so a single quote ends the shell string — the fix would have
+  broken the step in a different way. Caught by extracting the step and running
+  it rather than reading it.
+- The workflow input for the ref was `required: true`, so a dispatch had to name
+  the branch twice: once in the form GitHub shows, once in the field. It is
+  optional now and an empty field uses the ref selected above; it stays for the
+  case the form cannot express, building from a commit that is not the tip of
+  anything.
+
+Every `run:` block in every workflow is now checked with `bash -n`, the way
+GitHub executes them. A quoting mistake in a YAML string is invisible to
+actionlint and to review, and shows up as an error message about something else.
+
+### Changed — the dispatch form no longer asks the same question twice
+Starting the release workflow by hand meant choosing a branch or tag in GitHub's
+own form and then typing a ref into a required field, which in the ordinary case
+is the same answer written out again.
+
+The field is optional now: left empty, the branch or tag selected above is used.
+It stays for the case the form cannot express — building from a commit that is
+not the tip of anything, such as a specific revision on a branch that has since
+moved on.
+
+
+### Added — the archive's root directory is now checked, not just produced
+Moodle installs a plugin by its root folder, so the archive must contain exactly
+one, named for the component: `elang`. Anything else is rejected by
+`core\update\validator` with `rootdirinvalid` and the site refuses the package.
+
+`git archive --prefix=elang/` already gets this right, and the built ZIP has
+always had the correct root — so this is a guard, not a fix. It is worth having
+because the failure it catches has a specific and common cause: publishing a
+GitHub branch download, whose root is `moodle-mod_<name>-main`, instead of a
+built release. That exact structure blocked plugin-directory approval of a
+sibling plugin, and until now this workflow would only have noticed three jobs
+later, as a missing file.
+
+Verified against a correct archive, a branch-download archive and one with two
+root directories.
+
+
+### Fixed — a dispatched run now takes any ref you would naturally type
+`actions/checkout` resolves its `ref` by asking the *server*, and a server
+cannot expand an abbreviation — it has no way to know which of its objects
+`c97118b` means. At depth 1 it also has no commits to search. So a short hash
+produced "The process '/usr/bin/git' failed with exit code 1", three times, with
+no hint of the cause.
+
+The first attempt at this refused short hashes with an explanation, which was
+the wrong call: it made a person look up a forty-character string that a
+computer could have expanded. The repository is now cloned whole and `git
+rev-parse` resolves whatever was asked for locally, which is exactly the job git
+does well. One path takes a tag, a branch, a short hash and a full one alike;
+`^{commit}` makes an annotated tag yield the commit rather than the tag object.
+
+An unresolvable ref still stops the run, now with the available tags listed.
+Verified against all four shapes plus a nonexistent one.
+
+
+### Changed — the version number has to carry the release date
+`$plugin->version` had drifted twelve days behind the day it was built, which
+makes it useless for the one thing the number is for: telling two builds apart
+and telling Moodle which is newer.
+
+It is set in the commit, not written while building. Rewriting version.php
+during the release would put a number in the ZIP that no commit contains, and
+three guarantees would fail at once — the archive would no longer equal the
+tagged commit, it would differ from the one every test ran against, and a rerun
+on another day would produce a different archive from the same tag. That is the
+exact-artifact invariant #16 exists to protect.
+
+So the release workflow checks instead of writes: the `YYYYMMDD` prefix of
+`$plugin->version` must match the day the tagged commit was authored, and the
+build stops with the number to use if it does not. A release cut today carries
+today's date; a rerun tomorrow still produces the same archive. Verified against
+both a matching and a stale commit date.
+
+
+### Fixed — CI never installed the browser it was asked to test with
+Adding Firefox to `playwright.config.ts` was half the change. The workflow
+installed browsers from a hand-written list that still said `chromium`, so all
+sixty-six Firefox tests failed with "Executable doesn't exist" — sixty-six red
+results for one missing install, and a wall in which a real failure would have
+been invisible.
+
+The install now takes whatever the config declares rather than a list somebody
+has to keep in step. A guard in front of the run checks the same thing and fails
+in one line, naming the browser, instead of as sixty-six identical errors
+further down. Verified by declaring a browser that is not installed and watching
+it report `fehlend: webkit`.
+
+The job was also still called "Chromium" while running two engines. A label that
+lies about what ran is worse than no label, since it is what someone reads when
+deciding whether a red run matters.
+
+
+### Fixed — publishing could step over a problem made a moment earlier (#26)
+`problemsRef` is filled by the save, and the save is debounced. An author who
+broke a subtitle and reached for Publish in the same second arrived before the
+checks had run, so the guard saw an empty set and let them through. The flush
+then ran the checks and correctly refused to send the broken subtitle — and
+publishing continued anyway, on a draft the server still held in its last good
+state. The activity would have gone live without the author's most recent edit,
+with nothing on screen saying so.
+
+The check now runs again after the flush, when the checks have actually seen
+what was typed. The first check is kept because it answers faster in the
+ordinary case: no request at all when the problem is already known.
+
+### Added — a problem subtitle is marked in all three views (#26)
+The inspector answers "what is wrong with this one", the list answers "which of
+mine need attention", and the timeline answers "where in the recording". Only
+the inspector was being told. All three now share one `problemkeys` set derived
+from the problem map rather than tracked separately — two sources for the same
+question is how one of them goes stale.
+
+The timeline marks with a sign inside the segment and a dashed edge, not another
+outline: "active" and the playhead already use edges and shading there, and none
+of those is readable without sight. The list carries a sign and the word.
+
+### Fixed — a repair button that did nothing
+"Repairable" describes the kind of problem, not whether a correction can be
+derived here. A reversed cue needs somewhere to put its end — the next
+subtitle's start, or the playback position — and an exercise with a single
+subtitle and the medium at zero has neither. The button was shown anyway and did
+nothing when pressed.
+
+Found by writing the test the other way round: the repair refused, and the
+refusal was right. The button now appears only when a proposal actually exists,
+with one test for its absence and one for the case where the repair works and
+clears the mark in all three views.
+
+### Changed — Firefox joins the browser matrix (#22)
+The fullscreen work is about a browser granting or refusing a request, and the
+two engines decide differently: Chromium is lenient about what still counts as a
+user gesture, Firefox is not. A rule that holds in one of them is not a rule.
+Firefox carries the whole suite rather than only the fullscreen tests — a second
+engine is worth having wherever it is cheap, and splitting the matrix by test
+would need a list somebody has to maintain.
+
+Chromium: 66 of 66. Firefox: 65 of 66, with one long-standing flake described
+below.
+
+### Fixed — the long-standing flake was a test writing into another's fixture
+`player.spec.ts › subtitle positions › an overlay puts the cursor in the first
+gap` had failed in full runs and passed alone for several rounds. Two guesses
+had been recorded and neither was right.
+
+The screenshot from the failed CI run settled it: the gap contained the word
+`test`, and the page said "1 of 1 gaps answered". The fullscreen test types
+`test` into the same activity, an attempt outlives the test that started it, and
+the suite runs twice over one seeding — once per browser. So the Firefox pass
+met a gap the Chromium pass had already answered, autofocus correctly did not
+happen because nothing was left to answer, and the test failed for a reason that
+had nothing to do with what it checks.
+
+The reading test now has an activity nothing writes into. Sharing a fixture
+between a test that reads and a test that writes was the bug.
+
+Confirmed both ways: the exact CI sequence — full Chromium run, then full
+Firefox run over the same data — is 66 of 66 in both browsers, and pointing the
+test back at the shared activity reproduces the failure.
+
+Worth keeping: the screenshot answered in a minute what two rounds of reasoning
+about timing had not. The artefacts were there the whole time.
+
+
+### Documentation — load test results of 15.09.2026 recorded
+Two JMeter runs against the self-contained target: `classroom` at 1.2 requests
+per second and `lecturehall` at 11.1, both hitting the rate the model
+prescribes — the lecture-hall run to the decimal. 2200 responses, all HTTP 200,
+no errors and no Moodle exception. p95 of 36 and 37 ms against a gate of 800.
+
+The lecture-hall run has a visibly longer tail — p99 150 ms against 39, peak
+413 ms — and the obvious reading of that is queueing. It is wrong, which is why
+the run is broken down into twenty-second windows in the document: the median
+stays flat at 26–29 ms for three minutes and drifts *down* towards the end, and
+the outliers are scattered rather than accumulating. A filling queue raises the
+median and makes every later window worse. This does neither.
+
+That breakdown is the point worth keeping: the same p99 means "the server is
+saturating" or "the machine sneezed", and only the shape over time tells them
+apart.
+
+What the runs do not show is stated with them — they hit `php -S` on
+127.0.0.1:8000 and exercised `get_version_content` alone, so they say nothing
+about PHP-FPM with production caches, nothing about the write path and nothing
+about media serving. What they do show is narrow and still useful: the read path
+has not regressed, and lecture-hall volume produces no errors.
+
+
+### Added — gaps are marked where their words are (#28)
+The gaps of a subtitle were edited in forms below the sentence, so an author had
+to hold the mapping between a row and a word in their head. The sentence now
+appears again below the textarea with each gap marked in place: inverted for
+exact matching, grey for close answers, with a small sign for accepted variants
+and another for hints. Clicking a mark opens that gap's row, scrolls it into
+view and outlines both ends of the jump.
+
+The link is the `gapkey`, never the array position: a gap keeps its key when the
+transcript is edited and `resyncGaps()` moves the ranges, while its index does
+not survive an insertion above it.
+
+The textarea stays the place text is typed. A contenteditable would have to
+reconcile a caret with codepoint offsets on every keystroke, and getting that
+wrong moves a gap onto the wrong word without anyone noticing.
+
+Two things are deliberate:
+
+- **Positions are counted in codepoints, not UTF-16 units.** Slicing by string
+  index puts the mark one character off and splits an emoji in half — a failure
+  invisible in any Latin-only test, so there is one with an emoji in it.
+- **A gap that cannot be placed is shown as broken, not omitted.** An overlap or
+  a range past the end of the text becomes a marked warning that still opens its
+  row. A gap silently missing from the view looks deleted, and the author has no
+  reason to go looking for it.
+
+Nine unit tests for the segmentation, where the awkward cases live, and a
+browser test for the click path and the accessible name.
+
+### Fixed — six strings the editor would have shown as raw keys
+`amd/src/editor.js` carries the list of strings the React editor loads, and
+nothing had added the ones introduced for #26. An author would have read
+`editor_cuenotsaved` on the screen. The suites were all green, because no test
+had exercised those paths yet — the browser test written for #28 caught it,
+reporting `editor_gapmode_exact` where a sentence belonged.
+
+Worth stating plainly: a string missing from that list is not a missing
+translation. It is the key itself, rendered to the person using the editor, in
+every language.
+
+
+### Changed — editor actions are drawn as actions (#27)
+The gap and subtitle actions were already real buttons; they were styled as
+links, so creating, capturing and deleting all looked like body text with a
+colour on it. Colour was the only thing marking a destructive action as
+destructive, which is not something everyone can see.
+
+Thirteen actions now carry a variant that says what they do: creating is
+`btn-outline-primary`, secondary work — capture, preview — is
+`btn-outline-secondary`, and deleting or removing is `btn-outline-danger`. No
+hard-coded colours, so a dark theme is Bootstrap's problem rather than ours, and
+every label and `aria-label` is unchanged.
+
+Three `btn-link` uses are left on purpose: selecting a subtitle in the list is
+navigation, the list's dropdown toggle is a toggle, and the manual Save was
+deliberately demoted to a link because autosave is the primary path — promoting
+it back would undo a decision made earlier for good reason.
+
+The test took two attempts, and the first one is worth recording. It asserted a
+computed border, on the reasoning that an outline button has one and a link does
+not. Boost gives every `.btn` a visible border, so the check stayed green with
+the action reverted to a link — verified by doing exactly that and watching it
+pass. It now asserts the variant, which is less elegant and actually holds; the
+issue's own wording asks for the same thing. Falsified again afterwards, and
+this time it fails.
+
+The label guard also caught an invented string on the way through: the test
+looked for "Create gap from selection", and the button says "Mark gap from
+selection".
+
+
+### Changed — the editor now saves round a broken subtitle (#26, completed)
+The editor sends only the subtitles that pass the local checks and leaves the
+rest out. Because the endpoint reads an absent key as "leave alone", the last
+state the server accepted for a contradictory subtitle stays there while the
+author keeps seeing their newer, unsendable version in the browser, marked as
+unsaved. A deletion is tracked separately and reported, since absence no longer
+means removal.
+
+The status line has three answers instead of two. "Everything is saved" and
+"the server could not be reached" were the only things it could say, so a
+subtitle the author had just made contradictory was reported as a save failure —
+which teaches people to distrust an autosave that is working correctly.
+
+The selected subtitle shows what is wrong in words, with an icon and a live
+region rather than colour alone, and a **Correct the end time** button when the
+problem has one unambiguous answer. Nothing repairs itself: a timing conflict
+can be read several ways, so the editor proposes and the author decides.
+
+Publish selects the first broken subtitle and says why instead of failing at the
+server. The server still validates in full; this only avoids sending the author
+to a failure they could already be shown.
+
+Two consequences found by running it rather than by reasoning about it:
+
+- A new subtitle started and ended at zero — shown for no time at all. The local
+  checks correctly called that broken, so every freshly added row announced
+  itself as an error before anything was typed. A new subtitle now starts where
+  the medium is paused and lasts two seconds, which is also what an author means
+  when they add one while watching.
+- The editor's own mount test still stubbed the wholesale endpoint and recorded
+  no saves.
+
+Seven new strings, translated in all 26 packs. The first pass put English into
+twenty-two of them to satisfy the contract test, which is precisely the silent
+quality loss that test exists to prevent; they are properly translated.
+
+
+### Added — the partial save endpoint and local cue checks (#26, second part)
+`mod_elang_save_draft_cues` sits in front of the partial save added in the
+previous build. It enforces everything the wholesale endpoint does — the manage
+capability, the draft-only rule, the revision check — including the separate
+capability a regular expression in an accepted answer needs. A partial save that
+skipped that check would have been a way around it, so there is a test that
+says so.
+
+`js/src/studio/cue-validation.ts` decides what the editor can tell on its own:
+a start before the recording, an end at or before its start, a cue running past
+a known duration. Deliberately narrow — duplicate keys and overlapping gap
+ranges are decidable too, but not from one cue in isolation, and the server
+already refuses them. A second opinion here could disagree with the first.
+
+`partitionCues` splits the draft into what may be sent and what must be held
+back, keyed by cue key, and the distinction it maintains is the one the whole
+design rests on: a held-back cue is absent from the payload, and absent means
+*leave alone*, never *delete*.
+
+`repairCue` proposes a correction and applies nothing. A reversed cue ends where
+the next one begins — a number already in the draft rather than one invented —
+or at the playback position when there is no next cue, and it returns null when
+neither candidate would produce a forward cue. A start before the recording has
+no defensible correction at all and is reported as unrepairable, because the
+author may have meant any time and the editor must not pick one.
+
+Fifteen unit tests for the logic, six for the endpoint.
+
+**Still to build for #26**: the editor has to use all of this — marking the cue
+in CueList, Timeline and Inspector without relying on colour, the repair button,
+the three-state autosave status, and the publish gate. Those need new language
+strings in all 26 packs.
+
+
+### Added — partial draft saves (#26, first part)
+`version_manager::save_draft_cues()` writes some of a draft's cues and leaves
+the rest alone. The wholesale save cannot express what the editor needs when one
+cue is contradictory and its neighbours are fine: dropping the bad cue from a
+wholesale payload does not protect it, it deletes it, because absence means
+removal there. So absence now means nothing at all, and removal is said out
+loud — only keys in `$removedcuekeys` are deleted.
+
+Everything the wholesale save guards is guarded here: the activity lock, the
+transaction, the draft-only rule, and one revision bump for the whole call so
+two editors still collide cleanly. A key that is both written and removed in one
+call is refused rather than resolved — a caller contradicting itself is a bug,
+and guessing which half was meant would hide it.
+
+Five tests, and the one that matters is that an omitted cue keeps its stored
+text and its gaps. Verified by making the method delete wholesale again, which
+fails it.
+
+**Still to build for #26**: client-side cue validation, the external API in front
+of this, marking the broken cue in CueList, Timeline and Inspector without
+relying on colour, the repair action, the three-state autosave status, and the
+publish gate. This part is the foundation they all need — the issue says so
+itself — and it is worth having landed and tested on its own.
+
+
+### Fixed — CI dropped four seeded variables without saying so
+The Playwright workflow turns seed.php's `export KEY='value'` lines into
+`$GITHUB_ENV` entries with a sed pattern that allowed only `[A-Z_]` in a name.
+`ELANG_CMID_RATIO_16X9` and its three siblings have digits in them, so they were
+filtered out — while the twelve older variables came through. The step looked
+like it had worked and the failure surfaced four minutes later, inside the
+browser, as five canvas tests reporting a missing variable.
+
+The pattern now allows digits, and the step compares how many variables the seed
+printed against how many it took. A variable lost to a pattern is reported where
+it is lost rather than where it is missed. Confirmed against the real seed
+output: twelve of sixteen under the old pattern, sixteen of sixteen under the
+new one, and the count check refusing a file the old pattern would have
+silently thinned.
+
+
+### Changed — overlay subtitles are centred (#25)
+The overlay declared no alignment, so it inherited the document's and sat flush
+left. It read as a paragraph that happened to be over the video rather than as
+its subtitle, and on a wide picture a short line ended up far from where the eye
+was.
+
+`text-align: center` on the caption, which is direction-neutral — `center` means
+the same thing in Arabic as in German, where `left` would not — so right-to-left
+needs no second rule. The gaps ride along because they are inline-flex inside
+the sentence rather than boxes placed beside it. The status label next to a gap
+keeps reading from its own start: it belongs to the input, not to the line. The
+transcript below the medium is untouched; it is a reading column, not a caption.
+
+Getting the test to mean something took five attempts, each for a reason worth
+recording:
+
+- Measuring the whole caption as one block passed with the rule removed — a
+  line that fills its box looks the same centred or flush left. The test now
+  requires the line to be clearly shorter than its box before it judges.
+- Grouping rectangles by their top edge split one visual line in two, because a
+  gap input is taller than the words around it. Grouped by vertical centre now.
+- The status labels beside the gaps were being measured as caption lines and
+  demanded to be centred, which they should not be.
+- A Range includes the space a line broke on while the browser ignores it when
+  centring, so a correct line measures about a space-width off. One space of
+  slack, stated as such.
+
+Verified by removing `text-align: center` and confirming the suite fails —
+left inset 12 px against right 354.7 px, which no tolerance would swallow.
+
+
+### Fixed — the canvas is the picture now, not a box around it (#24)
+The stage had no ratio of its own. Its box was whatever the layout gave it while
+the video sat inside letterboxed by `object-fit`, and the caption is positioned
+against the stage — so a portrait clip in a wide box put the subtitle over the
+black band beside the picture and wrapped its lines at the box width rather than
+the picture width. Wider lines than the image they belong to.
+
+The stage now takes `videoWidth / videoHeight` at `loadedmetadata`, so box and
+picture are the same rectangle and "over the video" stops being a different
+place from "over the wrapper". Provider iframes keep 16/9: they report nothing
+about what they are playing, and guessing from a URL would be worse than a
+stated fallback.
+
+Fitting it needs more than `aspect-ratio`. Given a width, that computes a height
+and will run past the height the player measured; clamping afterwards with
+`max-height` keeps the width and breaks the very ratio the rule exists to
+preserve. The width is therefore derived from the height budget —
+`min(100%, budget × ratio)` — which fits both directions and keeps the shape.
+Fullscreen scales the same shape up rather than stretching it.
+
+Four generated clips — 16:9, 4:3, 9:16, 21:9, about 14 KB each — are served from
+the site for the tests, because a video pointed at a URL that does not resolve
+reports no dimensions and the whole mechanism starts at `loadedmetadata`. They
+are `export-ignore`d: the checkout needs them, an installation never reads them.
+
+Worth recording for next time: the first run failed on all four ratios with the
+stage still at 16:9, and the code was right. Moodle was serving the previous
+CSS and JS from its cache. `purge_caches.php` before a browser run, or the test
+measures the last build rather than this one.
+
+
+### Added — the responsive matrix for #23
+Six screen sizes against all three subtitle positions, plus two tests for the
+halves of the issue that a "does it fit" check would miss: a short screen giving
+the picture up before the transcript, and a tall screen being used rather than
+left empty.
+
+What is asserted is the promise, not the numbers behind it: the medium and the
+first gap are visible together, without scrolling. A test reading the computed
+pixel heights would pass while the layout was wrong, because those are the
+implementation.
+
+The sizes are chosen for what each one breaks — 1366×768 is the case from the
+issue, 1024×600 the smallest height still in classroom use, 1280×1440 the tall
+screen that used to be left half empty, 390×844 a phone where the priority has
+to show.
+
+Writing it found two mistakes of my own rather than in the plugin: the gap
+selector was wrong, so nineteen tests reported "no gap rendered" instead of a
+layout fault; and the transcript floor was asserted against the *rendered*
+height, which `max-height` does not enforce — a short transcript is correctly a
+short box. It now checks the allowance the player publishes, which is what the
+floor is about.
+
+### Changed — no test runs on a timer
+Playwright and the 1.3.5 migration ran weekly by cron. A scheduled run reports
+on a commit nobody is looking at, so its result arrives detached from the change
+that caused it and gets read as weather rather than as a finding. Both now run
+on push, on pull request, and on request.
+
+### Fixed — a skipped accessibility suite reported green
+`a11y.spec.ts` and `studio.spec.ts` began with `test.skip(!CMID, …)`, and `CMID`
+defaulted to an empty string. Without the seed the whole file skipped itself and
+the run was green — the same colour as one that checked something. `CMID` is
+resolved through `requireEnv` now, so a missing seed fails loudly. No
+conditional skips remain in any spec.
+
+
+### Fixed — the fullscreen test asserted on the browser, not the plugin
+`Escape` leaves fullscreen through the browser's own chrome, above the page.
+Nothing here binds it, and pressing it in a headless browser does nothing — so
+the test timed out waiting for an exit it could not cause. It now leaves through
+the same control it entered with, which is the part this plugin owns, and checks
+that `aria-pressed` returns to false.
+
+Entering, surviving a cue change and typing into a gap all passed from the
+start; only the exit step was wrong. Found by running the suite rather than by
+reading it.
+
+
+## [2.0.0] - 2026-09-27
+
+First stable release of the 2.x line. `$plugin->version = 2026092700`,
+`MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
+
+What changed since 2.0.0-RC1 is listed below; the release itself is the same
+code, declared stable.
+
+### Changed — the player measures the room it has instead of guessing (#23)
+Heights were bounded in viewport units: 45vh for the medium, 35vh for the
+transcript. Those numbers cannot see the page they sit in. Above the player
+there is a Moodle header, a secondary navigation, the activity name, the intro,
+and whatever a theme adds — so on a 1366×768 laptop the medium and the sentence
+being answered ended up on separate screens, which is the one thing the
+below-the-medium layout exists to prevent. On a tall screen the same numbers
+left a band of empty page.
+
+The player now measures from where it actually begins to the bottom of the
+window and publishes `--mod-elang-media-height` and
+`--mod-elang-transcript-height`. Nothing in it knows what a header is or how
+tall Boost makes one; it only knows where this element ended up, which stays
+true under any theme — the issue asks for exactly that, and a hard-coded header
+height would have been the easy wrong answer.
+
+Below the medium the two no longer compete on fixed shares. The transcript is
+served first down to a floor of 140 px and the picture takes what is left,
+reversing the old rule where the medium claimed 45vh whatever that cost the
+region underneath it. In overlay mode the caption is inside the picture, so the
+stage gets everything that is not status line, controls or score — each of those
+measured, since a theme may wrap them onto two lines.
+
+Recomputed on resize, orientation change, leaving fullscreen, and through a
+`ResizeObserver` on the body: a drawer opening or a font finishing loading moves
+the player down without an event of its own.
+
+The viewport-unit rules stay as the CSS fallback, so a browser that ignores
+custom properties — or the instant before the first measurement — sees exactly
+the layout it saw before.
+
+### Fixed — fullscreen dropped straight back out in overlay mode (#22)
+The native fullscreen button was allowed to fire and then redirected: leave the
+medium's fullscreen, then ask for it again on the stage that carries the caption.
+That chain crosses an await, and a browser grants a fullscreen request only
+while a user gesture is still active — so the second request was sometimes
+refused and a learner watched fullscreen open and close again.
+
+The stage now has its own control, and `stage.requestFullscreen()` runs inside
+the click with nothing in between. The medium's own button is suppressed where
+the browser honours `controlsList` — it would take the picture and leave every
+gap behind. Where the Fullscreen API is missing the control is not offered and
+the medium keeps its own; where the overlay cannot be shown fullscreen at all,
+notably iOS, that native button remains the way out.
+
+Fullscreen survives cue changes because it belongs to the wrapper, not to
+anything that gets re-rendered — which is the invariant the issue states.
+
+Playwright covers both overlay positions: enter, advance past a cue boundary,
+type into a gap, leave with Escape, with `document.fullscreenElement` checked at
+each step; plus that `below` has neither stage nor control.
+
+### Release engineering — a 1.3.5 site is now upgraded with the actual ZIP
+The migration workflow replaced the plugin with `cp -a plugin moodle/mod/elang`
+— from a checkout. The release therefore proved that *the source tree* migrates
+a 1.x site, never that the published archive does.
+
+`migration-v1.yml` is now callable and takes an artefact name; given one, it
+verifies the checksum and unpacks the ZIP over the old plugin the way an
+administrator would. The release workflow calls it, so publishing waits on a
+real 1.3.5 upgrade performed with the file about to be published. One definition
+of a correct migration, two sources for the plugin under test.
+
+Walked through locally against `moodle-mod_elang-2.0.0-2026091400.zip`: a 1.x
+world built with the legacy fixture, the database rolled back to a 1.x version,
+the upgrade run from the ZIP-installed code (`2015050100 → 2026091400`), then
+decommissioning — after which `check_database_schema.php` answers "Database
+structure is ok." The transitional "column 'options' is not expected" appears in
+between, exactly as the schema convergence work predicted.
+
+### Release engineering — the tagged commit must have passed
+A tag can be moved onto anything, including a commit whose run went red or is
+still going, and nothing downstream would have noticed: the ZIP would be built
+from it and published all the same. The build job now asks GitHub for the check
+runs on the tagged commit and refuses to continue unless every one of them
+finished, and finished green.
+
+Two details decide whether such a gate is worth having:
+
+- Only *conclusions* count. A run still in progress is not "not failed" — it is
+  unknown, and unknown is not a release. `in_progress` blocks.
+- The gate excludes its own job. A check run waiting for itself never finishes.
+
+`neutral` and `skipped` pass, since a skipped job is a decision the pipeline
+made rather than a result it failed to reach.
+
+The GitHub API is not reachable from the environment this was written in, so the
+evaluation was tested against the response shapes instead: all green, one
+failure, one still running, one cancelled, and none at all. The last two are the
+ones a naive check gets wrong, and both block.
+
+### Release engineering — the ZIP is now tested before it is published
+The release workflow built an archive and published it in one job. Everything it
+checked was a property of the archive's *contents*; nothing checked that the
+archive *installs*. A ZIP can pass every content guard and still be unusable.
+
+It now runs in three jobs, and publishing happens last:
+
+1. **Build and validate** — `git archive` from the tagged commit, reproducibility
+   of the committed bundles, `removed_files.txt`, no leftovers, and two new
+   guards: every file a site needs at runtime must be present (React bundle,
+   `thirdpartylibs.xml`, `readme_moodle.txt`, `LICENSE`, `db/removed_files.txt`,
+   `lang/en`), and a tag without RC or beta in its name must carry
+   `MATURITY_STABLE` — otherwise a site is offered a full release that the
+   plugin itself calls a candidate.
+2. **Install the actual ZIP** — a clean Moodle 4.5 and PostgreSQL, the checksum
+   verified before the archive is trusted, unpacked into `mod/` the way an
+   administrator would, installed, upgraded, schema checked, and an activity
+   created. Nothing in this job comes from a checkout of the plugin.
+3. **Publish** — only if both passed.
+
+The release notes now carry what the issue asks for: commit SHA, Moodle and PHP
+support, maturity, checksum, upgrade notes for 1.x, and an explicit statement of
+what a green pipeline does *not* prove.
+
+Verified by walking the path locally against the real
+`moodle-mod_elang-2.0.0-2026091400.zip`: checksum confirmed, all required files
+present, the maturity guard passing on the real file and blocking a doctored
+one, a fresh Moodle installed from the archive rather than from the working
+tree — `mod_elang 2.0.0 (build 2026091400), Reifegrad 200`, `Database structure
+is ok.` — and an activity created through `elang_add_instance`.
+
+
+## [2.0.0-RC1] - 2026-09-06
+
+### Changed — a red load run now means one thing
+`lecturehall` is built to find where the cliff is, and crossing the latency
+threshold is its answer. It failed the run anyway, with the same red as a
+genuine regression — so red meant "the plugin got slower" on some days and "we
+asked for too much on purpose" on others.
+
+Each scenario now carries a role. `smoke` is a **gate**: a modest, repeatable
+load the plugin claims to handle, where a latency breach is evidence against the
+release. `classroom`, `lecturehall` and any custom run are **diagnostic**:
+latency is measured and reported, not gated.
+
+Errors and Moodle exceptions still fail in both roles. Neither is ever "expected
+under this much load" — a dropped connection or an exception body is a defect or
+an infrastructure limit, and the diagnostic label does not make it acceptable.
+The default role is `gate`, so a forgotten setting falls on the strict side.
+
+- The two failure kinds are counted apart. `elang_http_errors` and
+  `elang_exception_responses` look identical in an aggregate rate and mean
+  opposite things: one is capacity, the other is the plugin answering wrongly no
+  matter who asked. The exception rate is gated at `rate==0` — a single one is a
+  finding, not a proportion.
+- JMeter needed its own handling. Its `DurationAssertion` marks a slow sample as
+  *failed*, which put latency straight into the error rate the gate reads.
+  Diagnostic runs move the limit out of reach rather than removing the
+  assertion, so the plan stays one file.
+- `docs/dev/load-testing.md` carries the table: scenario, role, target, learner
+  count, dataset, runtime, threshold, blocking.
+
+Verified with k6 itself rather than by reasoning about the script —
+`k6 inspect -e ROLE=…` reports the latency threshold present under `gate`,
+absent under `diagnostic`, and present when the role is unset.
+
+### Fixed — a completed version 1 migration left the schema broken
+`db/install.xml` declared `elang.options`; decommissioning dropped it. Moodle's
+own `admin/cli/check_database_schema.php` then answered:
+
+    elang
+     * column 'options' is missing
+
+Permanently, on every site that finished the migration — decommissioning is the
+intended end state, not a phase. Confirmed by simulating it against a running
+site rather than by reading the code.
+
+The column exists only to carry version 1's options blob across the upgrade, so
+it is now created by the upgrade step that needs it and declared nowhere else.
+A fresh install never has it; a migrated site has it until decommissioning
+takes it away; both end at the same schema, which is the invariant issue #18
+asks for. The same check now answers "Database structure is ok."
+
+Two consequences followed rather than being anticipated:
+
+- `v1_detector` read `$elang->options` directly. It reads it as `?? null` now,
+  so it no longer depends on a column a fresh install does not have.
+- The version 1 simulator creates the column itself, as the upgrade does — a
+  simulated 1.x site is exactly the world where it exists. Forty-one migration
+  tests failed until it did, which is the fixture describing 1.x correctly
+  rather than a regression.
+
+`tests/schema_convergence_test.php` states the invariant so the next schema
+change cannot quietly undo it: nothing decommissioning drops may be declared in
+`install.xml`, the installed schema must match what Moodle expects, and the
+upgrade must still create the column the migration reads. Verified by
+reintroducing both halves of the fault.
+
+### Fixed — label drift after the cue/subtitle rename
+The Playwright run failed on `studio.spec.ts`, expecting "Exercise content
+editor" — the old text of `editor_heading`. Same cause as the three Behat
+scenarios fixed in the previous round, found four minutes into a CI job rather
+than before it started.
+
+A new check in `tests/lang_strings_test.php` compares every label the browser
+tests assert on against the English strings, in milliseconds. It matches word by
+word, because a label on the page has had its placeholders filled in and is
+often quoted without its final full stop — so neither string contains the other
+literally. Fixture data, CSS selectors, URLs and core buttons are listed
+explicitly rather than pattern-matched away, so the list stays visible instead
+of growing into a hole. Verified by reintroducing the exact CI failure in both
+the Playwright spec and a Behat feature.
+
+### Changed — generate_rule_gaps no longer loads what the autoloader provides
+`require_once` for `authoring_helper.php` and a `MOODLE_INTERNAL` guard, both
+redundant in a `classes/` file: the trait is namespaced `mod_elang\external` and
+resolves by itself. Confirmed against a running site — the class loads, the
+trait is applied, its method is callable.
+
+### Not changed — MOODLE_INTERNAL guard in lib.php
+Reported as missing, and it is; but moodle-cs rejects it here. The sniff answers
+"Unexpected MOODLE_INTERNAL check. No side effects or multiple artifacts
+detected." — this file declares a constant and functions and does nothing at
+file scope, so the guard protects nothing. Core's `mod/quiz/lib.php` does carry
+one, and also has `require_once` calls at file scope, which is what makes it
+necessary there. Adding the guard to match core turned the build red; the reason
+is now a comment in `lib.php` so the next reader does not try again.
+
+### Changed — language pack test hardening
+Three criticisms of the test added in the previous round, all of them fair:
+
+- **Full packs were told apart from regional ones by counting strings** — under
+  four hundred meant regional. That worked by accident of the current contents.
+  A new pack started at three hundred strings would have been classed regional
+  and never checked for completeness. Regional packs are now named
+  (`es_mx`, `pt_br`) and everything else must be complete, so forgetting to
+  register one fails loudly instead of quietly lowering the bar.
+- **Duplicate identifiers went unnoticed.** PHP keeps the last assignment and
+  says nothing, so a duplicate is a translation that sits in the file, is read
+  by every reviewer, and is shown to nobody.
+- **`values()` scraped the file with a regular expression.** A string written in
+  any other valid form was present according to `declared()` and absent
+  according to `values()`, so its placeholder check silently did not run. The
+  language files are now executed in an isolated scope, and a new test asserts
+  that both readings see the same identifiers.
+
+Each verified by breaking it deliberately: a three-hundred-string pack, a
+duplicated id, and a string switched to double quotes. All three fail the suite
+with a message naming the language.
+
+### Documentation
+- `docs/dev/terminology.md` — the binding terms for English and German, why
+  `cue` stays in identifiers while the interface says *subtitle*, and the
+  principles that apply to other languages: one word per concept, no mechanical
+  derivation between related languages, count-neutral phrasing, capabilities
+  rather than role names.
+- README now explains that an installed language pack outranks the strings
+  bundled here, which is why a site can still show "Hör-Garten".
+
+### Changed — fourth terminology review
+- **English now says "subtitle" where a person can see it.** The interface used
+  *cue* and *subtitle* for the same time-coded block; *cue* is the correct WebVTT
+  term but the wrong word for a teacher's authoring screen, and *subtitle* was
+  already dominant. 23 visible strings renamed. `cue` stays in the ten
+  `error_*`/`validate_*`/`verify_*`/`import_*` strings where it names the data
+  object, in every identifier, and in the database. German had already been
+  corrected this way two rounds earlier, so English was the one lagging.
+- **`elang` was leaking into six language packs as a visible activity name.**
+  The review found it in French; a scan across every pack found it in en, es,
+  ar, el and sv as well — including the English source it was translated from.
+  All six now name the activity.
+- German: *Legacy*/*decommission* replaced with Alttabellen/Altdaten aus
+  Version 1 and *entfernen*; *Rahmen* for an embedded provider iframe replaced
+  with "eingebetteter Player des Anbieters", which is what a viewer actually
+  sees; *abschalten* → *deaktivieren* for a configurable setting; and the two
+  privacy descriptions now use the same result vocabulary as the report screen
+  (*exakt, erkannt, falsch, leer*) rather than *zeichengenau* and *Wort erkannt*.
+- Spanish: the help text said *dictado con vídeo* while the activity is called
+  *Dictado en vídeo*.
+
+### Changed — language pack contract tests
+`tests/lang_strings_test.php` compared German against English and nothing else,
+which is how eighteen further packs escaped it. It now splits the packs by size
+rather than by a hand-kept list — so a pack added later is covered without
+anyone remembering to register it — and checks three things:
+
+- every full pack declares exactly the identifiers English does;
+- a regional override pack (es_mx, pt_br) declares nothing English lacks,
+  without being held to completeness, which is the point of those packs;
+- every translated string carries the same placeholders as its English source.
+
+The last one matters most: a translation that drops `{$a->total}` shows a
+learner the literal text, and one that invents a placeholder shows nothing.
+Both are invisible until someone opens that screen in that language. Verified
+by breaking each case deliberately — a removed string, a dropped placeholder, a
+typo'd identifier in a regional pack — and confirming the suite fails with a
+message that names the language and the string. Assertions rose from 1583 to
+12308.
+
+### Fixed — second terminology review
+- **`pt_br` carried three corrupted words.** The differential pack was generated
+  by plain substring replacement, and the rule `guardar → salvar` fired inside
+  `aguardar`, producing the non-word `asalvar` in three migration strings. The
+  pack is now generated with **word-boundary** substitutions, and a check traces
+  every word of the result back to either the pt source or a deliberate
+  replacement — the check that would have caught this. It also picked up the
+  Brazilian media term: `média` → `mídia`, which is feminine, so the agreement
+  changes with it ("Mídia salva", "Salvar a mídia"). 84 strings now, up from 63.
+- **Arabic conflated subtitles with translation.** Both were `ترجمة`, while the
+  plugin has a hint type that genuinely means translation. Media subtitles are
+  now `الترجمة المصاحبة` throughout; only `editor_hinttype_translation` keeps the
+  bare word, which is what it is for.
+- German: the remaining `Hilfe`/`Hinweis` drift, three strings that opened with
+  `„` and closed with `"`, an overlay help text still saying "Auf dem Medium"
+  after the labels had moved to "Im Video", two anglicisms about timing, and the
+  migration workflow mixing *Prüfung*, *freigeben* and *abgenommen* — now one
+  vocabulary.
+- `allowedlanguages_desc` still said "eLang activity" in en, fr, es, sv, el and
+  ar. Every pack now names the product; `es_mx` gained the matching override.
+- English used "Full transcript with answers" for the export but "Solution
+  transcript" elsewhere. One user-facing term now; `solution` stays internal.
+- `docs/dev/deutsche-bezeichnung-sprachpaket.md` contradicted itself: the code
+  example said `Video-Diktaten`, the table beside it `Video-Diktate`.
+
+### Changed — product name and terminology review
+- **The activity is now called "Video dictation"** in English and the local
+  equivalent everywhere else: Video-Diktat, Dictée vidéo, Dictado en vídeo
+  (es_mx: en video), Videodiktamen, Βιντεοϋπαγόρευση, إملاء بالفيديو.
+  "Language exercise" described a much broader kind of activity than this one
+  is, so the same plugin was presenting itself differently in each language.
+- Two claims in the terminology review were checked against the code before
+  anything was rewritten, and both held:
+  - The time fields were labelled `(ms)` while `TimeField.tsx` formats and parses
+    `mm:ss.SSS` through `formatTime`/`parseTime`. Label and input format
+    contradicted each other; the suffix is gone in every pack.
+  - `language_help` described typing a BCP-47 code, but `mod_form.php` renders
+    `addElement('select', 'language', …)`. The help now describes choosing from
+    the list.
+- German author UI no longer mixes *Cue*, *Untertitel* and *Block*: the visible
+  strings say Untertitel, the data structure is an Untertitelblock, and `cue`
+  stays where it belongs — in identifiers, the database and WebVTT documentation.
+- The Jaro help text reused the internal algorithm name (`wordrecognized`,
+  "Wort erkannt") instead of the option label a person actually sees. Every pack
+  now quotes its own visible label verbatim.
+- Role wording no longer names roles a site may not have: "Teachers and tutors
+  only" became "Teaching staff with permission only", because a capability
+  decides this, not a fixed role. German report columns say Teilnehmer/in rather
+  than the bare Person.
+- Pseudo-plurals are gone — `cue(s)`, `Lücke(n)`, `κενό(ά)`, `lucka/luckor` —
+  replaced by count-neutral forms such as `Cues: {$a}`. They read as unfinished
+  in any language and are worse in those with richer inflection.
+- German: "Lösungstranskript" unified to **Musterlösung**, hint wording unified
+  to *Hinweis*, mixed quotation marks (`„…\"`) corrected, and the overlay
+  positions now say "Im Video" rather than the unidiomatic "Auf dem Medium".
+
+Release candidate. `$plugin->maturity` is `MATURITY_RC`.
+
+Includes a full pass through the extended review checklist; the result is
+recorded in `docs/dev/code-review-rc1.md`.
+
+### Added
+- **`release-artefact.yml`**, from the audit's P2-4: no immutable artefact
+  existed, and "the ZIP that was sent on Tuesday" is not something an
+  administrator can verify or a plugin directory can point at. The workflow
+  builds the ZIP from a tag, refuses to publish when the tag and
+  `$plugin->release` disagree, verifies that the committed React bundle still
+  matches its sources, checks that nothing listed in `db/removed_files.txt`
+  survived, rejects an archive containing build leftovers, and attaches the
+  archive with its SHA-256. It does **not** rebuild the artefacts — publishing a
+  freshly built one would ship something no test ever ran against.
+- **A registry contract for the external API**, from the Marketplace audit
+  (issue #13). Every entry in `db/services.php` is now checked against Moodle's
+  own `external_functions` table: the class resolves, the method exists, the
+  declared capability is one `db/access.php` defines, and the registered name
+  matches the declaration. Verified against a deliberately wrong class name,
+  which the gate rejects.
+- A Playwright test drives rule-based gap generation through the real path —
+  editor, `core/ajax`, the service registry, the external function. The existing
+  unit test calls the class directly and would pass even if the registration
+  were broken.
+
+### Notes on the audit's P1 finding
+- **It is a false positive, and the plugin is not affected.** The audit read
+  `'mod_elang\\external\\generate_rule_gaps'` in `db/services.php` as producing
+  doubled namespace separators. In a single-quoted PHP string `\\` is one
+  backslash, so both that spelling and the unescaped one used by the other
+  twelve entries resolve to the same class. Checked against a running site:
+  Moodle registers `mod_elang\external\generate_rule_gaps`, 37 characters with
+  two backslashes, identical in shape to `mod_elang\external\start_attempt`,
+  and `class_exists()` is true. `main` is byte-identical to this tree.
+- The spelling has been made consistent anyway, because it cost an audit a P1
+  finding and would cost the next reader the same time. The contract test the
+  audit asked for is the part that was genuinely missing, and it is now there.
+- The audit's remaining points are mapped, with evidence, in
+  `docs/dev/code-review-rc1.md`. Two were already satisfied, two are now
+  implemented, and one — representative external load evidence — needs
+  infrastructure rather than code; what that infrastructure has to provide is
+  written down.
+
+### Added
+- **Course reset.** `elang_reset_userdata()` and its two form functions did not
+  exist, so a course reset left every attempt in place. A teacher reusing a
+  course for the next cohort would have handed the new group an exercise already
+  holding the previous group's answers — visible in the report, counted in the
+  gradebook, belonging to people no longer in the course. Attempts, responses and
+  grade items are cleared; the exercise itself stays, because versions, cues and
+  gaps are the teaching material and a reset prepares a course rather than
+  emptying it. Off by default: deleting learner work is not something a reset
+  should do because a box arrived pre-ticked. Five tests.
+- **Provider transfer declared in the Privacy API.**
+  `add_external_location_link('videoprovider')` records that opening an exercise
+  built on a YouTube or Vimeo video hands that company the learner's IP address
+  and device details. The plugin sends nothing itself, which is why it was easy
+  to miss, but the activity causes the transfer and a subject access request
+  should say so.
+- `referrerpolicy="strict-origin"` on the provider iframe: the provider learns
+  which site embedded the video, not which course, activity or attempt.
+
+### Fixed
+- The JMeter plan sent no query string at all. JMeter drops configured arguments
+  when the path field holds an absolute URL, and the path has to be absolute
+  because the target arrives as one `base_url` property, the way the k6 plan
+  takes it. Moodle answered HTTP 200 with an `invalidtoken` XML document, every
+  sample failed its assertion, and a run of 500 requests at 21 ms each looked
+  exactly like a dead server. Reproduced locally, then fixed by putting the query
+  in the path; verified at 0% failures.
+- The workflow now prints *why* samples failed — the top failure messages and the
+  URL that was called — instead of only how many. It also fails with a specific
+  message when the called URL carries no parameters at all, because a broken plan
+  and an outage are otherwise indistinguishable from the numbers.
+- The load-test workflows offered a combination that could not pass: `classroom`
+  and `lecturehall` against the self-contained target, which is PHP's built-in
+  server with eight workers on a four-CPU runner. A lecturehall run returned
+  p95 = 29 090 ms with 1327 interrupted iterations — queueing, not processing,
+  and a number about the test server rather than the plugin. Both workflows now
+  refuse the combination up front and point at `mode=external`. A measurement
+  that only describes its own environment is worse than none, because it gets
+  believed.
+- The k6 job title showed `github.event.inputs.vus` regardless of the scenario,
+  so a lecturehall run was labelled "200 VUs" while driving 2000. It shows the
+  scenario now.
+- `moodle-release.yml` never updated the browserslist database at all, so
+  `moodle-plugin-ci grunt` on `main` built `amd/build/player.min.js` against the
+  years-old caniuse-lite in Moodle's own lockfile. Rollup's output depends on
+  that data, so identical sources produced different bytes and the stale-file
+  check reported the committed artefact as out of date although nothing in it
+  had changed. Both jobs now update it in the tree Grunt actually runs in —
+  Moodle's, not the plugin's — and a missing directory fails the step rather
+  than skipping silently.
+- `moodle-ci.yml` used `npx browserslist@latest --update-db`, which works but
+  prints a deprecation notice; `tools/check_amd_builds.sh` had already moved to
+  `npx update-browserslist-db@latest`. The workflow now matches.
+
+### Notes
+- The CI run reviewed for this release was green on every blocking job. The
+  browserslist output in it was the deprecation notice above, not a failure.
+- Playwright 26/26, k6 p95 409.9 ms (limit 800, target 300, 79.3% under target),
+  and the 1.3.5 → 2.0 migration all completed on the same code.
+- Measured during the review, no change warranted: saving a draft costs a
+  constant 4 queries per cue and 0.5 ms per cue at 400 cues.
+- Two findings remain open and cannot be closed from here: the manual screen
+  reader acceptance, and producing all non-blocking runs against a single SHA.
+  Both are recorded in `docs/dev/code-review-rc1.md` as RC-03 and RC-04.
+
 ## [2.0.0-beta.33] - 2026-09-06
 
 ### Fixed
@@ -2497,7 +3554,6 @@ correct.
   the MariaDB/MySQL jobs were red. The restore re-adds the field exactly as
   `db/install.xml` declares it (nullable text, after `jarothreshold`) and is a
   harmless no-op on PostgreSQL.
-
 
 
 Phase 2, seventh and final content increment: custom completion. With this,

@@ -110,6 +110,35 @@ export class ApiClient {
     }
 
     /**
+     * Persist part of the draft, leaving the cues it does not mention alone.
+     *
+     * The wholesale save above reads an absent cue as a deletion, which is
+     * correct when the editor is sending everything. It is wrong when the
+     * editor is deliberately holding a cue back because the author has just
+     * made it contradictory: there, dropping it from the payload would destroy
+     * the last good version instead of protecting it. Here removal has to be
+     * named.
+     *
+     * @param expectedrevision The revision the editor last saw.
+     * @param cues The cues to insert or replace.
+     * @param removedcuekeys Cue keys to delete outright.
+     * @returns The new revision.
+     */
+    async saveDraftCues(
+        expectedrevision: number,
+        cues: Cue[],
+        removedcuekeys: string[] = []
+    ): Promise<number> {
+        const result = await this.transport('mod_elang_save_draft_cues', {
+            versionid: this.versionid,
+            expectedrevision,
+            cues: toSavePayload(cues),
+            removedcuekeys,
+        }) as {revision: number};
+        return result.revision;
+    }
+
+    /**
      * Validate and publish the draft.
      *
      * @returns Resolves once published.

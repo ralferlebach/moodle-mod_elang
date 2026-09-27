@@ -41,6 +41,8 @@ interface Props {
     onAdd: () => void;
     onInsertAt: (index: number) => void;
     onDelete: (index: number) => void;
+    /** Cue keys whose latest edit could not be saved, so the list can say so. */
+    problemkeys?: Set<string>;
 }
 
 /**
@@ -74,7 +76,7 @@ export function cueWarning(cue: Cue, t: Translator): string {
  * @param props The component props.
  * @returns The cue list element.
  */
-export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDelete}: Props): JSX.Element {
+export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDelete, problemkeys}: Props): JSX.Element {
     const [search, setSearch] = useState('');
     const [onlywarnings, setOnlywarnings] = useState(false);
 
@@ -153,6 +155,21 @@ export function CueList({cues, selectedkey, t, onSelect, onAdd, onInsertAt, onDe
                                     <span className="badge badge-light bg-light text-dark mr-1 me-1">
                                         {t('editor_gapcount').replace('{$a}', String(cue.gaps.length))}
                                     </span>
+                                    {problemkeys?.has(cue.cuekey) && (
+                                        /* Distinct from the timing warning beside
+                                           it: that one says the subtitle looks
+                                           wrong, this one says the author's last
+                                           edit did not reach the server. A sign
+                                           and a word, because a coloured edge is
+                                           not a message for everyone. */
+                                        <span
+                                            className="badge badge-danger bg-danger text-white mr-1 me-1"
+                                            data-region="cuenotsaved"
+                                        >
+                                            <span aria-hidden="true">{'\u26A0 '}</span>
+                                            {t('editor_cuenotsaved')}
+                                        </span>
+                                    )}
                                     {warning !== '' && (
                                         // Labelled, not merely coloured: a warning
                                         // that is only a red edge is not a warning

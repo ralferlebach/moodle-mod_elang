@@ -317,6 +317,133 @@ class version_manager {
     }
 
     /**
+     * Save some of a draft's cues without touching the rest.
+     *
+     * The wholesale save cannot express what an editor needs when one cue is
+     * contradictory and its neighbours are fine. Leaving the bad cue out of a
+     * wholesale payload does not protect it — it deletes it, because the
+     * wholesale save reads absence as removal. So absence has to stop meaning
+     * anything, and removal has to be said out loud: a cue key not mentioned at
+     * all keeps whatever the server already holds for it, and only the keys in
+     * $removedcuekeys are deleted.
+     *
+     * That is the whole point of this method. An author who types an end time
+     * before its start time has made one cue unsaveable; the sentence they
+     * fixed in the cue above it should still reach the server, and the last
+     * good version of the broken cue should still be there when they reload.
+     *
+     * Everything the wholesale save guards is guarded here too: the activity
+     * lock, the transaction, the draft-only rule and the revision check. The
+     * revision is bumped once for the whole call, so two editors still collide
+     * cleanly rather than interleaving.
+     *
+     * @param int $versionid The draft version
+     * @param array $cues Shaped cues to insert or replace, keyed by nothing in particular
+     * @param array $removedcuekeys Cue keys to delete outright
+     * @param int $expectedrevision Revision the caller believes it holds, or -1 to skip the check
+     * @return \stdClass The updated version record
+     */
+    public function save_draft_cues(
+        int $versionid,
+        array $cues,
+        array $removedcuekeys = [],
+        int $expectedrevision = -1
+    ): \stdClass {
+        global $DB, $USER;
+
+        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+
+        return $this->with_activity_lock(
+            (int) $version->elangid,
+            function () use ($DB, $USER, $versionid, $cues, $removedcuekeys, $expectedrevision) {
+                return $this->in_transaction(
+                    function () use ($DB, $USER, $versionid, $cues, $removedcuekeys, $expectedrevision) {
+                        $version = $DB->get_record('elang_version', ['id' => $versionid], '*', MUST_EXIST);
+                        if ($version->status !== self::STATUS_DRAFT) {
+                            throw new \moodle_exception('error_versionnotadraft', 'mod_elang');
+                        }
+                        if ($expectedrevision >= 0 && (int) $version->revision !== $expectedrevision) {
+                            throw new \moodle_exception('error_draftrevisionmismatch', 'mod_elang');
+                        }
+
+                        // Checked before anything is removed, for the same
+                        // reason the wholesale save does it: a rejected payload
+                        // must leave the draft as it was.
+                        self::validate_content_shape($cues);
+
+                        $touched = array_map(static fn($cue) => (string) $cue['cuekey'], $cues);
+                        $remove = array_values(array_unique(array_map('strval', $removedcuekeys)));
+
+                        // A key that is both written and removed is a caller
+                        // contradicting itself. Refusing beats guessing which
+                        // half was meant.
+                        $both = array_intersect($touched, $remove);
+                        if (!empty($both)) {
+                            throw new \coding_exception(
+                                'A cue key cannot be saved and removed in the same call: '
+                                    . implode(', ', $both)
+                            );
+                        }
+
+                        // Replaced rather than updated in place: a cue owns its
+                        // gaps, and those own their answers and hints, so
+                        // working out which of them changed would be a second
+                        // implementation of the same thing the insert already
+                        // does correctly.
+                        $this->delete_cues_by_key($versionid, array_merge($touched, $remove));
+                        if (!empty($cues)) {
+                            $this->insert_version_content($versionid, $cues);
+                        }
+
+                        $version->revision = (int) $version->revision + 1;
+                        $version->usermodified = (int) $USER->id;
+                        $DB->update_record('elang_version', $version);
+
+                        return $version;
+                    }
+                );
+            }
+        );
+    }
+
+    /**
+     * Delete the named cues of a version, children first.
+     *
+     * @param int $versionid The version owning the cues
+     * @param array $cuekeys Cue keys to remove; unknown keys are ignored
+     * @return void
+     */
+    private function delete_cues_by_key(int $versionid, array $cuekeys): void {
+        global $DB;
+
+        $cuekeys = array_values(array_unique(array_filter(array_map('strval', $cuekeys), 'strlen')));
+        if (empty($cuekeys)) {
+            return;
+        }
+
+        [$keyin, $keyparams] = $DB->get_in_or_equal($cuekeys);
+        $cueids = $DB->get_fieldset_select(
+            'elang_cue',
+            'id',
+            "versionid = ? AND cuekey $keyin",
+            array_merge([$versionid], $keyparams)
+        );
+        if (empty($cueids)) {
+            return;
+        }
+
+        [$cuein, $cueparams] = $DB->get_in_or_equal($cueids);
+        $gapids = $DB->get_fieldset_select('elang_gap', 'id', "cueid $cuein", $cueparams);
+        if (!empty($gapids)) {
+            [$gapin, $gapparams] = $DB->get_in_or_equal($gapids);
+            $DB->delete_records_select('elang_gapanswer', "gapid $gapin", $gapparams);
+            $DB->delete_records_select('elang_gaphint', "gapid $gapin", $gapparams);
+        }
+        $DB->delete_records_select('elang_gap', "cueid $cuein", $cueparams);
+        $DB->delete_records_select('elang_cue', "id $cuein", $cueparams);
+    }
+
+    /**
      * Delete every cue, gap, accepted answer and hint belonging to a version,
      * children first so no foreign key is ever left dangling. Used when a draft
      * is overwritten; a draft has no attempts, so no learner response can

@@ -50,11 +50,32 @@ jobs:
       maturity: ${{ steps.version.outputs.maturity }}
 
     steps:
+      # Checked before the checkout, because the checkout's own failure is
+      # useless: a short SHA produces "The process '/usr/bin/git' failed with
+      # exit code 1", three times over, with no hint of what was wrong. The
+      # action can resolve a tag, a branch or a full 40-character SHA — not an
+      # abbreviated one, which looks like a ref name to it.
+      - name: Check the ref that was handed in
+        if: ${{ github.event.inputs.ref != '' }}
+        run: |
+          ref="${{ github.event.inputs.ref }}"
+          if [[ "$ref" =~ ^[0-9a-f]{7,39}$ ]]; then
+            echo "'$ref' sieht aus wie ein abgekuerzter Commit-Hash."
+            echo "actions/checkout kann den nicht aufloesen — geben Sie den"
+            echo "vollstaendigen 40-stelligen Hash an, oder den Tagnamen."
+            exit 1
+          fi
+          echo "Ref '$ref' wird verwendet."
+
       - name: Check out the tagged state
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           path: plugin
+          # The whole history, not just the tip. A SHA is only resolvable when
+          # the object is present, and the version-date guard below reads the
+          # commit's own date — neither works in a depth-1 clone.
+          fetch-depth: 0
 
       - name: Refuse to publish a commit the pipeline never passed
         if: ${{ startsWith(github.ref, 'refs/tags/') }}

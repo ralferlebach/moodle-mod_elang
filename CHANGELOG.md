@@ -11,6 +11,22 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — a dispatched run could not check out what it was given
+`actions/checkout` was cloning at depth 1, which resolves tags and branches but
+not commits: given `ffa82ff` it looked for a *ref* by that name, failed three
+times and reported "The process '/usr/bin/git' failed with exit code 1" — which
+says nothing about what was wrong.
+
+Two changes. The clone now fetches the full history, which a SHA needs to be
+resolvable at all and which the version-date guard needs as well, since it reads
+the tagged commit's own date. And the dispatched ref is checked before the
+checkout runs: an abbreviated hash is refused with the reason, because
+`actions/checkout` accepts a tag, a branch or a full forty-character SHA, and an
+abbreviated one looks like a ref name to it.
+
+Checked against a short hash, a tag, a branch and a full SHA.
+
+
 ### Changed — the version number has to carry the release date
 `$plugin->version` had drifted twelve days behind the day it was built, which
 makes it useless for the one thing the number is for: telling two builds apart

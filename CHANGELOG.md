@@ -11,6 +11,25 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Changed — the version number has to carry the release date
+`$plugin->version` had drifted twelve days behind the day it was built, which
+makes it useless for the one thing the number is for: telling two builds apart
+and telling Moodle which is newer.
+
+It is set in the commit, not written while building. Rewriting version.php
+during the release would put a number in the ZIP that no commit contains, and
+three guarantees would fail at once — the archive would no longer equal the
+tagged commit, it would differ from the one every test ran against, and a rerun
+on another day would produce a different archive from the same tag. That is the
+exact-artifact invariant #16 exists to protect.
+
+So the release workflow checks instead of writes: the `YYYYMMDD` prefix of
+`$plugin->version` must match the day the tagged commit was authored, and the
+build stops with the number to use if it does not. A release cut today carries
+today's date; a rerun tomorrow still produces the same archive. Verified against
+both a matching and a stale commit date.
+
+
 ### Fixed — CI never installed the browser it was asked to test with
 Adding Firefox to `playwright.config.ts` was half the change. The workflow
 installed browsers from a hand-written list that still said `chromium`, so all
@@ -76,16 +95,28 @@ would need a list somebody has to maintain.
 Chromium: 66 of 66. Firefox: 65 of 66, with one long-standing flake described
 below.
 
-### Known — one browser test passes alone and fails in the suite
+### Fixed — the long-standing flake was a test writing into another's fixture
 `player.spec.ts › subtitle positions › an overlay puts the cursor in the first
-gap` fails in a full run and passes when run on its own or as its own block,
-after a fresh seed. It behaved this way in Chromium before any of this round's
-changes and now does so in Firefox.
+gap` had failed in full runs and passed alone for several rounds. Two guesses
+had been recorded and neither was right.
 
-Two explanations fit and neither is proven: an earlier test consuming the
-attempt state of the shared activity, or the autofocus exceeding its ten-second
-wait under the load of a long run. It is recorded here rather than quietly
-retried, because a suite that learns to expect one red test stops being a gate.
+The screenshot from the failed CI run settled it: the gap contained the word
+`test`, and the page said "1 of 1 gaps answered". The fullscreen test types
+`test` into the same activity, an attempt outlives the test that started it, and
+the suite runs twice over one seeding — once per browser. So the Firefox pass
+met a gap the Chromium pass had already answered, autofocus correctly did not
+happen because nothing was left to answer, and the test failed for a reason that
+had nothing to do with what it checks.
+
+The reading test now has an activity nothing writes into. Sharing a fixture
+between a test that reads and a test that writes was the bug.
+
+Confirmed both ways: the exact CI sequence — full Chromium run, then full
+Firefox run over the same data — is 66 of 66 in both browsers, and pointing the
+test back at the shared activity reproduces the failure.
+
+Worth keeping: the screenshot answered in a minute what two rounds of reasoning
+about timing had not. The artefacts were there the whole time.
 
 
 ### Documentation — load test results of 15.09.2026 recorded
@@ -406,9 +437,9 @@ start; only the exit step was wrong. Found by running the suite rather than by
 reading it.
 
 
-## [2.0.0] - 2026-09-15
+## [2.0.0] - 2026-09-27
 
-First stable release of the 2.x line. `$plugin->version = 2026091513`,
+First stable release of the 2.x line. `$plugin->version = 2026092700`,
 `MATURITY_STABLE`, supported on Moodle 4.5 LTS through 5.2.
 
 What changed since 2.0.0-RC1 is listed below; the release itself is the same

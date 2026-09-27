@@ -141,6 +141,34 @@ jobs:
             exit 1
           fi
 
+      - name: Check that the version number carries the release date
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          # Checked, not written. Rewriting version.php while building would put
+          # a number in the ZIP that no commit contains, and three things this
+          # workflow exists to guarantee would stop being true at once: the ZIP
+          # would no longer equal the tagged commit, the artefact would differ
+          # from the one every test ran against, and a rebuild on another day
+          # would produce a different archive from the same tag.
+          #
+          # So the date belongs in the commit that gets tagged. What is enforced
+          # here is that it is actually there: the YYYYMMDD prefix of
+          # $plugin->version must match the day the tagged commit was authored.
+          # A release cut today therefore carries today's date, and a re-run
+          # tomorrow still produces the same archive.
+          version="${{ steps.version.outputs.version }}"
+          versiondate="${version:0:8}"
+          commitdate=$(git -C plugin log -1 --format=%cd --date=format:%Y%m%d "${{ github.sha }}")
+
+          if [ "$versiondate" != "$commitdate" ]; then
+            echo "version.php traegt $versiondate, der getaggte Commit stammt vom $commitdate."
+            echo "Setzen Sie \$plugin->version auf ${commitdate}00 und taggen Sie neu —"
+            echo "die Nummer wird hier bewusst nicht ueberschrieben, weil das ZIP"
+            echo "sonst nicht mehr dem getaggten Commit entspraeche."
+            exit 1
+          fi
+          echo "Versionsdatum $versiondate stimmt mit dem getaggten Commit ueberein."
+
       - name: Verify the committed build artefacts match their sources
         run: |
           # Not rebuilt — verified. Publishing a freshly built artefact would

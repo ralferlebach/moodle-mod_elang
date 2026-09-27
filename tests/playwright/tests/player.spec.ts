@@ -98,7 +98,9 @@ test.describe('subtitle positions', () => {
     });
 
     test('an overlay puts the cursor in the first gap', async({page}) => {
-        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYTOP'));
+// Its own activity: this is the only assertion in the suite that needs a
+        // gap still to be unanswered, and other tests type into the shared one.
+        await openExercise(page, requireEnv('ELANG_CMID_OVERLAYFOCUS'));
 
         // The exercise starts where the work is, which is also what makes
         // playback stop at that cue instead of running the sentence off screen.

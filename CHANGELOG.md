@@ -11,6 +11,58 @@ in the historical `ChangeLog` file of the 1.x repository and is not continued he
 
 ## [Unreleased]
 
+### Fixed — the release smoke test died silently on a wrong include
+The step that creates an activity from the freshly installed ZIP required
+`lib/testing/generator/lib.php`, which defines neither `create_course()` nor
+`elang_add_instance()`. It failed with exit 255 and **printed nothing at all** —
+a fatal the log could not show, which is the least useful shape a CI failure can
+take. It now requires `course/lib.php` and the module's own `lib.php`, and runs
+with `display_errors` on so the next fatal says what it was.
+
+Two things found while fixing it, both mine:
+
+- A comment added to that block contained an apostrophe. The block lives inside
+  `php -r '...'`, so a single quote ends the shell string — the fix would have
+  broken the step in a different way. Caught by extracting the step and running
+  it rather than reading it.
+- The workflow input for the ref was `required: true`, so a dispatch had to name
+  the branch twice: once in the form GitHub shows, once in the field. It is
+  optional now and an empty field uses the ref selected above; it stays for the
+  case the form cannot express, building from a commit that is not the tip of
+  anything.
+
+Every `run:` block in every workflow is now checked with `bash -n`, the way
+GitHub executes them. A quoting mistake in a YAML string is invisible to
+actionlint and to review, and shows up as an error message about something else.
+
+### Changed — the dispatch form no longer asks the same question twice
+Starting the release workflow by hand meant choosing a branch or tag in GitHub's
+own form and then typing a ref into a required field, which in the ordinary case
+is the same answer written out again.
+
+The field is optional now: left empty, the branch or tag selected above is used.
+It stays for the case the form cannot express — building from a commit that is
+not the tip of anything, such as a specific revision on a branch that has since
+moved on.
+
+
+### Added — the archive's root directory is now checked, not just produced
+Moodle installs a plugin by its root folder, so the archive must contain exactly
+one, named for the component: `elang`. Anything else is rejected by
+`core\update\validator` with `rootdirinvalid` and the site refuses the package.
+
+`git archive --prefix=elang/` already gets this right, and the built ZIP has
+always had the correct root — so this is a guard, not a fix. It is worth having
+because the failure it catches has a specific and common cause: publishing a
+GitHub branch download, whose root is `moodle-mod_<name>-main`, instead of a
+built release. That exact structure blocked plugin-directory approval of a
+sibling plugin, and until now this workflow would only have noticed three jobs
+later, as a missing file.
+
+Verified against a correct archive, a branch-download archive and one with two
+root directories.
+
+
 ### Fixed — a dispatched run now takes any ref you would naturally type
 `actions/checkout` resolves its `ref` by asking the *server*, and a server
 cannot expand an abbreviation — it has no way to know which of its objects

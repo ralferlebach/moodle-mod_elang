@@ -22,8 +22,17 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Tag or SHA to build the artefact from'
-        required: true
+        # Optional, because the dispatch form already asks which branch or tag
+        # to run from, and that answer is github.ref. Making this required meant
+        # naming the same thing twice.
+        #
+        # It is still here for the case the form cannot express: building from a
+        # commit that is not the tip of anything — a specific revision on a
+        # branch that has moved on. Leave it empty and the branch or tag chosen
+        # above is used.
+        description: 'Optional: a different tag, branch or commit. Empty = the ref selected above.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -294,6 +303,32 @@ jobs:
           fi
           echo "Keine Fremdartefakte im Archiv."
 
+      - name: Refuse to publish an archive with the wrong root directory
+        run: |
+          # Moodle installs a plugin by its root folder, so the archive must
+          # contain exactly one, named for the component: elang, not
+          # mod_elang and not moodle-mod_elang-main. core\update\validator
+          # rejects anything else with 'rootdirinvalid' and the site refuses the
+          # package.
+          #
+          # `git archive --prefix=elang/` above gets this right, which is why
+          # this is a guard and not a fix. It is here because the failure it
+          # catches is the signature of publishing a GitHub branch download
+          # instead of a built release — the same mistake blocked approval of a
+          # sibling plugin — and because a named check is worth more than a
+          # missing-file error three jobs later.
+          roots=$(unzip -Z1 "${{ steps.zip.outputs.name }}" \
+            | cut -d/ -f1 | sort -u)
+          count=$(echo "$roots" | wc -l)
+
+          if [ "$count" != "1" ] || [ "$roots" != "elang" ]; then
+            echo "Das Archiv muss genau ein Wurzelverzeichnis 'elang' haben."
+            echo "Gefunden:"
+            echo "$roots" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "Wurzelverzeichnis: elang"
+
       - name: Refuse to publish without the files a site needs at runtime
         run: |
           # The leftover guard says what must not be there. This says what must.
@@ -456,10 +491,24 @@ jobs:
         run: |
           # Installing is not the same as working. A site that accepts the ZIP
           # and then cannot create the activity has still failed the release.
-          php -r '
+          #
+          # display_errors is on because the previous version of this step died
+          # with exit 255 and printed nothing at all — a fatal error the log
+          # could not show, which is the least useful shape a CI failure can
+          # take. A wrong include cost a run to diagnose; it should have said so
+          # in the first line.
+          php -d display_errors=1 -d error_reporting=-1 -r '
             define("CLI_SCRIPT", true);
             require "moodle/config.php";
-            require_once($CFG->dirroot . "/lib/testing/generator/lib.php");
+            // course/lib.php defines create_course(); the module lib.php
+            // defines elang_add_instance(). The testing generator was required
+            // here instead, which defines neither, so the step died with a
+            // fatal and exit 255 and PHP printed nothing a reader could use.
+            //
+            // No apostrophes in this block: it lives inside php -r, and a
+            // single quote would end the shell string.
+            require_once($CFG->dirroot . "/course/lib.php");
+            require_once($CFG->dirroot . "/mod/elang/lib.php");
             $course = (object) [
                 "fullname" => "Release smoke", "shortname" => "smoke",
                 "category" => 1, "summary" => "", "summaryformat" => FORMAT_HTML,
